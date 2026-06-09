@@ -1,0 +1,223 @@
+{
+  "race": {
+    "name": "Abu Dhabi Marine Hard",
+    "format": "ai_grand_challenge",
+    "laps": 2,
+    "expected_gates_per_lap": 11,
+    "timing_mode": "first_gate_to_last_gate",
+    "max_duration_s": 900,
+    "official_mode": false
+  },
+  "world": {
+    "package": "Ocean",
+    "map": "OpenWater-Hovering",
+    "arena_origin": [0.0, 0.0, 0.0],
+    "preferred_environment": "OpenWater-Hovering",
+    "fallback_environment": "PierHarbor-Hovering",
+    "bounds": {
+      "x_min": -26.0,
+      "x_max": 14.0,
+      "y_min": -14.0,
+      "y_max": 18.0,
+      "z_min": -8.0,
+      "z_max": -1.0
+    }
+  },
+  "track": {
+    "declared_length_m": 70.0,
+    "length_tolerance_m": 4.0,
+    "gate_inner_size_m": [1.5, 1.5],
+    "gate_bar_thickness_m": 0.18,
+    "gate_depth_m": 0.22,
+    "gate_sequence": ["G01", "G02", "G03", "G04", "G05", "G06", "G07", "G08", "G09", "G10", "G11"]
+  },
+  "start": {
+    "position": [-16.0, -2.0, -4.0],
+    "rotation_rpy_deg": [0.0, 0.0, 0.0]
+  },
+  "finish": {
+    "gate_id": "G11"
+  },
+  "beacon": {
+    "enabled": true,
+    "mode": "active_when_target",
+    "position_offset": [0.0, 0.0, 0.35],
+    "range_m": 70.0,
+    "noise_std": 1.25,
+    "dropout_probability": 0.08,
+    "update_rate_hz": 8.0,
+    "message": {
+      "track": "hard",
+      "channel_plan": "target_only_noisy"
+    }
+  },
+  "gates": [
+    {
+      "id": "G01",
+      "type": "single",
+      "position": [-12.0, -2.0, -4.0],
+      "rotation_rpy_deg": [0.0, 0.0, 0.0],
+      "color": "#00ff88",
+      "passage_direction": [1.0, 0.0, 0.0]
+    },
+    {
+      "id": "G02",
+      "type": "double",
+      "position": [-4.0, -2.0, -4.1],
+      "rotation_rpy_deg": [0.0, 0.0, 20.6],
+      "color": "#38bdf8",
+      "passage_direction": [0.936, 0.351, 0.0],
+      "linked_gate": "G03"
+    },
+    {
+      "id": "G03",
+      "type": "double",
+      "position": [4.0, 1.0, -4.2],
+      "rotation_rpy_deg": [0.0, 0.0, 20.6],
+      "color": "#38bdf8",
+      "passage_direction": [0.936, 0.351, 0.0],
+      "linked_gate": "G02"
+    },
+    {
+      "id": "G04",
+      "type": "single",
+      "position": [10.0, 7.0, -4.4],
+      "rotation_rpy_deg": [0.0, 0.0, 45.0],
+      "color": "#facc15",
+      "passage_direction": [0.7071, 0.7071, 0.0]
+    },
+    {
+      "id": "G05",
+      "type": "double",
+      "position": [5.0, 13.0, -4.8],
+      "rotation_rpy_deg": [0.0, 0.0, 174.3],
+      "color": "#f97316",
+      "passage_direction": [-1.0, 0.1, 0.0],
+      "linked_gate": "G06"
+    },
+    {
+      "id": "G06",
+      "type": "double",
+      "position": [0.0, 13.5, -4.9],
+      "rotation_rpy_deg": [0.0, 0.0, 174.3],
+      "color": "#f97316",
+      "passage_direction": [-1.0, 0.1, 0.0],
+      "linked_gate": "G05"
+    },
+    {
+      "id": "G07",
+      "type": "split_s_upper",
+      "position": [-8.0, 10.0, -3.8],
+      "rotation_rpy_deg": [0.0, -7.2, -156.4],
+      "color": "#a78bfa",
+      "passage_direction": [-0.916, -0.401, 0.126],
+      "linked_gate": "G08"
+    },
+    {
+      "id": "G08",
+      "type": "split_s_lower",
+      "position": [-10.0, 5.0, -5.7],
+      "rotation_rpy_deg": [0.0, 19.3, -111.8],
+      "color": "#e879f9",
+      "passage_direction": [-0.348, -0.870, -0.331],
+      "linked_gate": "G07"
+    },
+    {
+      "id": "G09",
+      "type": "vertical_double",
+      "position": [-16.0, 0.0, -4.2],
+      "rotation_rpy_deg": [0.0, -10.8, -140.2],
+      "color": "#22d3ee",
+      "passage_direction": [-0.750, -0.625, 0.187],
+      "linked_gate": "G10"
+    },
+    {
+      "id": "G10",
+      "type": "vertical_double",
+      "position": [-18.0, -2.0, -5.7],
+      "rotation_rpy_deg": [0.0, -10.8, -140.2],
+      "color": "#22d3ee",
+      "passage_direction": [-0.750, -0.625, 0.187],
+      "linked_gate": "G09"
+    },
+    {
+      "id": "G11",
+      "type": "single",
+      "position": [-18.0, -2.0, -4.3],
+      "rotation_rpy_deg": [0.0, -90.0, 0.0],
+      "color": "#22c55e",
+      "passage_direction": [0.0, 0.0, 1.0]
+    }
+  ],
+  "currents": [
+    {
+      "type": "constant",
+      "velocity": [0.01, 0.16, 0.0]
+    },
+    {
+      "type": "localized_jet",
+      "center": [-8.0, 10.0, -4.5],
+      "radius": 4.5,
+      "velocity": [0.32, -0.16, -0.03],
+      "falloff": "gaussian"
+    },
+    {
+      "type": "localized_jet",
+      "center": [-16.0, 0.0, -5.0],
+      "radius": 4.0,
+      "velocity": [0.0, -0.28, 0.04],
+      "falloff": "linear"
+    },
+    {
+      "type": "sinusoidal",
+      "axis": "z",
+      "amplitude": 0.08,
+      "frequency": 0.06,
+      "phase": 0.0,
+      "base_velocity": [0.0, 0.0, 0.0]
+    },
+    {
+      "type": "vortex",
+      "center": [-10.0, 5.0, -5.0],
+      "radius": 3.0,
+      "strength": 0.15
+    }
+  ],
+  "obstacles": [],
+  "participants": [
+    {
+      "id": "bluerov2_01",
+      "vehicle": "BlueROV2",
+      "controller": "acoustic",
+      "controller_class": null,
+      "spawn": {
+        "position": [-16.0, -2.0, -4.0],
+        "rotation_rpy_deg": [0.0, 0.0, 0.0]
+      },
+      "sensors": {
+        "profile": "official_acoustic_noisy"
+      },
+      "control_mode": "high_level",
+      "official_sensor_profile": true
+    }
+  ],
+  "referee": {
+    "gate_validation": {
+      "vehicle_model": "center_point",
+      "stuck_timeout_s": 40.0,
+      "stuck_speed_threshold_m_s": 0.02
+    },
+    "penalties": {
+      "minor_collision_s": 5.0,
+      "gate_collision_s": 10.0,
+      "wrong_direction_s": 20.0,
+      "missed_gate_dnf": true,
+      "severe_collision_dnf": true,
+      "wrong_direction_dsq": false
+    },
+    "scoring": {
+      "rank_finished_by": "penalized_time",
+      "rank_unfinished_by": "completed_gates"
+    }
+  }
+}

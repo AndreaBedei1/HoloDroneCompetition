@@ -1,0 +1,12 @@
+"""Built-in marine race controllers."""
+
+from marine_race_arena.controllers.acoustic_gate_follower import AcousticGateFollowerController
+from marine_race_arena.controllers.oracle_gate_follower import OracleGateFollowerController
+from marine_race_arena.controllers.student_template import StudentController
+
+__all__ = [
+    "AcousticGateFollowerController",
+    "OracleGateFollowerController",
+    "StudentController",
+]
+
