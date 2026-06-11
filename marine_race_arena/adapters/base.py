@@ -35,6 +35,7 @@ class BaseRaceAdapter(abc.ABC):
     """Hide simulator-specific details from the race runner."""
 
     name = "base"
+    thruster_limit = 1.0
 
     def __init__(
         self,
@@ -124,7 +125,7 @@ class BaseRaceAdapter(abc.ABC):
         values = command.get("thrusters", [])
         if not isinstance(values, list):
             values = []
-        clamped = [_clamp(_float(value), -1.0, 1.0) for value in values[:8]]
+        clamped = [_clamp(_float(value), -self.thruster_limit, self.thruster_limit) for value in values[:8]]
         while len(clamped) < 8:
             clamped.append(0.0)
         return clamped
@@ -150,18 +151,21 @@ class BaseRaceAdapter(abc.ABC):
         heave = safe["heave"]
         yaw = safe["yaw"]
         vertical = [
-            heave - 0.20 * yaw,
-            heave + 0.20 * yaw,
-            heave - 0.20 * yaw,
-            heave + 0.20 * yaw,
+            heave,
+            heave,
+            heave,
+            heave,
         ]
         horizontal = [
-            surge - sway - 0.35 * yaw,
-            surge + sway + 0.35 * yaw,
             surge + sway - 0.35 * yaw,
             surge - sway + 0.35 * yaw,
+            surge + sway + 0.35 * yaw,
+            surge - sway - 0.35 * yaw,
         ]
-        return [_clamp(value, -1.0, 1.0) for value in vertical + horizontal]
+        return [
+            _clamp(value * self.thruster_limit, -self.thruster_limit, self.thruster_limit)
+            for value in vertical + horizontal
+        ]
 
     def filter_sensor_data(
         self,
@@ -242,4 +246,3 @@ def _float(value: Any) -> float:
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
-

@@ -20,6 +20,7 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
     """Adapter that connects the race loop to a HoloOcean BlueROV2 simulation."""
 
     name = "holoocean"
+    thruster_limit = 12.0
 
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
@@ -32,7 +33,8 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         self._last_actions: Dict[str, list[float]] = {}
         self._time_s = 0.0
         self._active_environment_name: Optional[str] = None
-        self._warned_current_coupling = False
+        self.physical_current_coupling_active = False
+        self.current_coupling_method = "not_checked"
 
     def initialize(self) -> None:
         try:
@@ -65,6 +67,17 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         }
         self.env = self._make_environment()
         self.visual_spawner = HoloOceanVisualSpawner(self.env)
+        self.physical_current_coupling_active = callable(getattr(self.env, "set_ocean_currents", None))
+        self.current_coupling_method = (
+            "env.set_ocean_currents(agent_name, velocity)"
+            if self.physical_current_coupling_active
+            else "unavailable: environment has no set_ocean_currents method"
+        )
+        if not self.physical_current_coupling_active:
+            LOGGER.warning(
+                "This HoloOcean environment does not expose set_ocean_currents; configured currents "
+                "will be exposed in observations/logs only."
+            )
         self.reset()
 
     def spawn_visual_gates(self, visual_gates: Iterable[VisualGate]) -> None:
@@ -87,7 +100,8 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         raw_sensors.setdefault("heading_yaw_deg", state.rotation_rpy_deg[2])
         raw_sensors.setdefault("depth_m", -state.position[2])
         raw_sensors["environment_current_m_s"] = current_velocity
-        raw_sensors["current_physical_coupling_active"] = False
+        raw_sensors["current_physical_coupling_active"] = self.physical_current_coupling_active
+        raw_sensors["current_coupling_method"] = self.current_coupling_method
         participant = self._participants[participant_id]
         raw_sensors["control_mode"] = participant.config.control_mode
         return self.filter_sensor_data(
@@ -101,12 +115,6 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             raise RaceAdapterError("HoloOcean environment is not initialized.")
         action = self.command_to_bluerov2_thrusters(participant_id, command, control_mode)
         self._last_actions[participant_id] = action
-        if not self._warned_current_coupling:
-            LOGGER.warning(
-                "No supported HoloOcean current-force API was found; configured currents are exposed "
-                "to observations/logs but are not physically coupled in the HoloOcean adapter."
-            )
-            self._warned_current_coupling = True
         self._act(participant_id, action)
 
     def get_collision_state(self, participant_id: str) -> bool:
@@ -129,9 +137,11 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
     def step(self, dt: float) -> None:
         if self.env is None:
             raise RaceAdapterError("HoloOcean environment is not initialized.")
+        self._apply_environment_currents()
         tick = getattr(self.env, "tick", None)
         if callable(tick):
-            state = tick()
+            ticks = max(1, int(round(dt * float(self.config.raw.get("ticks_per_sec", 30)))))
+            state = tick(num_ticks=ticks)
         else:
             if not self._last_actions:
                 raise RaceAdapterError("HoloOcean environment exposes neither tick() nor queued actions.")
@@ -160,26 +170,19 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             scenario = self._build_scenario(environment_name)
             try:
                 LOGGER.info("Trying HoloOcean scenario config for %s.", environment_name)
-                env = self._holoocean.make(scenario_cfg=scenario)
+                env = self._holoocean.make(
+                    scenario_cfg=scenario,
+                    show_viewport=not self.headless,
+                    ticks_per_sec=scenario.get("ticks_per_sec", 30),
+                    frames_per_sec=scenario.get("frames_per_sec", True),
+                )
                 self._active_environment_name = environment_name
                 LOGGER.info("Initialized HoloOcean environment %s.", environment_name)
                 return env
             except Exception as exc:
                 failures.append(f"{environment_name} scenario_cfg failed: {type(exc).__name__}: {exc}")
-            try:
-                LOGGER.info("Trying prebuilt HoloOcean scenario %s.", environment_name)
-                env = self._holoocean.make(environment_name)
-                self._active_environment_name = environment_name
-                LOGGER.warning(
-                    "Using prebuilt HoloOcean scenario %s. Participant start pose and BlueROV2 "
-                    "configuration may depend on the installed package scenario.",
-                    environment_name,
-                )
-                return env
-            except Exception as exc:
-                failures.append(f"{environment_name} prebuilt failed: {type(exc).__name__}: {exc}")
         raise RaceAdapterUnavailable(
-            "Could not initialize any configured HoloOcean environment. "
+            "Could not initialize a custom BlueROV2 HoloOcean scenario for any configured environment. "
             + " | ".join(failures)
         )
 
@@ -202,6 +205,12 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             "name": f"{self.config.race.name} Runtime",
             "world": _world_from_environment(environment_name),
             "package_name": self.config.world.package or "Ocean",
+            "main_agent": next(iter(self._participants.keys()), "bluerov2_01"),
+            "ticks_per_sec": 30,
+            "frames_per_sec": True,
+            "window_width": 1280,
+            "window_height": 720,
+            "current": {"vehicle_debugging": False},
             "agents": [
                 self._build_agent_config(participant, index == 0)
                 for index, participant in enumerate(self._participants.values())
@@ -216,7 +225,6 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             "rotation": list(participant.rotation_rpy_deg),
             "control_scheme": 0,
             "sensors": self._build_sensor_configs(participant),
-            "is_main_agent": is_main_agent,
         }
 
     def _build_sensor_configs(self, participant: RaceParticipant) -> list[Dict[str, Any]]:
@@ -225,30 +233,42 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             sensors = [dict(sensor) for sensor in configured["holoocean_sensors"] if isinstance(sensor, Mapping)]
         else:
             sensors = [
-                {"sensor_name": "DepthSensor", "sensor_type": "DepthSensor", "socket": "DepthSocket", "Hz": 20},
-                {"sensor_name": "IMUSensor", "sensor_type": "IMUSensor", "socket": "IMUSocket", "Hz": 20},
-                {"sensor_name": "DVLSensor", "sensor_type": "DVLSensor", "socket": "DVLSocket", "Hz": 10},
+                {"sensor_type": "DepthSensor", "socket": "DepthSocket", "Hz": 30, "configuration": {"Sigma": 0.0}},
+                {"sensor_type": "IMUSensor", "socket": "IMUSocket", "Hz": 30, "configuration": {"ReturnBias": True}},
+                {
+                    "sensor_type": "DVLSensor",
+                    "socket": "DVLSocket",
+                    "Hz": 15,
+                    "configuration": {"Elevation": 22.5, "ReturnRange": True, "MaxRange": 50},
+                },
             ]
-        internal_sensor_names = {sensor.get("sensor_name") for sensor in sensors}
-        if "PoseSensor" not in internal_sensor_names:
-            sensors.append({"sensor_name": "PoseSensor", "sensor_type": "PoseSensor", "Hz": 20})
-        if "VelocitySensor" not in internal_sensor_names:
-            sensors.append({"sensor_name": "VelocitySensor", "sensor_type": "VelocitySensor", "Hz": 20})
+        sensor_types = {sensor.get("sensor_type") for sensor in sensors}
+        if "PoseSensor" not in sensor_types:
+            sensors.append({"sensor_type": "PoseSensor", "socket": "IMUSocket", "Hz": 30})
+        if "VelocitySensor" not in sensor_types:
+            sensors.append({"sensor_type": "VelocitySensor", "socket": "IMUSocket", "Hz": 30})
+        if "CollisionSensor" not in sensor_types:
+            sensors.append({"sensor_type": "CollisionSensor", "Hz": 30})
         return sensors
 
     def _act(self, participant_id: str, action: list[float]) -> None:
         act = getattr(self.env, "act", None)
         if callable(act):
-            try:
-                act(action, participant_id)
-                return
-            except TypeError:
-                act(participant_id, action)
-                return
+            act(participant_id, action)
+            return
         step = getattr(self.env, "step", None)
         if callable(step) and len(self._participants) == 1:
             return
-        raise RaceAdapterError("HoloOcean environment does not expose act(command, agent).")
+        raise RaceAdapterError("HoloOcean environment does not expose act(agent_name, action).")
+
+    def _apply_environment_currents(self) -> None:
+        if self.env is None or not self.physical_current_coupling_active:
+            return
+        set_currents = getattr(self.env, "set_ocean_currents")
+        for participant_id in self._participants:
+            state = self.get_participant_state(participant_id)
+            current_velocity = self.arena.current_manager.get_current_at(state.position, self._time_s)
+            set_currents(participant_id, list(current_velocity))
 
     def _refresh_states_from_raw(self) -> None:
         for participant_id, participant in self._participants.items():

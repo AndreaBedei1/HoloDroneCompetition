@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
-from marine_race_arena.adapters import AdapterSelectionError, FallbackRaceAdapter, select_adapter
+from marine_race_arena.adapters import AdapterSelectionError, FallbackRaceAdapter, RaceAdapterUnavailable, select_adapter
 from marine_race_arena.arena.arena_builder import ArenaBuilder
 from marine_race_arena.config.loader import load_track_config
 from marine_race_arena.participants.participant import RaceParticipant
@@ -27,28 +28,40 @@ def _config_arena_participant():
 
 def test_auto_adapter_does_not_silently_fallback_without_permission() -> None:
     config, arena, _ = _config_arena_participant()
-    try:
-        select_adapter("auto", config, arena, allow_fallback=False)
-    except AdapterSelectionError as exc:
-        assert "fallback is not allowed" in str(exc)
-    else:  # pragma: no cover - only possible on a machine with HoloOcean installed
-        assert True
+    with patch(
+        "marine_race_arena.adapters.HoloOceanRaceAdapter.initialize",
+        side_effect=RaceAdapterUnavailable("forced unavailable"),
+    ):
+        try:
+            select_adapter("auto", config, arena, allow_fallback=False)
+        except AdapterSelectionError as exc:
+            assert "fallback is not allowed" in str(exc)
+        else:
+            raise AssertionError("auto adapter silently fell back without permission")
 
 
 def test_official_auto_adapter_does_not_fallback_without_permission() -> None:
     config, arena, _ = _config_arena_participant()
     config = replace(config, race=replace(config.race, official_mode=True))
-    try:
-        select_adapter("auto", config, arena, allow_fallback=False)
-    except AdapterSelectionError as exc:
-        assert "fallback is not allowed" in str(exc)
-    else:  # pragma: no cover - only possible on a machine with HoloOcean installed
-        assert True
+    with patch(
+        "marine_race_arena.adapters.HoloOceanRaceAdapter.initialize",
+        side_effect=RaceAdapterUnavailable("forced unavailable"),
+    ):
+        try:
+            select_adapter("auto", config, arena, allow_fallback=False)
+        except AdapterSelectionError as exc:
+            assert "fallback is not allowed" in str(exc)
+        else:
+            raise AssertionError("official auto adapter silently fell back without permission")
 
 
 def test_auto_adapter_can_fallback_when_allowed() -> None:
     config, arena, _ = _config_arena_participant()
-    adapter = select_adapter("auto", config, arena, allow_fallback=True)
+    with patch(
+        "marine_race_arena.adapters.HoloOceanRaceAdapter.initialize",
+        side_effect=RaceAdapterUnavailable("forced unavailable"),
+    ):
+        adapter = select_adapter("auto", config, arena, allow_fallback=True)
     assert isinstance(adapter, FallbackRaceAdapter)
 
 

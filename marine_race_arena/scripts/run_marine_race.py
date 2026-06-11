@@ -189,8 +189,8 @@ def _prepare_adapter(
     )
     try:
         adapter.spawn_participants(participants)
-        adapter.spawn_visual_gates(arena.visual_gates)
         adapter.reset()
+        adapter.spawn_visual_gates(arena.visual_gates)
         return adapter
     except RaceAdapterUnavailable as exc:
         adapter.close()
@@ -209,8 +209,8 @@ def _prepare_adapter(
             )
             fallback.initialize()
             fallback.spawn_participants(participants)
-            fallback.spawn_visual_gates(arena.visual_gates)
             fallback.reset()
+            fallback.spawn_visual_gates(arena.visual_gates)
             return fallback
         raise AdapterSelectionError(
             "HoloOcean adapter failed during environment setup and fallback is not allowed. "
