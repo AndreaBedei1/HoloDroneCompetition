@@ -22,6 +22,7 @@ The marine version supports single gates, double gates, vertical double gates, a
 marine_race_arena/
   config/          JSON schema dataclasses, loader, validation
   arena/           bounds, gates, gate factory, beacons, currents, obstacles
+  adapters/        fallback and HoloOcean simulator adapters
   participants/    participant state, controller interface, controller loader
   controllers/     student template, acoustic baseline, debug oracle
   referee/         gate validation, race state, scoring, logger, referee
@@ -128,7 +129,7 @@ The current manager supports:
 - `sinusoidal`: oscillating velocity component.
 - `vortex`: placeholder that validates and logs but evaluates as zero until a physical adapter is added.
 
-In the included fallback runner, currents are applied to the simple point-vehicle kinematics and exposed in logs/observations. In a real HoloOcean integration, physical current-force coupling requires a repository-specific adapter. The code logs a warning instead of pretending currents are physically applied when no adapter exists.
+In the fallback adapter, currents are applied to the simple point-vehicle kinematics and exposed in logs/observations. In the HoloOcean adapter, configured currents are currently exposed in observations/logs only; no supported HoloOcean current-force API was available in this repository, so the adapter logs a warning and does not claim physical current coupling.
 
 ## Validate Tracks
 
@@ -143,22 +144,97 @@ Validation checks required fields, unique gate ids, sequence references, finish 
 
 ## Run Races
 
-The runner builds the arena, loads controllers, starts the referee/logger, and runs the available simulator adapter. In this standalone package context no HoloOcean object-spawn/control adapter is available, so it runs a fallback point-vehicle simulation and logs that limitation.
+The runner builds the arena, loads controllers, starts the referee/logger, and runs the selected simulator adapter.
 
 ```bash
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --duration 300
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller acoustic --duration 600
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_hard.json --official --duration 900
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter fallback --duration 300
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller acoustic --adapter fallback --duration 600
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_hard.json --official --adapter fallback --duration 900
 ```
 
 Useful flags:
 
+- `--adapter auto`: try HoloOcean first. If it fails, fallback is used only when `--allow-fallback` is also set.
+- `--adapter fallback`: run the deterministic point-vehicle adapter.
+- `--adapter holoocean`: require the HoloOcean adapter.
+- `--allow-fallback`: explicitly allow fallback kinematics after HoloOcean initialization failure.
 - `--official`: force official mode and block oracle ground truth.
-- `--headless`: reserved for a future HoloOcean adapter.
-- `--record`: reserved for a future HoloOcean adapter.
+- `--headless`: request headless HoloOcean mode when supported.
+- `--record`: request HoloOcean recording when supported.
 - `--participant-controller`: external `module:Class`, fully qualified `module.Class`, or file path.
 - `--log-dir`: output directory for JSONL events and summary JSON.
 - `--seed`: deterministic beacon noise/dropout seed.
+
+## HoloOcean Adapter
+
+Two simulator adapters are available:
+
+- `fallback`: simple point-vehicle kinematics, no Unreal/HoloOcean process, metadata-only gate visuals, and currents applied as direct velocity disturbance.
+- `holoocean`: attempts to create a HoloOcean BlueROV2 scenario, queue BlueROV2 thruster commands, read simulator state for the referee/debug path, and expose filtered sensor data to controllers.
+
+Run the easy track in fallback first:
+
+```bash
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter fallback --duration 300
+```
+
+Then try HoloOcean:
+
+```bash
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter holoocean --duration 300
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller acoustic --adapter holoocean --duration 600
+```
+
+Auto mode is strict by default. It does not silently fall back if HoloOcean is missing or misconfigured:
+
+```bash
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter auto --allow-fallback --duration 300
+```
+
+The HoloOcean adapter imports `holoocean` only inside the adapter. It builds a custom scenario dictionary with configured participants, prefers the configured map such as `OpenWater-Hovering`, and then tries the configured fallback such as `PierHarbor-Hovering`. If custom scenario creation fails, it also tries the prebuilt scenario name and logs that the installed package scenario may control the actual agent/start setup.
+
+Command mapping:
+
+- `thrusters` mode sends an 8-value clamped BlueROV2 thruster list for HoloOcean control scheme `0`.
+- `high_level` mode maps `surge`, `sway`, `heave`, and `yaw` to a conservative 8-thruster baseline.
+- Commands are clamped to safe ranges, and heave is limited near configured `z_min` and `z_max` to avoid pushing the simulator into unstable extremes.
+
+Sensor separation:
+
+- Official/student observations include configured non-ground-truth sensors, beacon observations, time, participant id, and race progress.
+- The adapter filters out `PoseSensor`, `LocationSensor`, `RotationSensor`, `DynamicsSensor`, and explicit ground-truth fields in official mode.
+- The referee still uses ground-truth pose internally for gate validation and out-of-bounds checks.
+- The oracle controller receives ground truth only when not in official mode.
+
+Gate visuals:
+
+- The adapter attempts runtime spawning through environment methods such as `spawn_gate_bars`, `spawn_box`, `spawn_object`, or `add_object` if present.
+- If those methods are unavailable, gate bars remain metadata and can be exported by `HoloOceanVisualSpawner` for manual Unreal placement.
+- The referee always uses abstract gate geometry, regardless of visual spawning status.
+
+Currents:
+
+- No supported HoloOcean current-force coupling API was found in this repository.
+- The HoloOcean adapter exposes configured current vectors in observations/logs and warns that physical coupling is inactive.
+- The fallback adapter physically applies currents to its simple kinematic point vehicle.
+
+Depth safety:
+
+- `z_min` and `z_max` are enforced by the referee using adapter ground truth.
+- A vehicle below `z_min` or above `z_max` is marked out-of-bounds/DNF.
+- Official controllers do not receive this bounds check as privileged navigation ground truth.
+
+Troubleshooting HoloOcean environments:
+
+- Verify that the `holoocean` Python package imports in the same Python environment used to run the script.
+- Verify that the Ocean package containing `OpenWater-Hovering` or `PierHarbor-Hovering` is installed.
+- To check basic availability, run:
+
+```bash
+python -c "import holoocean; print(holoocean); env = holoocean.make('PierHarbor-Hovering'); print(env); env.close()"
+```
+
+- If `OpenWater-Hovering` is unavailable, set `world.map` or `world.fallback_environment` to an installed scenario and revalidate the track.
 
 ## Track Examples
 
@@ -230,11 +306,11 @@ The runner writes JSONL race events and a final summary JSON under `results/mari
 
 ## Known Limitations
 
-- Full HoloOcean/Unreal object spawning is adapter-ready but not implemented in this standalone workspace.
-- Visual gates are represented as four debug bar metadata objects unless a spawner exposes `spawn_gate_bars` or `spawn_box`.
+- HoloOcean could not be executed in this workspace because the `holoocean` package is not installed here.
+- Full HoloOcean/Unreal object spawning depends on runtime methods exposed by the installed environment.
+- Visual gates are represented as four debug bar metadata objects unless a spawner exposes `spawn_gate_bars`, `spawn_box`, `spawn_object`, or `add_object`.
 - The referee validates the vehicle center point only; full-body gate validation is reserved for a future extension.
 - The fallback runner is a simple point-vehicle feasibility tool, not a BlueROV2 physics model.
-- HoloOcean physical current coupling needs a repository-specific adapter.
+- HoloOcean physical current coupling is not active until a supported current-force API is identified.
 - Vortex current is a clean placeholder.
 - Obstacles are preserved in config but require a physical spawning adapter.
-

@@ -1,4 +1,4 @@
-"""Run a marine race with the available simulator adapter or fallback kinematics."""
+"""Run a marine race through a simulator adapter."""
 
 from __future__ import annotations
 
@@ -6,18 +6,25 @@ import argparse
 import copy
 import json
 import logging
-import math
 import sys
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Mapping
 
 if __package__ is None or __package__ == "":
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from marine_race_arena.adapters import (
+    AdapterSelectionError,
+    FallbackRaceAdapter,
+    RaceAdapterError,
+    RaceAdapterUnavailable,
+    select_adapter,
+)
+from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter
 from marine_race_arena.arena.arena_builder import Arena, ArenaBuilder
 from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
-from marine_race_arena.config.schema import RaceConfig, TrackConfig, Vector3
+from marine_race_arena.config.schema import TrackConfig, Vector3
 from marine_race_arena.participants.controller_loader import ControllerError, ControllerLoader
 from marine_race_arena.participants.participant import RaceParticipant
 from marine_race_arena.participants.sensor_profile import build_observation
@@ -41,13 +48,24 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="External controller module/class, module:Class, or file path. Overrides --controller.",
     )
+    parser.add_argument(
+        "--adapter",
+        choices=("auto", "fallback", "holoocean"),
+        default="auto",
+        help="Simulator adapter. auto tries HoloOcean and only falls back when --allow-fallback is set.",
+    )
+    parser.add_argument(
+        "--allow-fallback",
+        action="store_true",
+        help="Allow fallback kinematics when the HoloOcean adapter cannot initialize.",
+    )
     parser.add_argument("--duration", type=float, default=None, help="Maximum race duration in seconds.")
     parser.add_argument("--official", action="store_true", help="Force official sensor/timing mode.")
-    parser.add_argument("--headless", action="store_true", help="Reserved for HoloOcean adapter use.")
-    parser.add_argument("--record", action="store_true", help="Reserved for HoloOcean recording adapter use.")
+    parser.add_argument("--headless", action="store_true", help="Request headless HoloOcean mode when supported.")
+    parser.add_argument("--record", action="store_true", help="Request HoloOcean recording when supported.")
     parser.add_argument("--log-dir", default="results/marine_race", help="Directory for JSONL and summary logs.")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for beacons and fallback runner.")
-    parser.add_argument("--dt", type=float, default=0.1, help="Fallback simulation timestep.")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for beacons and adapters.")
+    parser.add_argument("--dt", type=float, default=0.1, help="Race loop timestep.")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -59,42 +77,36 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
-    _report_adapter_status(args.headless, args.record)
-
-    arena = ArenaBuilder(config, seed=args.seed).build(visual_spawner=None)
+    arena = ArenaBuilder(config, seed=args.seed).build()
     logger = RaceLogger(args.log_dir, config.race.name, track_file=args.track)
     referee = Referee(config, arena.gate_map, arena.bounds, logger=logger)
 
     try:
         participants = _load_participants(config, args)
-    except ControllerError as exc:
+        _reject_invalid_official_controllers(config, participants)
+        adapter = _prepare_adapter(config, arena, participants, args)
+    except (ControllerError, AdapterSelectionError, RaceAdapterError) as exc:
         logger.close()
-        print(f"Controller load failed: {exc}", file=sys.stderr)
+        print(f"Race setup failed: {exc}", file=sys.stderr)
         return 1
 
-    for participant in participants.values():
-        if config.race.official_mode and bool(getattr(participant.controller, "uses_ground_truth", False)):
-            logger.close()
-            print(
-                "Oracle/debug controllers use ground truth and are not allowed in official mode.",
-                file=sys.stderr,
-            )
-            return 1
-
     referee.register_participants(participants.keys())
-    race_info = _race_info(config)
+    race_info = _race_info(config, adapter.name)
     for participant in participants.values():
-        participant.controller.reset(race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)})
+        participant.controller.reset(
+            race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)}
+        )
 
     try:
-        summary = _run_fallback_kinematic_race(
+        summary = _run_race_loop(
             config=config,
             arena=arena,
             referee=referee,
+            adapter=adapter,
             participants=participants,
             dt=args.dt,
         )
-        logger.log_event("race_summary", config.race.max_duration_s, summary=summary)
+        logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
         logger.write_summary(summary)
     finally:
         for participant in participants.values():
@@ -102,9 +114,11 @@ def main(argv: list[str] | None = None) -> int:
                 participant.controller.close()
             except Exception as exc:  # pragma: no cover - defensive close path
                 LOGGER.warning("Controller '%s' close failed: %s", participant.id, exc)
+        adapter.close()
         logger.close()
 
     _print_summary(summary)
+    print(f"Adapter: {adapter.name}")
     print(f"Event log: {logger.event_path}")
     print(f"Summary: {logger.summary_path}")
     return 0
@@ -120,24 +134,6 @@ def _with_cli_overrides(config: TrackConfig, duration_s: float | None, official:
         )
         config = replace(config, race=race)
     return config
-
-
-def _report_adapter_status(headless: bool, record: bool) -> None:
-    try:
-        __import__("holoocean")
-    except ImportError:
-        LOGGER.warning(
-            "HoloOcean is not importable in this Python environment; using fallback kinematic runner."
-        )
-    else:
-        LOGGER.warning(
-            "HoloOcean is importable, but no repository-specific spawn/control adapter was found; "
-            "using fallback kinematic runner."
-        )
-    if headless:
-        LOGGER.warning("--headless is reserved for a HoloOcean adapter and has no effect in fallback mode.")
-    if record:
-        LOGGER.warning("--record is reserved for a HoloOcean adapter and has no effect in fallback mode.")
 
 
 def _load_participants(config: TrackConfig, args: argparse.Namespace) -> Dict[str, RaceParticipant]:
@@ -165,7 +161,64 @@ def _load_participants(config: TrackConfig, args: argparse.Namespace) -> Dict[st
     return participants
 
 
-def _race_info(config: TrackConfig) -> Dict[str, Any]:
+def _reject_invalid_official_controllers(
+    config: TrackConfig,
+    participants: Mapping[str, RaceParticipant],
+) -> None:
+    for participant in participants.values():
+        if config.race.official_mode and bool(getattr(participant.controller, "uses_ground_truth", False)):
+            raise ControllerError(
+                "Oracle/debug controllers use ground truth and are not allowed in official mode."
+            )
+
+
+def _prepare_adapter(
+    config: TrackConfig,
+    arena: Arena,
+    participants: Mapping[str, RaceParticipant],
+    args: argparse.Namespace,
+) -> BaseRaceAdapter:
+    adapter = select_adapter(
+        adapter_name=args.adapter,
+        config=config,
+        arena=arena,
+        allow_fallback=args.allow_fallback,
+        headless=args.headless,
+        record=args.record,
+        seed=args.seed,
+    )
+    try:
+        adapter.spawn_participants(participants)
+        adapter.spawn_visual_gates(arena.visual_gates)
+        adapter.reset()
+        return adapter
+    except RaceAdapterUnavailable as exc:
+        adapter.close()
+        if args.allow_fallback:
+            LOGGER.warning(
+                "Adapter '%s' failed after initialization; falling back because --allow-fallback is set: %s",
+                adapter.name,
+                exc,
+            )
+            fallback = FallbackRaceAdapter(
+                config,
+                arena,
+                seed=args.seed,
+                headless=args.headless,
+                record=args.record,
+            )
+            fallback.initialize()
+            fallback.spawn_participants(participants)
+            fallback.spawn_visual_gates(arena.visual_gates)
+            fallback.reset()
+            return fallback
+        raise AdapterSelectionError(
+            "HoloOcean adapter failed during environment setup and fallback is not allowed. "
+            "Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly."
+        ) from exc
+
+
+def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
     return {
         "race_name": config.race.name,
         "format": config.race.format,
@@ -174,6 +227,7 @@ def _race_info(config: TrackConfig) -> Dict[str, Any]:
         "timing_mode": config.race.timing_mode,
         "official_mode": config.race.official_mode,
         "max_duration_s": config.race.max_duration_s,
+        "adapter": adapter_name,
         "max_command": 0.95,
         "bounds": {
             "x_min": config.world.bounds.x_min,
@@ -186,106 +240,121 @@ def _race_info(config: TrackConfig) -> Dict[str, Any]:
     }
 
 
-def _run_fallback_kinematic_race(
+def _run_race_loop(
     config: TrackConfig,
     arena: Arena,
     referee: Referee,
-    participants: Dict[str, RaceParticipant],
+    adapter: BaseRaceAdapter,
+    participants: Mapping[str, RaceParticipant],
     dt: float,
 ) -> Dict[str, Any]:
     LOGGER.info(
-        "Starting fallback kinematic race in %s with %d participant(s).",
+        "Starting race '%s' with adapter '%s' in %s.",
+        config.race.name,
+        adapter.name,
         arena.environment_name,
-        len(participants),
     )
-    time_s = 0.0
-    referee.start_race(time_s)
-    while time_s <= config.race.max_duration_s:
+    referee.start_race(adapter.get_current_time())
+    while adapter.get_current_time() <= config.race.max_duration_s:
         all_terminal = True
+        previous_states: Dict[str, AdapterParticipantState] = {}
+        controller_errors: Dict[str, str] = {}
         for participant in participants.values():
             state = referee.states[participant.id]
             if state.is_terminal:
                 continue
             all_terminal = False
-            previous_position = participant.position
-            target_gate_id = referee.expected_gate_id(participant.id)
-            target_gate = arena.gate_map[target_gate_id]
-            current_velocity = arena.current_manager.get_current_at(participant.position, time_s)
-            observation_mode = _observation_mode(config, participant)
-            beacon_observation = arena.beacon_manager.observe(
-                receiver_position=participant.position,
-                receiver_yaw_deg=participant.rotation_rpy_deg[2],
-                target_gate_id=target_gate_id,
-                target_sequence_index=state.expected_gate_index,
-                observation_mode=observation_mode,
-                official_mode=config.race.official_mode,
+            previous_state = adapter.get_participant_state(participant.id)
+            previous_states[participant.id] = previous_state
+            observation = _build_controller_observation(
+                config=config,
+                arena=arena,
+                referee=referee,
+                adapter=adapter,
+                participant=participant,
+                participant_state=previous_state,
             )
-            sensor_data = {
-                "heading_yaw_deg": participant.rotation_rpy_deg[2],
-                "depth_m": -participant.position[2],
-                "environment_current_m_s": current_velocity,
-                "control_mode": participant.config.control_mode,
-            }
-            debug_ground_truth = None
-            if bool(getattr(participant.controller, "uses_ground_truth", False)) and not config.race.official_mode:
-                debug_ground_truth = {
-                    "own_position": participant.position,
-                    "own_rotation_rpy_deg": participant.rotation_rpy_deg,
-                    "target_gate_center": target_gate.center,
-                    "target_gate_normal": target_gate.normal_vector,
-                    "target_gate_right_axis": target_gate.right_axis,
-                    "target_gate_up_axis": target_gate.up_axis,
-                    "target_gate_inner_width_m": target_gate.inner_width_m,
-                    "target_gate_inner_height_m": target_gate.inner_height_m,
-                    "bounds": _race_info(config)["bounds"],
-                }
-            observation = build_observation(
-                participant_id=participant.id,
-                time_s=time_s,
-                sensor_data=sensor_data,
-                beacon_observation=beacon_observation,
-                race_progress=referee.race_progress(participant.id),
-                official_mode=config.race.official_mode,
-                debug_ground_truth=debug_ground_truth,
-            )
-
-            controller_error = None
-            command: Dict[str, Any] = {}
             try:
                 command = participant.controller.step(copy.deepcopy(observation))
             except Exception as exc:  # pragma: no cover - exercised by external controllers
-                controller_error = f"{type(exc).__name__}: {exc}"
+                controller_errors[participant.id] = f"{type(exc).__name__}: {exc}"
+                command = {}
+            adapter.apply_command(participant.id, command, participant.config.control_mode)
 
-            if controller_error is None:
-                participant.position, participant.rotation_rpy_deg = _apply_command(
-                    participant.position,
-                    participant.rotation_rpy_deg,
-                    command,
-                    dt,
-                    current_velocity,
-                    participant.config.control_mode,
-                )
-            referee.update(
-                participant_id=participant.id,
-                previous_position=previous_position,
-                current_position=participant.position,
-                time_s=time_s,
-                controller_error=controller_error,
-            )
         if all_terminal:
             break
-        time_s = round(time_s + dt, 10)
+
+        adapter.step(dt)
+        time_s = adapter.get_current_time()
+        for participant_id, previous_state in previous_states.items():
+            state = referee.states[participant_id]
+            if state.is_terminal:
+                continue
+            current_state = adapter.get_participant_state(participant_id)
+            referee.update(
+                participant_id=participant_id,
+                previous_position=previous_state.position,
+                current_position=current_state.position,
+                time_s=time_s,
+                collision=adapter.get_collision_state(participant_id),
+                controller_error=controller_errors.get(participant_id),
+            )
 
     for participant in participants.values():
         state = referee.states[participant.id]
         if state.status == ParticipantStatus.RUNNING:
+            current_state = adapter.get_participant_state(participant.id)
             referee.update(
                 participant_id=participant.id,
-                previous_position=participant.position,
-                current_position=participant.position,
+                previous_position=current_state.position,
+                current_position=current_state.position,
                 time_s=config.race.max_duration_s + dt,
             )
     return referee.summary()
+
+
+def _build_controller_observation(
+    config: TrackConfig,
+    arena: Arena,
+    referee: Referee,
+    adapter: BaseRaceAdapter,
+    participant: RaceParticipant,
+    participant_state: AdapterParticipantState,
+) -> Dict[str, Any]:
+    target_gate_id = referee.expected_gate_id(participant.id)
+    target_gate = arena.gate_map[target_gate_id]
+    progress = referee.race_progress(participant.id)
+    beacon_observation = arena.beacon_manager.observe(
+        receiver_position=participant_state.position,
+        receiver_yaw_deg=participant_state.rotation_rpy_deg[2],
+        target_gate_id=target_gate_id,
+        target_sequence_index=int(progress["target_sequence_index"]),
+        observation_mode=_observation_mode(config, participant),
+        official_mode=config.race.official_mode,
+    )
+    sensor_data = adapter.get_allowed_sensor_data(participant.id, participant.config.sensors)
+    debug_ground_truth = None
+    if bool(getattr(participant.controller, "uses_ground_truth", False)) and not config.race.official_mode:
+        debug_ground_truth = {
+            "own_position": participant_state.position,
+            "own_rotation_rpy_deg": participant_state.rotation_rpy_deg,
+            "target_gate_center": target_gate.center,
+            "target_gate_normal": target_gate.normal_vector,
+            "target_gate_right_axis": target_gate.right_axis,
+            "target_gate_up_axis": target_gate.up_axis,
+            "target_gate_inner_width_m": target_gate.inner_width_m,
+            "target_gate_inner_height_m": target_gate.inner_height_m,
+            "bounds": _race_info(config, adapter.name)["bounds"],
+        }
+    return build_observation(
+        participant_id=participant.id,
+        time_s=adapter.get_current_time(),
+        sensor_data=sensor_data,
+        beacon_observation=beacon_observation,
+        race_progress=progress,
+        official_mode=config.race.official_mode,
+        debug_ground_truth=debug_ground_truth,
+    )
 
 
 def _observation_mode(config: TrackConfig, participant: RaceParticipant) -> str:
@@ -298,69 +367,8 @@ def _observation_mode(config: TrackConfig, participant: RaceParticipant) -> str:
     return "acoustic_ideal"
 
 
-def _apply_command(
-    position: Vector3,
-    rotation_rpy_deg: Vector3,
-    command: Dict[str, Any],
-    dt: float,
-    current_velocity: Vector3,
-    control_mode: str,
-) -> Tuple[Vector3, Vector3]:
-    yaw_deg = rotation_rpy_deg[2]
-    yaw_rad = math.radians(yaw_deg)
-    if "thrusters" in command or control_mode == "thrusters":
-        surge, sway, heave, yaw_command = _thruster_fallback(command.get("thrusters", []))
-    else:
-        surge = _clamp(float(command.get("surge", 0.0)), -1.0, 1.0)
-        sway = _clamp(float(command.get("sway", 0.0)), -1.0, 1.0)
-        heave = _clamp(float(command.get("heave", 0.0)), -1.0, 1.0)
-        yaw_command = _clamp(float(command.get("yaw", 0.0)), -1.0, 1.0)
-
-    max_linear_speed_m_s = 1.25
-    max_yaw_rate_deg_s = 65.0
-    body_vx = surge * max_linear_speed_m_s
-    body_vy = sway * max_linear_speed_m_s
-    body_vz = heave * max_linear_speed_m_s
-    world_vx = math.cos(yaw_rad) * body_vx - math.sin(yaw_rad) * body_vy
-    world_vy = math.sin(yaw_rad) * body_vx + math.cos(yaw_rad) * body_vy
-    world_vz = body_vz
-    velocity = (
-        world_vx + current_velocity[0],
-        world_vy + current_velocity[1],
-        world_vz + current_velocity[2],
-    )
-    new_position = (
-        position[0] + velocity[0] * dt,
-        position[1] + velocity[1] * dt,
-        position[2] + velocity[2] * dt,
-    )
-    new_rotation = (
-        rotation_rpy_deg[0],
-        rotation_rpy_deg[1],
-        _wrap_degrees(yaw_deg + yaw_command * max_yaw_rate_deg_s * dt),
-    )
-    return new_position, new_rotation
-
-
-def _thruster_fallback(thrusters: Any) -> Tuple[float, float, float, float]:
-    values = [float(value) for value in thrusters] if isinstance(thrusters, list) else []
-    if not values:
-        return (0.0, 0.0, 0.0, 0.0)
-    average = sum(values) / len(values)
-    yaw = (values[0] - values[-1]) if len(values) >= 2 else 0.0
-    return (_clamp(average, -1.0, 1.0), 0.0, 0.0, _clamp(yaw, -1.0, 1.0))
-
-
 def _vector3(value: Any) -> Vector3:
     return (float(value[0]), float(value[1]), float(value[2]))
-
-
-def _clamp(value: float, low: float, high: float) -> float:
-    return max(low, min(high, value))
-
-
-def _wrap_degrees(angle: float) -> float:
-    return (angle + 180.0) % 360.0 - 180.0
 
 
 def _print_summary(summary: Dict[str, Any]) -> None:

@@ -37,7 +37,8 @@ class ArenaBuilder:
         factory = GateFactory(self.config)
         gates = factory.build_gates()
         visual_gates = factory.build_visual_gates(gates)
-        factory.spawn_visuals(visual_gates, spawner=visual_spawner)
+        if visual_spawner is not None:
+            factory.spawn_visuals(visual_gates, spawner=visual_spawner)
 
         if self.config.obstacles:
             LOGGER.warning(
@@ -65,4 +66,3 @@ class ArenaBuilder:
             return self.config.world.map
         LOGGER.warning("No explicit world.map configured; using preferred environment '%s'.", preferred)
         return preferred or fallback
-
