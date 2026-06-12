@@ -54,19 +54,23 @@ class Gate:
 
     @property
     def right_axis(self) -> Vector3:
-        normal = self.normal_vector
-        _, local_right, _ = _rotation_axes(self.rotation_rpy_deg)
-        right = _subtract(local_right, _scale(normal, _dot(local_right, normal)))
-        if _norm(right) <= 1e-9:
-            fallback = (0.0, 1.0, 0.0)
-            if abs(_dot(fallback, normal)) > 0.95:
-                fallback = (1.0, 0.0, 0.0)
-            right = _cross(fallback, normal)
-        return _normalize(right)
+        return canonical_gate_frame(self.passage_direction)[1]
 
     @property
     def up_axis(self) -> Vector3:
-        return _normalize(_cross(self.normal_vector, self.right_axis))
+        return canonical_gate_frame(self.passage_direction)[2]
+
+    @property
+    def visual_rotation_rpy_deg(self) -> Vector3:
+        return rotation_from_axes(*visual_gate_frame(self.passage_direction, self.rotation_rpy_deg))
+
+    @property
+    def visual_right_axis(self) -> Vector3:
+        return visual_gate_frame(self.passage_direction, self.rotation_rpy_deg)[1]
+
+    @property
+    def visual_up_axis(self) -> Vector3:
+        return visual_gate_frame(self.passage_direction, self.rotation_rpy_deg)[2]
 
     def signed_distance_to_plane(self, point: Vector3) -> float:
         return _dot(_subtract(point, self.center), self.normal_vector)
@@ -82,8 +86,9 @@ class Gate:
 
     def is_point_inside_aperture(self, point: Vector3, margin_m: float = 0.0) -> bool:
         right, up = self.local_aperture_coordinates(point)
-        half_width = self.inner_width_m / 2.0 + margin_m
-        half_height = self.inner_height_m / 2.0 + margin_m
+        clearance = max(0.0, margin_m)
+        half_width = max(0.0, self.inner_width_m / 2.0 - clearance)
+        half_height = max(0.0, self.inner_height_m / 2.0 - clearance)
         return abs(right) <= half_width and abs(up) <= half_height
 
     def crossed_between(self, previous_position: Vector3, current_position: Vector3) -> bool:
@@ -117,7 +122,10 @@ class Gate:
         return _add(previous_position, _scale(segment, clamped_t))
 
     def validate_crossing(
-        self, previous_position: Vector3, current_position: Vector3
+        self,
+        previous_position: Vector3,
+        current_position: Vector3,
+        clearance_margin_m: float = 0.0,
     ) -> GateCrossingResult:
         d0 = self.signed_distance_to_plane(previous_position)
         d1 = self.signed_distance_to_plane(current_position)
@@ -128,9 +136,65 @@ class Gate:
         intersection = self.intersection_point(previous_position, current_position)
         if intersection is None:
             return GateCrossingResult(False, "no_segment_intersection", None, d0, d1)
-        if not self.is_point_inside_aperture(intersection):
+        if not self.is_point_inside_aperture(intersection, margin_m=clearance_margin_m):
             return GateCrossingResult(False, "outside_aperture", intersection, d0, d1)
         return GateCrossingResult(True, "valid", intersection, d0, d1)
+
+
+def canonical_gate_frame(passage_direction: Vector3) -> tuple[Vector3, Vector3, Vector3]:
+    """Return the canonical gate frame: normal, right, up.
+
+    The passage direction is the source of truth. For normal horizontal gates,
+    up is world vertical. For sloped or vertical gates, up is the closest
+    orthonormal axis that remains perpendicular to the gate normal.
+    """
+
+    normal = _normalize(passage_direction)
+    world_up = (0.0, 0.0, 1.0)
+    right = _cross(world_up, normal)
+    if _norm(right) <= 1e-9:
+        right = (1.0, 0.0, 0.0)
+    else:
+        right = _normalize(right)
+    up = _normalize(_cross(normal, right))
+    return (normal, right, up)
+
+
+def visual_gate_frame(
+    passage_direction: Vector3,
+    fallback_rotation_rpy_deg: Vector3 = (0.0, 0.0, 0.0),
+) -> tuple[Vector3, Vector3, Vector3]:
+    """Return a HoloOcean visual frame for the full 3D gate orientation.
+
+    The visual frame and the referee frame now use the same source of truth:
+    ``passage_direction``. Local X follows the gate normal/depth, local Y follows
+    the right/opening width axis, and local Z follows the gate up/opening height
+    axis. This supports yaw-only gates and pitched gates without changing the
+    four-bar assembly rules.
+    """
+
+    del fallback_rotation_rpy_deg
+    return canonical_gate_frame(passage_direction)
+
+
+def rotation_from_axes(normal: Vector3, right: Vector3, up: Vector3) -> Vector3:
+    """Convert local X/Y/Z axes to HoloOcean roll/pitch/yaw degrees."""
+
+    r00, r01, r02 = normal[0], right[0], up[0]
+    r10, r11, r12 = normal[1], right[1], up[1]
+    r20, r21, r22 = normal[2], right[2], up[2]
+    pitch = math.asin(max(-1.0, min(1.0, -r20)))
+    if abs(math.cos(pitch)) > 1e-9:
+        roll = math.atan2(r21, r22)
+        yaw = math.atan2(r10, r00)
+    else:
+        roll = math.atan2(-r12, r11)
+        yaw = 0.0
+    return (
+        _wrap_degrees(math.degrees(roll)),
+        _wrap_degrees(math.degrees(pitch)),
+        _wrap_degrees(math.degrees(yaw)),
+    )
 
 
 def _rotation_axes(rotation_rpy_deg: Vector3) -> tuple[Vector3, Vector3, Vector3]:
@@ -185,3 +249,6 @@ def _normalize(vector: Vector3) -> Vector3:
         return (0.0, 0.0, 0.0)
     return (vector[0] / length, vector[1] / length, vector[2] / length)
 
+
+def _wrap_degrees(angle: float) -> float:
+    return (angle + 180.0) % 360.0 - 180.0

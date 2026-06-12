@@ -1,0 +1,61 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test, lint, type-check, and coverage outputs
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local Python and conda environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-env/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+
+# Marine race and simulator generated outputs
+results/
+logs/
+runs/
+diagnostics/
+recordings/
+videos/
+HoloOceanLogs/
+Saved/
+*.jsonl
+*_summary.json
+
+# Video and large generated artifacts
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.bag
+*.ulg
+*.npy
+*.npz
+
+# Temporary and backup files
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

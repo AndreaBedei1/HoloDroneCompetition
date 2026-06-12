@@ -37,9 +37,48 @@ def test_visual_spawner_reports_runtime_spawn_prop() -> None:
     spawner = HoloOceanVisualSpawner(env)
     spawner.spawn_gate_bars(bars)
     assert spawner.report.physically_spawned
-    assert spawner.report.method == "runtime_spawn_prop"
-    assert spawner.report.spawned_bar_count == len(bars)
+    assert spawner.report.method == "runtime_spawn_prop_uniform_box"
+    assert spawner.report.spawned_bar_count == len(env.calls)
     assert len(env.calls) == len(bars)
+
+
+def test_visual_spawner_uses_uniform_vertical_pillars() -> None:
+    bars = _visual_bars()
+    env = FakeSpawnPropEnv()
+    spawner = HoloOceanVisualSpawner(env)
+    spawner.spawn_gate_bars(bars)
+
+    pillars = [prop for prop in spawner.spawned_props if prop["part"] in {"left", "right"}]
+    assert pillars
+    assert all(prop["dimensions_m"][2] == 1.5 for prop in pillars)
+    assert all(prop["method"] == "uniform_four_bar_box" for prop in pillars)
+
+
+def test_spawn_prop_rotation_uses_verified_holoocean_box_mapping() -> None:
+    bars = _visual_bars()
+    env = FakeSpawnPropEnv()
+    spawner = HoloOceanVisualSpawner(env)
+    spawner.spawn_gate_bars(bars)
+
+    rotated = next(prop for prop in spawner.spawned_props if prop["source_bar_id"] == "G03_left")
+    assert rotated["rotation_rpy_deg"] == (0.0, 0.0, 45.0)
+    assert rotated["spawn_rotation_deg"] == (45.0, 0.0, 0.0)
+    assert rotated["spawn_rotation_order"] == "holoocean_spawn_prop_yaw_pitch_roll"
+
+    matching_call = next(call for call in env.calls if call[1]["tag"] == "G03_left")
+    assert matching_call[1]["rotation"] == [45.0, 0.0, 0.0]
+
+
+def test_visual_spawner_can_use_segmented_fallback_mode() -> None:
+    bars = _visual_bars()
+    env = FakeSpawnPropEnv()
+    spawner = HoloOceanVisualSpawner(env, mode="segmented")
+    spawner.spawn_gate_bars(bars)
+
+    assert spawner.report.method == "runtime_spawn_prop_segmented_cubes"
+    assert len(env.calls) > len(bars)
+    assert all(prop["method"] == "segmented_axis_aligned_cube" for prop in spawner.spawned_props)
+    assert all(prop["spawn_rotation_deg"] == (0.0, 0.0, 0.0) for prop in spawner.spawned_props)
 
 
 def test_visual_spawner_reports_export_only_without_env() -> None:
@@ -51,4 +90,3 @@ def test_visual_spawner_reports_export_only_without_env() -> None:
         assert not spawner.report.physically_spawned
         assert spawner.report.method == "export_only"
         assert export_path.exists()
-

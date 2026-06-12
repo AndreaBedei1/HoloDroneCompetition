@@ -39,6 +39,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Do not spawn runtime gate bars during the diagnostic.",
     )
+    parser.add_argument(
+        "--print-gate-bars",
+        action="store_true",
+        help="Print every generated gate bar transform and spawn method.",
+    )
     args = parser.parse_args(argv)
 
     summary = {
@@ -120,6 +125,8 @@ def main(argv: list[str] | None = None) -> int:
             summary["gate_visual_method"] = "skipped"
             summary["gate_bars_spawned"] = 0
             print("Gate visual spawning: skipped by --skip-gate-visuals")
+            if args.print_gate_bars:
+                _print_gate_bars(arena.visual_gates, "skipped")
         else:
             spawner = HoloOceanVisualSpawner(env)
             spawner.spawn_gate_bars([bar for visual_gate in arena.visual_gates for bar in visual_gate.bars])
@@ -130,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
             summary["gate_bars_spawned"] = spawner.report.spawned_bar_count
             print(f"Gate visual spawn report: {spawner.report}")
             print(f"Collision state after gate spawning: {adapter.get_collision_state(participant_id)}")
+            if args.print_gate_bars:
+                _print_spawned_gate_props(spawner.spawned_props)
 
         adapter.physical_current_coupling_active = callable(getattr(env, "set_ocean_currents", None))
         adapter.current_coupling_method = (
@@ -255,6 +264,39 @@ def _collision_value(sensors: Mapping[str, Any]) -> Any:
     if hasattr(value, "tolist"):
         return value.tolist()
     return value
+
+
+def _print_gate_bars(visual_gates: Any, method: str) -> None:
+    print("Gate bar transforms:")
+    print("gate_id | bar_id | position_xyz | rotation_rpy_deg | scale_xyz_m | spawn_method")
+    for visual_gate in visual_gates:
+        for bar in visual_gate.bars:
+            print(
+                f"{visual_gate.gate_id} | {bar.id} | "
+                f"{_format_vector(bar.position)} | "
+                f"{_format_vector(bar.rotation_rpy_deg)} | "
+                f"{_format_vector(bar.dimensions_m)} | {method}"
+            )
+
+
+def _print_spawned_gate_props(spawned_props: Any) -> None:
+    print("Spawned gate prop transforms:")
+    print(
+        "gate_id | prop_id | source_bar_id | part | position_xyz | "
+        "logical_rotation_rpy_deg | spawn_rotation_deg | scale_xyz_m | spawn_method"
+    )
+    for prop in spawned_props:
+        print(
+            f"{prop['gate_id']} | {prop['id']} | {prop['source_bar_id']} | {prop['part']} | "
+            f"{_format_vector(prop['position'])} | "
+            f"{_format_vector(prop['rotation_rpy_deg'])} | "
+            f"{_format_vector(prop.get('spawn_rotation_deg', prop['rotation_rpy_deg']))} | "
+            f"{_format_vector(prop['dimensions_m'])} | {prop['method']}"
+        )
+
+
+def _format_vector(values: Any) -> str:
+    return "[" + ", ".join(f"{float(value):.3f}" for value in values) + "]"
 
 
 def _distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:

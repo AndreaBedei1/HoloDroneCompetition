@@ -22,6 +22,17 @@ def test_example_tracks_validate() -> None:
         assert result.errors == []
 
 
+def test_example_tracks_use_standard_abu_dhabi_gate_opening() -> None:
+    for track_name in (
+        "abu_dhabi_marine_easy.json",
+        "abu_dhabi_marine_medium.json",
+        "abu_dhabi_marine_hard.json",
+    ):
+        config = load_track_config(TRACK_DIR / track_name)
+        assert config.track.gate_inner_size_m == (1.5, 1.5)
+        assert all(gate.inner_size_m == (1.5, 1.5) for gate in config.gates)
+
+
 def test_duplicate_gate_id_is_invalid() -> None:
     raw = json.loads((TRACK_DIR / "abu_dhabi_marine_easy.json").read_text(encoding="utf-8"))
     raw["gates"] = copy.deepcopy(raw["gates"])
@@ -35,4 +46,3 @@ def test_declared_length_matches_computed_length() -> None:
     config = load_track_config(TRACK_DIR / "abu_dhabi_marine_medium.json")
     computed = compute_declared_path_length_m(config)
     assert abs(computed - config.track.declared_length_m) <= config.track.length_tolerance_m
-

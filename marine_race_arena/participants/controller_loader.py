@@ -26,6 +26,26 @@ class ControllerLoader:
             "marine_race_arena.controllers.acoustic_gate_follower",
             "AcousticGateFollowerController",
         ),
+        "keyboard": (
+            "marine_race_arena.controllers.keyboard_manual",
+            "KeyboardManualController",
+        ),
+        "manual": (
+            "marine_race_arena.controllers.keyboard_manual",
+            "KeyboardManualController",
+        ),
+        "manual_keyboard": (
+            "marine_race_arena.controllers.keyboard_manual",
+            "KeyboardManualController",
+        ),
+        "pygame": (
+            "marine_race_arena.controllers.pygame_manual",
+            "PygameManualController",
+        ),
+        "pygame_keyboard": (
+            "marine_race_arena.controllers.pygame_manual",
+            "PygameManualController",
+        ),
         "student_template": (
             "marine_race_arena.controllers.student_template",
             "StudentController",
@@ -85,4 +105,3 @@ class ControllerLoader:
                 "or fully qualified module.Class."
             )
         return ".".join(parts[:-1]), parts[-1]
-

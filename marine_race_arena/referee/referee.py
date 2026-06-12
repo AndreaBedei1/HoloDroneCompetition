@@ -30,6 +30,10 @@ class Referee:
         self.states: Dict[str, ParticipantRaceState] = {}
         self.latest_positions: Dict[str, Vector3] = {}
         self._green_time: Optional[float] = None
+        self.vehicle_clearance_margin_m = max(
+            0.0,
+            float(config.referee.gate_validation.get("vehicle_clearance_margin_m", 0.0)),
+        )
 
     def register_participants(self, participant_ids: Iterable[str]) -> None:
         for participant_id in participant_ids:
@@ -83,8 +87,8 @@ class Referee:
             state.collision_events += 1
             penalty = float(self.config.referee.penalties.get("minor_collision_s", 5.0))
             state.penalties_s += penalty
-            events.append({"event": "collision", "penalty_s": penalty})
-            self._log("collision", time_s, participant_id, penalty_s=penalty)
+            events.append({"event": "collision", "penalty_s": penalty, "position": current_position})
+            self._log("collision", time_s, participant_id, penalty_s=penalty, position=current_position)
             if bool(self.config.referee.penalties.get("severe_collision_dnf", False)):
                 state.status = ParticipantStatus.DNF
                 self._log("dnf", time_s, participant_id, reason="severe_collision")
@@ -163,7 +167,12 @@ class Referee:
         events: List[Dict[str, object]] = []
         expected_gate_id = self.gate_sequence[state.expected_gate_index]
         expected_gate = self.gate_map[expected_gate_id]
-        result = validate_gate_crossing(expected_gate, previous_position, current_position)
+        result = validate_gate_crossing(
+            expected_gate,
+            previous_position,
+            current_position,
+            clearance_margin_m=self.vehicle_clearance_margin_m,
+        )
 
         if result.valid:
             self._handle_valid_gate(state, expected_gate, result.intersection, time_s, events)
@@ -183,7 +192,12 @@ class Referee:
         for gate_id, gate in self.gate_map.items():
             if gate_id == expected_gate_id:
                 continue
-            other = validate_gate_crossing(gate, previous_position, current_position)
+            other = validate_gate_crossing(
+                gate,
+                previous_position,
+                current_position,
+                clearance_margin_m=self.vehicle_clearance_margin_m,
+            )
             if other.valid:
                 state.missed_gate_attempts += 1
                 events.append({"event": "missed_gate", "expected_gate_id": expected_gate_id, "crossed_gate_id": gate_id})

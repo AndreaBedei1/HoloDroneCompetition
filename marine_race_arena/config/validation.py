@@ -51,7 +51,16 @@ ALLOWED_GATE_TYPES = {"single", "double", "vertical_double", "split_s_upper", "s
 ALLOWED_BEACON_MODES = {"always_on", "active_when_target", "sequential_channel"}
 ALLOWED_CURRENT_TYPES = {"constant", "localized_jet", "sinusoidal", "vortex"}
 ALLOWED_CONTROL_MODES = {"high_level", "thrusters"}
-BUILT_IN_CONTROLLERS = {"oracle", "acoustic", "student_template"}
+BUILT_IN_CONTROLLERS = {
+    "oracle",
+    "acoustic",
+    "keyboard",
+    "manual",
+    "manual_keyboard",
+    "pygame",
+    "pygame_keyboard",
+    "student_template",
+}
 
 
 def validate_track_config(config: TrackConfig, strict: bool = True) -> ValidationResult:
@@ -196,6 +205,15 @@ def _validate_gate(config: TrackConfig, gate: GateConfig, result: ValidationResu
         result.error(f"Gate '{gate.id}' bar_thickness_m must be positive.")
     if _norm(gate.passage_direction) <= 1e-9:
         result.error(f"Gate '{gate.id}' passage_direction must be nonzero.")
+    else:
+        passage_yaw = _horizontal_yaw_deg(gate.passage_direction)
+        if passage_yaw is not None:
+            yaw_error = abs(_angle_delta_deg(gate.rotation_rpy_deg[2], passage_yaw))
+            if yaw_error > 5.0:
+                result.warn(
+                    f"Gate '{gate.id}' rotation_rpy_deg yaw differs from passage_direction yaw "
+                    f"by {yaw_error:.1f} degrees; visual gates use passage_direction as the source of truth."
+                )
     if not all(math.isfinite(value) for value in gate.rotation_rpy_deg):
         result.error(f"Gate '{gate.id}' rotation_rpy_deg contains a non-finite value.")
     if any(abs(value) > 360.0 for value in gate.rotation_rpy_deg):
@@ -307,6 +325,9 @@ def _validate_referee(config: TrackConfig, result: ValidationResult) -> None:
     stuck_timeout = config.referee.gate_validation.get("stuck_timeout_s")
     if stuck_timeout is not None and float(stuck_timeout) <= 0:
         result.error("referee.gate_validation.stuck_timeout_s must be positive.")
+    clearance_margin = config.referee.gate_validation.get("vehicle_clearance_margin_m")
+    if clearance_margin is not None and float(clearance_margin) < 0:
+        result.error("referee.gate_validation.vehicle_clearance_margin_m must be zero or positive.")
 
 
 def _controller_reference_looks_valid(reference: str) -> bool:
@@ -358,3 +379,13 @@ def _normalize(vector: Vector3) -> Vector3:
 def _dot(a: Vector3, b: Vector3) -> float:
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
+
+def _horizontal_yaw_deg(vector: Vector3) -> Optional[float]:
+    horizontal_norm = math.hypot(vector[0], vector[1])
+    if horizontal_norm <= 1e-9:
+        return None
+    return math.degrees(math.atan2(vector[1], vector[0]))
+
+
+def _angle_delta_deg(a: float, b: float) -> float:
+    return (a - b + 180.0) % 360.0 - 180.0

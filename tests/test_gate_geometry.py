@@ -38,3 +38,29 @@ def test_wrong_direction_is_invalid() -> None:
     assert not result.valid
     assert result.reason == "wrong_direction"
 
+
+def test_crossing_near_edge_is_valid_without_clearance_margin() -> None:
+    gate = _gate()
+    result = gate.validate_crossing((-1.0, 0.70, -4.0), (1.0, 0.70, -4.0))
+    assert result.valid
+
+
+def test_crossing_near_edge_is_invalid_with_clearance_margin() -> None:
+    gate = _gate()
+    result = gate.validate_crossing(
+        (-1.0, 0.70, -4.0),
+        (1.0, 0.70, -4.0),
+        clearance_margin_m=0.25,
+    )
+    assert not result.valid
+    assert result.reason == "outside_aperture"
+
+
+def test_crossing_near_center_remains_valid_with_clearance_margin() -> None:
+    gate = _gate()
+    result = gate.validate_crossing(
+        (-1.0, 0.10, -4.0),
+        (1.0, 0.10, -4.0),
+        clearance_margin_m=0.25,
+    )
+    assert result.valid

@@ -26,7 +26,7 @@
   "track": {
     "declared_length_m": 38.2,
     "length_tolerance_m": 2.0,
-    "gate_inner_size_m": [1.8, 1.8],
+    "gate_inner_size_m": [1.5, 1.5],
     "gate_bar_thickness_m": 0.18,
     "gate_depth_m": 0.22,
     "gate_sequence": ["G01", "G02", "G03", "G04", "G05", "G06"]
@@ -56,7 +56,7 @@
       "type": "single",
       "position": [-2.0, 0.0, -4.0],
       "rotation_rpy_deg": [0.0, 0.0, 0.0],
-      "inner_size_m": [1.8, 1.8],
+      "inner_size_m": [1.5, 1.5],
       "bar_thickness_m": 0.18,
       "color": "#00ff88",
       "passage_direction": [1.0, 0.0, 0.0]
@@ -66,7 +66,7 @@
       "type": "single",
       "position": [5.0, 0.0, -4.0],
       "rotation_rpy_deg": [0.0, 0.0, 0.0],
-      "inner_size_m": [1.8, 1.8],
+      "inner_size_m": [1.5, 1.5],
       "bar_thickness_m": 0.18,
       "color": "#38bdf8",
       "passage_direction": [1.0, 0.0, 0.0]
@@ -76,7 +76,7 @@
       "type": "single",
       "position": [10.0, 5.0, -4.0],
       "rotation_rpy_deg": [0.0, 0.0, 45.0],
-      "inner_size_m": [1.8, 1.8],
+      "inner_size_m": [1.5, 1.5],
       "bar_thickness_m": 0.18,
       "color": "#facc15",
       "passage_direction": [0.7071, 0.7071, 0.0]
@@ -86,7 +86,7 @@
       "type": "single",
       "position": [16.0, 5.0, -4.0],
       "rotation_rpy_deg": [0.0, 0.0, 0.0],
-      "inner_size_m": [1.8, 1.8],
+      "inner_size_m": [1.5, 1.5],
       "bar_thickness_m": 0.18,
       "color": "#fb7185",
       "passage_direction": [1.0, 0.0, 0.0]
@@ -96,7 +96,7 @@
       "type": "single",
       "position": [21.0, 0.0, -4.0],
       "rotation_rpy_deg": [0.0, 0.0, -45.0],
-      "inner_size_m": [1.8, 1.8],
+      "inner_size_m": [1.5, 1.5],
       "bar_thickness_m": 0.18,
       "color": "#a78bfa",
       "passage_direction": [0.7071, -0.7071, 0.0]
@@ -106,7 +106,7 @@
       "type": "single",
       "position": [26.0, 0.0, -4.0],
       "rotation_rpy_deg": [0.0, 0.0, 0.0],
-      "inner_size_m": [1.8, 1.8],
+      "inner_size_m": [1.5, 1.5],
       "bar_thickness_m": 0.18,
       "color": "#22c55e",
       "passage_direction": [1.0, 0.0, 0.0]
@@ -123,7 +123,7 @@
     {
       "id": "bluerov2_01",
       "vehicle": "BlueROV2",
-      "controller": "acoustic",
+      "controller": "pygame",
       "controller_class": null,
       "spawn": {
         "position": [-8.0, 0.0, -4.0],
@@ -139,6 +139,7 @@
   "referee": {
     "gate_validation": {
       "vehicle_model": "center_point",
+      "vehicle_clearance_margin_m": 0.15,
       "stuck_timeout_s": 30.0,
       "stuck_speed_threshold_m_s": 0.02
     },
@@ -156,4 +157,3 @@
     }
   }
 }
-

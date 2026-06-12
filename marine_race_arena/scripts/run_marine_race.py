@@ -41,7 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--controller",
         default=None,
-        help="Built-in controller alias: oracle, acoustic, student_template. Overrides track config.",
+        help=(
+            "Built-in controller alias: pygame, pygame_keyboard, keyboard, manual, "
+            "oracle, acoustic, student_template. Overrides track config."
+        ),
     )
     parser.add_argument(
         "--participant-controller",

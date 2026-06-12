@@ -24,7 +24,7 @@ marine_race_arena/
   arena/           bounds, gates, gate factory, beacons, currents, obstacles
   adapters/        fallback and HoloOcean simulator adapters
   participants/    participant state, controller interface, controller loader
-  controllers/     student template, acoustic baseline, debug oracle
+  controllers/     Pygame/manual keyboard controllers, student template, acoustic baseline, debug oracle
   referee/         gate validation, race state, scoring, logger, referee
   tracks/          easy, medium, hard JSON tracks
   scripts/         validation and race runner entry points
@@ -37,7 +37,7 @@ The arena owns the static race definition: bounds, gate geometry, debug visual g
 
 The beacon system guides the rover toward the next expected gate. It does not validate gate passage. In official mode it returns bearing, elevation, range, signal strength, and metadata, but not exact gate positions.
 
-Controllers receive observations and return commands. Student controllers should use only allowed sensors and beacon observations. The built-in acoustic controller is a simple baseline.
+Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The built-in acoustic controller is a simple baseline.
 
 The referee validates gates using simulation ground truth. This is allowed because the referee is not a participant controller. The first implementation validates the vehicle center point and keeps the interface ready for future full-body validation.
 
@@ -70,6 +70,7 @@ A gate crossing is valid only when:
 - No invalid collision is reported during that tick.
 
 The referee uses the abstract gate geometry, not visual collision geometry.
+Set `referee.gate_validation.vehicle_clearance_margin_m` to shrink the valid center-point aperture by a safety margin. The default is `0.0` for backward compatibility; the sample tracks use small positive margins to reduce valid-but-too-close center crossings near physical bars.
 
 ## Timing
 
@@ -102,7 +103,24 @@ The debug oracle controller is explicitly a cheating feasibility tool:
 marine_race_arena.controllers.oracle_gate_follower.OracleGateFollowerController
 ```
 
-It uses own ground-truth pose and exact target gate geometry. It is blocked by the runner when `--official` is set and is not competition-valid.
+It uses own ground-truth pose and exact target gate geometry. It is blocked by the runner when `--official` is set and is not competition-valid. The current oracle is a simplified no-yaw translator: it commands surge, sway, and heave toward each gate centerline and always returns `yaw = 0.0`.
+
+## Manual Pygame Control
+
+Use the built-in `pygame` controller for manual local testing:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter holoocean --duration 300 --dt 0.033
+```
+
+Controls:
+
+- `W` / `S`: forward and backward on the horizontal plane.
+- `A` / `D`: left and right sway on the horizontal plane.
+- Up arrow / Down arrow: raise and lower the rover.
+- Space: stop.
+
+The controller opens a small Pygame control window. Keep focus on that Pygame window while driving. It never commands yaw and does not use ground truth.
 
 ## Acoustic Beacons
 
@@ -147,8 +165,8 @@ Validation checks required fields, unique gate ids, sequence references, finish 
 The runner builds the arena, loads controllers, starts the referee/logger, and runs the selected simulator adapter.
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter fallback --duration 300
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller acoustic --adapter fallback --duration 600
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter fallback --duration 300
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller pygame --adapter fallback --duration 600
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_hard.json --official --adapter fallback --duration 900
 ```
 
@@ -175,21 +193,22 @@ Two simulator adapters are available:
 Run the easy track in fallback first:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter fallback --duration 300
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter fallback --duration 300
 ```
 
 Then run the diagnostic and try HoloOcean:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/diagnose_holoocean_adapter.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter holoocean --duration 120
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller acoustic --adapter holoocean --duration 300
+conda run -n ocean python marine_race_arena/scripts/diagnose_holoocean_adapter.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --print-gate-bars
+conda run -n ocean python marine_race_arena/scripts/diagnose_gate_visual_rotations.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --output-dir diagnostics/gate_rotation_tests_selected --selected-only
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter holoocean --duration 300 --dt 0.033
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller pygame --adapter holoocean --duration 300 --dt 0.033
 ```
 
 Auto mode is strict by default. It does not silently fall back if HoloOcean is missing or misconfigured:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller oracle --adapter auto --allow-fallback --duration 300
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter auto --allow-fallback --duration 300
 ```
 
 The HoloOcean adapter imports `holoocean` only inside the adapter. It builds a custom scenario dictionary with configured BlueROV2 participants, prefers the configured map such as `OpenWater-Hovering`, and then tries the configured fallback such as `PierHarbor-Hovering`. It fails loudly when `--adapter holoocean` cannot initialize. The diagnostic script also tries prebuilt scenario names so environment-name problems are easier to distinguish from custom scenario problems.
@@ -209,11 +228,17 @@ Sensor separation:
 
 Gate visuals:
 
-- In HoloOcean 2.3.0, gate bars are spawned at runtime with `env.spawn_prop("box", location, rotation, scale, sim_physics=False, material, tag)`.
-- Each gate is built from four box props: top, bottom, left, and right.
+- In HoloOcean 2.3.0, gate visuals are spawned at runtime with `env.spawn_prop("box", location, rotation, scale, sim_physics=False, material, tag)`.
+- Each logical gate is still built from four bars: top, bottom, left, and right.
+- Gate visual orientation is generated from `passage_direction`, which is the source of truth for the gate normal. The factory derives a full 3D frame with local X along the gate normal, local Y along the right/opening width axis, and local Z along the up/opening height axis. This supports yaw-only and pitched gate definitions.
+- All sample tracks use the Abu Dhabi-style 1.5 m x 1.5 m internal opening. The side bars are generated as vertical pillars with their height on world Z.
+- Runtime HoloOcean spawning uses one elongated box prop per logical gate bar by default. The installed HoloOcean 2.3.0 Python API documents prop rotation as `[roll, pitch, yaw]`, but the tested Unreal backend renders box yaw correctly when the generated gate rotation is sent as `[yaw, pitch, roll]`. The adapter keeps the internal math in roll/pitch/yaw and applies that HoloOcean-specific conversion only at the `spawn_prop` boundary.
+- HoloOcean `spawn_prop` box `scale` is a multiplier on a one-meter box, so each logical bar passes its meter dimensions directly as `scale`.
+- If a local HoloOcean/Unreal build still renders elongated rotated props incorrectly, set `MARINE_RACE_GATE_VISUAL_MODE=segmented` before running. That fallback represents each logical bar as a chain of small axis-aligned box segments along the same mathematical centerline. It is visually less clean but avoids Euler/scale issues.
 - If `spawn_prop` is unavailable, gate bars remain metadata and can be exported by `HoloOceanVisualSpawner` for manual Unreal placement.
 - The referee always uses abstract gate geometry, regardless of visual spawning status.
-- The box props are physical/collidable in the tested runtime. The debug oracle can clip a bar after valid center-point crossings, so HoloOcean gate visuals are verified as spawned but the oracle is not yet a robust physical racing controller.
+- Use `--print-gate-bars` with the diagnostic script to print every gate id, source bar id, position, logical rotation, runtime spawn rotation, dimensions, and spawn method. Use `diagnose_gate_visual_rotations.py --single-long-only --fixed-front-camera` to spawn one four-long-bar test gate per yaw/pitch case and save `ViewportCapture` screenshots under `diagnostics/`. Add `--rotation-mapping rpy` only when intentionally reproducing the broken mapping for comparison.
+- The box props are physical/collidable in the tested runtime. The no-yaw oracle attempts simple translational gate transits, but it remains a debug feasibility controller rather than a competition-quality controller.
 
 Currents:
 
@@ -250,7 +275,7 @@ conda run -n ocean python -c "import holoocean; print(holoocean); print(getattr(
 
 ## Track Examples
 
-`abu_dhabi_marine_easy.json` is a 6-gate, 1-lap infrastructure/debug track with wider gates, weak constant current, safe depth around `z = -4.0`, and no split-S.
+`abu_dhabi_marine_easy.json` is a 6-gate, 1-lap infrastructure/debug track with the standard 1.5 m x 1.5 m gate opening, weak constant current, safe depth around `z = -4.0`, and no split-S.
 
 `abu_dhabi_marine_medium.json` is the first standard race: 11 gates, 2 laps, 1.5 m openings, one double gate, moderate lateral current, and one localized jet.
 
@@ -319,9 +344,9 @@ The runner writes JSONL race events and a final summary JSON under `results/mari
 ## Known Limitations
 
 - The HoloOcean adapter has been validated against the local `ocean` conda environment with HoloOcean 2.3.0. Other HoloOcean versions may expose different worlds, sensors, or control behavior.
-- Runtime gate spawning uses `spawn_prop("box", ...)`; scenario-based static object config was not identified in the installed Python API.
-- Visual gate boxes are physical in the tested runtime, and the current debug oracle can collide with bars on the easy track. This verifies collision plumbing but also shows that the oracle is not a competition-quality physical controller.
-- The referee validates the vehicle center point only; full-body gate validation is reserved for a future extension.
+- Runtime gate spawning uses `spawn_prop("box", ...)` with four long box props per gate by default; scenario-based static object config was not identified in the installed Python API.
+- Visual gate boxes are physical in the tested runtime. The no-yaw oracle is intended for feasibility testing and may still collide if dynamics, currents, or track geometry exceed its simple controller assumptions.
+- The referee validates the vehicle center point only. `vehicle_clearance_margin_m` can shrink the accepted aperture, but full-body gate validation is reserved for a future extension.
 - The fallback runner is a simple point-vehicle feasibility tool, not a BlueROV2 physics model.
 - HoloOcean physical current coupling depends on `env.set_ocean_currents`; the adapter reports inactive coupling if that API is missing.
 - Vortex current is a clean placeholder.

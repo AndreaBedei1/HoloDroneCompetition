@@ -161,7 +161,7 @@
     {
       "id": "bluerov2_01",
       "vehicle": "BlueROV2",
-      "controller": "acoustic",
+      "controller": "pygame",
       "controller_class": null,
       "spawn": {
         "position": [-14.0, 0.0, -4.0],
@@ -177,6 +177,7 @@
   "referee": {
     "gate_validation": {
       "vehicle_model": "center_point",
+      "vehicle_clearance_margin_m": 0.20,
       "stuck_timeout_s": 35.0,
       "stuck_speed_threshold_m_s": 0.02
     },
@@ -194,4 +195,3 @@
     }
   }
 }
-

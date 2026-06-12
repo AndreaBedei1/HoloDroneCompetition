@@ -1,0 +1,126 @@
+"""Pygame manual controller for local HoloOcean testing.
+
+The controller opens a small Pygame window and reads movement keys from it.
+It does not use ground truth and never commands yaw.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, Iterable, Optional, Set
+
+from marine_race_arena.participants.controller_interface import BaseController
+
+
+class PygameManualController(BaseController):
+    """Manual WASD plus arrow-key controller backed by Pygame."""
+
+    debug_only = False
+    uses_ground_truth = False
+
+    def reset(self, race_info: Dict[str, Any]) -> None:
+        max_command = float(race_info.get("max_command", 0.95))
+        self.linear_command = min(max_command, 0.65)
+        self.vertical_command = min(max_command, 0.50)
+        self._pygame: Optional[Any] = None
+        self._screen: Optional[Any] = None
+        self._font: Optional[Any] = None
+        self._closed = False
+        self._init_pygame()
+
+    def step(self, observation: Dict[str, Any]) -> Dict[str, float]:
+        del observation
+        if self._pygame is None or self._closed:
+            return _zero_command()
+
+        for event in self._pygame.event.get():
+            if event.type == self._pygame.QUIT:
+                self._closed = True
+                return _zero_command()
+
+        pressed = self._pygame.key.get_pressed()
+        keys = set()
+        if pressed[self._pygame.K_w]:
+            keys.add("w")
+        if pressed[self._pygame.K_s]:
+            keys.add("s")
+        if pressed[self._pygame.K_a]:
+            keys.add("a")
+        if pressed[self._pygame.K_d]:
+            keys.add("d")
+        if pressed[self._pygame.K_UP]:
+            keys.add("up")
+        if pressed[self._pygame.K_DOWN]:
+            keys.add("down")
+        if pressed[self._pygame.K_SPACE] or pressed[self._pygame.K_ESCAPE]:
+            keys.add("stop")
+
+        command = self._command_from_keys(keys)
+        self._draw_status(command)
+        return command
+
+    def close(self) -> None:
+        if self._pygame is not None:
+            self._pygame.quit()
+        self._pygame = None
+        self._screen = None
+        self._font = None
+
+    def _init_pygame(self) -> None:
+        try:
+            import pygame
+        except ImportError as exc:
+            raise RuntimeError(
+                "The pygame controller requires pygame in the active Python environment."
+            ) from exc
+
+        pygame.init()
+        self._pygame = pygame
+        self._screen = pygame.display.set_mode((520, 180))
+        pygame.display.set_caption("Marine Race Manual Controller")
+        self._font = pygame.font.Font(None, 24)
+        self._draw_status(_zero_command())
+
+    def _command_from_keys(self, keys: Iterable[str]) -> Dict[str, float]:
+        key_set: Set[str] = set(keys)
+        if "stop" in key_set:
+            return _zero_command()
+
+        command = _zero_command()
+        if "w" in key_set and "s" not in key_set:
+            command["surge"] = self.linear_command
+        elif "s" in key_set and "w" not in key_set:
+            command["surge"] = -self.linear_command
+
+        if "a" in key_set and "d" not in key_set:
+            command["sway"] = self.linear_command
+        elif "d" in key_set and "a" not in key_set:
+            command["sway"] = -self.linear_command
+
+        if "up" in key_set and "down" not in key_set:
+            command["heave"] = self.vertical_command
+        elif "down" in key_set and "up" not in key_set:
+            command["heave"] = -self.vertical_command
+
+        command["yaw"] = 0.0
+        return command
+
+    def _draw_status(self, command: Dict[str, float]) -> None:
+        if self._pygame is None or self._screen is None or self._font is None:
+            return
+        self._screen.fill((16, 24, 32))
+        lines = [
+            "Focus this window. W/S forward/back, A/D left/right.",
+            "Arrow Up/Down raises/lowers. Space or Esc stops.",
+            (
+                f"surge={command['surge']:.2f}  sway={command['sway']:.2f}  "
+                f"heave={command['heave']:.2f}  yaw={command['yaw']:.2f}"
+            ),
+        ]
+        for index, line in enumerate(lines):
+            surface = self._font.render(line, True, (230, 238, 245))
+            self._screen.blit(surface, (18, 22 + index * 42))
+        self._pygame.display.flip()
+
+
+def _zero_command() -> Dict[str, float]:
+    return {"surge": 0.0, "sway": 0.0, "heave": 0.0, "yaw": 0.0}

@@ -78,7 +78,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
             ParticipantConfig(
                 id="bluerov2_01",
                 vehicle="BlueROV2",
-                controller="acoustic",
+                controller="pygame",
                 controller_class=None,
                 spawn={"position": start.position, "rotation_rpy_deg": start.rotation_rpy_deg},
                 sensors={"profile": "official_acoustic"},
@@ -234,7 +234,7 @@ def _parse_participant(raw: Any) -> ParticipantConfig:
     return ParticipantConfig(
         id=str(_required(raw, "id")),
         vehicle=str(raw.get("vehicle", "BlueROV2")),
-        controller=str(raw.get("controller", "acoustic")),
+        controller=str(raw.get("controller", "pygame")),
         controller_class=str(raw["controller_class"]) if raw.get("controller_class") is not None else None,
         spawn=dict(raw.get("spawn", {})),
         sensors=raw.get("sensors", {}),
@@ -294,4 +294,3 @@ def _vector2_or_scalar(value: Any, field_name: str) -> Vector2:
         return (float(value[0]), float(value[1]))
     except (TypeError, ValueError) as exc:
         raise TrackConfigLoadError(f"{field_name} must contain numeric values.") from exc
-

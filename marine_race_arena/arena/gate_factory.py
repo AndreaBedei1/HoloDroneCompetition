@@ -47,8 +47,9 @@ class GateFactory:
         thickness = gate.bar_thickness_m
         width = gate.inner_width_m
         height = gate.inner_height_m
-        right = gate.right_axis
-        up = gate.up_axis
+        right = gate.visual_right_axis
+        up = gate.visual_up_axis
+        visual_rotation = gate.visual_rotation_rpy_deg
 
         bars = [
             GateBar(
@@ -56,7 +57,7 @@ class GateFactory:
                 gate_id=gate.id,
                 part="top",
                 position=_add(gate.center, _scale(up, height / 2.0 + thickness / 2.0)),
-                rotation_rpy_deg=gate.rotation_rpy_deg,
+                rotation_rpy_deg=visual_rotation,
                 dimensions_m=(depth, width + 2.0 * thickness, thickness),
                 color=gate.color,
             ),
@@ -65,7 +66,7 @@ class GateFactory:
                 gate_id=gate.id,
                 part="bottom",
                 position=_add(gate.center, _scale(up, -height / 2.0 - thickness / 2.0)),
-                rotation_rpy_deg=gate.rotation_rpy_deg,
+                rotation_rpy_deg=visual_rotation,
                 dimensions_m=(depth, width + 2.0 * thickness, thickness),
                 color=gate.color,
             ),
@@ -74,7 +75,7 @@ class GateFactory:
                 gate_id=gate.id,
                 part="left",
                 position=_add(gate.center, _scale(right, -width / 2.0 - thickness / 2.0)),
-                rotation_rpy_deg=gate.rotation_rpy_deg,
+                rotation_rpy_deg=visual_rotation,
                 dimensions_m=(depth, thickness, height),
                 color=gate.color,
             ),
@@ -83,7 +84,7 @@ class GateFactory:
                 gate_id=gate.id,
                 part="right",
                 position=_add(gate.center, _scale(right, width / 2.0 + thickness / 2.0)),
-                rotation_rpy_deg=gate.rotation_rpy_deg,
+                rotation_rpy_deg=visual_rotation,
                 dimensions_m=(depth, thickness, height),
                 color=gate.color,
             ),
@@ -133,4 +134,3 @@ def _add(a: Vector3, b: Vector3) -> Vector3:
 
 def _scale(vector: Vector3, scalar: float) -> Vector3:
     return (vector[0] * scalar, vector[1] * scalar, vector[2] * scalar)
-
