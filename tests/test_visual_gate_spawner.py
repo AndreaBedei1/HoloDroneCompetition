@@ -92,6 +92,21 @@ def test_default_visual_spawner_uses_dense_micro_blocks_for_top_and_bottom() -> 
     assert all(prop["segment_count"] == len(top_segments) for prop in top_segments)
 
 
+def test_micro_top_bottom_blocks_are_inset_toward_pillars() -> None:
+    bars = _visual_bars()
+    env = FakeSpawnPropEnv()
+    spawner = HoloOceanVisualSpawner(env)
+    spawner.spawn_gate_bars(bars)
+
+    logical_top = next(bar for bar in bars if bar.id == "G03_top")
+    logical_bottom = next(bar for bar in bars if bar.id == "G03_bottom")
+    top_segment = next(prop for prop in spawner.spawned_props if prop["source_bar_id"] == "G03_top")
+    bottom_segment = next(prop for prop in spawner.spawned_props if prop["source_bar_id"] == "G03_bottom")
+
+    assert top_segment["position"][2] < logical_top.position[2]
+    assert bottom_segment["position"][2] > logical_bottom.position[2]
+
+
 def test_spawn_prop_rotation_uses_verified_holoocean_box_mapping() -> None:
     bars = _visual_bars()
     env = FakeSpawnPropEnv()

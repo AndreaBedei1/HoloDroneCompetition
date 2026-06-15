@@ -506,7 +506,7 @@ def main() -> None:
             currents=[
                 {
                     "type": "constant",
-                    "velocity": [0.10, 0.16, 0.0],
+                    "velocity": [0.25, 0.35, 0.0],
                 },
                 {
                     "type": "localized_jet",

@@ -74,6 +74,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--log-dir", default="results/marine_race", help="Directory for JSONL and summary logs.")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for beacons and adapters.")
     parser.add_argument("--dt", type=float, default=0.1, help="Race loop timestep.")
+    parser.add_argument(
+        "--disable-front-camera",
+        action="store_true",
+        help=(
+            "Disable FrontCamera capture for non-official live/debug runs. "
+            "Official runs keep the camera enabled."
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -83,8 +91,13 @@ def main(argv: list[str] | None = None) -> int:
     except (TrackConfigLoadError, ValueError) as exc:
         print(f"Track validation failed: {exc}", file=sys.stderr)
         return 1
+    if args.official and args.disable_front_camera:
+        print("Race setup failed: --disable-front-camera is not allowed in official mode.", file=sys.stderr)
+        return 1
 
     config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
+    if args.disable_front_camera:
+        config = _without_front_camera(config)
     arena = ArenaBuilder(config, seed=args.seed).build()
     logger = RaceLogger(args.log_dir, config.race.name, track_file=args.track)
     referee = Referee(config, arena.gate_map, arena.bounds, logger=logger)
@@ -281,7 +294,7 @@ def _run_race_loop(
                 participant_state=previous_state,
             )
             try:
-                command = participant.controller.step(copy.deepcopy(observation))
+                command = participant.controller.step(_copy_observation_for_controller(observation))
             except Exception as exc:  # pragma: no cover - exercised by external controllers
                 controller_errors[participant.id] = f"{type(exc).__name__}: {exc}"
                 command = {}
@@ -375,6 +388,57 @@ def _observation_mode(config: TrackConfig, participant: RaceParticipant) -> str:
 
 def _vector3(value: Any) -> Vector3:
     return (float(value[0]), float(value[1]), float(value[2]))
+
+
+def _without_front_camera(config: TrackConfig) -> TrackConfig:
+    participants = [
+        replace(participant, sensors=_strip_front_camera_from_sensors(participant.sensors))
+        for participant in config.participants
+    ]
+    return replace(config, participants=participants)
+
+
+def _strip_front_camera_from_sensors(sensors: Any) -> Any:
+    if not isinstance(sensors, Mapping):
+        return sensors
+    stripped = copy.deepcopy(dict(sensors))
+    for key in ("allowed", "allowed_sensors", "sensors"):
+        values = stripped.get(key)
+        if isinstance(values, list):
+            stripped[key] = [value for value in values if value != "FrontCamera"]
+    holoocean_sensors = stripped.get("holoocean_sensors")
+    if isinstance(holoocean_sensors, list):
+        stripped["holoocean_sensors"] = [
+            sensor
+            for sensor in holoocean_sensors
+            if not (
+                isinstance(sensor, Mapping)
+                and (
+                    sensor.get("sensor_name") == "FrontCamera"
+                    or sensor.get("sensor_type") == "RGBCamera"
+                )
+            )
+        ]
+    if stripped.get("profile") == "official_vision_acoustic":
+        stripped["profile"] = "official_acoustic_no_front_camera"
+    return stripped
+
+
+def _copy_observation_for_controller(value: Any) -> Any:
+    if _looks_like_image_array(value):
+        return value
+    if isinstance(value, dict):
+        return {key: _copy_observation_for_controller(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_observation_for_controller(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_copy_observation_for_controller(item) for item in value)
+    return copy.deepcopy(value)
+
+
+def _looks_like_image_array(value: Any) -> bool:
+    shape = getattr(value, "shape", None)
+    return shape is not None and len(shape) >= 2
 
 
 def _print_summary(summary: Dict[str, Any]) -> None:

@@ -33,6 +33,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--zero-command", action="store_true", help="Command zero thrust during drift.")
     parser.add_argument("--headless", action="store_true", help="Request headless HoloOcean mode.")
     parser.add_argument("--drift-threshold-m", type=float, default=0.05, help="Minimum drift for PASS.")
+    parser.add_argument(
+        "--drift-position",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        default=None,
+        help="Override the HoloOcean spawn position for the stopped-rover drift test.",
+    )
     args = parser.parse_args(argv)
 
     config = load_track_config(args.track)
@@ -74,8 +82,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_holoocean_drift_check(config: TrackConfig, arena: Any, args: argparse.Namespace) -> int:
-    participants = _build_participants(config)
+    participants = _build_participants(config, drift_position=args.drift_position)
     participant_id = next(iter(participants))
+    if args.drift_position is not None:
+        print(f"Drift test spawn override: {_round_vec(_vector3(args.drift_position))}")
     adapter = HoloOceanRaceAdapter(config, arena, headless=args.headless)
     try:
         adapter.initialize()
@@ -124,11 +134,11 @@ def _run_holoocean_drift_check(config: TrackConfig, arena: Any, args: argparse.N
         adapter.close()
 
 
-def _build_participants(config: TrackConfig) -> Dict[str, RaceParticipant]:
+def _build_participants(config: TrackConfig, drift_position: Any = None) -> Dict[str, RaceParticipant]:
     participants: Dict[str, RaceParticipant] = {}
     for participant_config in config.participants:
         spawn = participant_config.spawn or {}
-        position = _vector3(spawn.get("position", config.start.position))
+        position = _vector3(drift_position if drift_position is not None else spawn.get("position", config.start.position))
         rotation = _vector3(spawn.get("rotation_rpy_deg", config.start.rotation_rpy_deg))
         participants[participant_config.id] = RaceParticipant(
             config=participant_config,

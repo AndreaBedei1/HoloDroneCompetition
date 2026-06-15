@@ -7,6 +7,10 @@ from marine_race_arena.adapters.holoocean_adapter import HoloOceanRaceAdapter
 from marine_race_arena.arena.arena_builder import ArenaBuilder
 from marine_race_arena.config.loader import load_track_config
 from marine_race_arena.participants.participant import RaceParticipant
+from marine_race_arena.scripts.run_marine_race import (
+    _copy_observation_for_controller,
+    _strip_front_camera_from_sensors,
+)
 
 
 TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
@@ -69,6 +73,33 @@ def test_benchmark_tracks_enable_front_camera_in_sensor_profile() -> None:
             sensor.get("sensor_type") == "RGBCamera" and sensor.get("sensor_name") == "FrontCamera"
             for sensor in sensors["holoocean_sensors"]
         )
+
+
+def test_front_camera_can_be_stripped_for_non_official_debug_runs() -> None:
+    config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
+    stripped = _strip_front_camera_from_sensors(config.participants[0].sensors)
+
+    assert "FrontCamera" not in stripped["allowed_sensors"]
+    assert not any(
+        sensor.get("sensor_name") == "FrontCamera" or sensor.get("sensor_type") == "RGBCamera"
+        for sensor in stripped["holoocean_sensors"]
+    )
+
+
+def test_observation_copy_keeps_large_images_by_reference() -> None:
+    class ImageLike:
+        shape = (480, 640, 4)
+
+    image = ImageLike()
+    observation = {"sensors": {"FrontCamera": image, "DepthSensor": [4.0]}}
+
+    copied = _copy_observation_for_controller(observation)
+
+    assert copied is not observation
+    assert copied["sensors"] is not observation["sensors"]
+    assert copied["sensors"]["FrontCamera"] is image
+    assert copied["sensors"]["DepthSensor"] == [4.0]
+    assert copied["sensors"]["DepthSensor"] is not observation["sensors"]["DepthSensor"]
 
 
 def _adapter_and_participant() -> tuple[HoloOceanRaceAdapter, RaceParticipant]:

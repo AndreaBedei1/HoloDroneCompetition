@@ -244,7 +244,11 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             ]
         sensor_types = {sensor.get("sensor_type") for sensor in sensors}
         sensor_names = {sensor.get("sensor_name") for sensor in sensors}
-        if "FrontCamera" not in sensor_names and "RGBCamera" not in sensor_types:
+        if (
+            _sensor_profile_requests_front_camera(configured)
+            and "FrontCamera" not in sensor_names
+            and "RGBCamera" not in sensor_types
+        ):
             sensors.append(_front_camera_sensor_config())
         if "PoseSensor" not in sensor_types:
             sensors.append({"sensor_type": "PoseSensor", "socket": "IMUSocket", "Hz": 30})
@@ -317,6 +321,28 @@ def _front_camera_sensor_config() -> Dict[str, Any]:
             "FovAngle": 90.0,
         },
     }
+
+
+def _sensor_profile_requests_front_camera(configured: Any) -> bool:
+    if not isinstance(configured, Mapping):
+        return False
+    if str(configured.get("profile", "")).lower() in {"official_vision_acoustic", "official_vision"}:
+        return True
+    for key in ("allowed", "allowed_sensors", "sensors"):
+        values = configured.get(key)
+        if isinstance(values, list) and "FrontCamera" in values:
+            return True
+    holoocean_sensors = configured.get("holoocean_sensors")
+    if isinstance(holoocean_sensors, list):
+        return any(
+            isinstance(sensor, Mapping)
+            and (
+                sensor.get("sensor_name") == "FrontCamera"
+                or sensor.get("sensor_type") == "RGBCamera"
+            )
+            for sensor in holoocean_sensors
+        )
+    return False
 
 
 def _normalize_front_camera_alias(raw_sensors: Dict[str, Any]) -> Dict[str, Any]:

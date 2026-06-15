@@ -159,6 +159,12 @@ The first two benchmark tracks intentionally have no currents. `marine_race_mixe
 conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter holoocean --duration 10 --zero-command
 ```
 
+To test physical drift inside a strong current zone instead of the track start, pass an explicit drift spawn position. For the mixed endurance benchmark, this uses the second localized jet:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter holoocean --duration 10 --zero-command --drift-position 58.0 12.0 -5.3
+```
+
 ## Validate Tracks
 
 Run validation with either module or script style:
@@ -200,6 +206,7 @@ Useful flags:
 - `--record`: request HoloOcean recording when supported.
 - `--participant-controller`: external `module:Class`, fully qualified `module.Class`, or file path.
 - `--controller-class`: class name to instantiate when using a Python file or module path.
+- `--disable-front-camera`: disable `FrontCamera` capture for non-official live/debug runs when the viewport or control loop is too slow. This is rejected in `--official` mode.
 - `--log-dir`: output directory for JSONL events and summary JSON.
 - `--seed`: deterministic beacon noise/dropout seed.
 
@@ -297,6 +304,7 @@ conda run -n ocean python -c "import holoocean; print(holoocean); print(getattr(
 - If `OpenWater-Hovering` is unavailable, set `world.map` or `world.fallback_environment` to an installed scenario and revalidate the track.
 - If the rover does not move, run the diagnostic first. It prints the generated agent config, raw sensor keys, zero-action test, forward-action test, current-coupling method, and whether the pose changed.
 - If expected sensors are missing, check the generated sensor list in the diagnostic output and compare it with the installed HoloOcean package.
+- If the live viewport is very choppy during manual/debug runs, try `--disable-front-camera`. The official RGB camera is 640x480 at 30 Hz and can be expensive on some machines.
 
 ## Track Examples
 

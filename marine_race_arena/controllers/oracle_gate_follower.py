@@ -29,6 +29,7 @@ class OracleGateFollowerController(BaseController):
         self.z_max = float(bounds.get("z_max", -1.0))
         self.exit_distance_m = 2.6
         self.approach_distance_m = 1.2
+        self.approach_transition_tolerance_m = 0.08
         self._last_gate_id: Optional[str] = None
         self._last_gate_geometry: Optional[Dict[str, Any]] = None
         self._exit_hold: Optional[Dict[str, Any]] = None
@@ -71,9 +72,15 @@ class OracleGateFollowerController(BaseController):
         gate_up = active_geometry["up"]
 
         signed_distance = _dot(_subtract(own_position, gate_center), gate_normal)
+        lateral_right = _dot(_subtract(own_position, gate_center), gate_right)
+        lateral_up = _dot(_subtract(own_position, gate_center), gate_up)
+        lateral_error = math.hypot(lateral_right, lateral_up)
         if phase == "EXIT_HOLD":
             target = _add(gate_center, _scale(gate_normal, self.exit_distance_m))
-        elif signed_distance < -self.approach_distance_m:
+        elif signed_distance < -0.2 and (
+            signed_distance < -(self.approach_distance_m + self.approach_transition_tolerance_m)
+            or lateral_error > 0.20
+        ):
             target = _subtract(gate_center, _scale(gate_normal, self.approach_distance_m))
             phase = "APPROACH"
         else:
@@ -81,9 +88,6 @@ class OracleGateFollowerController(BaseController):
             phase = "TRANSIT"
 
         error = _subtract(target, own_position)
-        lateral_right = _dot(_subtract(own_position, gate_center), gate_right)
-        lateral_up = _dot(_subtract(own_position, gate_center), gate_up)
-        lateral_error = math.hypot(lateral_right, lateral_up)
 
         desired_world = _limit_vector(error, self.max_speed)
         command = _world_velocity_to_body_command(desired_world, own_yaw_deg)

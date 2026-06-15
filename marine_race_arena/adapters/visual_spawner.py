@@ -18,6 +18,7 @@ HYBRID_MICRO_MODES = {"hybrid", "hybrid_micro", "micro", "micro_top_bottom"}
 MICRO_BLOCK_SIZE_RATIO = 0.5
 MICRO_BLOCK_MIN_SIZE_M = 0.055
 MICRO_BLOCK_STEP_RATIO = 0.35
+MICRO_TOP_BOTTOM_INSET_RATIO = 0.45
 
 
 @dataclass
@@ -322,11 +323,16 @@ def _segment_gate_bar(bar: GateBar, dense: bool = False) -> list[dict[str, Any]]
         -length_m / 2.0 + index * (length_m / float(segment_count - 1))
         for index in range(segment_count)
     ]
+    center_position = bar.position
+    if dense and bar.part in {"top", "bottom"}:
+        inset_m = max(0.0, bar_thickness_m - cube_size_m) * MICRO_TOP_BOTTOM_INSET_RATIO
+        inset_sign = -1.0 if bar.part == "top" else 1.0
+        center_position = _add(center_position, _scale(axes[2], inset_sign * inset_m))
     return [
         {
             "index": index,
             "count": segment_count,
-            "position": _add(bar.position, _scale(long_axis, offset)),
+            "position": _add(center_position, _scale(long_axis, offset)),
             "dimensions_m": (cube_size_m, cube_size_m, cube_size_m),
         }
         for index, offset in enumerate(offsets)
