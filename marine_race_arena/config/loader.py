@@ -29,6 +29,43 @@ class TrackConfigLoadError(ValueError):
     """Raised when a track JSON file is malformed before semantic validation."""
 
 
+DEFAULT_OFFICIAL_SENSOR_PROFILE: Dict[str, Any] = {
+    "profile": "official_vision_acoustic",
+    "allowed_sensors": [
+        "DepthSensor",
+        "IMUSensor",
+        "DVLSensor",
+        "VelocitySensor",
+        "CollisionSensor",
+        "FrontCamera",
+        "depth_m",
+        "heading_yaw_deg",
+        "environment_current_m_s",
+        "current_physical_coupling_active",
+        "current_coupling_method",
+        "control_mode",
+    ],
+    "holoocean_sensors": [
+        {"sensor_type": "DepthSensor", "socket": "DepthSocket", "Hz": 30, "configuration": {"Sigma": 0.0}},
+        {"sensor_type": "IMUSensor", "socket": "IMUSocket", "Hz": 30, "configuration": {"ReturnBias": True}},
+        {
+            "sensor_type": "DVLSensor",
+            "socket": "DVLSocket",
+            "Hz": 15,
+            "configuration": {"Elevation": 22.5, "ReturnRange": True, "MaxRange": 50},
+        },
+        {
+            "sensor_type": "RGBCamera",
+            "sensor_name": "FrontCamera",
+            "socket": "CameraSocket",
+            "rotation": [0.0, 0.0, 0.0],
+            "Hz": 30,
+            "configuration": {"CaptureWidth": 640, "CaptureHeight": 480, "FovAngle": 90.0},
+        },
+    ],
+}
+
+
 def load_track_config(track_path: str | Path, debug: bool = False) -> TrackConfig:
     """Load and validate a track JSON file.
 
@@ -81,7 +118,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
                 controller="pygame",
                 controller_class=None,
                 spawn={"position": start.position, "rotation_rpy_deg": start.rotation_rpy_deg},
-                sensors={"profile": "official_acoustic"},
+                sensors=dict(DEFAULT_OFFICIAL_SENSOR_PROFILE),
                 control_mode="high_level",
                 official_sensor_profile=True,
             )
@@ -248,10 +285,37 @@ def _parse_referee(raw: Any) -> RefereeConfig:
         raw = {}
     if not isinstance(raw, Mapping):
         raise TrackConfigLoadError("referee must be an object when provided.")
+    gate_validation_defaults = {
+        "vehicle_model": "center_point",
+        "vehicle_clearance_margin_m": 0.0,
+        "stuck_timeout_s": 45.0,
+        "stuck_speed_threshold_m_s": 0.02,
+        "timeout_enabled": False,
+        "collision_penalty_cooldown_s": 1.0,
+        "out_of_bounds_penalty_cooldown_s": 1.0,
+    }
+    penalty_defaults = {
+        "minor_collision_s": 5.0,
+        "gate_collision_s": 10.0,
+        "out_of_bounds_s": 10.0,
+        "stuck_s": 15.0,
+        "wrong_direction_s": 0.0,
+        "missed_gate_dnf": True,
+        "severe_collision_dnf": False,
+        "out_of_bounds_dnf": False,
+        "wrong_direction_dsq": False,
+    }
+    scoring_defaults = {
+        "rank_finished_by": "penalized_time",
+        "rank_unfinished_by": "completed_gates",
+    }
+    gate_validation_defaults.update(dict(raw.get("gate_validation", {})))
+    penalty_defaults.update(dict(raw.get("penalties", {})))
+    scoring_defaults.update(dict(raw.get("scoring", {})))
     return RefereeConfig(
-        gate_validation=dict(raw.get("gate_validation", {})),
-        penalties=dict(raw.get("penalties", {})),
-        scoring=dict(raw.get("scoring", {})),
+        gate_validation=gate_validation_defaults,
+        penalties=penalty_defaults,
+        scoring=scoring_defaults,
     )
 
 

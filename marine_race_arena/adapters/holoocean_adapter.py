@@ -95,7 +95,7 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
 
     def get_allowed_sensor_data(self, participant_id: str, sensor_profile: Any) -> Dict[str, Any]:
         state = self.get_participant_state(participant_id)
-        raw_sensors = dict(state.raw_sensors)
+        raw_sensors = _normalize_front_camera_alias(dict(state.raw_sensors))
         current_velocity = self.arena.current_manager.get_current_at(state.position, self._time_s)
         raw_sensors.setdefault("heading_yaw_deg", state.rotation_rpy_deg[2])
         raw_sensors.setdefault("depth_m", -state.position[2])
@@ -243,6 +243,9 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
                 },
             ]
         sensor_types = {sensor.get("sensor_type") for sensor in sensors}
+        sensor_names = {sensor.get("sensor_name") for sensor in sensors}
+        if "FrontCamera" not in sensor_names and "RGBCamera" not in sensor_types:
+            sensors.append(_front_camera_sensor_config())
         if "PoseSensor" not in sensor_types:
             sensors.append({"sensor_type": "PoseSensor", "socket": "IMUSocket", "Hz": 30})
         if "VelocitySensor" not in sensor_types:
@@ -299,6 +302,31 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
 
 def _world_from_environment(environment_name: str) -> str:
     return environment_name.split("-", 1)[0] if "-" in environment_name else environment_name
+
+
+def _front_camera_sensor_config() -> Dict[str, Any]:
+    return {
+        "sensor_type": "RGBCamera",
+        "sensor_name": "FrontCamera",
+        "socket": "CameraSocket",
+        "rotation": [0.0, 0.0, 0.0],
+        "Hz": 30,
+        "configuration": {
+            "CaptureWidth": 640,
+            "CaptureHeight": 480,
+            "FovAngle": 90.0,
+        },
+    }
+
+
+def _normalize_front_camera_alias(raw_sensors: Dict[str, Any]) -> Dict[str, Any]:
+    if "FrontCamera" in raw_sensors:
+        return raw_sensors
+    for alias in ("RGBCamera", "FrontRGBCamera", "front_camera"):
+        if alias in raw_sensors:
+            raw_sensors["FrontCamera"] = raw_sensors[alias]
+            break
+    return raw_sensors
 
 
 def _extract_pose(

@@ -33,16 +33,17 @@ def _ranking_key(
     gate_sequence: List[str],
     gate_map: Dict[str, Gate],
     latest_positions: Dict[str, Vector3],
-) -> tuple[float, float, float, float, str]:
+) -> tuple[float, float, float, float, float, str]:
     if state.status == ParticipantStatus.FINISHED:
         official = penalized_time_s(state)
-        return (0.0, official if official is not None else math.inf, 0.0, 0.0, state.participant_id)
+        return (0.0, official if official is not None else math.inf, 0.0, 0.0, 0.0, state.participant_id)
 
     next_distance = distance_to_next_gate(state, gate_sequence, gate_map, latest_positions)
     return (
         1.0,
         -float(state.valid_gate_crossings),
         float(state.collision_events),
+        float(state.penalties_s),
         next_distance,
         state.participant_id,
     )
@@ -64,4 +65,3 @@ def distance_to_next_gate(
         + (position[1] - gate.center[1]) ** 2
         + (position[2] - gate.center[2]) ** 2
     )
-

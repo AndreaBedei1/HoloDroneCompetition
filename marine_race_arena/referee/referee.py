@@ -75,24 +75,10 @@ class Referee:
 
         bounds_reason = self.bounds.violation_reason(current_position)
         if bounds_reason is not None:
-            state.out_of_bounds_events += 1
-            state.status = ParticipantStatus.DNF
-            event = {"event": "out_of_bounds", "reason": bounds_reason}
-            events.append(event)
-            self._log("out_of_bounds", time_s, participant_id, reason=bounds_reason, position=current_position)
-            self._log("dnf", time_s, participant_id, reason="out_of_bounds")
-            return events
+            self._handle_out_of_bounds(state, bounds_reason, current_position, time_s, events)
 
         if collision:
-            state.collision_events += 1
-            penalty = float(self.config.referee.penalties.get("minor_collision_s", 5.0))
-            state.penalties_s += penalty
-            events.append({"event": "collision", "penalty_s": penalty, "position": current_position})
-            self._log("collision", time_s, participant_id, penalty_s=penalty, position=current_position)
-            if bool(self.config.referee.penalties.get("severe_collision_dnf", False)):
-                state.status = ParticipantStatus.DNF
-                self._log("dnf", time_s, participant_id, reason="severe_collision")
-                return events
+            self._handle_collision(state, current_position, time_s, events)
 
         self._update_stuck_state(state, previous_position, current_position, time_s, events)
         if state.is_terminal:
@@ -147,6 +133,7 @@ class Referee:
                     "wrong_direction_crossings": state.wrong_direction_crossings,
                     "missed_gate_attempts": state.missed_gate_attempts,
                     "out_of_bounds_events": state.out_of_bounds_events,
+                    "stuck_events": state.stuck_events,
                 }
             )
         return {
@@ -179,26 +166,20 @@ class Referee:
             return events
 
         if result.reason == "wrong_direction":
-            penalty = float(self.config.referee.penalties.get("wrong_direction_s", 20.0))
             state.wrong_direction_crossings += 1
-            state.penalties_s += penalty
-            events.append({"event": "wrong_direction", "gate_id": expected_gate.id, "penalty_s": penalty})
-            self._log("penalty", time_s, state.participant_id, reason="wrong_direction", penalty_s=penalty)
-            if bool(self.config.referee.penalties.get("wrong_direction_dsq", False)):
-                state.status = ParticipantStatus.DSQ
-                self._log("dnf", time_s, state.participant_id, reason="wrong_direction_dsq")
+            events.append({"event": "wrong_direction", "gate_id": expected_gate.id})
+            self._log("wrong_direction", time_s, state.participant_id, gate_id=expected_gate.id)
             return events
 
         for gate_id, gate in self.gate_map.items():
             if gate_id == expected_gate_id:
                 continue
-            other = validate_gate_crossing(
+            if _crossed_gate_aperture(
                 gate,
                 previous_position,
                 current_position,
-                clearance_margin_m=self.vehicle_clearance_margin_m,
-            )
-            if other.valid:
+                self.vehicle_clearance_margin_m,
+            ):
                 state.missed_gate_attempts += 1
                 events.append({"event": "missed_gate", "expected_gate_id": expected_gate_id, "crossed_gate_id": gate_id})
                 self._log(
@@ -278,6 +259,55 @@ class Referee:
             penalties_s=state.penalties_s,
         )
 
+    def _handle_collision(
+        self,
+        state: ParticipantRaceState,
+        current_position: Vector3,
+        time_s: float,
+        events: List[Dict[str, object]],
+    ) -> None:
+        cooldown_s = float(self.config.referee.gate_validation.get("collision_penalty_cooldown_s", 1.0))
+        if not _cooldown_elapsed(state.last_collision_penalty_time, time_s, cooldown_s):
+            return
+        penalty = float(self.config.referee.penalties.get("minor_collision_s", 5.0))
+        state.collision_events += 1
+        state.penalties_s += penalty
+        state.last_collision_penalty_time = time_s
+        events.append({"event": "collision", "penalty_s": penalty, "position": current_position})
+        self._log("collision", time_s, state.participant_id, penalty_s=penalty, position=current_position)
+
+    def _handle_out_of_bounds(
+        self,
+        state: ParticipantRaceState,
+        reason: str,
+        current_position: Vector3,
+        time_s: float,
+        events: List[Dict[str, object]],
+    ) -> None:
+        cooldown_s = float(self.config.referee.gate_validation.get("out_of_bounds_penalty_cooldown_s", 1.0))
+        if not _cooldown_elapsed(state.last_out_of_bounds_penalty_time, time_s, cooldown_s):
+            return
+        penalty = float(self.config.referee.penalties.get("out_of_bounds_s", 10.0))
+        state.out_of_bounds_events += 1
+        state.penalties_s += penalty
+        state.last_out_of_bounds_penalty_time = time_s
+        events.append(
+            {
+                "event": "out_of_bounds",
+                "reason": reason,
+                "penalty_s": penalty,
+                "position": current_position,
+            }
+        )
+        self._log(
+            "out_of_bounds",
+            time_s,
+            state.participant_id,
+            reason=reason,
+            penalty_s=penalty,
+            position=current_position,
+        )
+
     def _update_stuck_state(
         self,
         state: ParticipantRaceState,
@@ -297,14 +327,31 @@ class Referee:
             state.stuck_accumulator_s += dt
         else:
             state.stuck_accumulator_s = 0.0
+            state.stuck_penalty_active = False
             state.last_motion_time = time_s
-        if state.stuck_accumulator_s >= timeout_s:
-            state.status = ParticipantStatus.DNF
-            events.append({"event": "stuck"})
-            self._log("stuck", time_s, state.participant_id, duration_s=state.stuck_accumulator_s)
-            self._log("dnf", time_s, state.participant_id, reason="stuck")
+        if state.stuck_accumulator_s >= timeout_s and not state.stuck_penalty_active:
+            penalty = float(self.config.referee.penalties.get("stuck_s", 15.0))
+            state.stuck_events += 1
+            state.penalties_s += penalty
+            state.stuck_penalty_active = True
+            events.append(
+                {
+                    "event": "stuck",
+                    "duration_s": state.stuck_accumulator_s,
+                    "penalty_s": penalty,
+                }
+            )
+            self._log(
+                "stuck",
+                time_s,
+                state.participant_id,
+                duration_s=state.stuck_accumulator_s,
+                penalty_s=penalty,
+            )
 
     def _duration_exceeded(self, state: ParticipantRaceState, time_s: float) -> bool:
+        if not bool(self.config.referee.gate_validation.get("timeout_enabled", False)):
+            return False
         if state.green_start_time is None:
             return False
         return (time_s - state.green_start_time) > self.config.race.max_duration_s
@@ -322,3 +369,23 @@ class Referee:
 
 def _distance(a: Vector3, b: Vector3) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
+def _cooldown_elapsed(previous_time_s: Optional[float], time_s: float, cooldown_s: float) -> bool:
+    if previous_time_s is None:
+        return True
+    return (time_s - previous_time_s) >= max(0.0, cooldown_s)
+
+
+def _crossed_gate_aperture(
+    gate: Gate,
+    previous_position: Vector3,
+    current_position: Vector3,
+    clearance_margin_m: float,
+) -> bool:
+    if not gate.crossed_between(previous_position, current_position):
+        return False
+    intersection = gate.intersection_point(previous_position, current_position)
+    if intersection is None:
+        return False
+    return gate.is_point_inside_aperture(intersection, margin_m=clearance_margin_m)

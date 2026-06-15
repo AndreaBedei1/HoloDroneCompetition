@@ -281,8 +281,18 @@ def _validate_currents(config: TrackConfig, result: ValidationResult) -> None:
             axis = current.params.get("axis")
             if axis not in {"x", "y", "z"}:
                 result.error(f"Current #{index} sinusoidal.axis must be one of x, y, z.")
+            frequency = current.params.get("frequency_hz", current.params.get("frequency", 0.0))
+            if float(frequency) < 0:
+                result.error(f"Current #{index} sinusoidal.frequency_hz must be zero or positive.")
         if current.type == "vortex":
-            result.warn("vortex currents are placeholders unless a physical HoloOcean adapter is added.")
+            _require_vector(current.params, "center", f"Current #{index}", result)
+            if float(current.params.get("radius", 0.0)) <= 0:
+                result.error(f"Current #{index} vortex.radius must be positive.")
+            if float(current.params.get("tangential_speed", 0.0)) < 0:
+                result.error(f"Current #{index} vortex.tangential_speed must be zero or positive.")
+            falloff = current.params.get("falloff", "gaussian")
+            if falloff not in {"linear", "gaussian"}:
+                result.error(f"Current #{index} vortex.falloff must be linear or gaussian.")
 
 
 def _validate_participants(config: TrackConfig, result: ValidationResult) -> None:
@@ -319,12 +329,24 @@ def _validate_participants(config: TrackConfig, result: ValidationResult) -> Non
 
 def _validate_referee(config: TrackConfig, result: ValidationResult) -> None:
     penalties = config.referee.penalties
-    for key in ("minor_collision_s", "gate_collision_s", "wrong_direction_s"):
+    for key in (
+        "minor_collision_s",
+        "gate_collision_s",
+        "out_of_bounds_s",
+        "stuck_s",
+        "wrong_direction_s",
+    ):
         if key in penalties and float(penalties[key]) < 0:
             result.error(f"referee.penalties.{key} must be zero or positive.")
     stuck_timeout = config.referee.gate_validation.get("stuck_timeout_s")
     if stuck_timeout is not None and float(stuck_timeout) <= 0:
         result.error("referee.gate_validation.stuck_timeout_s must be positive.")
+    collision_cooldown = config.referee.gate_validation.get("collision_penalty_cooldown_s")
+    if collision_cooldown is not None and float(collision_cooldown) < 0:
+        result.error("referee.gate_validation.collision_penalty_cooldown_s must be zero or positive.")
+    out_of_bounds_cooldown = config.referee.gate_validation.get("out_of_bounds_penalty_cooldown_s")
+    if out_of_bounds_cooldown is not None and float(out_of_bounds_cooldown) < 0:
+        result.error("referee.gate_validation.out_of_bounds_penalty_cooldown_s must be zero or positive.")
     clearance_margin = config.referee.gate_validation.get("vehicle_clearance_margin_m")
     if clearance_margin is not None and float(clearance_margin) < 0:
         result.error("referee.gate_validation.vehicle_clearance_margin_m must be zero or positive.")

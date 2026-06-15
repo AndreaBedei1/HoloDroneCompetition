@@ -330,16 +330,7 @@
       ]
     }
   ],
-  "currents": [
-    {
-      "type": "constant",
-      "velocity": [
-        0.02,
-        0.04,
-        0.0
-      ]
-    }
-  ],
+  "currents": [],
   "obstacles": [],
   "participants": [
     {
@@ -360,7 +351,65 @@
         ]
       },
       "sensors": {
-        "profile": "official_acoustic"
+        "profile": "official_vision_acoustic",
+        "allowed_sensors": [
+          "DepthSensor",
+          "IMUSensor",
+          "DVLSensor",
+          "VelocitySensor",
+          "CollisionSensor",
+          "FrontCamera",
+          "depth_m",
+          "heading_yaw_deg",
+          "environment_current_m_s",
+          "current_physical_coupling_active",
+          "current_coupling_method",
+          "control_mode"
+        ],
+        "holoocean_sensors": [
+          {
+            "sensor_type": "DepthSensor",
+            "socket": "DepthSocket",
+            "Hz": 30,
+            "configuration": {
+              "Sigma": 0.0
+            }
+          },
+          {
+            "sensor_type": "IMUSensor",
+            "socket": "IMUSocket",
+            "Hz": 30,
+            "configuration": {
+              "ReturnBias": true
+            }
+          },
+          {
+            "sensor_type": "DVLSensor",
+            "socket": "DVLSocket",
+            "Hz": 15,
+            "configuration": {
+              "Elevation": 22.5,
+              "ReturnRange": true,
+              "MaxRange": 50
+            }
+          },
+          {
+            "sensor_type": "RGBCamera",
+            "sensor_name": "FrontCamera",
+            "socket": "CameraSocket",
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "Hz": 30,
+            "configuration": {
+              "CaptureWidth": 640,
+              "CaptureHeight": 480,
+              "FovAngle": 90.0
+            }
+          }
+        ]
       },
       "control_mode": "high_level",
       "official_sensor_profile": true
@@ -371,14 +420,20 @@
       "vehicle_model": "center_point",
       "vehicle_clearance_margin_m": 0.1,
       "stuck_timeout_s": 45.0,
-      "stuck_speed_threshold_m_s": 0.02
+      "stuck_speed_threshold_m_s": 0.02,
+      "timeout_enabled": false,
+      "collision_penalty_cooldown_s": 1.0,
+      "out_of_bounds_penalty_cooldown_s": 1.0
     },
     "penalties": {
       "minor_collision_s": 5.0,
       "gate_collision_s": 10.0,
-      "wrong_direction_s": 20.0,
+      "out_of_bounds_s": 10.0,
+      "stuck_s": 15.0,
+      "wrong_direction_s": 0.0,
       "missed_gate_dnf": true,
-      "severe_collision_dnf": true,
+      "severe_collision_dnf": false,
+      "out_of_bounds_dnf": false,
       "wrong_direction_dsq": false
     },
     "scoring": {

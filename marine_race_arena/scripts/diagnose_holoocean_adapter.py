@@ -26,6 +26,7 @@ SENSOR_CHECKS = [
     "DVLSensor",
     "VelocitySensor",
     "CollisionSensor",
+    "FrontCamera",
 ]
 
 
@@ -111,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         adapter._raw_state = raw_state if isinstance(raw_state, dict) else {}
         adapter._refresh_states_from_raw()
         print(f"Raw state top-level keys: {list(adapter._raw_state.keys())}")
-        sensors = _sensor_dict(adapter._raw_state, participant_id)
+        sensors = _normalize_front_camera_sensor_key(_sensor_dict(adapter._raw_state, participant_id))
         print(f"Available sensor keys: {list(sensors.keys())}")
         for sensor_name in SENSOR_CHECKS:
             present = sensor_name in sensors
@@ -119,6 +120,10 @@ def main(argv: list[str] | None = None) -> int:
             summary[f"{sensor_name}_available"] = present
             if sensor_name == "CollisionSensor" and not present:
                 summary["warnings"].append("CollisionSensor was configured but not present in state.")
+            if sensor_name == "FrontCamera" and present:
+                _print_front_camera_info(sensors[sensor_name], summary)
+            if sensor_name == "FrontCamera" and not present:
+                summary["warnings"].append("FrontCamera was configured but not present in state.")
         print(f"Initial collision state: {_collision_value(sensors)}")
 
         if args.skip_gate_visuals:
@@ -264,6 +269,46 @@ def _collision_value(sensors: Mapping[str, Any]) -> Any:
     if hasattr(value, "tolist"):
         return value.tolist()
     return value
+
+
+def _normalize_front_camera_sensor_key(sensors: Dict[str, Any]) -> Dict[str, Any]:
+    if "FrontCamera" in sensors:
+        return sensors
+    for alias in ("RGBCamera", "FrontRGBCamera", "front_camera"):
+        if alias in sensors:
+            sensors["FrontCamera"] = sensors[alias]
+            break
+    return sensors
+
+
+def _print_front_camera_info(image: Any, summary: Dict[str, Any]) -> None:
+    shape = _shape_of(image)
+    image_type = type(image).__name__
+    summary["FrontCamera_type"] = image_type
+    summary["FrontCamera_shape"] = shape
+    print(f"FrontCamera type: {image_type}")
+    print(f"FrontCamera shape: {shape}")
+    if shape not in ([480, 640, 4], [480, 640, 3]):
+        summary["warnings"].append(
+            f"FrontCamera shape was {shape}; expected [480, 640, 4] or [480, 640, 3]."
+        )
+
+
+def _shape_of(value: Any) -> list[int]:
+    shape = getattr(value, "shape", None)
+    if shape is not None:
+        return [int(component) for component in shape]
+    if isinstance(value, list):
+        if not value:
+            return [0]
+        if isinstance(value[0], list):
+            if not value[0]:
+                return [len(value), 0]
+            if isinstance(value[0][0], list):
+                return [len(value), len(value[0]), len(value[0][0])]
+            return [len(value), len(value[0])]
+        return [len(value)]
+    return []
 
 
 def _print_gate_bars(visual_gates: Any, method: str) -> None:

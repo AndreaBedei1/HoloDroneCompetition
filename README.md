@@ -26,7 +26,7 @@ marine_race_arena/
   participants/    participant state, controller interface, controller loader
   controllers/     Pygame/manual keyboard controllers, student template, acoustic baseline, debug oracle
   referee/         gate validation, race state, scoring, logger, referee
-  tracks/          easy, medium, hard JSON tracks
+  tracks/          benchmark JSON tracks
   scripts/         validation and race runner entry points
 tests/             simulator-independent pytest tests
 ```
@@ -52,11 +52,11 @@ Track files live in `marine_race_arena/tracks/`. A track JSON contains:
 - `finish`: final gate id.
 - `gates`: gate id, type, position, rotation, size, color, passage direction, optional linked gate and beacon override.
 - `beacon`: global acoustic beacon defaults.
-- `currents`: constant, localized jet, sinusoidal, or vortex placeholder fields.
+- `currents`: constant, localized jet, sinusoidal, and vortex fields.
 - `participants`: vehicle, controller, sensors, spawn, and control mode.
 - `referee`: validation, penalties, and scoring settings.
 
-All configured starts and gates must remain inside `world.bounds`. Underwater depth safety is enforced with `z_min` and `z_max`; values below `z_min` are unsafe and cause out-of-bounds/DNF. The example tracks use safe depths around `z = -4.0` to `z = -5.7` and avoid the seabed.
+All configured starts and gates must remain inside `world.bounds`. Underwater depth safety is enforced with `z_min` and `z_max`; values below `z_min` are unsafe and are logged as out-of-bounds events with penalties. The benchmark tracks use safe depths around `z = -4.0` to `z = -5.9` and avoid the seabed.
 
 ## Gate Validation Rule
 
@@ -66,8 +66,7 @@ A gate crossing is valid only when:
 - The crossing direction matches the gate `passage_direction`.
 - The segment intersection point is inside the internal opening.
 - The gate is the expected id in `track.gate_sequence`.
-- The participant is inside arena bounds.
-- No invalid collision is reported during that tick.
+- The participant has not skipped the expected sequence by crossing a different gate.
 
 The referee uses the abstract gate geometry, not visual collision geometry.
 Set `referee.gate_validation.vehicle_clearance_margin_m` to shrink the valid center-point aperture by a safety margin. The default is `0.0` for backward compatibility; the sample tracks use small positive margins to reduce valid-but-too-close center crossings near physical bars.
@@ -83,15 +82,19 @@ The logger also saves green-to-finish time for every finished participant.
 
 ## Scoring And Ranking
 
-Default penalties:
+Final benchmark rules:
 
 - Minor collision: +5 s.
 - Gate collision: +10 s.
-- Wrong direction: +20 s unless configured as DSQ.
-- Out of bounds: DNF.
-- Missed gate: DNF by default.
+- Out of bounds: +10 s.
+- Stuck episode: +15 s.
+- Wrong direction: logged only, no default penalty or DSQ.
+- Collision, out-of-bounds, and stuck are penalty/events, not DNF.
+- Missing or skipping a gate by crossing a different gate than expected is DNF.
+- Timeout is disabled by default. The runner may still stop at the configured duration guard, but the referee does not mark TIMEOUT unless `referee.gate_validation.timeout_enabled` is true.
+- Controller failure remains terminal as `CONTROLLER_ERROR`.
 
-Finished participants rank ahead of unfinished participants. Finished racers rank by lower penalized official time. Non-finished racers rank by more completed gates, fewer collisions, then shorter distance to the next expected gate.
+Finished participants rank ahead of unfinished participants. Finished racers rank by lower penalized official time. Non-finished racers rank by more completed gates, fewer collisions, lower accumulated penalty, then shorter distance to the next expected gate.
 
 ## Official And Debug Modes
 
@@ -146,9 +149,15 @@ The current manager supports:
 - `constant`: uniform velocity vector.
 - `localized_jet`: radius-limited current with Gaussian or linear falloff.
 - `sinusoidal`: oscillating velocity component.
-- `vortex`: placeholder that validates and logs but evaluates as zero until a physical adapter is added.
+- `vortex`: analytic horizontal swirl around a configured center, with optional vertical component and linear or Gaussian falloff.
 
 In the fallback adapter, currents are applied to the simple point-vehicle kinematics and exposed in logs/observations. In the tested HoloOcean 2.3.0 installation, the HoloOcean adapter applies currents through `env.set_ocean_currents(agent_name, velocity)`. If that method is missing in another installation, the adapter reports the limitation and exposes configured currents in observations/logs only.
+
+The first two benchmark tracks intentionally have no currents. `marine_race_mixed_endurance.json` is the current benchmark and combines constant flow, localized jets, a sinusoidal vertical component, and a vortex. Use the stopped-rover diagnostic to verify physical drift:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter holoocean --duration 10 --zero-command
+```
 
 ## Validate Tracks
 
@@ -172,6 +181,14 @@ conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track m
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter fallback --duration 1300
 ```
 
+Current diagnostics:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --adapter fallback
+conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --adapter fallback
+conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter fallback
+```
+
 Useful flags:
 
 - `--adapter auto`: try HoloOcean first. If it fails, fallback is used only when `--allow-fallback` is also set.
@@ -182,6 +199,7 @@ Useful flags:
 - `--headless`: request headless HoloOcean mode when supported.
 - `--record`: request HoloOcean recording when supported.
 - `--participant-controller`: external `module:Class`, fully qualified `module.Class`, or file path.
+- `--controller-class`: class name to instantiate when using a Python file or module path.
 - `--log-dir`: output directory for JSONL events and summary JSON.
 - `--seed`: deterministic beacon noise/dropout seed.
 
@@ -225,6 +243,9 @@ Command mapping:
 Sensor separation:
 
 - Official/student observations include configured non-ground-truth sensors, beacon observations, time, participant id, and race progress.
+- The benchmark tracks include an official front RGB camera exposed as `observation["sensors"]["FrontCamera"]`.
+- The HoloOcean scenario config mounts this camera as `RGBCamera` named `FrontCamera` on `CameraSocket`, with rotation `[0.0, 0.0, 0.0]`, `Hz=30`, `640x480`, and FOV `90.0`.
+- If the installed HoloOcean runtime returns the image under `RGBCamera`, the adapter aliases it to `FrontCamera` before filtering.
 - The adapter filters out `PoseSensor`, `LocationSensor`, `RotationSensor`, `DynamicsSensor`, and explicit ground-truth fields in official mode.
 - The referee still uses ground-truth pose internally for gate validation and out-of-bounds checks.
 - The oracle controller receives ground truth only when not in official mode.
@@ -255,12 +276,12 @@ Collision sensor:
 
 - The generated BlueROV2 scenario includes `CollisionSensor`.
 - The adapter maps `CollisionSensor`/contact values to `adapter.get_collision_state(participant_id)`.
-- The referee receives collision status and applies the configured penalty/DNF rules.
+- The referee receives collision status and applies the configured time penalty with cooldown. Collision is not DNF in the final benchmark rules.
 
 Depth safety:
 
 - `z_min` and `z_max` are enforced by the referee using adapter ground truth.
-- A vehicle below `z_min` or above `z_max` is marked out-of-bounds/DNF.
+- A vehicle below `z_min` or above `z_max` is marked as out-of-bounds and receives the configured penalty with cooldown.
 - Official controllers do not receive this bounds check as privileged navigation ground truth.
 
 Troubleshooting HoloOcean environments:
@@ -279,11 +300,11 @@ conda run -n ocean python -c "import holoocean; print(holoocean); print(getattr(
 
 ## Track Examples
 
-`marine_race_horseshoe_bay.json` is a 12-gate, 1-lap open U-shaped route with standard 1.5 m x 1.5 m gate openings, weak current, safe depth near `z = -4.0`, and clear point-to-point visibility.
+`marine_race_horseshoe_bay.json` is a 12-gate, 1-lap open U-shaped route with standard 1.5 m x 1.5 m gate openings, no currents, safe depth near `z = -4.0`, and clear point-to-point visibility.
 
-`marine_race_vertical_serpent.json` is a 17-gate, 1-lap slalom with strong depth variation, vertical double-gate elements, localized jets, and a longer duration budget.
+`marine_race_vertical_serpent.json` is a 17-gate, 1-lap slalom with strong depth variation, vertical double-gate elements, no currents, and a longer duration budget.
 
-`marine_race_mixed_endurance.json` is a 22-gate, 1-lap endurance route with diagonals, vertical variation, double gates, a split-S-like section, multiple localized jets, beacon noise, and dropout.
+`marine_race_mixed_endurance.json` is a 22-gate, 1-lap endurance route with diagonals, vertical variation, double gates, a split-S-like section, strong currents, localized jets, a vortex, beacon noise, and dropout.
 
 ## Add A Student Controller
 
@@ -304,7 +325,23 @@ def close(self): ...
 For high-level control return:
 
 ```python
-{"surge": 0.3, "sway": 0.0, "heave": 0.0, "yaw": 0.1}
+return {
+    "surge": 0.4,
+    "sway": 0.0,
+    "heave": 0.0,
+    "yaw": 0.0,
+}
+```
+
+`surge` is forward/backward, `sway` is lateral, `heave` is vertical, and `yaw` is rotation. Values are clamped by the adapter.
+
+Official controllers can read the front camera like this:
+
+```python
+image = observation["sensors"].get("FrontCamera")
+if image is not None:
+    # HoloOcean RGBCamera usually returns a uint8 array shaped (480, 640, 4).
+    height = image.shape[0] if hasattr(image, "shape") else len(image)
 ```
 
 For thruster control return:
@@ -316,10 +353,12 @@ For thruster control return:
 Run an external controller with:
 
 ```bash
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --participant-controller path.to.module.ControllerClass
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --participant-controller path/to/my_controller.py --controller-class MyController --adapter holoocean --duration 500 --dt 0.033
 ```
 
-If you load from a file path, set `controller_class` in the participant config or use a module/class reference instead.
+You can also use `--participant-controller package.module:MyController` or `--participant-controller package.module.MyController`.
+
+Official observations exclude ground-truth pose, exact gate centers, full track geometry, and referee internals. They may include beacon messages, `FrontCamera`, depth, IMU, DVL/velocity when configured, and current estimates when allowed by the sensor profile. The oracle controller is debug-only and not competition-valid.
 
 ## Add A New Track
 
@@ -353,5 +392,5 @@ The runner writes JSONL race events and a final summary JSON under `results/mari
 - The referee validates the vehicle center point only. `vehicle_clearance_margin_m` can shrink the accepted aperture, but full-body gate validation is reserved for a future extension.
 - The fallback runner is a simple point-vehicle feasibility tool, not a BlueROV2 physics model.
 - HoloOcean physical current coupling depends on `env.set_ocean_currents`; the adapter reports inactive coupling if that API is missing.
-- Vortex current is a clean placeholder.
+- Vortex current is a simplified analytic field, not a CFD model.
 - Obstacles are preserved in config but require a physical spawning adapter.

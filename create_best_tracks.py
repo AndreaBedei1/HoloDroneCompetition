@@ -16,6 +16,58 @@ DEFAULT_COLORS = [
 ]
 
 
+def official_vision_sensor_profile() -> dict[str, Any]:
+    return {
+        "profile": "official_vision_acoustic",
+        "allowed_sensors": [
+            "DepthSensor",
+            "IMUSensor",
+            "DVLSensor",
+            "VelocitySensor",
+            "CollisionSensor",
+            "FrontCamera",
+            "depth_m",
+            "heading_yaw_deg",
+            "environment_current_m_s",
+            "current_physical_coupling_active",
+            "current_coupling_method",
+            "control_mode",
+        ],
+        "holoocean_sensors": [
+            {
+                "sensor_type": "DepthSensor",
+                "socket": "DepthSocket",
+                "Hz": 30,
+                "configuration": {"Sigma": 0.0},
+            },
+            {
+                "sensor_type": "IMUSensor",
+                "socket": "IMUSocket",
+                "Hz": 30,
+                "configuration": {"ReturnBias": True},
+            },
+            {
+                "sensor_type": "DVLSensor",
+                "socket": "DVLSocket",
+                "Hz": 15,
+                "configuration": {"Elevation": 22.5, "ReturnRange": True, "MaxRange": 50},
+            },
+            {
+                "sensor_type": "RGBCamera",
+                "sensor_name": "FrontCamera",
+                "socket": "CameraSocket",
+                "rotation": [0.0, 0.0, 0.0],
+                "Hz": 30,
+                "configuration": {
+                    "CaptureWidth": 640,
+                    "CaptureHeight": 480,
+                    "FovAngle": 90.0,
+                },
+            },
+        ],
+    }
+
+
 def round_value(value: float, ndigits: int = 3) -> float:
     rounded = round(float(value), ndigits)
     return 0.0 if abs(rounded) < 0.0005 else rounded
@@ -135,11 +187,30 @@ def build_gates(
     for index_zero_based, point in enumerate(points):
         gate_index = index_zero_based + 1
         direction = gate_direction_for_index(points, start, index_zero_based)
+        gate_type = gate_types.get(gate_index, "single")
+        if gate_type == "split_s_upper" and index_zero_based > 0:
+            previous = points[index_zero_based - 1]
+            direction = normalize_xy(
+                (
+                    point[0] - previous[0],
+                    point[1] - previous[1],
+                    0.0,
+                )
+            )
+        elif gate_type == "split_s_lower" and index_zero_based < len(points) - 1:
+            next_point = points[index_zero_based + 1]
+            direction = normalize_xy(
+                (
+                    next_point[0] - point[0],
+                    next_point[1] - point[1],
+                    0.0,
+                )
+            )
         yaw_deg = round_value(yaw_from_direction(direction), 1)
 
         gate = {
             "id": f"G{gate_index:02d}",
-            "type": gate_types.get(gate_index, "single"),
+            "type": gate_type,
             "position": [
                 round_value(point[0], 2),
                 round_value(point[1], 2),
@@ -266,9 +337,7 @@ def make_track(
                         round_value(start_rotation[2], 1),
                     ],
                 },
-                "sensors": {
-                    "profile": "official_acoustic",
-                },
+                "sensors": official_vision_sensor_profile(),
                 "control_mode": "high_level",
                 "official_sensor_profile": True,
             }
@@ -279,13 +348,19 @@ def make_track(
                 "vehicle_clearance_margin_m": clearance_margin_m,
                 "stuck_timeout_s": 45.0 if len(points) < 16 else 65.0,
                 "stuck_speed_threshold_m_s": 0.02,
+                "timeout_enabled": False,
+                "collision_penalty_cooldown_s": 1.0,
+                "out_of_bounds_penalty_cooldown_s": 1.0,
             },
             "penalties": {
                 "minor_collision_s": 5.0,
                 "gate_collision_s": 10.0,
-                "wrong_direction_s": 20.0,
+                "out_of_bounds_s": 10.0,
+                "stuck_s": 15.0,
+                "wrong_direction_s": 0.0,
                 "missed_gate_dnf": True,
-                "severe_collision_dnf": True,
+                "severe_collision_dnf": False,
+                "out_of_bounds_dnf": False,
                 "wrong_direction_dsq": False,
             },
             "scoring": {
@@ -384,12 +459,7 @@ def main() -> None:
             max_duration_s=500,
             beacon_noise=0.20,
             beacon_dropout=0.0,
-            currents=[
-                {
-                    "type": "constant",
-                    "velocity": [0.02, 0.04, 0.0],
-                }
-            ],
+            currents=[],
             clearance_margin_m=0.10,
         ),
         "marine_race_vertical_serpent.json": make_track(
@@ -407,26 +477,7 @@ def main() -> None:
             max_duration_s=850,
             beacon_noise=0.45,
             beacon_dropout=0.02,
-            currents=[
-                {
-                    "type": "constant",
-                    "velocity": [0.03, 0.08, 0.0],
-                },
-                {
-                    "type": "localized_jet",
-                    "center": [-8.0, 7.0, -4.1],
-                    "radius": 5.5,
-                    "velocity": [0.18, -0.10, 0.03],
-                    "falloff": "gaussian",
-                },
-                {
-                    "type": "localized_jet",
-                    "center": [22.0, -7.0, -5.2],
-                    "radius": 5.5,
-                    "velocity": [-0.08, 0.22, -0.02],
-                    "falloff": "gaussian",
-                },
-            ],
+            currents=[],
             clearance_margin_m=0.16,
             gate_types={
                 8: "vertical_double",
@@ -455,33 +506,35 @@ def main() -> None:
             currents=[
                 {
                     "type": "constant",
-                    "velocity": [0.04, 0.07, 0.0],
+                    "velocity": [0.10, 0.16, 0.0],
                 },
                 {
                     "type": "localized_jet",
                     "center": [7.0, -2.0, -5.4],
-                    "radius": 6.0,
-                    "velocity": [0.20, -0.12, 0.02],
+                    "radius": 7.0,
+                    "velocity": [0.35, -0.20, 0.04],
                     "falloff": "gaussian",
                 },
                 {
                     "type": "localized_jet",
                     "center": [58.0, 12.0, -5.3],
-                    "radius": 6.5,
-                    "velocity": [-0.06, 0.25, -0.02],
+                    "radius": 7.5,
+                    "velocity": [-0.15, 0.38, -0.03],
                     "falloff": "gaussian",
                 },
                 {
-                    "type": "localized_jet",
-                    "center": [94.0, -8.0, -5.5],
-                    "radius": 6.0,
-                    "velocity": [0.18, 0.12, 0.03],
+                    "type": "vortex",
+                    "center": [76.0, -10.0, -4.8],
+                    "radius": 12.0,
+                    "tangential_speed": 0.45,
+                    "vertical_speed": 0.04,
                     "falloff": "gaussian",
+                    "clockwise": False,
                 },
                 {
                     "type": "sinusoidal",
                     "axis": "z",
-                    "amplitude": 0.05,
+                    "amplitude": 0.08,
                     "frequency_hz": 0.08,
                     "phase": 0.0,
                 },

@@ -59,7 +59,7 @@ class CurrentFieldManager:
             base_velocity = _vector(params.get("base_velocity", [0.0, 0.0, 0.0]))
             axis = str(params.get("axis", "x"))
             amplitude = float(params.get("amplitude", 0.0))
-            frequency = float(params.get("frequency", 0.1))
+            frequency = float(params.get("frequency_hz", params.get("frequency", 0.1)))
             phase = float(params.get("phase", 0.0))
             value = amplitude * math.sin(2.0 * math.pi * frequency * time_s + phase)
             components = list(base_velocity)
@@ -67,8 +67,32 @@ class CurrentFieldManager:
             components[axis_index] += value
             return (components[0], components[1], components[2])
         if current.type == "vortex":
-            LOGGER.debug("Vortex current placeholder evaluated as zero velocity.")
-            return (0.0, 0.0, 0.0)
+            center = _vector(params.get("center", [0.0, 0.0, 0.0]))
+            radius = float(params.get("radius", 0.0))
+            if radius <= 0.0:
+                return (0.0, 0.0, 0.0)
+            dx = position[0] - center[0]
+            dy = position[1] - center[1]
+            radial_distance = math.hypot(dx, dy)
+            if radial_distance > radius:
+                return (0.0, 0.0, 0.0)
+
+            weight = _falloff(radial_distance, radius, str(params.get("falloff", "gaussian")))
+            vertical_speed = float(params.get("vertical_speed", 0.0)) * weight
+            if radial_distance <= 1e-9:
+                return (0.0, 0.0, vertical_speed)
+
+            tangential_speed = float(params.get("tangential_speed", 0.0)) * weight
+            tangent_x = -dy / radial_distance
+            tangent_y = dx / radial_distance
+            if bool(params.get("clockwise", False)):
+                tangent_x = -tangent_x
+                tangent_y = -tangent_y
+            return (
+                tangent_x * tangential_speed,
+                tangent_y * tangential_speed,
+                vertical_speed,
+            )
         return (0.0, 0.0, 0.0)
 
 
@@ -90,3 +114,11 @@ def _scale(vector: Vector3, scalar: float) -> Vector3:
 def _distance(a: Vector3, b: Vector3) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
 
+
+def _falloff(distance: float, radius: float, falloff: str) -> float:
+    if radius <= 0.0 or distance > radius:
+        return 0.0
+    if falloff == "linear":
+        return max(0.0, 1.0 - distance / radius)
+    sigma = max(radius / 2.0, 1e-6)
+    return math.exp(-(distance**2) / (2.0 * sigma**2))

@@ -52,6 +52,11 @@ def main(argv: list[str] | None = None) -> int:
         help="External controller module/class, module:Class, or file path. Overrides --controller.",
     )
     parser.add_argument(
+        "--controller-class",
+        default=None,
+        help="Controller class name when loading from a Python file or module path.",
+    )
+    parser.add_argument(
         "--adapter",
         choices=("auto", "fallback", "holoocean"),
         default="auto",
@@ -148,9 +153,7 @@ def _load_participants(config: TrackConfig, args: argparse.Namespace) -> Dict[st
             or args.controller
             or participant_config.controller
         )
-        controller_class = participant_config.controller_class
-        if args.participant_controller and args.participant_controller.endswith(".py"):
-            controller_class = participant_config.controller_class
+        controller_class = args.controller_class or participant_config.controller_class
         controller = loader.load(controller_reference, controller_class=controller_class)
         spawn = participant_config.spawn or {}
         position = _vector3(spawn.get("position", config.start.position))
