@@ -9,6 +9,11 @@ from marine_race_arena.config.loader import load_track_config
 
 
 TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
+TRACK_CANDIDATES = (
+    "marine_race_horseshoe_bay.json",
+    "marine_race_mixed_endurance.json",
+    "marine_race_vertical_serpent.json",
+)
 
 
 class FakeSpawnPropEnv:
@@ -20,13 +25,21 @@ class FakeSpawnPropEnv:
 
 
 def _visual_bars():
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_easy.json")
+    config = load_track_config(_track_path())
     arena = ArenaBuilder(config).build()
     return [bar for visual_gate in arena.visual_gates for bar in visual_gate.bars]
 
 
+def _track_path() -> Path:
+    for track_name in TRACK_CANDIDATES:
+        path = TRACK_DIR / track_name
+        if path.exists():
+            return path
+    raise AssertionError(f"No test track found in {TRACK_DIR}")
+
+
 def test_gate_factory_creates_four_bars_per_gate() -> None:
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_easy.json")
+    config = load_track_config(_track_path())
     arena = ArenaBuilder(config).build()
     assert all(len(visual_gate.bars) == 4 for visual_gate in arena.visual_gates)
 
@@ -71,11 +84,11 @@ def test_default_visual_spawner_uses_dense_micro_blocks_for_top_and_bottom() -> 
         if prop["source_bar_id"] == "G03_bottom"
     ]
 
-    assert len(top_segments) >= 20
+    assert len(top_segments) >= 50
     assert len(bottom_segments) == len(top_segments)
     assert all(prop["method"] == "hybrid_micro_top_bottom_block" for prop in top_segments)
     assert all(prop["spawn_rotation_deg"] == (0.0, 0.0, 0.0) for prop in top_segments)
-    assert all(prop["dimensions_m"] == (0.18, 0.18, 0.18) for prop in top_segments)
+    assert all(prop["dimensions_m"] == (0.09, 0.09, 0.09) for prop in top_segments)
     assert all(prop["segment_count"] == len(top_segments) for prop in top_segments)
 
 
@@ -85,13 +98,17 @@ def test_spawn_prop_rotation_uses_verified_holoocean_box_mapping() -> None:
     spawner = HoloOceanVisualSpawner(env)
     spawner.spawn_gate_bars(bars)
 
-    rotated = next(prop for prop in spawner.spawned_props if prop["source_bar_id"] == "G03_left")
-    assert rotated["rotation_rpy_deg"] == (0.0, 0.0, 45.0)
-    assert rotated["spawn_rotation_deg"] == (45.0, 0.0, 0.0)
+    rotated = next(
+        prop
+        for prop in spawner.spawned_props
+        if prop["part"] == "left" and abs(prop["rotation_rpy_deg"][2]) > 1.0
+    )
+    roll, pitch, yaw = rotated["rotation_rpy_deg"]
+    assert rotated["spawn_rotation_deg"] == (yaw, pitch, roll)
     assert rotated["spawn_rotation_order"] == "holoocean_spawn_prop_yaw_pitch_roll"
 
-    matching_call = next(call for call in env.calls if call[1]["tag"] == "G03_left")
-    assert matching_call[1]["rotation"] == [45.0, 0.0, 0.0]
+    matching_call = next(call for call in env.calls if call[1]["tag"] == rotated["source_bar_id"])
+    assert matching_call[1]["rotation"] == [yaw, pitch, roll]
 
 
 def test_visual_spawner_can_use_uniform_long_bar_mode() -> None:

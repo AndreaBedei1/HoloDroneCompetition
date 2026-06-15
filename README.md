@@ -110,17 +110,18 @@ It uses own ground-truth pose and exact target gate geometry. It is blocked by t
 Use the built-in `pygame` controller for manual local testing:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter holoocean --duration 300 --dt 0.033
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033
 ```
 
 Controls:
 
 - `W` / `S`: forward and backward on the horizontal plane.
 - `A` / `D`: left and right sway on the horizontal plane.
+- `Q` / `E`: yaw left and right.
 - Up arrow / Down arrow: raise and lower the rover.
 - Space: stop.
 
-The controller opens a small Pygame control window. Keep focus on that Pygame window while driving. It never commands yaw and does not use ground truth.
+The controller opens a small Pygame control window. Keep focus on that Pygame window while driving. It does not use ground truth.
 
 ## Acoustic Beacons
 
@@ -154,8 +155,9 @@ In the fallback adapter, currents are applied to the simple point-vehicle kinema
 Run validation with either module or script style:
 
 ```bash
-conda run -n ocean python -m marine_race_arena.scripts.validate_track_config --track marine_race_arena/tracks/abu_dhabi_marine_easy.json
-conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json
+conda run -n ocean python -m marine_race_arena.scripts.validate_track_config --track marine_race_arena/tracks/marine_race_horseshoe_bay.json
+conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json
+conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json
 ```
 
 Validation checks required fields, unique gate ids, sequence references, finish gate, bounds, depth safety, positive sizes, nonzero passage directions, declared length, linked gates, split-S consistency, beacon ids, participant controller references, and supported current types.
@@ -165,9 +167,9 @@ Validation checks required fields, unique gate ids, sequence references, finish 
 The runner builds the arena, loads controllers, starts the referee/logger, and runs the selected simulator adapter.
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter fallback --duration 300
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller pygame --adapter fallback --duration 600
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_hard.json --official --adapter fallback --duration 900
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter fallback --duration 500
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller pygame --adapter fallback --duration 850
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter fallback --duration 1300
 ```
 
 Useful flags:
@@ -193,22 +195,23 @@ Two simulator adapters are available:
 Run the easy track in fallback first:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter fallback --duration 300
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter fallback --duration 500
 ```
 
 Then run the diagnostic and try HoloOcean:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/diagnose_holoocean_adapter.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --print-gate-bars
-conda run -n ocean python marine_race_arena/scripts/diagnose_gate_visual_rotations.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --output-dir diagnostics/gate_rotation_tests_selected --selected-only
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter holoocean --duration 300 --dt 0.033
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_medium.json --controller pygame --adapter holoocean --duration 300 --dt 0.033
+conda run -n ocean python marine_race_arena/scripts/diagnose_holoocean_adapter.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --print-gate-bars
+conda run -n ocean python marine_race_arena/scripts/diagnose_gate_visual_rotations.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --output-dir diagnostics/gate_rotation_tests_selected --selected-only
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller pygame --adapter holoocean --duration 850 --dt 0.033
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter holoocean --duration 1300 --dt 0.033
 ```
 
 Auto mode is strict by default. It does not silently fall back if HoloOcean is missing or misconfigured:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --controller pygame --adapter auto --allow-fallback --duration 300
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter auto --allow-fallback --duration 500
 ```
 
 The HoloOcean adapter imports `holoocean` only inside the adapter. It builds a custom scenario dictionary with configured BlueROV2 participants, prefers the configured map such as `OpenWater-Hovering`, and then tries the configured fallback such as `PierHarbor-Hovering`. It fails loudly when `--adapter holoocean` cannot initialize. The diagnostic script also tries prebuilt scenario names so environment-name problems are easier to distinguish from custom scenario problems.
@@ -232,7 +235,7 @@ Gate visuals:
 - Each logical gate is still built from four bars: top, bottom, left, and right.
 - Gate visual orientation is generated from `passage_direction`, which is the source of truth for the gate normal. The factory derives a full 3D frame with local X along the gate normal, local Y along the right/opening width axis, and local Z along the up/opening height axis. This supports yaw-only and pitched gate definitions.
 - All sample tracks use the Abu Dhabi-style 1.5 m x 1.5 m internal opening. The side bars are generated as vertical pillars with their height on world Z.
-- Runtime HoloOcean spawning uses a hybrid visual mode by default: the left and right pillars are single vertical box props, while the top and bottom bars are dense overlapping micro-blocks with the same bar thickness. This avoids the visible rotation defects seen with long top/bottom props while keeping the frame visually continuous.
+- Runtime HoloOcean spawning uses a hybrid visual mode by default: the left and right pillars are single vertical box props, while the top and bottom bars are dense overlapping micro-blocks. The default micro-blocks are intentionally much smaller than the bar thickness so the top and bottom read as continuous strips instead of visible large cubes.
 - The optional `uniform` mode uses one elongated box prop per logical gate bar. The installed HoloOcean 2.3.0 Python API documents prop rotation as `[roll, pitch, yaw]`, but the tested Unreal backend renders box yaw correctly when the generated gate rotation is sent as `[yaw, pitch, roll]`. The adapter keeps the internal math in roll/pitch/yaw and applies that HoloOcean-specific conversion only at the `spawn_prop` boundary.
 - HoloOcean `spawn_prop` box `scale` is a multiplier on a one-meter box, so each logical bar passes its meter dimensions directly as `scale`.
 - Set `MARINE_RACE_GATE_VISUAL_MODE=uniform` only when intentionally testing the four-long-bar version. Set `MARINE_RACE_GATE_VISUAL_MODE=segmented` to represent every logical bar as a chain of axis-aligned box segments along the same mathematical centerline.
@@ -276,11 +279,11 @@ conda run -n ocean python -c "import holoocean; print(holoocean); print(getattr(
 
 ## Track Examples
 
-`abu_dhabi_marine_easy.json` is a 6-gate, 1-lap infrastructure/debug track with the standard 1.5 m x 1.5 m gate opening, weak constant current, safe depth around `z = -4.0`, and no split-S.
+`marine_race_horseshoe_bay.json` is a 12-gate, 1-lap open U-shaped route with standard 1.5 m x 1.5 m gate openings, weak current, safe depth near `z = -4.0`, and clear point-to-point visibility.
 
-`abu_dhabi_marine_medium.json` is the first standard race: 11 gates, 2 laps, 1.5 m openings, one double gate, moderate lateral current, and one localized jet.
+`marine_race_vertical_serpent.json` is a 17-gate, 1-lap slalom with strong depth variation, vertical double-gate elements, localized jets, and a longer duration budget.
 
-`abu_dhabi_marine_hard.json` is an advanced benchmark: 11 gates, 2 laps, two double-gate pairs, a marine split-S, vertical maneuvering, stronger localized currents, sinusoidal vertical disturbance, noisy beacons, and dropout.
+`marine_race_mixed_endurance.json` is a 22-gate, 1-lap endurance route with diagonals, vertical variation, double gates, a split-S-like section, multiple localized jets, beacon noise, and dropout.
 
 ## Add A Student Controller
 
@@ -313,7 +316,7 @@ For thruster control return:
 Run an external controller with:
 
 ```bash
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/abu_dhabi_marine_easy.json --participant-controller path.to.module.ControllerClass
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --participant-controller path.to.module.ControllerClass
 ```
 
 If you load from a file path, set `controller_class` in the participant config or use a module/class reference instead.

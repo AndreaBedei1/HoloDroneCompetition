@@ -12,7 +12,7 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
 
 
 def _adapter():
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_easy.json")
+    config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
     arena = ArenaBuilder(config).build()
     return FallbackRaceAdapter(config, arena)
 
@@ -40,4 +40,3 @@ def test_debug_ground_truth_only_added_when_not_official() -> None:
     official = build_observation("p1", 0.0, {}, {}, {}, official_mode=True, debug_ground_truth=debug)
     assert "debug_ground_truth" in unofficial
     assert "debug_ground_truth" not in official
-

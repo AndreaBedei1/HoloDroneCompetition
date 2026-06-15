@@ -1,7 +1,7 @@
 """Pygame manual controller for local HoloOcean testing.
 
 The controller opens a small Pygame window and reads movement keys from it.
-It does not use ground truth and never commands yaw.
+It does not use ground truth.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from marine_race_arena.participants.controller_interface import BaseController
 
 
 class PygameManualController(BaseController):
-    """Manual WASD plus arrow-key controller backed by Pygame."""
+    """Manual WASD, Q/E yaw, and arrow-key controller backed by Pygame."""
 
     debug_only = False
     uses_ground_truth = False
@@ -21,6 +21,7 @@ class PygameManualController(BaseController):
         max_command = float(race_info.get("max_command", 0.95))
         self.linear_command = min(max_command, 0.65)
         self.vertical_command = min(max_command, 0.50)
+        self.yaw_command = min(max_command, 0.45)
         self._pygame: Optional[Any] = None
         self._screen: Optional[Any] = None
         self._font: Optional[Any] = None
@@ -47,6 +48,10 @@ class PygameManualController(BaseController):
             keys.add("a")
         if pressed[self._pygame.K_d]:
             keys.add("d")
+        if pressed[self._pygame.K_q]:
+            keys.add("q")
+        if pressed[self._pygame.K_e]:
+            keys.add("e")
         if pressed[self._pygame.K_UP]:
             keys.add("up")
         if pressed[self._pygame.K_DOWN]:
@@ -101,7 +106,11 @@ class PygameManualController(BaseController):
         elif "down" in key_set and "up" not in key_set:
             command["heave"] = -self.vertical_command
 
-        command["yaw"] = 0.0
+        if "q" in key_set and "e" not in key_set:
+            command["yaw"] = self.yaw_command
+        elif "e" in key_set and "q" not in key_set:
+            command["yaw"] = -self.yaw_command
+
         return command
 
     def _draw_status(self, command: Dict[str, float]) -> None:
@@ -110,7 +119,8 @@ class PygameManualController(BaseController):
         self._screen.fill((16, 24, 32))
         lines = [
             "Focus this window. W/S forward/back, A/D left/right.",
-            "Arrow Up/Down raises/lowers. Space or Esc stops.",
+            "Q/E yaw left/right. Arrow Up/Down raises/lowers.",
+            "Space or Esc stops.",
             (
                 f"surge={command['surge']:.2f}  sway={command['sway']:.2f}  "
                 f"heave={command['heave']:.2f}  yaw={command['yaw']:.2f}"
@@ -118,7 +128,7 @@ class PygameManualController(BaseController):
         ]
         for index, line in enumerate(lines):
             surface = self._font.render(line, True, (230, 238, 245))
-            self._screen.blit(surface, (18, 22 + index * 42))
+            self._screen.blit(surface, (18, 16 + index * 38))
         self._pygame.display.flip()
 
 

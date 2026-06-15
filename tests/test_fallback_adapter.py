@@ -12,7 +12,7 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
 
 
 def _adapter_and_participant(z_override: float | None = None):
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_easy.json")
+    config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
     arena = ArenaBuilder(config).build()
     participant_config = config.participants[0]
     position = tuple(participant_config.spawn["position"])

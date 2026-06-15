@@ -1,11 +1,11 @@
 {
   "race": {
-    "name": "Marine Race Technical Canyon",
+    "name": "Marine Race Horseshoe Bay",
     "format": "ai_grand_challenge",
-    "laps": 2,
-    "expected_gates_per_lap": 15,
+    "laps": 1,
+    "expected_gates_per_lap": 12,
     "timing_mode": "first_gate_to_last_gate",
-    "max_duration_s": 720,
+    "max_duration_s": 500,
     "official_mode": false
   },
   "world": {
@@ -19,16 +19,16 @@
     "preferred_environment": "OpenWater-Hovering",
     "fallback_environment": "PierHarbor-Hovering",
     "bounds": {
-      "x_min": -28.0,
-      "x_max": 26.0,
-      "y_min": -18.0,
-      "y_max": 18.0,
+      "x_min": -36.0,
+      "x_max": 36.0,
+      "y_min": -16.0,
+      "y_max": 20.0,
       "z_min": -8.0,
       "z_max": -1.0
     }
   },
   "track": {
-    "declared_length_m": 125.5,
+    "declared_length_m": 93.8,
     "length_tolerance_m": 4.0,
     "gate_inner_size_m": [
       1.5,
@@ -48,26 +48,28 @@
       "G09",
       "G10",
       "G11",
-      "G12",
-      "G13",
-      "G14",
-      "G15"
-    ]
+      "G12"
+    ],
+    "metadata": {
+      "style": "point_to_point",
+      "finish_distance_from_start_m": 64.4,
+      "design_note": "The finish is intentionally far from the start to make the route visually clear."
+    }
   },
   "start": {
     "position": [
-      -22.0,
-      -10.0,
+      -33.33,
+      -12.22,
       -4.0
     ],
     "rotation_rpy_deg": [
       0.0,
       0.0,
-      0.0
+      33.7
     ]
   },
   "finish": {
-    "gate_id": "G15"
+    "gate_id": "G12"
   },
   "beacon": {
     "enabled": true,
@@ -77,12 +79,12 @@
       0.0,
       0.35
     ],
-    "range_m": 80.0,
-    "noise_std": 0.45,
-    "dropout_probability": 0.02,
+    "range_m": 90.0,
+    "noise_std": 0.2,
+    "dropout_probability": 0.0,
     "update_rate_hz": 10.0,
     "message": {
-      "track": "technical_canyon",
+      "track": "horseshoe_bay",
       "channel_plan": "target_only"
     }
   },
@@ -91,19 +93,19 @@
       "id": "G01",
       "type": "single",
       "position": [
-        -23.0,
-        -12.0,
+        -30.0,
+        -10.0,
         -4.0
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        -15.9
+        33.7
       ],
       "color": "#00ff88",
       "passage_direction": [
-        0.962,
-        -0.275,
+        0.832,
+        0.555,
         0.0
       ]
     },
@@ -111,19 +113,19 @@
       "id": "G02",
       "type": "single",
       "position": [
-        -15.0,
-        -12.0,
+        -24.0,
+        -6.0,
         -4.1
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        7.1
+        45.0
       ],
       "color": "#38bdf8",
       "passage_direction": [
-        0.992,
-        0.124,
+        0.707,
+        0.707,
         0.0
       ]
     },
@@ -131,19 +133,19 @@
       "id": "G03",
       "type": "single",
       "position": [
-        -7.0,
-        -10.0,
+        -20.0,
+        0.0,
         -4.2
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        17.4
+        72.9
       ],
       "color": "#facc15",
       "passage_direction": [
-        0.954,
-        0.298,
+        0.294,
+        0.956,
         0.0
       ]
     },
@@ -151,81 +153,79 @@
       "id": "G04",
       "type": "single",
       "position": [
-        1.0,
-        -7.0,
-        -4.4
+        -20.0,
+        7.0,
+        -4.0
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        19.4
+        65.2
       ],
       "color": "#fb7185",
       "passage_direction": [
-        0.943,
-        0.333,
+        0.419,
+        0.908,
         0.0
       ]
     },
     {
       "id": "G05",
-      "type": "double",
+      "type": "single",
       "position": [
-        10.0,
-        -4.0,
-        -4.4
+        -14.0,
+        13.0,
+        -4.1
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        22.4
+        31.0
       ],
       "color": "#f97316",
       "passage_direction": [
-        0.925,
-        0.381,
+        0.857,
+        0.514,
         0.0
-      ],
-      "linked_gate": "G06"
+      ]
     },
     {
       "id": "G06",
-      "type": "double",
-      "position": [
-        18.0,
-        0.0,
-        -4.5
-      ],
-      "rotation_rpy_deg": [
-        0.0,
-        0.0,
-        40.2
-      ],
-      "color": "#a78bfa",
-      "passage_direction": [
-        0.763,
-        0.646,
-        0.0
-      ],
-      "linked_gate": "G05"
-    },
-    {
-      "id": "G07",
       "type": "single",
       "position": [
-        23.0,
-        7.0,
+        -5.0,
+        16.0,
         -4.3
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        81.9
+        8.5
+      ],
+      "color": "#a78bfa",
+      "passage_direction": [
+        0.989,
+        0.148,
+        0.0
+      ]
+    },
+    {
+      "id": "G07",
+      "type": "single",
+      "position": [
+        6.0,
+        16.0,
+        -4.4
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -8.5
       ],
       "color": "#22d3ee",
       "passage_direction": [
-        0.141,
-        0.99,
+        0.989,
+        -0.148,
         0.0
       ]
     },
@@ -233,19 +233,19 @@
       "id": "G08",
       "type": "single",
       "position": [
-        20.0,
-        14.0,
+        15.0,
+        13.0,
         -4.2
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        135.0
+        -31.0
       ],
       "color": "#84cc16",
       "passage_direction": [
-        -0.707,
-        0.707,
+        0.857,
+        -0.514,
         0.0
       ]
     },
@@ -253,19 +253,19 @@
       "id": "G09",
       "type": "single",
       "position": [
-        12.0,
-        18.0,
-        -4.4
+        21.0,
+        7.0,
+        -4.1
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        167.5
+        -65.2
       ],
       "color": "#e879f9",
       "passage_direction": [
-        -0.976,
-        0.217,
+        0.419,
+        -0.908,
         0.0
       ]
     },
@@ -273,19 +273,19 @@
       "id": "G10",
       "type": "single",
       "position": [
-        2.0,
-        18.0,
-        -4.7
+        21.0,
+        0.0,
+        -4.3
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        -171.5
+        -72.9
       ],
       "color": "#22c55e",
       "passage_direction": [
-        -0.989,
-        -0.148,
+        0.294,
+        -0.956,
         0.0
       ]
     },
@@ -293,19 +293,19 @@
       "id": "G11",
       "type": "single",
       "position": [
-        -8.0,
-        15.0,
-        -4.8
+        25.0,
+        -6.0,
+        -4.2
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        -157.2
+        -45.0
       ],
       "color": "#f43f5e",
       "passage_direction": [
-        -0.922,
-        -0.388,
+        0.707,
+        -0.707,
         0.0
       ]
     },
@@ -313,79 +313,19 @@
       "id": "G12",
       "type": "single",
       "position": [
-        -17.0,
-        10.0,
-        -4.5
-      ],
-      "rotation_rpy_deg": [
-        0.0,
-        0.0,
-        -145.5
-      ],
-      "color": "#60a5fa",
-      "passage_direction": [
-        -0.824,
-        -0.567,
-        0.0
-      ]
-    },
-    {
-      "id": "G13",
-      "type": "single",
-      "position": [
-        -24.0,
-        4.0,
-        -4.2
-      ],
-      "rotation_rpy_deg": [
-        0.0,
-        0.0,
-        -125.5
-      ],
-      "color": "#fde047",
-      "passage_direction": [
-        -0.581,
-        -0.814,
-        0.0
-      ]
-    },
-    {
-      "id": "G14",
-      "type": "single",
-      "position": [
-        -27.0,
-        -4.0,
-        -4.1
-      ],
-      "rotation_rpy_deg": [
-        0.0,
-        0.0,
-        -94.1
-      ],
-      "color": "#34d399",
-      "passage_direction": [
-        -0.071,
-        -0.997,
-        0.0
-      ]
-    },
-    {
-      "id": "G15",
-      "type": "single",
-      "position": [
-        -25.0,
+        31.0,
         -10.0,
         -4.0
       ],
       "rotation_rpy_deg": [
         0.0,
         0.0,
-        -63.4
+        -33.7
       ],
-      "color": "#c084fc",
+      "color": "#60a5fa",
       "passage_direction": [
-        0.447,
-        -0.894,
+        0.832,
+        -0.555,
         0.0
       ]
     }
@@ -394,40 +334,10 @@
     {
       "type": "constant",
       "velocity": [
-        0.03,
-        0.1,
+        0.02,
+        0.04,
         0.0
       ]
-    },
-    {
-      "type": "localized_jet",
-      "center": [
-        2.0,
-        13.0,
-        -4.4
-      ],
-      "radius": 5.0,
-      "velocity": [
-        0.22,
-        -0.05,
-        0.02
-      ],
-      "falloff": "gaussian"
-    },
-    {
-      "type": "localized_jet",
-      "center": [
-        18.0,
-        -2.0,
-        -4.3
-      ],
-      "radius": 4.5,
-      "velocity": [
-        -0.05,
-        0.24,
-        0.0
-      ],
-      "falloff": "gaussian"
     }
   ],
   "obstacles": [],
@@ -439,14 +349,14 @@
       "controller_class": null,
       "spawn": {
         "position": [
-          -22.0,
-          -10.0,
+          -33.33,
+          -12.22,
           -4.0
         ],
         "rotation_rpy_deg": [
           0.0,
           0.0,
-          0.0
+          33.7
         ]
       },
       "sensors": {
@@ -459,8 +369,8 @@
   "referee": {
     "gate_validation": {
       "vehicle_model": "center_point",
-      "vehicle_clearance_margin_m": 0.18,
-      "stuck_timeout_s": 40.0,
+      "vehicle_clearance_margin_m": 0.1,
+      "stuck_timeout_s": 45.0,
       "stuck_speed_threshold_m_s": 0.02
     },
     "penalties": {

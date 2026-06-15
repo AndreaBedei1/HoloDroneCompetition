@@ -16,7 +16,7 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
 
 
 def _config_and_arena():
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_easy.json")
+    config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
     return config, ArenaBuilder(config).build()
 
 
@@ -66,4 +66,3 @@ def test_official_mode_blocks_oracle_controller() -> None:
         assert "not allowed in official mode" in str(exc)
     else:
         raise AssertionError("official mode accepted oracle controller")
-

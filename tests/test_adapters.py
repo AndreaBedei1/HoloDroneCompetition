@@ -14,7 +14,7 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
 
 
 def _config_arena_participant():
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_easy.json")
+    config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
     arena = ArenaBuilder(config).build()
     participant_config = config.participants[0]
     participant = RaceParticipant(

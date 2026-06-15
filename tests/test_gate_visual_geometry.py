@@ -107,9 +107,9 @@ def test_pitched_gate_uses_full_3d_frame() -> None:
 
 def test_example_tracks_generate_consistent_visual_gate_bars() -> None:
     for track_name in (
-        "abu_dhabi_marine_easy.json",
-        "abu_dhabi_marine_medium.json",
-        "abu_dhabi_marine_hard.json",
+        "marine_race_horseshoe_bay.json",
+        "marine_race_mixed_endurance.json",
+        "marine_race_vertical_serpent.json",
     ):
         arena = ArenaBuilder(load_track_config(TRACK_DIR / track_name)).build()
         for visual_gate in arena.visual_gates:

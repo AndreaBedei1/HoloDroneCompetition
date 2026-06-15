@@ -13,20 +13,20 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
 
 def test_example_tracks_validate() -> None:
     for track_name in (
-        "abu_dhabi_marine_easy.json",
-        "abu_dhabi_marine_medium.json",
-        "abu_dhabi_marine_hard.json",
+        "marine_race_horseshoe_bay.json",
+        "marine_race_mixed_endurance.json",
+        "marine_race_vertical_serpent.json",
     ):
         config = load_track_config(TRACK_DIR / track_name)
         result = validate_track_config(config)
         assert result.errors == []
 
 
-def test_example_tracks_use_standard_abu_dhabi_gate_opening() -> None:
+def test_example_tracks_use_standard_gate_opening() -> None:
     for track_name in (
-        "abu_dhabi_marine_easy.json",
-        "abu_dhabi_marine_medium.json",
-        "abu_dhabi_marine_hard.json",
+        "marine_race_horseshoe_bay.json",
+        "marine_race_mixed_endurance.json",
+        "marine_race_vertical_serpent.json",
     ):
         config = load_track_config(TRACK_DIR / track_name)
         assert config.track.gate_inner_size_m == (1.5, 1.5)
@@ -34,7 +34,7 @@ def test_example_tracks_use_standard_abu_dhabi_gate_opening() -> None:
 
 
 def test_duplicate_gate_id_is_invalid() -> None:
-    raw = json.loads((TRACK_DIR / "abu_dhabi_marine_easy.json").read_text(encoding="utf-8"))
+    raw = json.loads((TRACK_DIR / "marine_race_horseshoe_bay.json").read_text(encoding="utf-8"))
     raw["gates"] = copy.deepcopy(raw["gates"])
     raw["gates"][1]["id"] = raw["gates"][0]["id"]
     config = parse_track_config(raw)
@@ -43,6 +43,6 @@ def test_duplicate_gate_id_is_invalid() -> None:
 
 
 def test_declared_length_matches_computed_length() -> None:
-    config = load_track_config(TRACK_DIR / "abu_dhabi_marine_medium.json")
+    config = load_track_config(TRACK_DIR / "marine_race_mixed_endurance.json")
     computed = compute_declared_path_length_m(config)
     assert abs(computed - config.track.declared_length_m) <= config.track.length_tolerance_m

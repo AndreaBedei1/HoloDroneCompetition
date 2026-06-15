@@ -15,6 +15,9 @@ from marine_race_arena.arena.gate_factory import GateBar
 LOGGER = logging.getLogger(__name__)
 
 HYBRID_MICRO_MODES = {"hybrid", "hybrid_micro", "micro", "micro_top_bottom"}
+MICRO_BLOCK_SIZE_RATIO = 0.5
+MICRO_BLOCK_MIN_SIZE_M = 0.055
+MICRO_BLOCK_STEP_RATIO = 0.35
 
 
 @dataclass
@@ -304,8 +307,9 @@ def _segment_gate_bar(bar: GateBar, dense: bool = False) -> list[dict[str, Any]]
         length_m = dimensions[axis_index]
 
     if dense:
-        cube_size_m = max(min(float(value) for value in bar.dimensions_m), 0.08)
-        step_m = cube_size_m * 0.45
+        bar_thickness_m = min(float(value) for value in bar.dimensions_m)
+        cube_size_m = max(bar_thickness_m * MICRO_BLOCK_SIZE_RATIO, MICRO_BLOCK_MIN_SIZE_M)
+        step_m = cube_size_m * MICRO_BLOCK_STEP_RATIO
     else:
         cube_size_m = max(
             float(bar.dimensions_m[0]),
