@@ -37,9 +37,9 @@ def test_visual_spawner_reports_runtime_spawn_prop() -> None:
     spawner = HoloOceanVisualSpawner(env)
     spawner.spawn_gate_bars(bars)
     assert spawner.report.physically_spawned
-    assert spawner.report.method == "runtime_spawn_prop_uniform_box"
+    assert spawner.report.method == "runtime_spawn_prop_hybrid_micro_top_bottom"
     assert spawner.report.spawned_bar_count == len(env.calls)
-    assert len(env.calls) == len(bars)
+    assert len(env.calls) > len(bars)
 
 
 def test_visual_spawner_uses_uniform_vertical_pillars() -> None:
@@ -52,6 +52,31 @@ def test_visual_spawner_uses_uniform_vertical_pillars() -> None:
     assert pillars
     assert all(prop["dimensions_m"][2] == 1.5 for prop in pillars)
     assert all(prop["method"] == "uniform_four_bar_box" for prop in pillars)
+
+
+def test_default_visual_spawner_uses_dense_micro_blocks_for_top_and_bottom() -> None:
+    bars = _visual_bars()
+    env = FakeSpawnPropEnv()
+    spawner = HoloOceanVisualSpawner(env)
+    spawner.spawn_gate_bars(bars)
+
+    top_segments = [
+        prop
+        for prop in spawner.spawned_props
+        if prop["source_bar_id"] == "G03_top"
+    ]
+    bottom_segments = [
+        prop
+        for prop in spawner.spawned_props
+        if prop["source_bar_id"] == "G03_bottom"
+    ]
+
+    assert len(top_segments) >= 20
+    assert len(bottom_segments) == len(top_segments)
+    assert all(prop["method"] == "hybrid_micro_top_bottom_block" for prop in top_segments)
+    assert all(prop["spawn_rotation_deg"] == (0.0, 0.0, 0.0) for prop in top_segments)
+    assert all(prop["dimensions_m"] == (0.18, 0.18, 0.18) for prop in top_segments)
+    assert all(prop["segment_count"] == len(top_segments) for prop in top_segments)
 
 
 def test_spawn_prop_rotation_uses_verified_holoocean_box_mapping() -> None:
@@ -67,6 +92,17 @@ def test_spawn_prop_rotation_uses_verified_holoocean_box_mapping() -> None:
 
     matching_call = next(call for call in env.calls if call[1]["tag"] == "G03_left")
     assert matching_call[1]["rotation"] == [45.0, 0.0, 0.0]
+
+
+def test_visual_spawner_can_use_uniform_long_bar_mode() -> None:
+    bars = _visual_bars()
+    env = FakeSpawnPropEnv()
+    spawner = HoloOceanVisualSpawner(env, mode="uniform")
+    spawner.spawn_gate_bars(bars)
+
+    assert spawner.report.method == "runtime_spawn_prop_uniform_box"
+    assert len(env.calls) == len(bars)
+    assert all(prop["method"] == "uniform_four_bar_box" for prop in spawner.spawned_props)
 
 
 def test_visual_spawner_can_use_segmented_fallback_mode() -> None:

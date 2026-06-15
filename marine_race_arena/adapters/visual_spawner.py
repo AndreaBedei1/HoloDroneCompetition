@@ -14,6 +14,8 @@ from marine_race_arena.arena.gate_factory import GateBar
 
 LOGGER = logging.getLogger(__name__)
 
+HYBRID_MICRO_MODES = {"hybrid", "hybrid_micro", "micro", "micro_top_bottom"}
+
 
 @dataclass
 class VisualSpawnReport:
@@ -30,7 +32,7 @@ class HoloOceanVisualSpawner:
     def __init__(self, env: Any = None, export_path: Optional[str | Path] = None, mode: Optional[str] = None):
         self.env = env
         self.export_path = Path(export_path) if export_path else None
-        self.mode = (mode or os.getenv("MARINE_RACE_GATE_VISUAL_MODE", "uniform")).strip().lower()
+        self.mode = (mode or os.getenv("MARINE_RACE_GATE_VISUAL_MODE", "hybrid_micro")).strip().lower()
         self.spawned_bar_count = 0
         self.metadata_only = True
         self.report = VisualSpawnReport()
@@ -50,6 +52,8 @@ class HoloOceanVisualSpawner:
                 method=(
                     "runtime_spawn_prop_segmented_cubes"
                     if self.mode == "segmented"
+                    else "runtime_spawn_prop_hybrid_micro_top_bottom"
+                    if self.mode in HYBRID_MICRO_MODES
                     else "runtime_spawn_prop_uniform_box"
                 ),
                 message=(
@@ -57,6 +61,8 @@ class HoloOceanVisualSpawner:
                     + (
                         "using segmented cubes along each logical gate bar."
                         if self.mode == "segmented"
+                        else "using dense micro-blocks for top/bottom bars and uniform side pillars."
+                        if self.mode in HYBRID_MICRO_MODES
                         else "using one uniform box per logical gate bar."
                     )
                 ),
@@ -125,6 +131,10 @@ class HoloOceanVisualSpawner:
                 if not self._spawn_segmented_bar(spawn_prop, bar):
                     return False
                 continue
+            if self.mode in HYBRID_MICRO_MODES and bar.part in {"top", "bottom"}:
+                if not self._spawn_micro_top_bottom_bar(spawn_prop, bar):
+                    return False
+                continue
             if not self._spawn_uniform_bar(spawn_prop, bar):
                 return False
         return True
@@ -160,8 +170,46 @@ class HoloOceanVisualSpawner:
             LOGGER.warning("Gate bar spawn_prop failed for %s: %s", bar.id, exc)
             return False
 
+    def _spawn_micro_top_bottom_bar(self, spawn_prop: Any, bar: GateBar) -> bool:
+        for segment in _segment_gate_bar(bar, dense=True):
+            try:
+                spawn_rotation = (0.0, 0.0, 0.0)
+                spawn_tag = f"{bar.id}_m{segment['index']:03d}"
+                spawn_position = segment["position"]
+                spawn_dimensions = segment["dimensions_m"]
+                spawn_prop(
+                    "box",
+                    location=list(spawn_position),
+                    rotation=list(spawn_rotation),
+                    scale=list(spawn_dimensions),
+                    sim_physics=False,
+                    material=_material_from_color(bar.color),
+                    tag=spawn_tag,
+                )
+                self.spawned_props.append(
+                    {
+                        "id": spawn_tag,
+                        "source_bar_id": bar.id,
+                        "gate_id": bar.gate_id,
+                        "part": bar.part,
+                        "segment_index": segment["index"],
+                        "segment_count": segment["count"],
+                        "position": spawn_position,
+                        "rotation_rpy_deg": bar.rotation_rpy_deg,
+                        "spawn_rotation_deg": spawn_rotation,
+                        "spawn_rotation_order": "none_axis_aligned_micro_block",
+                        "dimensions_m": spawn_dimensions,
+                        "logical_bar_dimensions_m": bar.dimensions_m,
+                        "method": "hybrid_micro_top_bottom_block",
+                    }
+                )
+            except Exception as exc:
+                LOGGER.warning("Gate bar micro-block spawn_prop failed for %s: %s", bar.id, exc)
+                return False
+        return True
+
     def _spawn_segmented_bar(self, spawn_prop: Any, bar: GateBar) -> bool:
-        for segment in _segment_gate_bar(bar):
+        for segment in _segment_gate_bar(bar, dense=False):
             try:
                 # HoloOcean SpawnProp can interpret elongated rotated boxes
                 # differently across builds. Small axis-aligned cubes follow
@@ -241,7 +289,7 @@ def _holoocean_spawn_prop_rotation(rotation_rpy_deg: tuple[float, float, float])
     return (yaw, pitch, roll)
 
 
-def _segment_gate_bar(bar: GateBar) -> list[dict[str, Any]]:
+def _segment_gate_bar(bar: GateBar, dense: bool = False) -> list[dict[str, Any]]:
     axes = _rotation_axes(bar.rotation_rpy_deg)
     if bar.part in {"top", "bottom"}:
         long_axis = axes[1]
@@ -255,12 +303,16 @@ def _segment_gate_bar(bar: GateBar) -> list[dict[str, Any]]:
         long_axis = axes[axis_index]
         length_m = dimensions[axis_index]
 
-    cube_size_m = max(
-        float(bar.dimensions_m[0]),
-        min(float(bar.dimensions_m[1]), float(bar.dimensions_m[2])),
-        0.12,
-    )
-    step_m = cube_size_m * 0.75
+    if dense:
+        cube_size_m = max(min(float(value) for value in bar.dimensions_m), 0.08)
+        step_m = cube_size_m * 0.45
+    else:
+        cube_size_m = max(
+            float(bar.dimensions_m[0]),
+            min(float(bar.dimensions_m[1]), float(bar.dimensions_m[2])),
+            0.12,
+        )
+        step_m = cube_size_m * 0.75
     segment_count = max(2, int(math.ceil(length_m / step_m)) + 1)
     offsets = [
         -length_m / 2.0 + index * (length_m / float(segment_count - 1))
