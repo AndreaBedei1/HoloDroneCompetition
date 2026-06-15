@@ -1,0 +1,479 @@
+{
+  "race": {
+    "name": "Marine Race Technical Canyon",
+    "format": "ai_grand_challenge",
+    "laps": 2,
+    "expected_gates_per_lap": 15,
+    "timing_mode": "first_gate_to_last_gate",
+    "max_duration_s": 720,
+    "official_mode": false
+  },
+  "world": {
+    "package": "Ocean",
+    "map": "OpenWater-Hovering",
+    "arena_origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "preferred_environment": "OpenWater-Hovering",
+    "fallback_environment": "PierHarbor-Hovering",
+    "bounds": {
+      "x_min": -28.0,
+      "x_max": 26.0,
+      "y_min": -18.0,
+      "y_max": 18.0,
+      "z_min": -8.0,
+      "z_max": -1.0
+    }
+  },
+  "track": {
+    "declared_length_m": 125.5,
+    "length_tolerance_m": 4.0,
+    "gate_inner_size_m": [
+      1.5,
+      1.5
+    ],
+    "gate_bar_thickness_m": 0.18,
+    "gate_depth_m": 0.22,
+    "gate_sequence": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15"
+    ]
+  },
+  "start": {
+    "position": [
+      -22.0,
+      -10.0,
+      -4.0
+    ],
+    "rotation_rpy_deg": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "finish": {
+    "gate_id": "G15"
+  },
+  "beacon": {
+    "enabled": true,
+    "mode": "active_when_target",
+    "position_offset": [
+      0.0,
+      0.0,
+      0.35
+    ],
+    "range_m": 80.0,
+    "noise_std": 0.45,
+    "dropout_probability": 0.02,
+    "update_rate_hz": 10.0,
+    "message": {
+      "track": "technical_canyon",
+      "channel_plan": "target_only"
+    }
+  },
+  "gates": [
+    {
+      "id": "G01",
+      "type": "single",
+      "position": [
+        -23.0,
+        -12.0,
+        -4.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -15.9
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.962,
+        -0.275,
+        0.0
+      ]
+    },
+    {
+      "id": "G02",
+      "type": "single",
+      "position": [
+        -15.0,
+        -12.0,
+        -4.1
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        7.1
+      ],
+      "color": "#38bdf8",
+      "passage_direction": [
+        0.992,
+        0.124,
+        0.0
+      ]
+    },
+    {
+      "id": "G03",
+      "type": "single",
+      "position": [
+        -7.0,
+        -10.0,
+        -4.2
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        17.4
+      ],
+      "color": "#facc15",
+      "passage_direction": [
+        0.954,
+        0.298,
+        0.0
+      ]
+    },
+    {
+      "id": "G04",
+      "type": "single",
+      "position": [
+        1.0,
+        -7.0,
+        -4.4
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        19.4
+      ],
+      "color": "#fb7185",
+      "passage_direction": [
+        0.943,
+        0.333,
+        0.0
+      ]
+    },
+    {
+      "id": "G05",
+      "type": "double",
+      "position": [
+        10.0,
+        -4.0,
+        -4.4
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        22.4
+      ],
+      "color": "#f97316",
+      "passage_direction": [
+        0.925,
+        0.381,
+        0.0
+      ],
+      "linked_gate": "G06"
+    },
+    {
+      "id": "G06",
+      "type": "double",
+      "position": [
+        18.0,
+        0.0,
+        -4.5
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        40.2
+      ],
+      "color": "#a78bfa",
+      "passage_direction": [
+        0.763,
+        0.646,
+        0.0
+      ],
+      "linked_gate": "G05"
+    },
+    {
+      "id": "G07",
+      "type": "single",
+      "position": [
+        23.0,
+        7.0,
+        -4.3
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        81.9
+      ],
+      "color": "#22d3ee",
+      "passage_direction": [
+        0.141,
+        0.99,
+        0.0
+      ]
+    },
+    {
+      "id": "G08",
+      "type": "single",
+      "position": [
+        20.0,
+        14.0,
+        -4.2
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        135.0
+      ],
+      "color": "#84cc16",
+      "passage_direction": [
+        -0.707,
+        0.707,
+        0.0
+      ]
+    },
+    {
+      "id": "G09",
+      "type": "single",
+      "position": [
+        12.0,
+        18.0,
+        -4.4
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        167.5
+      ],
+      "color": "#e879f9",
+      "passage_direction": [
+        -0.976,
+        0.217,
+        0.0
+      ]
+    },
+    {
+      "id": "G10",
+      "type": "single",
+      "position": [
+        2.0,
+        18.0,
+        -4.7
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -171.5
+      ],
+      "color": "#22c55e",
+      "passage_direction": [
+        -0.989,
+        -0.148,
+        0.0
+      ]
+    },
+    {
+      "id": "G11",
+      "type": "single",
+      "position": [
+        -8.0,
+        15.0,
+        -4.8
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -157.2
+      ],
+      "color": "#f43f5e",
+      "passage_direction": [
+        -0.922,
+        -0.388,
+        0.0
+      ]
+    },
+    {
+      "id": "G12",
+      "type": "single",
+      "position": [
+        -17.0,
+        10.0,
+        -4.5
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -145.5
+      ],
+      "color": "#60a5fa",
+      "passage_direction": [
+        -0.824,
+        -0.567,
+        0.0
+      ]
+    },
+    {
+      "id": "G13",
+      "type": "single",
+      "position": [
+        -24.0,
+        4.0,
+        -4.2
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -125.5
+      ],
+      "color": "#fde047",
+      "passage_direction": [
+        -0.581,
+        -0.814,
+        0.0
+      ]
+    },
+    {
+      "id": "G14",
+      "type": "single",
+      "position": [
+        -27.0,
+        -4.0,
+        -4.1
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -94.1
+      ],
+      "color": "#34d399",
+      "passage_direction": [
+        -0.071,
+        -0.997,
+        0.0
+      ]
+    },
+    {
+      "id": "G15",
+      "type": "single",
+      "position": [
+        -25.0,
+        -10.0,
+        -4.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -63.4
+      ],
+      "color": "#c084fc",
+      "passage_direction": [
+        0.447,
+        -0.894,
+        0.0
+      ]
+    }
+  ],
+  "currents": [
+    {
+      "type": "constant",
+      "velocity": [
+        0.03,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "type": "localized_jet",
+      "center": [
+        2.0,
+        13.0,
+        -4.4
+      ],
+      "radius": 5.0,
+      "velocity": [
+        0.22,
+        -0.05,
+        0.02
+      ],
+      "falloff": "gaussian"
+    },
+    {
+      "type": "localized_jet",
+      "center": [
+        18.0,
+        -2.0,
+        -4.3
+      ],
+      "radius": 4.5,
+      "velocity": [
+        -0.05,
+        0.24,
+        0.0
+      ],
+      "falloff": "gaussian"
+    }
+  ],
+  "obstacles": [],
+  "participants": [
+    {
+      "id": "bluerov2_01",
+      "vehicle": "BlueROV2",
+      "controller": "pygame",
+      "controller_class": null,
+      "spawn": {
+        "position": [
+          -22.0,
+          -10.0,
+          -4.0
+        ],
+        "rotation_rpy_deg": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "sensors": {
+        "profile": "official_acoustic"
+      },
+      "control_mode": "high_level",
+      "official_sensor_profile": true
+    }
+  ],
+  "referee": {
+    "gate_validation": {
+      "vehicle_model": "center_point",
+      "vehicle_clearance_margin_m": 0.18,
+      "stuck_timeout_s": 40.0,
+      "stuck_speed_threshold_m_s": 0.02
+    },
+    "penalties": {
+      "minor_collision_s": 5.0,
+      "gate_collision_s": 10.0,
+      "wrong_direction_s": 20.0,
+      "missed_gate_dnf": true,
+      "severe_collision_dnf": true,
+      "wrong_direction_dsq": false
+    },
+    "scoring": {
+      "rank_finished_by": "penalized_time",
+      "rank_unfinished_by": "completed_gates"
+    }
+  }
+}

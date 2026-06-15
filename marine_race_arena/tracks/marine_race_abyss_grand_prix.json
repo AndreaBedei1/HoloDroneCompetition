@@ -1,0 +1,572 @@
+{
+  "race": {
+    "name": "Marine Race Abyss Grand Prix",
+    "format": "ai_grand_challenge",
+    "laps": 2,
+    "expected_gates_per_lap": 19,
+    "timing_mode": "first_gate_to_last_gate",
+    "max_duration_s": 1100,
+    "official_mode": false
+  },
+  "world": {
+    "package": "Ocean",
+    "map": "OpenWater-Hovering",
+    "arena_origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "preferred_environment": "OpenWater-Hovering",
+    "fallback_environment": "PierHarbor-Hovering",
+    "bounds": {
+      "x_min": -35.0,
+      "x_max": 32.0,
+      "y_min": -24.0,
+      "y_max": 24.0,
+      "z_min": -8.0,
+      "z_max": -1.0
+    }
+  },
+  "track": {
+    "declared_length_m": 188.8,
+    "length_tolerance_m": 6.0,
+    "gate_inner_size_m": [
+      1.5,
+      1.5
+    ],
+    "gate_bar_thickness_m": 0.18,
+    "gate_depth_m": 0.22,
+    "gate_sequence": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08",
+      "G09",
+      "G10",
+      "G11",
+      "G12",
+      "G13",
+      "G14",
+      "G15",
+      "G16",
+      "G17",
+      "G18",
+      "G19"
+    ]
+  },
+  "start": {
+    "position": [
+      -30.0,
+      0.0,
+      -4.0
+    ],
+    "rotation_rpy_deg": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "finish": {
+    "gate_id": "G19"
+  },
+  "beacon": {
+    "enabled": true,
+    "mode": "active_when_target",
+    "position_offset": [
+      0.0,
+      0.0,
+      0.35
+    ],
+    "range_m": 110.0,
+    "noise_std": 0.65,
+    "dropout_probability": 0.04,
+    "update_rate_hz": 10.0,
+    "message": {
+      "track": "abyss_grand_prix",
+      "channel_plan": "target_only"
+    }
+  },
+  "gates": [
+    {
+      "id": "G01",
+      "type": "single",
+      "position": [
+        -30.0,
+        -15.0,
+        -4.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -63.4
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.447,
+        -0.894,
+        0.0
+      ]
+    },
+    {
+      "id": "G02",
+      "type": "single",
+      "position": [
+        -22.0,
+        -16.0,
+        -4.3
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -10.6
+      ],
+      "color": "#38bdf8",
+      "passage_direction": [
+        0.983,
+        -0.184,
+        0.0
+      ]
+    },
+    {
+      "id": "G03",
+      "type": "single",
+      "position": [
+        -14.0,
+        -18.0,
+        -4.7
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -13.2
+      ],
+      "color": "#facc15",
+      "passage_direction": [
+        0.973,
+        -0.229,
+        0.0
+      ]
+    },
+    {
+      "id": "G04",
+      "type": "single",
+      "position": [
+        -5.0,
+        -20.0,
+        -5.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -3.0
+      ],
+      "color": "#fb7185",
+      "passage_direction": [
+        0.999,
+        -0.053,
+        0.0
+      ]
+    },
+    {
+      "id": "G05",
+      "type": "single",
+      "position": [
+        5.0,
+        -19.0,
+        -5.3
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        14.0
+      ],
+      "color": "#f97316",
+      "passage_direction": [
+        0.97,
+        0.243,
+        0.0
+      ]
+    },
+    {
+      "id": "G06",
+      "type": "single",
+      "position": [
+        15.0,
+        -15.0,
+        -4.8
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        27.8
+      ],
+      "color": "#a78bfa",
+      "passage_direction": [
+        0.885,
+        0.466,
+        0.0
+      ]
+    },
+    {
+      "id": "G07",
+      "type": "single",
+      "position": [
+        24.0,
+        -9.0,
+        -4.4
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        41.2
+      ],
+      "color": "#22d3ee",
+      "passage_direction": [
+        0.753,
+        0.659,
+        0.0
+      ]
+    },
+    {
+      "id": "G08",
+      "type": "single",
+      "position": [
+        31.0,
+        -1.0,
+        -4.2
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        67.6
+      ],
+      "color": "#84cc16",
+      "passage_direction": [
+        0.381,
+        0.925,
+        0.0
+      ]
+    },
+    {
+      "id": "G09",
+      "type": "split_s_upper",
+      "position": [
+        31.0,
+        8.0,
+        -4.3
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        109.4
+      ],
+      "color": "#e879f9",
+      "passage_direction": [
+        -0.333,
+        0.943,
+        0.0
+      ],
+      "linked_gate": "G10"
+    },
+    {
+      "id": "G10",
+      "type": "split_s_lower",
+      "position": [
+        25.0,
+        16.0,
+        -5.7
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        143.1
+      ],
+      "color": "#22c55e",
+      "passage_direction": [
+        -0.8,
+        0.6,
+        0.0
+      ],
+      "linked_gate": "G09"
+    },
+    {
+      "id": "G11",
+      "type": "single",
+      "position": [
+        15.0,
+        20.0,
+        -5.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        164.1
+      ],
+      "color": "#f43f5e",
+      "passage_direction": [
+        -0.962,
+        0.275,
+        0.0
+      ]
+    },
+    {
+      "id": "G12",
+      "type": "single",
+      "position": [
+        4.0,
+        22.0,
+        -4.4
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        177.5
+      ],
+      "color": "#60a5fa",
+      "passage_direction": [
+        -0.999,
+        0.043,
+        0.0
+      ]
+    },
+    {
+      "id": "G13",
+      "type": "single",
+      "position": [
+        -8.0,
+        21.0,
+        -4.1
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -167.7
+      ],
+      "color": "#fde047",
+      "passage_direction": [
+        -0.977,
+        -0.212,
+        0.0
+      ]
+    },
+    {
+      "id": "G14",
+      "type": "double",
+      "position": [
+        -19.0,
+        17.0,
+        -4.8
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -154.5
+      ],
+      "color": "#34d399",
+      "passage_direction": [
+        -0.903,
+        -0.43,
+        0.0
+      ],
+      "linked_gate": "G15"
+    },
+    {
+      "id": "G15",
+      "type": "double",
+      "position": [
+        -29.0,
+        11.0,
+        -5.2
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -137.0
+      ],
+      "color": "#c084fc",
+      "passage_direction": [
+        -0.731,
+        -0.682,
+        0.0
+      ],
+      "linked_gate": "G14"
+    },
+    {
+      "id": "G16",
+      "type": "single",
+      "position": [
+        -34.0,
+        3.0,
+        -4.6
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -106.4
+      ],
+      "color": "#fb923c",
+      "passage_direction": [
+        -0.282,
+        -0.959,
+        0.0
+      ]
+    },
+    {
+      "id": "G17",
+      "type": "single",
+      "position": [
+        -34.0,
+        -6.0,
+        -4.3
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -78.7
+      ],
+      "color": "#14b8a6",
+      "passage_direction": [
+        0.196,
+        -0.981,
+        0.0
+      ]
+    },
+    {
+      "id": "G18",
+      "type": "single",
+      "position": [
+        -31.0,
+        -12.0,
+        -4.1
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -56.3
+      ],
+      "color": "#e11d48",
+      "passage_direction": [
+        0.555,
+        -0.832,
+        0.0
+      ]
+    },
+    {
+      "id": "G19",
+      "type": "single",
+      "position": [
+        -28.0,
+        -15.0,
+        -4.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -71.6
+      ],
+      "color": "#7dd3fc",
+      "passage_direction": [
+        0.316,
+        -0.949,
+        0.0
+      ]
+    }
+  ],
+  "currents": [
+    {
+      "type": "constant",
+      "velocity": [
+        0.04,
+        0.09,
+        0.0
+      ]
+    },
+    {
+      "type": "localized_jet",
+      "center": [
+        22.0,
+        0.0,
+        -4.2
+      ],
+      "radius": 5.5,
+      "velocity": [
+        0.0,
+        -0.28,
+        0.02
+      ],
+      "falloff": "gaussian"
+    },
+    {
+      "type": "localized_jet",
+      "center": [
+        -16.0,
+        -15.0,
+        -5.4
+      ],
+      "radius": 6.0,
+      "velocity": [
+        0.26,
+        0.08,
+        -0.02
+      ],
+      "falloff": "gaussian"
+    },
+    {
+      "type": "sinusoidal",
+      "axis": "z",
+      "amplitude": 0.06,
+      "frequency_hz": 0.08,
+      "phase": 0.0
+    }
+  ],
+  "obstacles": [],
+  "participants": [
+    {
+      "id": "bluerov2_01",
+      "vehicle": "BlueROV2",
+      "controller": "pygame",
+      "controller_class": null,
+      "spawn": {
+        "position": [
+          -30.0,
+          0.0,
+          -4.0
+        ],
+        "rotation_rpy_deg": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "sensors": {
+        "profile": "official_acoustic"
+      },
+      "control_mode": "high_level",
+      "official_sensor_profile": true
+    }
+  ],
+  "referee": {
+    "gate_validation": {
+      "vehicle_model": "center_point",
+      "vehicle_clearance_margin_m": 0.22,
+      "stuck_timeout_s": 55.0,
+      "stuck_speed_threshold_m_s": 0.02
+    },
+    "penalties": {
+      "minor_collision_s": 5.0,
+      "gate_collision_s": 10.0,
+      "wrong_direction_s": 20.0,
+      "missed_gate_dnf": true,
+      "severe_collision_dnf": true,
+      "wrong_direction_dsq": false
+    },
+    "scoring": {
+      "rank_finished_by": "penalized_time",
+      "rank_unfinished_by": "completed_gates"
+    }
+  }
+}
