@@ -7,6 +7,7 @@ import copy
 import json
 import logging
 import sys
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, Mapping
@@ -36,6 +37,75 @@ LOGGER = logging.getLogger(__name__)
 
 
 def main(argv: list[str] | None = None) -> int:
+    parser = _build_arg_parser()
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    try:
+        config = load_track_config(args.track)
+    except (TrackConfigLoadError, ValueError) as exc:
+        print(f"Track validation failed: {exc}", file=sys.stderr)
+        return 1
+    if args.official and args.disable_front_camera:
+        print("Race setup failed: --disable-front-camera is not allowed in official mode.", file=sys.stderr)
+        return 1
+
+    config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
+    if args.disable_front_camera:
+        config = _without_front_camera(config)
+    arena = ArenaBuilder(config, seed=args.seed).build()
+    logger = RaceLogger(args.log_dir, config.race.name, track_file=args.track)
+    referee = Referee(config, arena.gate_map, arena.bounds, logger=logger)
+    camera_viewer = FrontCameraViewer(enabled=args.show_front_camera)
+
+    try:
+        participants = _load_participants(config, args)
+        _reject_invalid_official_controllers(config, participants)
+        adapter = _prepare_adapter(config, arena, participants, args)
+    except (ControllerError, AdapterSelectionError, RaceAdapterError) as exc:
+        camera_viewer.close()
+        logger.close()
+        print(f"Race setup failed: {exc}", file=sys.stderr)
+        return 1
+
+    referee.register_participants(participants.keys())
+    race_info = _race_info(config, adapter.name)
+    for participant in participants.values():
+        participant.controller.reset(
+            race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)}
+        )
+
+    try:
+        summary = _run_race_loop(
+            config=config,
+            arena=arena,
+            referee=referee,
+            adapter=adapter,
+            participants=participants,
+            dt=args.dt,
+            camera_viewer=camera_viewer,
+        )
+        logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
+        logger.write_summary(summary)
+    finally:
+        camera_viewer.close()
+        for participant in participants.values():
+            try:
+                participant.controller.close()
+            except Exception as exc:  # pragma: no cover - defensive close path
+                LOGGER.warning("Controller '%s' close failed: %s", participant.id, exc)
+        adapter.close()
+        logger.close()
+
+    _print_summary(summary)
+    print(f"Adapter: {adapter.name}")
+    print(f"Event log: {logger.event_path}")
+    print(f"Summary: {logger.summary_path}")
+    return 0
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--track", required=True, help="Path to track JSON.")
     parser.add_argument(
@@ -82,67 +152,15 @@ def main(argv: list[str] | None = None) -> int:
             "Official runs keep the camera enabled."
         ),
     )
-    args = parser.parse_args(argv)
-
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-    try:
-        config = load_track_config(args.track)
-    except (TrackConfigLoadError, ValueError) as exc:
-        print(f"Track validation failed: {exc}", file=sys.stderr)
-        return 1
-    if args.official and args.disable_front_camera:
-        print("Race setup failed: --disable-front-camera is not allowed in official mode.", file=sys.stderr)
-        return 1
-
-    config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
-    if args.disable_front_camera:
-        config = _without_front_camera(config)
-    arena = ArenaBuilder(config, seed=args.seed).build()
-    logger = RaceLogger(args.log_dir, config.race.name, track_file=args.track)
-    referee = Referee(config, arena.gate_map, arena.bounds, logger=logger)
-
-    try:
-        participants = _load_participants(config, args)
-        _reject_invalid_official_controllers(config, participants)
-        adapter = _prepare_adapter(config, arena, participants, args)
-    except (ControllerError, AdapterSelectionError, RaceAdapterError) as exc:
-        logger.close()
-        print(f"Race setup failed: {exc}", file=sys.stderr)
-        return 1
-
-    referee.register_participants(participants.keys())
-    race_info = _race_info(config, adapter.name)
-    for participant in participants.values():
-        participant.controller.reset(
-            race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)}
-        )
-
-    try:
-        summary = _run_race_loop(
-            config=config,
-            arena=arena,
-            referee=referee,
-            adapter=adapter,
-            participants=participants,
-            dt=args.dt,
-        )
-        logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
-        logger.write_summary(summary)
-    finally:
-        for participant in participants.values():
-            try:
-                participant.controller.close()
-            except Exception as exc:  # pragma: no cover - defensive close path
-                LOGGER.warning("Controller '%s' close failed: %s", participant.id, exc)
-        adapter.close()
-        logger.close()
-
-    _print_summary(summary)
-    print(f"Adapter: {adapter.name}")
-    print(f"Event log: {logger.event_path}")
-    print(f"Summary: {logger.summary_path}")
-    return 0
+    parser.add_argument(
+        "--show-front-camera",
+        action="store_true",
+        help=(
+            "Display observation['sensors']['FrontCamera'] in a live viewer. "
+            "Press V or Esc in the viewer window to close only the camera viewer."
+        ),
+    )
+    return parser
 
 
 def _with_cli_overrides(config: TrackConfig, duration_s: float | None, official: bool) -> TrackConfig:
@@ -266,6 +284,7 @@ def _run_race_loop(
     adapter: BaseRaceAdapter,
     participants: Mapping[str, RaceParticipant],
     dt: float,
+    camera_viewer: "FrontCameraViewer | None" = None,
 ) -> Dict[str, Any]:
     LOGGER.info(
         "Starting race '%s' with adapter '%s' in %s.",
@@ -293,6 +312,8 @@ def _run_race_loop(
                 participant=participant,
                 participant_state=previous_state,
             )
+            if camera_viewer is not None:
+                camera_viewer.update(observation, participant.id)
             try:
                 command = participant.controller.step(_copy_observation_for_controller(observation))
             except Exception as exc:  # pragma: no cover - exercised by external controllers
@@ -330,6 +351,219 @@ def _run_race_loop(
                 time_s=config.race.max_duration_s + dt,
             )
     return referee.summary()
+
+
+class FrontCameraViewer:
+    """Optional live display for controller-safe FrontCamera observations."""
+
+    window_name = "Marine Race FrontCamera"
+
+    def __init__(self, enabled: bool):
+        self.enabled = enabled
+        self.closed = False
+        self._backend: str | None = None
+        self._cv2: Any = None
+        self._pygame: Any = None
+        self._screen: Any = None
+        self._frame_count = 0
+        self._start_time = time.monotonic()
+        self._missing_warning_printed = False
+        self._invalid_warning_printed = False
+        self._backend_warning_printed = False
+
+    def update(self, observation: Mapping[str, Any], participant_id: str) -> None:
+        if not self.enabled or self.closed:
+            return
+        sensors = observation.get("sensors", {})
+        if not isinstance(sensors, Mapping):
+            self._warn_missing([])
+            return
+        image = sensors.get("FrontCamera")
+        if image is None:
+            self._warn_missing(sensors.keys())
+            return
+        frame = self._image_to_uint8_array(image)
+        if frame is None:
+            if not self._invalid_warning_printed:
+                print(
+                    "FrontCamera viewer warning: FrontCamera exists but could not be converted "
+                    f"for display. Type: {type(image).__name__}",
+                    file=sys.stderr,
+                )
+                self._invalid_warning_printed = True
+            return
+        if self._backend is None and not self._initialize_backend(frame):
+            return
+        self._frame_count += 1
+        fps = self._frame_count / max(1e-6, time.monotonic() - self._start_time)
+        if self._backend == "opencv":
+            self._show_with_opencv(frame, participant_id, fps)
+        elif self._backend == "pygame":
+            self._show_with_pygame(frame, participant_id, fps)
+
+    def close(self) -> None:
+        if self._backend == "opencv" and self._cv2 is not None:
+            try:
+                self._cv2.destroyWindow(self.window_name)
+            except Exception:
+                pass
+        if self._backend == "pygame" and self._pygame is not None:
+            try:
+                self._pygame.display.quit()
+            except Exception:
+                pass
+        self.closed = True
+
+    def _warn_missing(self, sensor_keys: Any) -> None:
+        if self._missing_warning_printed:
+            return
+        keys = sorted(str(key) for key in sensor_keys)
+        print(
+            "FrontCamera viewer warning: observation['sensors']['FrontCamera'] is missing. "
+            f"Available sensor keys: {keys}",
+            file=sys.stderr,
+        )
+        self._missing_warning_printed = True
+
+    def _initialize_backend(self, frame: Any) -> bool:
+        if self._try_initialize_opencv():
+            return True
+        return self._try_initialize_pygame(frame)
+
+    def _try_initialize_opencv(self) -> bool:
+        try:
+            import cv2
+        except ImportError:
+            return False
+        self._cv2 = cv2
+        self._backend = "opencv"
+        try:
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+        except Exception:
+            pass
+        return True
+
+    def _try_initialize_pygame(self, frame: Any) -> bool:
+        try:
+            import pygame
+        except ImportError:
+            if not self._backend_warning_printed:
+                print(
+                    "FrontCamera viewer warning: OpenCV is not installed and pygame is not "
+                    "available for fallback display. Install opencv-python in the ocean "
+                    "environment or run without --show-front-camera.",
+                    file=sys.stderr,
+                )
+                self._backend_warning_printed = True
+            self.closed = True
+            return False
+        if pygame.get_init() and pygame.display.get_surface() is not None:
+            if not self._backend_warning_printed:
+                print(
+                    "FrontCamera viewer warning: OpenCV is not installed and pygame already "
+                    "has an active controller window. The fallback pygame camera viewer would "
+                    "take over that display, so the camera viewer is disabled.",
+                    file=sys.stderr,
+                )
+                self._backend_warning_printed = True
+            self.closed = True
+            return False
+        pygame.init()
+        height, width = int(frame.shape[0]), int(frame.shape[1])
+        self._screen = pygame.display.set_mode((width, height))
+        pygame.display.set_caption(self.window_name)
+        self._pygame = pygame
+        self._backend = "pygame"
+        return True
+
+    def _show_with_opencv(self, frame: Any, participant_id: str, fps: float) -> None:
+        cv2 = self._cv2
+        display = self._frame_for_opencv(frame)
+        label = f"{participant_id}  frame={self._frame_count}  fps={fps:.1f}  V/Esc closes viewer"
+        try:
+            cv2.putText(
+                display,
+                label,
+                (12, 28),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            if hasattr(cv2, "setWindowTitle"):
+                cv2.setWindowTitle(self.window_name, f"{self.window_name} | {label}")
+            cv2.imshow(self.window_name, display)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (27, ord("v"), ord("V")):
+                self.close()
+        except Exception as exc:
+            print(f"FrontCamera viewer warning: OpenCV display failed: {exc}", file=sys.stderr)
+            self.close()
+
+    def _show_with_pygame(self, frame: Any, participant_id: str, fps: float) -> None:
+        pygame = self._pygame
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close()
+                return
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_v):
+                self.close()
+                return
+        rgb = self._frame_for_pygame(frame)
+        surface = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
+        self._screen.blit(surface, (0, 0))
+        pygame.display.set_caption(
+            f"{self.window_name} | {participant_id} frame={self._frame_count} fps={fps:.1f} V/Esc closes"
+        )
+        pygame.display.flip()
+
+    def _image_to_uint8_array(self, image: Any) -> Any:
+        try:
+            import numpy as np
+        except ImportError:
+            if not self._backend_warning_printed:
+                print(
+                    "FrontCamera viewer warning: numpy is required to display FrontCamera frames.",
+                    file=sys.stderr,
+                )
+                self._backend_warning_printed = True
+            self.closed = True
+            return None
+        try:
+            frame = np.asarray(image)
+        except Exception:
+            return None
+        if frame.ndim < 2:
+            return None
+        if frame.ndim == 2:
+            frame = frame[:, :, None]
+        if frame.ndim != 3 or frame.shape[2] not in (1, 3, 4):
+            return None
+        if frame.dtype != np.uint8:
+            frame = frame.astype(np.float32, copy=False)
+            max_value = float(np.nanmax(frame)) if frame.size else 0.0
+            if max_value <= 1.0:
+                frame = frame * 255.0
+            frame = np.nan_to_num(frame, nan=0.0, posinf=255.0, neginf=0.0)
+            frame = np.clip(frame, 0.0, 255.0).astype(np.uint8)
+        return frame
+
+    def _frame_for_opencv(self, frame: Any) -> Any:
+        cv2 = self._cv2
+        channels = frame.shape[2]
+        if channels == 1:
+            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        # The local HoloOcean 2.3.0 FrontCamera runtime returns BGRA/BGR buffers
+        # even though the Python docstring describes RGBA.
+        return frame[:, :, :3].copy()
+
+    def _frame_for_pygame(self, frame: Any) -> Any:
+        if frame.shape[2] == 1:
+            return frame.repeat(3, axis=2)
+        if frame.shape[2] == 3:
+            return frame[:, :, [2, 1, 0]]
+        return frame[:, :, [2, 1, 0, 3]][:, :, :3]
 
 
 def _build_controller_observation(

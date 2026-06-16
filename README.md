@@ -207,6 +207,7 @@ Useful flags:
 - `--participant-controller`: external `module:Class`, fully qualified `module.Class`, or file path.
 - `--controller-class`: class name to instantiate when using a Python file or module path.
 - `--disable-front-camera`: disable `FrontCamera` capture for non-official live/debug runs when the viewport or control loop is too slow. This is rejected in `--official` mode.
+- `--show-front-camera`: open a live viewer for `observation["sensors"]["FrontCamera"]`. Press `V` or `Esc` in the camera viewer to close only that viewer while the race continues.
 - `--log-dir`: output directory for JSONL events and summary JSON.
 - `--seed`: deterministic beacon noise/dropout seed.
 
@@ -229,6 +230,7 @@ Then run the diagnostic and try HoloOcean:
 conda run -n ocean python marine_race_arena/scripts/diagnose_holoocean_adapter.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --print-gate-bars
 conda run -n ocean python marine_race_arena/scripts/diagnose_gate_visual_rotations.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --output-dir diagnostics/gate_rotation_tests_selected --selected-only
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033 --show-front-camera
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller pygame --adapter holoocean --duration 850 --dt 0.033
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter holoocean --duration 1300 --dt 0.033
 ```
@@ -253,6 +255,7 @@ Sensor separation:
 - The benchmark tracks include an official front RGB camera exposed as `observation["sensors"]["FrontCamera"]`.
 - The HoloOcean scenario config mounts this camera as `RGBCamera` named `FrontCamera` on `CameraSocket`, with rotation `[0.0, 0.0, 0.0]`, `Hz=30`, `640x480`, and FOV `90.0`.
 - If the installed HoloOcean runtime returns the image under `RGBCamera`, the adapter aliases it to `FrontCamera` before filtering.
+- Manual pygame testing can show this feed live with `--show-front-camera`. The viewer uses the filtered controller observation, supports image arrays or nested lists, and does not expose ground truth. In the tested HoloOcean 2.3.0 installation, the Python sensor docstring still says `RGBA`, but the runtime `FrontCamera` buffer behaves as `BGRA/BGR`; the viewer now uses that practical ordering for correct colors. OpenCV is used when installed; if OpenCV is unavailable, the runner prints a clear warning or uses a pygame fallback when no other pygame display is active.
 - The adapter filters out `PoseSensor`, `LocationSensor`, `RotationSensor`, `DynamicsSensor`, and explicit ground-truth fields in official mode.
 - The referee still uses ground-truth pose internally for gate validation and out-of-bounds checks.
 - The oracle controller receives ground truth only when not in official mode.

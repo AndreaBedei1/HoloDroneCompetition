@@ -288,6 +288,10 @@ def _print_front_camera_info(image: Any, summary: Dict[str, Any]) -> None:
     summary["FrontCamera_shape"] = shape
     print(f"FrontCamera type: {image_type}")
     print(f"FrontCamera shape: {shape}")
+    means = _channel_means(image)
+    if means is not None:
+        summary["FrontCamera_channel_means"] = means
+        print(f"FrontCamera channel means: {means}")
     if shape not in ([480, 640, 4], [480, 640, 3]):
         summary["warnings"].append(
             f"FrontCamera shape was {shape}; expected [480, 640, 4] or [480, 640, 3]."
@@ -308,6 +312,20 @@ def _shape_of(value: Any) -> list[int]:
                 return [len(value), len(value[0]), len(value[0][0])]
             return [len(value), len(value[0])]
         return [len(value)]
+
+
+def _channel_means(image: Any) -> list[float] | None:
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    try:
+        frame = np.asarray(image)
+    except Exception:
+        return None
+    if frame.ndim != 3 or frame.shape[2] not in (3, 4):
+        return None
+    return [round(float(frame[:, :, index].mean()), 3) for index in range(frame.shape[2])]
     return []
 
 

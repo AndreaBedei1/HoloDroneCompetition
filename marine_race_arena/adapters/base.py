@@ -226,6 +226,8 @@ def _canonical_sensor_name(sensor_name: str) -> str:
 
 
 def _json_safe(value: Any) -> Any:
+    if _looks_like_image_array(value):
+        return value
     if hasattr(value, "tolist"):
         return value.tolist()
     if isinstance(value, tuple):
@@ -235,6 +237,11 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key): _json_safe(item) for key, item in value.items()}
     return value
+
+
+def _looks_like_image_array(value: Any) -> bool:
+    shape = getattr(value, "shape", None)
+    return shape is not None and len(shape) >= 2
 
 
 def _float(value: Any) -> float:
