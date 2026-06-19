@@ -106,6 +106,33 @@ A fixed box obstacle entry uses:
 
 Random obstacle default box sizes are `0.8 m`, `1.0 m`, and `1.2 m` cubes for `low`, `medium`, and `high` density respectively. Obstacle validation requires box obstacles to be inside bounds, between adjacent gates, away from gate apertures and start/finish spawn, and small enough or offset enough to leave passable clearance on at least one side of the corridor.
 
+## Benchmark Evaluation Protocol
+
+Use `marine_race_arena/scripts/run_benchmark.py` for repeated benchmark trials with consistent runner settings and aggregate paper-style metrics. The benchmark runner calls the normal `run_marine_race.py` pipeline once per seed, writes each run's normal JSONL event log and summary JSON under `OUTPUT_DIR/runs/`, writes a `benchmark_metadata.json` next to each run, and produces:
+
+- `OUTPUT_DIR/benchmark_summary.csv`
+- `OUTPUT_DIR/benchmark_summary.json`
+
+The aggregate files report completion rate, official and penalized time mean/std, completed gates, collision/event averages, DNF totals and reasons, manual-stop count, and controller-error count. Pygame and keyboard controllers are accepted for manual demos, but their metadata is marked `manual_demo` and they should not be treated as main scientific baselines. The oracle controller is marked `debug_only`.
+
+Clean-gate example:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --output-dir results/benchmarks/clean_gate_acoustic
+```
+
+Obstacle-gate example:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task obstacle_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --obstacles random --obstacle-density low --obstacle-physics static --output-dir results/benchmarks/obstacle_gate_acoustic
+```
+
+Current-gate example:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task current_gate --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 1300 --dt 0.1 --obstacles none --output-dir results/benchmarks/current_gate_acoustic
+```
+
 ## Gate Validation Rule
 
 A gate crossing is valid only when:
