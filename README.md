@@ -87,7 +87,7 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --benchmark-task current_gate --controller pygame --adapter fallback
 ```
 
-For `obstacle_gate`, active obstacles can come from fixed JSON definitions or deterministic random generation. `--obstacles none` removes active obstacles at runtime and validation time, `--obstacles fixed` uses the JSON `obstacles` array, and `--obstacles random` generates boxes between adjacent gates using `--seed`.
+For `obstacle_gate`, active obstacles can come from fixed JSON definitions or deterministic random generation. `--obstacles none` removes active obstacles at runtime and validation time, `--obstacles fixed` uses the JSON `obstacles` array, and `--obstacles random` generates boxes between adjacent gates using `--seed`. In HoloOcean, benchmark obstacles are static suspended props by default, so they remain fixed at their configured underwater positions.
 
 A fixed box obstacle entry uses:
 
@@ -259,6 +259,7 @@ Useful flags:
 - `--benchmark-task`: validate this run as `clean_gate`, `obstacle_gate`, `current_gate`, or `multi_rov`.
 - `--obstacles`: `none` removes active obstacles, `fixed` uses JSON obstacles, `random` generates deterministic boxes between gates.
 - `--obstacle-density`: `low`, `medium`, or `high` density for random obstacle generation.
+- `--obstacle-physics`: `static` keeps HoloOcean obstacles suspended and fixed; `dynamic` enables simulator physics for experiments.
 - `--allow-fallback`: explicitly allow fallback kinematics after HoloOcean initialization failure.
 - `--official`: force official mode and block oracle ground truth.
 - `--headless`: request headless HoloOcean mode when supported.
@@ -322,7 +323,7 @@ Sensor separation:
 Obstacles:
 
 - Fixed obstacles are loaded from JSON when `--obstacles fixed` is active. Random obstacles are generated reproducibly from `--seed`.
-- In HoloOcean, active box obstacles are spawned with `env.spawn_prop("box", ..., sim_physics=True)` when that API is available.
+- In HoloOcean, active box obstacles are spawned with `env.spawn_prop("box", ..., sim_physics=False)` by default. They are visible, collidable props but are not affected by gravity/current unless `--obstacle-physics dynamic` is explicitly selected.
 - In fallback, active obstacles remain metadata and collisions are approximated with a simple bounding check along the participant movement segment.
 - Obstacle collisions emit `obstacle_collision`, add the obstacle's `penalty_s`, and do not cause DNF by default.
 

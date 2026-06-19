@@ -12,6 +12,7 @@ if __package__ is None or __package__ == "":
 from marine_race_arena.arena.obstacle import (
     OBSTACLE_DENSITIES,
     OBSTACLE_MODES,
+    OBSTACLE_PHYSICS_MODES,
     ObstacleConfigError,
     resolve_active_obstacles,
 )
@@ -41,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Density for generated random obstacles.",
     )
+    parser.add_argument(
+        "--obstacle-physics",
+        choices=OBSTACLE_PHYSICS_MODES,
+        default=None,
+        help="HoloOcean obstacle prop physics mode for validation.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Seed for deterministic random obstacles.")
     parser.add_argument(
         "--debug",
@@ -56,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             benchmark_task=args.benchmark_task,
             obstacles=args.obstacles,
             obstacle_density=args.obstacle_density,
+            obstacle_physics=args.obstacle_physics,
             seed=args.seed,
         )
     except TrackConfigLoadError as exc:
@@ -67,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Track: {config.race.name}")
     print(f"Environment: {config.world.map}")
     print(f"Benchmark task: {config.benchmark_task.mode or 'custom'}")
+    print(f"Obstacle physics: {config.obstacle_generation.obstacle_physics}")
     try:
         active_obstacle_count = len(resolve_active_obstacles(config))
     except ObstacleConfigError:

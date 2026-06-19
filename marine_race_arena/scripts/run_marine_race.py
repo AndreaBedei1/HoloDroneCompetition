@@ -24,7 +24,12 @@ from marine_race_arena.adapters import (
 )
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter
 from marine_race_arena.arena.arena_builder import Arena, ArenaBuilder
-from marine_race_arena.arena.obstacle import OBSTACLE_DENSITIES, OBSTACLE_MODES, effective_obstacle_mode
+from marine_race_arena.arena.obstacle import (
+    OBSTACLE_DENSITIES,
+    OBSTACLE_MODES,
+    OBSTACLE_PHYSICS_MODES,
+    effective_obstacle_mode,
+)
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
 from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
 from marine_race_arena.config.schema import TrackConfig, Vector3
@@ -50,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
             benchmark_task=args.benchmark_task,
             obstacles=args.obstacles,
             obstacle_density=args.obstacle_density,
+            obstacle_physics=args.obstacle_physics,
             seed=args.seed,
         )
     except (TrackConfigLoadError, ValueError) as exc:
@@ -163,6 +169,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=OBSTACLE_DENSITIES,
         default=None,
         help="Density for generated random obstacles.",
+    )
+    parser.add_argument(
+        "--obstacle-physics",
+        choices=OBSTACLE_PHYSICS_MODES,
+        default=None,
+        help="HoloOcean obstacle prop physics. static keeps obstacles suspended; dynamic enables gravity/physics.",
     )
     parser.add_argument("--official", action="store_true", help="Force official sensor/timing mode.")
     parser.add_argument("--headless", action="store_true", help="Request headless HoloOcean mode when supported.")
@@ -294,6 +306,7 @@ def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
         "benchmark_task": config.benchmark_task.mode,
         "obstacle_mode": effective_obstacle_mode(config),
         "obstacle_density": config.obstacle_generation.density,
+        "obstacle_physics": config.obstacle_generation.obstacle_physics,
         "max_duration_s": config.race.max_duration_s,
         "adapter": adapter_name,
         "max_command": 0.95,

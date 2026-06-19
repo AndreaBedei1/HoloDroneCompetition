@@ -78,6 +78,7 @@ def load_track_config(
     benchmark_task: str | None = None,
     obstacles: str | None = None,
     obstacle_density: str | None = None,
+    obstacle_physics: str | None = None,
     seed: int | None = None,
 ) -> TrackConfig:
     """Load and validate a track JSON file.
@@ -89,6 +90,7 @@ def load_track_config(
         benchmark_task: Optional CLI/code override for benchmark task validation.
         obstacles: Optional CLI/code override for obstacle mode.
         obstacle_density: Optional CLI/code override for generated obstacle density.
+        obstacle_physics: Optional CLI/code override for HoloOcean obstacle prop physics.
         seed: Optional CLI/code override for deterministic obstacle generation.
 
     Returns:
@@ -110,11 +112,17 @@ def load_track_config(
     config = parse_track_config(raw)
     if benchmark_task is not None:
         config = with_benchmark_task(config, benchmark_task)
-    if obstacles is not None or obstacle_density is not None or seed is not None:
+    if (
+        obstacles is not None
+        or obstacle_density is not None
+        or obstacle_physics is not None
+        or seed is not None
+    ):
         config = with_obstacle_options(
             config,
             mode=obstacles,
             density=obstacle_density,
+            obstacle_physics=obstacle_physics,
             seed=seed,
         )
     result = validate_track_config(config)
@@ -182,6 +190,7 @@ def with_obstacle_options(
     config: TrackConfig,
     mode: str | None = None,
     density: str | None = None,
+    obstacle_physics: str | None = None,
     seed: int | None = None,
 ) -> TrackConfig:
     current = config.obstacle_generation
@@ -191,6 +200,11 @@ def with_obstacle_options(
             current,
             mode=str(mode).strip() if mode is not None else current.mode,
             density=str(density).strip() if density is not None else current.density,
+            obstacle_physics=(
+                str(obstacle_physics).strip()
+                if obstacle_physics is not None
+                else current.obstacle_physics
+            ),
             seed=int(seed) if seed is not None else current.seed,
         ),
     )
@@ -231,6 +245,7 @@ def _parse_obstacle_generation(raw: Any) -> ObstacleGenerationConfig:
         density=str(raw.get("density", "medium")),
         min_clearance_m=float(raw.get("min_clearance_m", 1.2)),
         seed=int(seed) if seed is not None else None,
+        obstacle_physics=str(raw.get("obstacle_physics", "static")),
     )
 
 

@@ -129,6 +129,7 @@ class ObstacleGenerationConfig:
     density: str = "medium"
     min_clearance_m: float = 1.2
     seed: Optional[int] = None
+    obstacle_physics: str = "static"
 
 
 @dataclass(frozen=True)

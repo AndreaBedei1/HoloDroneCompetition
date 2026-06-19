@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter, RaceAdapterError, RaceAdapterUnavailable
 from marine_race_arena.adapters.visual_spawner import HoloOceanVisualSpawner
 from marine_race_arena.arena.gate_factory import VisualGate
-from marine_race_arena.arena.obstacle import Obstacle
+from marine_race_arena.arena.obstacle import OBSTACLE_PHYSICS_DYNAMIC, Obstacle
 from marine_race_arena.config.schema import Vector3
 from marine_race_arena.participants.participant import RaceParticipant
 
@@ -92,16 +92,28 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             self.visual_spawner = HoloOceanVisualSpawner(self.env)
         obstacle_list = list(obstacles)
         spawned_count = 0
+        sim_physics = (
+            self.config.obstacle_generation.obstacle_physics.strip().lower()
+            == OBSTACLE_PHYSICS_DYNAMIC
+        )
         for obstacle in obstacle_list:
             if obstacle.type != "box":
                 LOGGER.warning("Skipping unsupported HoloOcean obstacle '%s' of type '%s'.", obstacle.id, obstacle.type)
                 continue
+            LOGGER.info(
+                "Spawning obstacle %s position=%s size=%s sim_physics=%s",
+                obstacle.id,
+                obstacle.position,
+                obstacle.size,
+                sim_physics,
+            )
             if self.visual_spawner.spawn_physical_box(
                 id=obstacle.id,
                 position=obstacle.position,
                 rotation_rpy_deg=obstacle.rotation_rpy_deg,
                 dimensions_m=obstacle.size,
                 material="steel",
+                sim_physics=sim_physics,
             ):
                 spawned_count += 1
         if obstacle_list and spawned_count < len(obstacle_list):

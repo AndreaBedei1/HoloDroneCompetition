@@ -130,6 +130,7 @@ class HoloOceanVisualSpawner:
         rotation_rpy_deg: tuple[float, float, float],
         dimensions_m: tuple[float, float, float],
         material: str = "steel",
+        sim_physics: bool = False,
     ) -> bool:
         if self.env is None:
             return False
@@ -143,7 +144,7 @@ class HoloOceanVisualSpawner:
                 location=list(position),
                 rotation=list(spawn_rotation),
                 scale=list(dimensions_m),
-                sim_physics=True,
+                sim_physics=sim_physics,
                 material=material,
                 tag=id,
             )
@@ -158,6 +159,7 @@ class HoloOceanVisualSpawner:
                     "spawn_rotation_deg": spawn_rotation,
                     "spawn_rotation_order": "holoocean_spawn_prop_yaw_pitch_roll",
                     "dimensions_m": dimensions_m,
+                    "sim_physics": sim_physics,
                     "method": "physical_obstacle_box",
                 }
             )

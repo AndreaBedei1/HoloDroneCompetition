@@ -152,7 +152,7 @@ def test_fallback_obstacle_collision_adds_penalty_and_does_not_dnf() -> None:
     assert state.penalties_s == obstacle.penalty_s
 
 
-def test_holoocean_obstacle_spawning_uses_physical_box_props() -> None:
+def test_holoocean_obstacle_spawning_uses_static_box_props_by_default() -> None:
     raw = _raw_horseshoe()
     raw["benchmark_task"] = BENCHMARK_TASK_OBSTACLE_GATE
     raw["obstacles"] = [_static_obstacle()]
@@ -169,8 +169,25 @@ def test_holoocean_obstacle_spawning_uses_physical_box_props() -> None:
     args, kwargs = env.calls[0]
     assert args == ("box",)
     assert kwargs["tag"] == "OBS01"
-    assert kwargs["sim_physics"] is True
+    assert kwargs["sim_physics"] is False
     assert kwargs["scale"] == [0.7, 0.7, 0.7]
+
+
+def test_holoocean_obstacle_spawning_can_enable_dynamic_physics() -> None:
+    raw = _raw_horseshoe()
+    raw["benchmark_task"] = BENCHMARK_TASK_OBSTACLE_GATE
+    raw["obstacles"] = [_static_obstacle()]
+    config = with_obstacle_options(parse_track_config(raw), obstacle_physics="dynamic")
+    arena = ArenaBuilder(config).build()
+    env = FakeSpawnPropEnv()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = env
+    adapter.visual_spawner = HoloOceanVisualSpawner(env)
+
+    adapter.spawn_obstacles(arena.obstacles)
+
+    _, kwargs = env.calls[0]
+    assert kwargs["sim_physics"] is True
 
 
 def _raw_horseshoe() -> dict:

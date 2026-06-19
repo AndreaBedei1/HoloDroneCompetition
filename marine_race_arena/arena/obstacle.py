@@ -19,6 +19,10 @@ OBSTACLE_DENSITY_MEDIUM = "medium"
 OBSTACLE_DENSITY_HIGH = "high"
 OBSTACLE_DENSITIES = (OBSTACLE_DENSITY_LOW, OBSTACLE_DENSITY_MEDIUM, OBSTACLE_DENSITY_HIGH)
 
+OBSTACLE_PHYSICS_STATIC = "static"
+OBSTACLE_PHYSICS_DYNAMIC = "dynamic"
+OBSTACLE_PHYSICS_MODES = (OBSTACLE_PHYSICS_STATIC, OBSTACLE_PHYSICS_DYNAMIC)
+
 DEFAULT_OBSTACLE_SIZE_M = (0.7, 0.7, 0.7)
 DEFAULT_OBSTACLE_PENALTY_S = 5.0
 DEFAULT_VEHICLE_COLLISION_RADIUS_M = 0.35
@@ -136,6 +140,12 @@ def validate_active_obstacles(config: TrackConfig, obstacles: Sequence[Obstacle]
         errors.append(f"obstacle_generation.density '{config.obstacle_generation.density}' is not supported.")
     if config.obstacle_generation.min_clearance_m < 0.0:
         errors.append("obstacle_generation.min_clearance_m must be zero or positive.")
+    physics = config.obstacle_generation.obstacle_physics.strip().lower()
+    if physics not in OBSTACLE_PHYSICS_MODES:
+        errors.append(
+            f"obstacle_generation.obstacle_physics '{config.obstacle_generation.obstacle_physics}' "
+            "is not supported."
+        )
 
     seen_ids: set[str] = set()
     gate_sequence_index = {gate_id: index for index, gate_id in enumerate(config.track.gate_sequence)}
