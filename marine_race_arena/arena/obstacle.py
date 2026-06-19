@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Optional, Sequence
 
 from marine_race_arena.config.schema import GateConfig, TrackConfig, Vector3
+
+LOGGER = logging.getLogger(__name__)
 
 OBSTACLE_MODE_NONE = "none"
 OBSTACLE_MODE_FIXED = "fixed"
@@ -23,9 +26,15 @@ OBSTACLE_PHYSICS_STATIC = "static"
 OBSTACLE_PHYSICS_DYNAMIC = "dynamic"
 OBSTACLE_PHYSICS_MODES = (OBSTACLE_PHYSICS_STATIC, OBSTACLE_PHYSICS_DYNAMIC)
 
-DEFAULT_OBSTACLE_SIZE_M = (0.7, 0.7, 0.7)
+DEFAULT_OBSTACLE_SIZE_BY_DENSITY_M: dict[str, Vector3] = {
+    OBSTACLE_DENSITY_LOW: (0.8, 0.8, 0.8),
+    OBSTACLE_DENSITY_MEDIUM: (1.0, 1.0, 1.0),
+    OBSTACLE_DENSITY_HIGH: (1.2, 1.2, 1.2),
+}
+DEFAULT_OBSTACLE_SIZE_M = DEFAULT_OBSTACLE_SIZE_BY_DENSITY_M[OBSTACLE_DENSITY_MEDIUM]
 DEFAULT_OBSTACLE_PENALTY_S = 5.0
 DEFAULT_VEHICLE_COLLISION_RADIUS_M = 0.35
+MIN_PASSABLE_SIDE_CLEARANCE_M = 0.10
 
 
 class ObstacleConfigError(ValueError):
@@ -47,13 +56,15 @@ class Obstacle:
     penalty_s: float
     between_gates: tuple[str, str]
     source: str = "fixed"
+    midpoint: Optional[Vector3] = None
+    lateral_offset_m: Optional[float] = None
 
     @property
     def bounding_radius_m(self) -> float:
         return 0.5 * math.sqrt(self.size[0] ** 2 + self.size[1] ** 2 + self.size[2] ** 2)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data = {
             "id": self.id,
             "type": self.type,
             "position": list(self.position),
@@ -64,6 +75,19 @@ class Obstacle:
             "between_gates": list(self.between_gates),
             "source": self.source,
         }
+        if self.midpoint is not None:
+            data["midpoint"] = list(self.midpoint)
+        if self.lateral_offset_m is not None:
+            data["lateral_offset_m"] = self.lateral_offset_m
+        return data
+
+
+@dataclass(frozen=True)
+class CorridorFrame:
+    midpoint: Vector3
+    forward: Vector3
+    lateral: Vector3
+    yaw_deg: float
 
 
 def effective_obstacle_mode(config: TrackConfig) -> str:
@@ -104,29 +128,37 @@ def generate_random_obstacles(config: TrackConfig) -> list[Obstacle]:
 
     obstacles: list[Obstacle] = []
     size = _size_for_density(density)
-    min_clearance = max(0.0, config.obstacle_generation.min_clearance_m)
     for obstacle_index, interval_index in enumerate(selected, start=1):
         left_gate, right_gate = intervals[interval_index]
-        position, yaw_deg = _generated_position_between_gates(
+        position, yaw_deg, midpoint, lateral_offset_m = _generated_position_between_gates(
             left_gate,
             right_gate,
             size=size,
-            min_clearance_m=min_clearance,
             rng=rng,
         )
-        obstacles.append(
-            Obstacle(
-                id=f"OBS_R{obstacle_index:02d}",
-                type="box",
-                position=position,
-                size=size,
-                rotation_rpy_deg=(0.0, 0.0, yaw_deg),
-                collision=True,
-                penalty_s=DEFAULT_OBSTACLE_PENALTY_S,
-                between_gates=(left_gate.id, right_gate.id),
-                source="random",
-            )
+        obstacle = Obstacle(
+            id=f"OBS_R{obstacle_index:02d}",
+            type="box",
+            position=position,
+            size=size,
+            rotation_rpy_deg=(0.0, 0.0, yaw_deg),
+            collision=True,
+            penalty_s=DEFAULT_OBSTACLE_PENALTY_S,
+            between_gates=(left_gate.id, right_gate.id),
+            source="random",
+            midpoint=midpoint,
+            lateral_offset_m=lateral_offset_m,
         )
+        LOGGER.info(
+            "Generated obstacle %s between_gates=%s midpoint=%s lateral_offset=%.3f position=%s size=%s",
+            obstacle.id,
+            obstacle.between_gates,
+            obstacle.midpoint,
+            obstacle.lateral_offset_m if obstacle.lateral_offset_m is not None else 0.0,
+            obstacle.position,
+            obstacle.size,
+        )
+        obstacles.append(obstacle)
     return obstacles
 
 
@@ -266,40 +298,27 @@ def _gate_intervals(config: TrackConfig) -> list[tuple[GateConfig, GateConfig]]:
 
 
 def _size_for_density(density: str) -> Vector3:
-    if density == OBSTACLE_DENSITY_LOW:
-        return (0.55, 0.55, 0.55)
-    if density == OBSTACLE_DENSITY_HIGH:
-        return (0.9, 0.9, 0.9)
-    return (0.7, 0.7, 0.7)
+    return DEFAULT_OBSTACLE_SIZE_BY_DENSITY_M.get(
+        density,
+        DEFAULT_OBSTACLE_SIZE_BY_DENSITY_M[OBSTACLE_DENSITY_MEDIUM],
+    )
 
 
 def _generated_position_between_gates(
     left_gate: GateConfig,
     right_gate: GateConfig,
     size: Vector3,
-    min_clearance_m: float,
     rng: random.Random,
-) -> tuple[Vector3, float]:
-    start = left_gate.position
-    end = right_gate.position
-    direction = _sub(end, start)
-    horizontal_length = math.hypot(direction[0], direction[1])
-    if horizontal_length <= 1e-9:
-        unit_direction = (1.0, 0.0, 0.0)
-        perpendicular = (0.0, 1.0, 0.0)
-    else:
-        unit_direction = (direction[0] / horizontal_length, direction[1] / horizontal_length, 0.0)
-        perpendicular = (-unit_direction[1], unit_direction[0], 0.0)
-    t = rng.uniform(0.35, 0.65)
-    side = -1.0 if rng.random() < 0.5 else 1.0
-    radius = 0.5 * math.sqrt(size[0] ** 2 + size[1] ** 2 + size[2] ** 2)
-    offset_m = min_clearance_m + radius + rng.uniform(0.35, 0.9)
-    base = _lerp(start, end, t)
-    position = _add(base, _scale(perpendicular, side * offset_m))
-    yaw_deg = math.degrees(math.atan2(unit_direction[1], unit_direction[0]))
+) -> tuple[Vector3, float, Vector3, float]:
+    frame = _corridor_frame(left_gate.position, right_gate.position)
+    offset_limit = _centered_lateral_offset_limit(left_gate, right_gate, size)
+    lateral_offset_m = rng.uniform(-offset_limit, offset_limit) if offset_limit > 1e-9 else 0.0
+    position = _add(frame.midpoint, _scale(frame.lateral, lateral_offset_m))
     return (
         (round(position[0], 3), round(position[1], 3), round(position[2], 3)),
-        round(yaw_deg, 3),
+        round(frame.yaw_deg, 3),
+        (round(frame.midpoint[0], 3), round(frame.midpoint[1], 3), round(frame.midpoint[2], 3)),
+        round(lateral_offset_m, 3),
     )
 
 
@@ -329,11 +348,53 @@ def _validate_obstacle_clearance(
         finish_gate = None
     if finish_gate is not None and _distance(obstacle.position, finish_gate.position) < radius + min_clearance:
         errors.append(f"{owner} is too close to finish gate aperture.")
-    centerline_clearance = _distance_point_to_segment(
-        obstacle.position, left_gate.position, right_gate.position
+    side_clearance = _passable_side_clearance_m(obstacle, left_gate, right_gate)
+    if side_clearance < MIN_PASSABLE_SIDE_CLEARANCE_M:
+        errors.append(
+            f"{owner} does not leave at least {MIN_PASSABLE_SIDE_CLEARANCE_M:.2f} m "
+            "of passable clearance on either side of the corridor."
+        )
+
+
+def _corridor_frame(start: Vector3, end: Vector3) -> CorridorFrame:
+    direction = _sub(end, start)
+    horizontal_length = math.hypot(direction[0], direction[1])
+    if horizontal_length <= 1e-9:
+        forward = (1.0, 0.0, 0.0)
+        lateral = (0.0, 1.0, 0.0)
+    else:
+        forward = (direction[0] / horizontal_length, direction[1] / horizontal_length, 0.0)
+        lateral = (-forward[1], forward[0], 0.0)
+    return CorridorFrame(
+        midpoint=_lerp(start, end, 0.5),
+        forward=forward,
+        lateral=lateral,
+        yaw_deg=math.degrees(math.atan2(forward[1], forward[0])),
     )
-    if centerline_clearance <= radius + min_clearance:
-        errors.append(f"{owner} is too close to the valid path centerline between gates.")
+
+
+def _centered_lateral_offset_limit(
+    left_gate: GateConfig,
+    right_gate: GateConfig,
+    size: Vector3,
+) -> float:
+    corridor_half_width = 0.5 * min(left_gate.inner_size_m[0], right_gate.inner_size_m[0])
+    lateral_half_width = 0.5 * size[1]
+    return max(0.0, corridor_half_width - lateral_half_width - MIN_PASSABLE_SIDE_CLEARANCE_M)
+
+
+def _passable_side_clearance_m(
+    obstacle: Obstacle,
+    left_gate: GateConfig,
+    right_gate: GateConfig,
+) -> float:
+    frame = _corridor_frame(left_gate.position, right_gate.position)
+    lateral_offset = _dot(_sub(obstacle.position, frame.midpoint), frame.lateral)
+    corridor_half_width = 0.5 * min(left_gate.inner_size_m[0], right_gate.inner_size_m[0])
+    lateral_half_width = 0.5 * max(obstacle.size[0], obstacle.size[1])
+    left_clearance = corridor_half_width - (lateral_offset + lateral_half_width)
+    right_clearance = corridor_half_width - (-lateral_offset + lateral_half_width)
+    return max(left_clearance, right_clearance)
 
 
 def _distance_point_to_segment(point: Vector3, start: Vector3, end: Vector3) -> float:

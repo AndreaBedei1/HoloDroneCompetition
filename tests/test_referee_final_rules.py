@@ -120,6 +120,17 @@ def test_controller_error_remains_terminal() -> None:
     assert referee.states["p1"].status == ParticipantStatus.CONTROLLER_ERROR
 
 
+def test_manual_stop_is_terminal_without_controller_error() -> None:
+    referee = _referee()
+
+    referee.manual_stop(["p1"], 2.0)
+    state = referee.states["p1"]
+
+    assert state.status == ParticipantStatus.MANUAL_STOP
+    assert state.is_terminal
+    assert state.controller_error is None
+
+
 def test_penalized_time_adds_official_time_and_penalties() -> None:
     state = ParticipantRaceState("p1")
     state.official_start_time = 10.0

@@ -87,7 +87,7 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --benchmark-task current_gate --controller pygame --adapter fallback
 ```
 
-For `obstacle_gate`, active obstacles can come from fixed JSON definitions or deterministic random generation. `--obstacles none` removes active obstacles at runtime and validation time, `--obstacles fixed` uses the JSON `obstacles` array, and `--obstacles random` generates boxes between adjacent gates using `--seed`. In HoloOcean, benchmark obstacles are static suspended props by default, so they remain fixed at their configured underwater positions.
+For `obstacle_gate`, active obstacles can come from fixed JSON definitions or deterministic random generation. `--obstacles none` removes active obstacles at runtime and validation time, `--obstacles fixed` uses the JSON `obstacles` array, and `--obstacles random` generates boxes between adjacent gates using `--seed`. Generated obstacles are placed at the midpoint between each selected gate pair, aligned to that local corridor direction, and given small symmetric lateral offsets around the centerline. In HoloOcean, benchmark obstacles are static suspended props by default, so they remain fixed at their configured underwater positions.
 
 A fixed box obstacle entry uses:
 
@@ -96,7 +96,7 @@ A fixed box obstacle entry uses:
   "id": "OBS01",
   "type": "box",
   "position": [-28.2, -6.25, -4.05],
-  "size": [0.7, 0.7, 0.7],
+  "size": [0.8, 0.8, 0.8],
   "rotation_rpy_deg": [0.0, 0.0, 33.7],
   "collision": true,
   "penalty_s": 5.0,
@@ -104,7 +104,7 @@ A fixed box obstacle entry uses:
 }
 ```
 
-Obstacle validation requires box obstacles to be inside bounds, between adjacent gates, away from gate apertures and start/finish spawn, and offset from the valid path centerline so they do not fully block the route.
+Random obstacle default box sizes are `0.8 m`, `1.0 m`, and `1.2 m` cubes for `low`, `medium`, and `high` density respectively. Obstacle validation requires box obstacles to be inside bounds, between adjacent gates, away from gate apertures and start/finish spawn, and small enough or offset enough to leave passable clearance on at least one side of the corridor.
 
 ## Gate Validation Rule
 
@@ -171,9 +171,10 @@ Controls:
 - `A` / `D`: left and right sway on the horizontal plane.
 - `Q` / `E`: yaw left and right.
 - Up arrow / Down arrow: raise and lower the rover.
-- Space: stop.
+- Space: stop motion.
+- Esc: cleanly stop the race.
 
-The controller opens a small Pygame control window. Keep focus on that Pygame window while driving. It does not use ground truth.
+The controller opens a small Pygame control window. Keep focus on that Pygame window while driving. Pressing Esc or closing the Pygame control window prints `Manual stop requested.`, marks the participant as `MANUAL_STOP`, and closes the controller, camera viewer, adapter, and logger through the normal runner cleanup path. It does not use ground truth.
 
 ## Acoustic Beacons
 
@@ -241,6 +242,7 @@ Obstacle benchmark examples:
 ```bash
 conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --seed 7
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --seed 7 --controller pygame --adapter fallback --duration 500
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --obstacle-physics static --seed 7 --controller pygame --adapter holoocean --duration 300 --dt 0.033
 ```
 
 Current diagnostics:
@@ -323,6 +325,7 @@ Sensor separation:
 Obstacles:
 
 - Fixed obstacles are loaded from JSON when `--obstacles fixed` is active. Random obstacles are generated reproducibly from `--seed`.
+- Random obstacles are centered at gate-pair midpoints in the local corridor frame, with only small symmetric lateral offsets so they do not always appear on one side of the route.
 - In HoloOcean, active box obstacles are spawned with `env.spawn_prop("box", ..., sim_physics=False)` by default. They are visible, collidable props but are not affected by gravity/current unless `--obstacle-physics dynamic` is explicitly selected.
 - In fallback, active obstacles remain metadata and collisions are approximated with a simple bounding check along the participant movement segment.
 - Obstacle collisions emit `obstacle_collision`, add the obstacle's `penalty_s`, and do not cause DNF by default.
@@ -462,7 +465,7 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 
 ## Logs
 
-The runner writes JSONL race events and a final summary JSON under `results/marine_race` by default. Events include race start, gate passed, lap completed, collision, obstacle collision, out of bounds, stuck, penalty, race finish, DNF, controller error, and race summary.
+The runner writes JSONL race events and a final summary JSON under `results/marine_race` by default. Events include race start, gate passed, lap completed, collision, obstacle collision, out of bounds, stuck, penalty, race finish, DNF, manual stop, controller error, and race summary.
 
 ## Known Limitations
 

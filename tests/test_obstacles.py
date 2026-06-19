@@ -4,11 +4,19 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+
 from marine_race_arena.adapters.fallback_adapter import FallbackRaceAdapter
 from marine_race_arena.adapters.holoocean_adapter import HoloOceanRaceAdapter
 from marine_race_arena.adapters.visual_spawner import HoloOceanVisualSpawner
 from marine_race_arena.arena.arena_builder import ArenaBuilder
-from marine_race_arena.arena.obstacle import resolve_active_obstacles
+from marine_race_arena.arena.obstacle import (
+    DEFAULT_OBSTACLE_SIZE_BY_DENSITY_M,
+    OBSTACLE_DENSITY_HIGH,
+    OBSTACLE_DENSITY_LOW,
+    OBSTACLE_DENSITY_MEDIUM,
+    resolve_active_obstacles,
+)
 from marine_race_arena.config.benchmark_tasks import (
     BENCHMARK_TASK_CLEAN_GATE,
     BENCHMARK_TASK_CURRENT_GATE,
@@ -74,6 +82,80 @@ def test_random_obstacle_generation_is_deterministic_from_seed() -> None:
 
     assert first == second
     assert first != different
+    assert validate_track_config(config).errors == []
+
+
+def test_random_obstacle_lateral_offsets_are_centered_and_symmetric() -> None:
+    raw = _raw_horseshoe()
+    raw["benchmark_task"] = BENCHMARK_TASK_OBSTACLE_GATE
+    offsets = []
+    for seed in range(1, 24):
+        config = with_obstacle_options(
+            parse_track_config(raw),
+            mode="random",
+            density=OBSTACLE_DENSITY_LOW,
+            seed=seed,
+        )
+        offsets.extend(obstacle.lateral_offset_m for obstacle in resolve_active_obstacles(config))
+
+    numeric_offsets = [offset for offset in offsets if offset is not None]
+
+    assert any(offset < 0.0 for offset in numeric_offsets)
+    assert any(offset > 0.0 for offset in numeric_offsets)
+    assert max(abs(offset) for offset in numeric_offsets) <= 0.25
+
+
+def test_random_obstacle_midpoint_lies_between_selected_gate_pair() -> None:
+    raw = _raw_horseshoe()
+    raw["benchmark_task"] = BENCHMARK_TASK_OBSTACLE_GATE
+    config = with_obstacle_options(
+        parse_track_config(raw),
+        mode="random",
+        density=OBSTACLE_DENSITY_MEDIUM,
+        seed=7,
+    )
+    gate_by_id = {gate.id: gate for gate in config.gates}
+
+    for obstacle in resolve_active_obstacles(config):
+        left_gate = gate_by_id[obstacle.between_gates[0]]
+        right_gate = gate_by_id[obstacle.between_gates[1]]
+        expected_midpoint = tuple(
+            round((left_gate.position[index] + right_gate.position[index]) * 0.5, 3)
+            for index in range(3)
+        )
+
+        assert obstacle.midpoint == expected_midpoint
+        assert _segment_projection_t(
+            obstacle.position,
+            left_gate.position,
+            right_gate.position,
+        ) == pytest.approx(0.5, abs=1e-3)
+        assert validate_track_config(config).errors == []
+
+
+@pytest.mark.parametrize(
+    ("density", "expected_size"),
+    [
+        (OBSTACLE_DENSITY_LOW, (0.8, 0.8, 0.8)),
+        (OBSTACLE_DENSITY_MEDIUM, (1.0, 1.0, 1.0)),
+        (OBSTACLE_DENSITY_HIGH, (1.2, 1.2, 1.2)),
+    ],
+)
+def test_random_obstacle_default_sizes_by_density(
+    density: str,
+    expected_size: tuple[float, float, float],
+) -> None:
+    raw = _raw_horseshoe()
+    raw["benchmark_task"] = BENCHMARK_TASK_OBSTACLE_GATE
+    config = with_obstacle_options(
+        parse_track_config(raw),
+        mode="random",
+        density=density,
+        seed=7,
+    )
+
+    assert DEFAULT_OBSTACLE_SIZE_BY_DENSITY_M[density] == expected_size
+    assert {obstacle.size for obstacle in resolve_active_obstacles(config)} == {expected_size}
     assert validate_track_config(config).errors == []
 
 
@@ -205,3 +287,16 @@ def _static_obstacle() -> dict:
         "penalty_s": 5.0,
         "between_gates": ["G01", "G02"],
     }
+
+
+def _segment_projection_t(
+    point: tuple[float, float, float],
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+) -> float:
+    segment = tuple(end[index] - start[index] for index in range(3))
+    length_sq = sum(component * component for component in segment)
+    if length_sq <= 1e-12:
+        return 0.0
+    relative = tuple(point[index] - start[index] for index in range(3))
+    return sum(relative[index] * segment[index] for index in range(3)) / length_sq

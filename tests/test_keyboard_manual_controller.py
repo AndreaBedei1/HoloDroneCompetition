@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from marine_race_arena.controllers.keyboard_manual import KeyboardManualController
+from marine_race_arena.participants.controller_interface import ManualStopRequested
 
 
 def _controller() -> KeyboardManualController:
@@ -42,3 +45,10 @@ def test_space_stops_all_motion() -> None:
         "heave": 0.0,
         "yaw": 0.0,
     }
+
+
+def test_escape_requests_manual_stop() -> None:
+    controller = _controller()
+
+    with pytest.raises(ManualStopRequested):
+        controller._command_from_keys(["esc"])

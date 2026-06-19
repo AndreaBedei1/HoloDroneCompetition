@@ -16,6 +16,7 @@ class ParticipantStatus(str, Enum):
     DNF = "DNF"
     DSQ = "DSQ"
     TIMEOUT = "TIMEOUT"
+    MANUAL_STOP = "MANUAL_STOP"
     CONTROLLER_ERROR = "CONTROLLER_ERROR"
 
 
@@ -55,6 +56,7 @@ class ParticipantRaceState:
             ParticipantStatus.DNF,
             ParticipantStatus.DSQ,
             ParticipantStatus.TIMEOUT,
+            ParticipantStatus.MANUAL_STOP,
             ParticipantStatus.CONTROLLER_ERROR,
         }
 

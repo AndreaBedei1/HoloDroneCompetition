@@ -48,6 +48,15 @@ class Referee:
             state.last_update_time = time_s
         self._log("race_start", time_s, race_name=self.config.race.name)
 
+    def manual_stop(self, participant_ids: Iterable[str], time_s: float) -> None:
+        for participant_id in participant_ids:
+            state = self.states.get(participant_id)
+            if state is None or state.is_terminal:
+                continue
+            state.status = ParticipantStatus.MANUAL_STOP
+            state.last_update_time = time_s
+            self._log("manual_stop", time_s, participant_id, reason="manual_stop")
+
     def update(
         self,
         participant_id: str,

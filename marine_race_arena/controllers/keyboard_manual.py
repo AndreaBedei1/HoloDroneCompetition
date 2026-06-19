@@ -10,7 +10,7 @@ import os
 import time
 from typing import Any, Dict, Iterable, List, Optional
 
-from marine_race_arena.participants.controller_interface import BaseController
+from marine_race_arena.participants.controller_interface import BaseController, ManualStopRequested
 
 
 class KeyboardManualController(BaseController):
@@ -20,7 +20,8 @@ class KeyboardManualController(BaseController):
     - W/S: forward/backward on the horizontal plane.
     - A/D: left/right sway on the horizontal plane.
     - Up/Down arrows: raise/lower the rover.
-    - Space: stop.
+    - Space: stop motion.
+    - Esc: quit the race.
 
     The terminal window must have keyboard focus. HoloOcean viewport key events
     are not exposed through the installed Python API.
@@ -39,12 +40,14 @@ class KeyboardManualController(BaseController):
         self._reader = _KeyboardReader()
         print(
             "Manual keyboard controller active. Focus this terminal: "
-            "W/S forward/back, A/D left/right, Up/Down raise/lower, Space stop."
+            "W/S forward/back, A/D left/right, Up/Down raise/lower, Space stop, Esc quit."
         )
 
     def step(self, observation: Dict[str, Any]) -> Dict[str, float]:
         del observation
         keys = self._reader.read_keys()
+        if "esc" in keys:
+            raise ManualStopRequested("Escape pressed in manual keyboard controller.")
         now = time.monotonic()
         if keys:
             self._command = self._command_from_keys(keys)
@@ -61,6 +64,8 @@ class KeyboardManualController(BaseController):
     def _command_from_keys(self, keys: Iterable[str]) -> Dict[str, float]:
         command = _zero_command()
         for key in keys:
+            if key == "esc":
+                raise ManualStopRequested("Escape pressed in manual keyboard controller.")
             if key == "space":
                 return _zero_command()
             if key == "w":
@@ -104,6 +109,8 @@ class _KeyboardReader:
             normalized = char.lower()
             if normalized == " ":
                 keys.append("space")
+            elif normalized == "\x1b":
+                keys.append("esc")
             elif normalized in {"w", "a", "s", "d"}:
                 keys.append(normalized)
         return keys

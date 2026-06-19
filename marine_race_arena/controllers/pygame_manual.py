@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, Optional, Set
 
-from marine_race_arena.participants.controller_interface import BaseController
+from marine_race_arena.participants.controller_interface import BaseController, ManualStopRequested
 
 
 class PygameManualController(BaseController):
@@ -36,7 +36,10 @@ class PygameManualController(BaseController):
         for event in self._pygame.event.get():
             if event.type == self._pygame.QUIT:
                 self._closed = True
-                return _zero_command()
+                raise ManualStopRequested("Pygame control window closed.")
+            if event.type == self._pygame.KEYDOWN and event.key == self._pygame.K_ESCAPE:
+                self._closed = True
+                raise ManualStopRequested("Escape pressed in Pygame control window.")
 
         pressed = self._pygame.key.get_pressed()
         keys = set()
@@ -56,7 +59,10 @@ class PygameManualController(BaseController):
             keys.add("up")
         if pressed[self._pygame.K_DOWN]:
             keys.add("down")
-        if pressed[self._pygame.K_SPACE] or pressed[self._pygame.K_ESCAPE]:
+        if pressed[self._pygame.K_ESCAPE]:
+            self._closed = True
+            raise ManualStopRequested("Escape pressed in Pygame control window.")
+        if pressed[self._pygame.K_SPACE]:
             keys.add("stop")
 
         command = self._command_from_keys(keys)
@@ -120,7 +126,7 @@ class PygameManualController(BaseController):
         lines = [
             "Focus this window. W/S forward/back, A/D left/right.",
             "Q/E yaw left/right. Arrow Up/Down raises/lowers.",
-            "Space or Esc stops.",
+            "Space stops motion. Esc quits the race.",
             (
                 f"surge={command['surge']:.2f}  sway={command['sway']:.2f}  "
                 f"heave={command['heave']:.2f}  yaw={command['yaw']:.2f}"

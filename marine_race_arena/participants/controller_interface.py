@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any, Dict
 
 
+class ManualStopRequested(RuntimeError):
+    """Raised by manual controllers when the user asks to end the run."""
+
+
 class BaseController:
     """Base interface for external race controllers.
 
@@ -36,4 +40,3 @@ def validate_controller_instance(controller: object) -> None:
     ]
     if missing:
         raise TypeError(f"Controller is missing required methods: {', '.join(missing)}")
-

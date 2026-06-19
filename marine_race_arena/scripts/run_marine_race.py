@@ -33,6 +33,7 @@ from marine_race_arena.arena.obstacle import (
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
 from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
 from marine_race_arena.config.schema import TrackConfig, Vector3
+from marine_race_arena.participants.controller_interface import ManualStopRequested
 from marine_race_arena.participants.controller_loader import ControllerError, ControllerLoader
 from marine_race_arena.participants.participant import RaceParticipant
 from marine_race_arena.participants.sensor_profile import build_observation
@@ -339,6 +340,7 @@ def _run_race_loop(
     referee.start_race(adapter.get_current_time())
     while adapter.get_current_time() <= config.race.max_duration_s:
         all_terminal = True
+        manual_stop_requested = False
         previous_states: Dict[str, AdapterParticipantState] = {}
         controller_errors: Dict[str, str] = {}
         for participant in participants.values():
@@ -360,10 +362,18 @@ def _run_race_loop(
                 camera_viewer.update(observation, participant.id)
             try:
                 command = participant.controller.step(_copy_observation_for_controller(observation))
+            except ManualStopRequested:
+                manual_stop_requested = True
+                break
             except Exception as exc:  # pragma: no cover - exercised by external controllers
                 controller_errors[participant.id] = f"{type(exc).__name__}: {exc}"
                 command = {}
             adapter.apply_command(participant.id, command, participant.config.control_mode)
+
+        if manual_stop_requested:
+            print("Manual stop requested.")
+            referee.manual_stop(participants.keys(), adapter.get_current_time())
+            break
 
         if all_terminal:
             break
