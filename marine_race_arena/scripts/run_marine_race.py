@@ -128,7 +128,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Built-in controller alias: pygame, pygame_keyboard, keyboard, manual, "
-            "oracle, acoustic, student_template. Overrides track config."
+            "oracle, acoustic, acoustic_baseline, acoustic_vision_baseline, "
+            "student_template. Overrides track config."
         ),
     )
     parser.add_argument(

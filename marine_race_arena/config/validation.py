@@ -68,6 +68,8 @@ ALLOWED_CONTROL_MODES = {"high_level", "thrusters"}
 BUILT_IN_CONTROLLERS = {
     "oracle",
     "acoustic",
+    "acoustic_baseline",
+    "acoustic_vision_baseline",
     "keyboard",
     "manual",
     "manual_keyboard",

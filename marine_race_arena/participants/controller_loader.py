@@ -26,6 +26,14 @@ class ControllerLoader:
             "marine_race_arena.controllers.acoustic_gate_follower",
             "AcousticGateFollowerController",
         ),
+        "acoustic_baseline": (
+            "marine_race_arena.controllers.official_baselines",
+            "AcousticBaselineController",
+        ),
+        "acoustic_vision_baseline": (
+            "marine_race_arena.controllers.official_baselines",
+            "AcousticVisionBaselineController",
+        ),
         "keyboard": (
             "marine_race_arena.controllers.keyboard_manual",
             "KeyboardManualController",

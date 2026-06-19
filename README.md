@@ -37,7 +37,7 @@ The arena owns the static race definition: bounds, gate geometry, debug visual g
 
 The beacon system guides the rover toward the next expected gate. It does not validate gate passage. In official mode it returns bearing, elevation, range, signal strength, and metadata, but not exact gate positions.
 
-Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The built-in acoustic controller is a simple baseline.
+Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The reproducible official baselines are `acoustic_baseline` and `acoustic_vision_baseline`; `pygame`/`keyboard` are manual demo controllers, and `oracle` is debug-only.
 
 The referee validates gates using simulation ground truth. This is allowed because the referee is not a participant controller. The first implementation validates the vehicle center point and keeps the interface ready for future full-body validation.
 
@@ -131,6 +131,33 @@ Current-gate example:
 
 ```bash
 conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task current_gate --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 1300 --dt 0.1 --obstacles none --output-dir results/benchmarks/current_gate_acoustic
+```
+
+## Reproducible Official Baselines
+
+Two built-in non-cheating baseline controllers are available for benchmark evaluation:
+
+- `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, smooths commands, regulates vertical motion, and slows near gates.
+- `acoustic_vision_baseline`: uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment when the camera image is available and confident.
+
+Both set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
+
+Clean-gate acoustic baseline:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_baseline --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --output-dir results/benchmarks/clean_gate_acoustic_baseline
+```
+
+Obstacle-gate acoustic baseline:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task obstacle_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_baseline --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --obstacles random --obstacle-density low --obstacle-physics static --output-dir results/benchmarks/obstacle_gate_acoustic_baseline
+```
+
+Clean-gate acoustic plus vision baseline with `FrontCamera`:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_vision_baseline --adapter holoocean --allow-fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.033 --output-dir results/benchmarks/clean_gate_acoustic_vision_baseline
 ```
 
 ## Gate Validation Rule
