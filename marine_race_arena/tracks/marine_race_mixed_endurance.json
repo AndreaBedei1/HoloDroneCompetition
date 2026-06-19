@@ -550,8 +550,8 @@
     {
       "type": "constant",
       "velocity": [
-        0.25,
-        0.35,
+        0.75,
+        1.05,
         0.0
       ]
     },
@@ -564,9 +564,9 @@
       ],
       "radius": 7.0,
       "velocity": [
-        0.35,
-        -0.2,
-        0.04
+        1.05,
+        -0.6,
+        0.12
       ],
       "falloff": "gaussian"
     },
@@ -579,9 +579,9 @@
       ],
       "radius": 7.5,
       "velocity": [
-        -0.15,
-        0.38,
-        -0.03
+        -0.45,
+        1.14,
+        -0.09
       ],
       "falloff": "gaussian"
     },
@@ -593,15 +593,15 @@
         -4.8
       ],
       "radius": 12.0,
-      "tangential_speed": 0.45,
-      "vertical_speed": 0.04,
+      "tangential_speed": 1.35,
+      "vertical_speed": 0.12,
       "falloff": "gaussian",
       "clockwise": false
     },
     {
       "type": "sinusoidal",
       "axis": "z",
-      "amplitude": 0.08,
+      "amplitude": 0.24,
       "frequency_hz": 0.08,
       "phase": 0.0
     }
