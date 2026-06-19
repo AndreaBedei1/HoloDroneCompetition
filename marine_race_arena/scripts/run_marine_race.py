@@ -24,6 +24,7 @@ from marine_race_arena.adapters import (
 )
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter
 from marine_race_arena.arena.arena_builder import Arena, ArenaBuilder
+from marine_race_arena.arena.obstacle import OBSTACLE_DENSITIES, OBSTACLE_MODES, effective_obstacle_mode
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
 from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
 from marine_race_arena.config.schema import TrackConfig, Vector3
@@ -44,7 +45,13 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     try:
-        config = load_track_config(args.track, benchmark_task=args.benchmark_task)
+        config = load_track_config(
+            args.track,
+            benchmark_task=args.benchmark_task,
+            obstacles=args.obstacles,
+            obstacle_density=args.obstacle_density,
+            seed=args.seed,
+        )
     except (TrackConfigLoadError, ValueError) as exc:
         print(f"Track validation failed: {exc}", file=sys.stderr)
         return 1
@@ -145,6 +152,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Validate the track against an explicit benchmark task mode.",
     )
+    parser.add_argument(
+        "--obstacles",
+        choices=OBSTACLE_MODES,
+        default=None,
+        help="Obstacle mode. none ignores obstacles, fixed uses track JSON obstacles, random generates seeded obstacles.",
+    )
+    parser.add_argument(
+        "--obstacle-density",
+        choices=OBSTACLE_DENSITIES,
+        default=None,
+        help="Density for generated random obstacles.",
+    )
     parser.add_argument("--official", action="store_true", help="Force official sensor/timing mode.")
     parser.add_argument("--headless", action="store_true", help="Request headless HoloOcean mode when supported.")
     parser.add_argument("--record", action="store_true", help="Request HoloOcean recording when supported.")
@@ -235,6 +254,7 @@ def _prepare_adapter(
         adapter.spawn_participants(participants)
         adapter.reset()
         adapter.spawn_visual_gates(arena.visual_gates)
+        adapter.spawn_obstacles(arena.obstacles)
         return adapter
     except RaceAdapterUnavailable as exc:
         adapter.close()
@@ -255,6 +275,7 @@ def _prepare_adapter(
             fallback.spawn_participants(participants)
             fallback.reset()
             fallback.spawn_visual_gates(arena.visual_gates)
+            fallback.spawn_obstacles(arena.obstacles)
             return fallback
         raise AdapterSelectionError(
             "HoloOcean adapter failed during environment setup and fallback is not allowed. "
@@ -271,6 +292,8 @@ def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
         "timing_mode": config.race.timing_mode,
         "official_mode": config.race.official_mode,
         "benchmark_task": config.benchmark_task.mode,
+        "obstacle_mode": effective_obstacle_mode(config),
+        "obstacle_density": config.obstacle_generation.density,
         "max_duration_s": config.race.max_duration_s,
         "adapter": adapter_name,
         "max_command": 0.95,
@@ -339,12 +362,19 @@ def _run_race_loop(
             if state.is_terminal:
                 continue
             current_state = adapter.get_participant_state(participant_id)
+            obstacle_collisions = adapter.get_obstacle_collision_events(
+                participant_id,
+                previous_position=previous_state.position,
+                current_position=current_state.position,
+            )
+            collision = adapter.get_collision_state(participant_id)
             referee.update(
                 participant_id=participant_id,
                 previous_position=previous_state.position,
                 current_position=current_state.position,
                 time_s=time_s,
-                collision=adapter.get_collision_state(participant_id),
+                collision=collision and not obstacle_collisions,
+                obstacle_collisions=obstacle_collisions,
                 controller_error=controller_errors.get(participant_id),
             )
 

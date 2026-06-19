@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 from marine_race_arena.arena.arena_builder import Arena
 from marine_race_arena.arena.gate_factory import VisualGate
+from marine_race_arena.arena.obstacle import Obstacle, obstacle_collision_events
 from marine_race_arena.config.schema import TrackConfig, Vector3
 from marine_race_arena.participants.participant import RaceParticipant
 
@@ -67,6 +68,17 @@ class BaseRaceAdapter(abc.ABC):
     def spawn_visual_gates(self, visual_gates: Iterable[VisualGate]) -> None:
         """Spawn optional gate visuals or preserve debug metadata."""
 
+    def spawn_obstacles(self, obstacles: Iterable[Obstacle]) -> None:
+        """Spawn optional static obstacles or preserve metadata."""
+
+        count = len(list(obstacles))
+        if count:
+            LOGGER.warning(
+                "Adapter '%s' does not spawn physical obstacles; %d obstacles are metadata only.",
+                self.name,
+                count,
+            )
+
     @abc.abstractmethod
     def get_participant_state(self, participant_id: str) -> AdapterParticipantState:
         """Return ground-truth participant state for the referee/debug path."""
@@ -82,6 +94,19 @@ class BaseRaceAdapter(abc.ABC):
     @abc.abstractmethod
     def get_collision_state(self, participant_id: str) -> bool:
         """Return whether a collision occurred for this participant in the latest tick."""
+
+    def get_obstacle_collision_events(
+        self,
+        participant_id: str,
+        previous_position: Vector3 | None = None,
+        current_position: Vector3 | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return approximate obstacle collisions for the latest segment."""
+
+        state = self.get_participant_state(participant_id)
+        previous = previous_position if previous_position is not None else state.position
+        current = current_position if current_position is not None else state.position
+        return obstacle_collision_events(self.arena.obstacles, previous, current)
 
     @abc.abstractmethod
     def get_current_time(self) -> float:

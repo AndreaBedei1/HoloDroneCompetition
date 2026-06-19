@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter, RaceAdapterError, RaceAdapterUnavailable
 from marine_race_arena.adapters.visual_spawner import HoloOceanVisualSpawner
 from marine_race_arena.arena.gate_factory import VisualGate
+from marine_race_arena.arena.obstacle import Obstacle
 from marine_race_arena.config.schema import Vector3
 from marine_race_arena.participants.participant import RaceParticipant
 
@@ -85,6 +86,30 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             self.visual_spawner = HoloOceanVisualSpawner(self.env)
         bars = [bar for visual_gate in visual_gates for bar in visual_gate.bars]
         self.visual_spawner.spawn_gate_bars(bars)
+
+    def spawn_obstacles(self, obstacles: Iterable[Obstacle]) -> None:
+        if self.visual_spawner is None:
+            self.visual_spawner = HoloOceanVisualSpawner(self.env)
+        obstacle_list = list(obstacles)
+        spawned_count = 0
+        for obstacle in obstacle_list:
+            if obstacle.type != "box":
+                LOGGER.warning("Skipping unsupported HoloOcean obstacle '%s' of type '%s'.", obstacle.id, obstacle.type)
+                continue
+            if self.visual_spawner.spawn_physical_box(
+                id=obstacle.id,
+                position=obstacle.position,
+                rotation_rpy_deg=obstacle.rotation_rpy_deg,
+                dimensions_m=obstacle.size,
+                material="steel",
+            ):
+                spawned_count += 1
+        if obstacle_list and spawned_count < len(obstacle_list):
+            LOGGER.warning(
+                "Only %d of %d configured obstacles were physically spawned; approximate collision checks remain active.",
+                spawned_count,
+                len(obstacle_list),
+            )
 
     def get_participant_state(self, participant_id: str) -> AdapterParticipantState:
         self._refresh_states_from_raw()

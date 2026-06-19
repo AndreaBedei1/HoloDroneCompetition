@@ -17,6 +17,7 @@ from marine_race_arena.config.schema import (
     CurrentConfig,
     FinishConfig,
     GateConfig,
+    ObstacleGenerationConfig,
     ParticipantConfig,
     RaceConfig,
     RefereeConfig,
@@ -75,6 +76,9 @@ def load_track_config(
     track_path: str | Path,
     debug: bool = False,
     benchmark_task: str | None = None,
+    obstacles: str | None = None,
+    obstacle_density: str | None = None,
+    seed: int | None = None,
 ) -> TrackConfig:
     """Load and validate a track JSON file.
 
@@ -83,6 +87,9 @@ def load_track_config(
         debug: When true, semantic validation errors are reported as warnings by the caller
             only if parsing succeeded. Parser errors are always fatal.
         benchmark_task: Optional CLI/code override for benchmark task validation.
+        obstacles: Optional CLI/code override for obstacle mode.
+        obstacle_density: Optional CLI/code override for generated obstacle density.
+        seed: Optional CLI/code override for deterministic obstacle generation.
 
     Returns:
         Parsed TrackConfig.
@@ -103,6 +110,13 @@ def load_track_config(
     config = parse_track_config(raw)
     if benchmark_task is not None:
         config = with_benchmark_task(config, benchmark_task)
+    if obstacles is not None or obstacle_density is not None or seed is not None:
+        config = with_obstacle_options(
+            config,
+            mode=obstacles,
+            density=obstacle_density,
+            seed=seed,
+        )
     result = validate_track_config(config)
     if result.errors and not debug:
         raise TrackValidationError(result.errors, result.warnings)
@@ -113,6 +127,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
     track = _parse_track(_required_mapping(raw, "track"))
     race = _parse_race(_required_mapping(raw, "race"), expected_gates_per_lap=len(track.gate_sequence))
     benchmark_task = _parse_benchmark_task(raw.get("benchmark_task"))
+    obstacle_generation = _parse_obstacle_generation(raw.get("obstacle_generation", {}))
     world = _parse_world(_required_mapping(raw, "world"))
     start = _parse_start(_required_mapping(raw, "start"))
     finish = _parse_finish(_required_mapping(raw, "finish"))
@@ -150,6 +165,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
         currents=currents,
         participants=participants,
         referee=referee,
+        obstacle_generation=obstacle_generation,
         obstacles=obstacles,
         raw=dict(raw),
     )
@@ -159,6 +175,24 @@ def with_benchmark_task(config: TrackConfig, mode: str | None) -> TrackConfig:
     return replace(
         config,
         benchmark_task=BenchmarkTaskConfig(mode=normalize_benchmark_task_mode(mode)),
+    )
+
+
+def with_obstacle_options(
+    config: TrackConfig,
+    mode: str | None = None,
+    density: str | None = None,
+    seed: int | None = None,
+) -> TrackConfig:
+    current = config.obstacle_generation
+    return replace(
+        config,
+        obstacle_generation=replace(
+            current,
+            mode=str(mode).strip() if mode is not None else current.mode,
+            density=str(density).strip() if density is not None else current.density,
+            seed=int(seed) if seed is not None else current.seed,
+        ),
     )
 
 
@@ -184,6 +218,20 @@ def _parse_benchmark_task(raw: Any) -> BenchmarkTaskConfig:
     if "mode" not in raw:
         raise TrackConfigLoadError("benchmark_task object must contain a mode field.")
     return BenchmarkTaskConfig(mode=normalize_benchmark_task_mode(str(raw["mode"])))
+
+
+def _parse_obstacle_generation(raw: Any) -> ObstacleGenerationConfig:
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, Mapping):
+        raise TrackConfigLoadError("obstacle_generation must be an object when provided.")
+    seed = raw.get("seed")
+    return ObstacleGenerationConfig(
+        mode=str(raw["mode"]).strip() if raw.get("mode") is not None else None,
+        density=str(raw.get("density", "medium")),
+        min_clearance_m=float(raw.get("min_clearance_m", 1.2)),
+        seed=int(seed) if seed is not None else None,
+    )
 
 
 def _parse_world(raw: Mapping[str, Any]) -> WorldConfig:

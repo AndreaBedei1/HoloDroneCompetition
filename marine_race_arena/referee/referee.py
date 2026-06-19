@@ -55,6 +55,7 @@ class Referee:
         current_position: Vector3,
         time_s: float,
         collision: bool = False,
+        obstacle_collisions: Optional[Iterable[Dict[str, object]]] = None,
         controller_error: Optional[str] = None,
     ) -> List[Dict[str, object]]:
         state = self.states[participant_id]
@@ -79,6 +80,8 @@ class Referee:
 
         if collision:
             self._handle_collision(state, current_position, time_s, events)
+        for obstacle_collision in obstacle_collisions or []:
+            self._handle_obstacle_collision(state, obstacle_collision, current_position, time_s, events)
 
         self._update_stuck_state(state, previous_position, current_position, time_s, events)
         if state.is_terminal:
@@ -130,6 +133,7 @@ class Referee:
                     "completed_gates": state.valid_gate_crossings,
                     "lap": state.current_lap,
                     "collisions": state.collision_events,
+                    "obstacle_collisions": state.obstacle_collision_events,
                     "wrong_direction_crossings": state.wrong_direction_crossings,
                     "missed_gate_attempts": state.missed_gate_attempts,
                     "out_of_bounds_events": state.out_of_bounds_events,
@@ -275,6 +279,39 @@ class Referee:
         state.last_collision_penalty_time = time_s
         events.append({"event": "collision", "penalty_s": penalty, "position": current_position})
         self._log("collision", time_s, state.participant_id, penalty_s=penalty, position=current_position)
+
+    def _handle_obstacle_collision(
+        self,
+        state: ParticipantRaceState,
+        obstacle_collision: Dict[str, object],
+        current_position: Vector3,
+        time_s: float,
+        events: List[Dict[str, object]],
+    ) -> None:
+        cooldown_s = float(self.config.referee.gate_validation.get("collision_penalty_cooldown_s", 1.0))
+        if not _cooldown_elapsed(state.last_obstacle_collision_penalty_time, time_s, cooldown_s):
+            return
+        penalty = float(obstacle_collision.get("penalty_s", self.config.referee.penalties.get("minor_collision_s", 5.0)))
+        obstacle_id = str(obstacle_collision.get("obstacle_id", "unknown_obstacle"))
+        state.collision_events += 1
+        state.obstacle_collision_events += 1
+        state.penalties_s += penalty
+        state.last_obstacle_collision_penalty_time = time_s
+        event = {
+            "event": "obstacle_collision",
+            "obstacle_id": obstacle_id,
+            "penalty_s": penalty,
+            "position": obstacle_collision.get("position", current_position),
+        }
+        events.append(event)
+        self._log(
+            "obstacle_collision",
+            time_s,
+            state.participant_id,
+            obstacle_id=obstacle_id,
+            penalty_s=penalty,
+            position=event["position"],
+        )
 
     def _handle_out_of_bounds(
         self,

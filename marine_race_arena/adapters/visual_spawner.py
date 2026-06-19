@@ -123,6 +123,50 @@ class HoloOceanVisualSpawner:
             ]
         )
 
+    def spawn_physical_box(
+        self,
+        id: str,
+        position: tuple[float, float, float],
+        rotation_rpy_deg: tuple[float, float, float],
+        dimensions_m: tuple[float, float, float],
+        material: str = "steel",
+    ) -> bool:
+        if self.env is None:
+            return False
+        spawn_prop = getattr(self.env, "spawn_prop", None)
+        if not callable(spawn_prop):
+            return False
+        try:
+            spawn_rotation = _holoocean_spawn_prop_rotation(rotation_rpy_deg)
+            spawn_prop(
+                "box",
+                location=list(position),
+                rotation=list(spawn_rotation),
+                scale=list(dimensions_m),
+                sim_physics=True,
+                material=material,
+                tag=id,
+            )
+            self.spawned_props.append(
+                {
+                    "id": id,
+                    "source_bar_id": id,
+                    "gate_id": None,
+                    "part": "obstacle",
+                    "position": position,
+                    "rotation_rpy_deg": rotation_rpy_deg,
+                    "spawn_rotation_deg": spawn_rotation,
+                    "spawn_rotation_order": "holoocean_spawn_prop_yaw_pitch_roll",
+                    "dimensions_m": dimensions_m,
+                    "method": "physical_obstacle_box",
+                }
+            )
+            self.metadata_only = False
+            return True
+        except Exception as exc:
+            LOGGER.warning("Obstacle spawn_prop failed for %s: %s", id, exc)
+            return False
+
     def _try_holoocean_spawn_prop(self, bars: list[GateBar]) -> bool:
         if self.env is None:
             return False

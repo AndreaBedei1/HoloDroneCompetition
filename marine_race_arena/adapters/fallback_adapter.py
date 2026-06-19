@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter, RaceAdapterError
 from marine_race_arena.arena.gate_factory import VisualGate
+from marine_race_arena.arena.obstacle import Obstacle
 from marine_race_arena.config.schema import Vector3
 from marine_race_arena.participants.participant import RaceParticipant
 
@@ -50,6 +51,14 @@ class FallbackRaceAdapter(BaseRaceAdapter):
             "Fallback adapter does not spawn physical gate visuals; %d debug gate bars are metadata only.",
             count,
         )
+
+    def spawn_obstacles(self, obstacles: Iterable[Obstacle]) -> None:
+        count = len(list(obstacles))
+        if count:
+            LOGGER.info(
+                "Fallback adapter keeps %d static obstacles as metadata and uses approximate box collisions.",
+                count,
+            )
 
     def get_participant_state(self, participant_id: str) -> AdapterParticipantState:
         try:
@@ -168,4 +177,3 @@ def _clamp(value: float, low: float, high: float) -> float:
 
 def _wrap_degrees(angle: float) -> float:
     return (angle + 180.0) % 360.0 - 180.0
-

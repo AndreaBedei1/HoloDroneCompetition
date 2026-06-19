@@ -49,7 +49,7 @@ def test_clean_gate_rejects_currents_and_obstacles() -> None:
     result = validate_track_config(parse_track_config(raw))
 
     assert any("clean_gate must not configure currents" in error for error in result.errors)
-    assert any("clean_gate must not configure obstacles" in error for error in result.errors)
+    assert any("clean_gate must not activate obstacles" in error for error in result.errors)
 
 
 def test_current_gate_requires_a_strong_current() -> None:
@@ -79,7 +79,7 @@ def test_obstacle_gate_requires_obstacles_with_gate_interval() -> None:
 
     result = validate_track_config(parse_track_config(raw))
 
-    assert any("requires between_gates" in error for error in result.errors)
+    assert any("requires 'size'" in error for error in result.errors)
 
 
 def test_multi_rov_requires_multiple_participants() -> None:
@@ -150,7 +150,11 @@ def _raw_track(track_name: str) -> dict:
 def _static_obstacle() -> dict:
     return {
         "id": "OBS01",
-        "type": "pillar",
-        "position": [-27.0, -8.0, -4.0],
+        "type": "box",
+        "position": [-28.2, -6.25, -4.05],
+        "size": [0.7, 0.7, 0.7],
+        "rotation_rpy_deg": [0.0, 0.0, 33.7],
+        "collision": True,
+        "penalty_s": 5.0,
         "between_gates": ["G01", "G02"],
     }

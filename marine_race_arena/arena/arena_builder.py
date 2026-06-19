@@ -11,6 +11,7 @@ from marine_race_arena.arena.bounds import ArenaBounds
 from marine_race_arena.arena.currents import CurrentFieldManager
 from marine_race_arena.arena.gate import Gate
 from marine_race_arena.arena.gate_factory import GateFactory, VisualGate
+from marine_race_arena.arena.obstacle import Obstacle, resolve_active_obstacles
 from marine_race_arena.config.schema import TrackConfig
 
 LOGGER = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class Arena:
     gates: List[Gate]
     gate_map: Dict[str, Gate]
     visual_gates: List[VisualGate]
+    obstacles: List[Obstacle]
     beacon_manager: BeaconManager
     current_manager: CurrentFieldManager
     environment_name: str
@@ -40,11 +42,7 @@ class ArenaBuilder:
         if visual_spawner is not None:
             factory.spawn_visuals(visual_gates, spawner=visual_spawner)
 
-        if self.config.obstacles:
-            LOGGER.warning(
-                "Obstacle configs are loaded but physical obstacle spawning is not implemented "
-                "without a repository-specific HoloOcean adapter."
-            )
+        obstacles = resolve_active_obstacles(self.config)
 
         gate_map = {gate.id: gate for gate in gates}
         environment_name = self._select_environment_name()
@@ -54,6 +52,7 @@ class ArenaBuilder:
             gates=gates,
             gate_map=gate_map,
             visual_gates=visual_gates,
+            obstacles=obstacles,
             beacon_manager=BeaconManager.from_gates(gates, self.config.gates, seed=self.seed),
             current_manager=CurrentFieldManager(self.config.currents),
             environment_name=environment_name,

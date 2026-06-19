@@ -33,7 +33,7 @@ tests/             simulator-independent pytest tests
 
 ## Arena, Beacon, Controller, Referee
 
-The arena owns the static race definition: bounds, gate geometry, debug visual gate bars, acoustic beacons, currents, and optional obstacle metadata.
+The arena owns the static race definition: bounds, gate geometry, debug visual gate bars, acoustic beacons, currents, and optional static obstacles.
 
 The beacon system guides the rover toward the next expected gate. It does not validate gate passage. In official mode it returns bearing, elevation, range, signal strength, and metadata, but not exact gate positions.
 
@@ -54,6 +54,8 @@ Track files live in `marine_race_arena/tracks/`. A track JSON contains:
 - `gates`: gate id, type, position, rotation, size, color, passage direction, optional linked gate and beacon override.
 - `beacon`: global acoustic beacon defaults.
 - `currents`: constant, localized jet, sinusoidal, and vortex fields.
+- `obstacle_generation`: optional obstacle mode, density, clearance, and seed settings.
+- `obstacles`: optional fixed static box obstacle definitions.
 - `participants`: vehicle, controller, sensors, spawn, and control mode.
 - `referee`: validation, penalties, and scoring settings.
 
@@ -66,8 +68,8 @@ Marine Race Arena supports explicit benchmark task modes inspired by F1TENTH-sty
 Supported modes:
 
 - `clean_gate`: one ROV, gates only, no obstacles, no currents.
-- `obstacle_gate`: one ROV, gates plus static obstacle metadata between adjacent gates, no currents.
-- `current_gate`: one ROV, gates plus at least one configured current with speed >= 0.50 m/s, no obstacles.
+- `obstacle_gate`: one ROV, gates plus active static box obstacles between adjacent gates, no currents.
+- `current_gate`: one ROV, gates plus at least one configured current with speed >= 0.50 m/s. Obstacles can be ignored with `--obstacles none` unless intentionally enabled.
 - `multi_rov`: future-ready multi-participant task; requires at least two participants but is not the default execution mode.
 
 Add a mode to JSON:
@@ -85,7 +87,24 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --benchmark-task current_gate --controller pygame --adapter fallback
 ```
 
-For `obstacle_gate`, each obstacle entry should be static and include `id`, `type`, a 3-value `position` or `center`, and `between_gates` with two adjacent ids from `track.gate_sequence`. Obstacle spawning remains adapter-specific; current code preserves and validates obstacle metadata.
+For `obstacle_gate`, active obstacles can come from fixed JSON definitions or deterministic random generation. `--obstacles none` removes active obstacles at runtime and validation time, `--obstacles fixed` uses the JSON `obstacles` array, and `--obstacles random` generates boxes between adjacent gates using `--seed`.
+
+A fixed box obstacle entry uses:
+
+```json
+{
+  "id": "OBS01",
+  "type": "box",
+  "position": [-28.2, -6.25, -4.05],
+  "size": [0.7, 0.7, 0.7],
+  "rotation_rpy_deg": [0.0, 0.0, 33.7],
+  "collision": true,
+  "penalty_s": 5.0,
+  "between_gates": ["G01", "G02"]
+}
+```
+
+Obstacle validation requires box obstacles to be inside bounds, between adjacent gates, away from gate apertures and start/finish spawn, and offset from the valid path centerline so they do not fully block the route.
 
 ## Gate Validation Rule
 
@@ -115,10 +134,11 @@ Final benchmark rules:
 
 - Minor collision: +5 s.
 - Gate collision: +10 s.
+- Obstacle collision: obstacle-specific `penalty_s`, default examples use +5 s.
 - Out of bounds: +10 s.
 - Stuck episode: +15 s.
 - Wrong direction: logged only, no default penalty or DSQ.
-- Collision, out-of-bounds, and stuck are penalty/events, not DNF.
+- Collision, obstacle collision, out-of-bounds, and stuck are penalty/events, not DNF.
 - Missing or skipping a gate by crossing a different gate than expected is DNF.
 - Timeout is disabled by default. The runner may still stop at the configured duration guard, but the referee does not mark TIMEOUT unless `referee.gate_validation.timeout_enabled` is true.
 - Controller failure remains terminal as `CONTROLLER_ERROR`.
@@ -204,7 +224,7 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json
 ```
 
-Validation checks required fields, unique gate ids, sequence references, finish gate, bounds, depth safety, positive sizes, nonzero passage directions, declared length, linked gates, split-S consistency, beacon ids, participant controller references, supported current types, and any active benchmark task requirements.
+Validation checks required fields, unique gate ids, sequence references, finish gate, bounds, depth safety, positive sizes, nonzero passage directions, declared length, linked gates, split-S consistency, beacon ids, participant controller references, supported current types, active obstacle generation/layout, and any active benchmark task requirements.
 
 ## Run Races
 
@@ -214,6 +234,13 @@ The runner builds the arena, loads controllers, starts the referee/logger, and r
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter fallback --duration 500
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller pygame --adapter fallback --duration 850
 conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter fallback --duration 1300
+```
+
+Obstacle benchmark examples:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --seed 7
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --seed 7 --controller pygame --adapter fallback --duration 500
 ```
 
 Current diagnostics:
@@ -230,6 +257,8 @@ Useful flags:
 - `--adapter fallback`: run the deterministic point-vehicle adapter.
 - `--adapter holoocean`: require the HoloOcean adapter.
 - `--benchmark-task`: validate this run as `clean_gate`, `obstacle_gate`, `current_gate`, or `multi_rov`.
+- `--obstacles`: `none` removes active obstacles, `fixed` uses JSON obstacles, `random` generates deterministic boxes between gates.
+- `--obstacle-density`: `low`, `medium`, or `high` density for random obstacle generation.
 - `--allow-fallback`: explicitly allow fallback kinematics after HoloOcean initialization failure.
 - `--official`: force official mode and block oracle ground truth.
 - `--headless`: request headless HoloOcean mode when supported.
@@ -239,7 +268,7 @@ Useful flags:
 - `--disable-front-camera`: disable `FrontCamera` capture for non-official live/debug runs when the viewport or control loop is too slow. This is rejected in `--official` mode.
 - `--show-front-camera`: open a live viewer for `observation["sensors"]["FrontCamera"]`. Press `V` or `Esc` in the camera viewer to close only that viewer while the race continues.
 - `--log-dir`: output directory for JSONL events and summary JSON.
-- `--seed`: deterministic beacon noise/dropout seed.
+- `--seed`: deterministic beacon noise/dropout seed and random-obstacle seed.
 
 ## HoloOcean Adapter
 
@@ -289,6 +318,13 @@ Sensor separation:
 - The adapter filters out `PoseSensor`, `LocationSensor`, `RotationSensor`, `DynamicsSensor`, and explicit ground-truth fields in official mode.
 - The referee still uses ground-truth pose internally for gate validation and out-of-bounds checks.
 - The oracle controller receives ground truth only when not in official mode.
+
+Obstacles:
+
+- Fixed obstacles are loaded from JSON when `--obstacles fixed` is active. Random obstacles are generated reproducibly from `--seed`.
+- In HoloOcean, active box obstacles are spawned with `env.spawn_prop("box", ..., sim_physics=True)` when that API is available.
+- In fallback, active obstacles remain metadata and collisions are approximated with a simple bounding check along the participant movement segment.
+- Obstacle collisions emit `obstacle_collision`, add the obstacle's `penalty_s`, and do not cause DNF by default.
 
 Gate visuals:
 
@@ -413,6 +449,7 @@ Copy one of the example JSON files and update:
 - Gate sequence and finish gate.
 - Beacon noise/dropout.
 - Currents.
+- Fixed obstacles or `obstacle_generation` settings for `obstacle_gate` tracks.
 - Participant controller settings.
 - Declared path length.
 
@@ -424,7 +461,7 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 
 ## Logs
 
-The runner writes JSONL race events and a final summary JSON under `results/marine_race` by default. Events include race start, gate passed, lap completed, collision, out of bounds, stuck, penalty, race finish, DNF, controller error, and race summary.
+The runner writes JSONL race events and a final summary JSON under `results/marine_race` by default. Events include race start, gate passed, lap completed, collision, obstacle collision, out of bounds, stuck, penalty, race finish, DNF, controller error, and race summary.
 
 ## Known Limitations
 
@@ -435,4 +472,4 @@ The runner writes JSONL race events and a final summary JSON under `results/mari
 - The fallback runner is a simple point-vehicle feasibility tool, not a BlueROV2 physics model.
 - HoloOcean physical current coupling depends on `env.set_ocean_currents`; the adapter reports inactive coupling if that API is missing.
 - Vortex current is a simplified analytic field, not a CFD model.
-- Obstacles are preserved in config but require a physical spawning adapter.
+- HoloOcean obstacle spawning depends on `env.spawn_prop`; fallback obstacle collisions use approximate geometry rather than full rigid-body contact.

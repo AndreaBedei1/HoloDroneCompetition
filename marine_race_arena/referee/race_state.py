@@ -29,6 +29,7 @@ class ParticipantRaceState:
     missed_gate_attempts: int = 0
     wrong_direction_crossings: int = 0
     collision_events: int = 0
+    obstacle_collision_events: int = 0
     out_of_bounds_events: int = 0
     stuck_events: int = 0
     penalties_s: float = 0.0
@@ -42,6 +43,7 @@ class ParticipantRaceState:
     stuck_accumulator_s: float = 0.0
     stuck_penalty_active: bool = False
     last_collision_penalty_time: Optional[float] = None
+    last_obstacle_collision_penalty_time: Optional[float] = None
     last_out_of_bounds_penalty_time: Optional[float] = None
     controller_error: Optional[str] = None
     last_event: Dict[str, object] = field(default_factory=dict)

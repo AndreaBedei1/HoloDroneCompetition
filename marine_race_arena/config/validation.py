@@ -8,6 +8,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
+from marine_race_arena.arena.obstacle import (
+    Obstacle,
+    ObstacleConfigError,
+    resolve_active_obstacles,
+    validate_active_obstacles,
+)
 from marine_race_arena.config.benchmark_tasks import (
     BENCHMARK_TASK_CLEAN_GATE,
     BENCHMARK_TASK_CURRENT_GATE,
@@ -90,7 +96,8 @@ def validate_track_config(config: TrackConfig, strict: bool = True) -> Validatio
     _validate_currents(config, result)
     _validate_participants(config, result)
     _validate_referee(config, result)
-    _validate_benchmark_task(config, result)
+    active_obstacles = _validate_obstacles(config, result)
+    _validate_benchmark_task(config, active_obstacles, result)
     if strict:
         return result
     return result
@@ -361,7 +368,23 @@ def _validate_referee(config: TrackConfig, result: ValidationResult) -> None:
         result.error("referee.gate_validation.vehicle_clearance_margin_m must be zero or positive.")
 
 
-def _validate_benchmark_task(config: TrackConfig, result: ValidationResult) -> None:
+def _validate_obstacles(config: TrackConfig, result: ValidationResult) -> List[Obstacle]:
+    try:
+        active_obstacles = resolve_active_obstacles(config)
+    except ObstacleConfigError as exc:
+        for error in exc.errors:
+            result.error(error)
+        active_obstacles = []
+    for error in validate_active_obstacles(config, active_obstacles):
+        result.error(error)
+    return active_obstacles
+
+
+def _validate_benchmark_task(
+    config: TrackConfig,
+    active_obstacles: List[Obstacle],
+    result: ValidationResult,
+) -> None:
     mode = config.benchmark_task.mode
     if mode is None:
         return
@@ -374,8 +397,8 @@ def _validate_benchmark_task(config: TrackConfig, result: ValidationResult) -> N
 
     if mode == BENCHMARK_TASK_CLEAN_GATE:
         _require_single_rov_task(config, mode, result)
-        if config.obstacles:
-            result.error("benchmark_task clean_gate must not configure obstacles.")
+        if active_obstacles:
+            result.error("benchmark_task clean_gate must not activate obstacles.")
         if config.currents:
             result.error("benchmark_task clean_gate must not configure currents.")
         return
@@ -384,15 +407,12 @@ def _validate_benchmark_task(config: TrackConfig, result: ValidationResult) -> N
         _require_single_rov_task(config, mode, result)
         if config.currents:
             result.error("benchmark_task obstacle_gate must not configure currents.")
-        if not config.obstacles:
-            result.error("benchmark_task obstacle_gate requires at least one static obstacle.")
-        _validate_static_obstacles_between_gates(config, result)
+        if not active_obstacles:
+            result.error("benchmark_task obstacle_gate requires at least one active static obstacle.")
         return
 
     if mode == BENCHMARK_TASK_CURRENT_GATE:
         _require_single_rov_task(config, mode, result)
-        if config.obstacles:
-            result.error("benchmark_task current_gate must not configure obstacles.")
         if not config.currents:
             result.error("benchmark_task current_gate requires at least one marine current.")
         elif _max_configured_current_speed(config) < STRONG_CURRENT_MIN_SPEED_M_S:
@@ -416,48 +436,6 @@ def _require_single_rov_task(config: TrackConfig, mode: str, result: ValidationR
         result.error(f"benchmark_task {mode} requires exactly one participant.")
     if not config.gates:
         result.error(f"benchmark_task {mode} requires at least one gate.")
-
-
-def _validate_static_obstacles_between_gates(config: TrackConfig, result: ValidationResult) -> None:
-    gate_sequence = list(config.track.gate_sequence)
-    gate_sequence_index = {gate_id: index for index, gate_id in enumerate(gate_sequence)}
-    for index, obstacle in enumerate(config.obstacles):
-        owner = f"Obstacle #{index}"
-        if not isinstance(obstacle, Mapping):
-            result.error(f"{owner} must be an object.")
-            continue
-        obstacle_id = obstacle.get("id")
-        if not obstacle_id:
-            result.error(f"{owner} requires a non-empty id.")
-        if not obstacle.get("type"):
-            result.error(f"{owner} requires a type.")
-        if bool(obstacle.get("dynamic", False)):
-            result.error(f"{owner} must be static for benchmark_task obstacle_gate.")
-        motion = str(obstacle.get("motion", "static"))
-        if motion != "static":
-            result.error(f"{owner}.motion must be 'static' for benchmark_task obstacle_gate.")
-
-        position = obstacle.get("position", obstacle.get("center"))
-        if position is None:
-            result.error(f"{owner} requires a 3-value position or center.")
-        else:
-            obstacle_position = _parse_vector3(position)
-            if obstacle_position is None:
-                result.error(f"{owner}.position must contain exactly 3 numeric values.")
-            elif not config.world.bounds.contains(obstacle_position):
-                result.error(f"{owner}.position is outside world.bounds.")
-
-        between_gates = obstacle.get("between_gates")
-        if not isinstance(between_gates, list) or len(between_gates) != 2:
-            result.error(f"{owner} requires between_gates with two adjacent gate ids.")
-            continue
-        left_gate = str(between_gates[0])
-        right_gate = str(between_gates[1])
-        if left_gate not in gate_sequence_index or right_gate not in gate_sequence_index:
-            result.error(f"{owner}.between_gates must reference ids in track.gate_sequence.")
-            continue
-        if abs(gate_sequence_index[left_gate] - gate_sequence_index[right_gate]) != 1:
-            result.error(f"{owner}.between_gates must reference adjacent gate ids.")
 
 
 def _max_configured_current_speed(config: TrackConfig) -> float:

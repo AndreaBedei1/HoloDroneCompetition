@@ -124,6 +124,14 @@ class RefereeConfig:
 
 
 @dataclass(frozen=True)
+class ObstacleGenerationConfig:
+    mode: Optional[str] = None
+    density: str = "medium"
+    min_clearance_m: float = 1.2
+    seed: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class TrackConfig:
     race: RaceConfig
     world: WorldConfig
@@ -136,6 +144,7 @@ class TrackConfig:
     participants: List[ParticipantConfig]
     referee: RefereeConfig
     benchmark_task: BenchmarkTaskConfig = field(default_factory=BenchmarkTaskConfig)
+    obstacle_generation: ObstacleGenerationConfig = field(default_factory=ObstacleGenerationConfig)
     obstacles: List[Dict[str, Any]] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
