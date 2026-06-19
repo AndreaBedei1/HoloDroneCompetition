@@ -236,6 +236,7 @@ def build_gates(
 def make_track(
     name: str,
     track_label: str,
+    benchmark_task_mode: str,
     points: list[tuple[float, float, float]],
     bounds: dict[str, float],
     max_duration_s: float,
@@ -266,6 +267,9 @@ def make_track(
             "timing_mode": "first_gate_to_last_gate",
             "max_duration_s": max_duration_s,
             "official_mode": False,
+        },
+        "benchmark_task": {
+            "mode": benchmark_task_mode,
         },
         "world": {
             "package": "Ocean",
@@ -447,6 +451,7 @@ def main() -> None:
         "marine_race_horseshoe_bay.json": make_track(
             name="Marine Race Horseshoe Bay",
             track_label="horseshoe_bay",
+            benchmark_task_mode="clean_gate",
             points=horseshoe_points,
             bounds={
                 "x_min": -36.0,
@@ -465,6 +470,7 @@ def main() -> None:
         "marine_race_vertical_serpent.json": make_track(
             name="Marine Race Vertical Serpent",
             track_label="vertical_serpent",
+            benchmark_task_mode="clean_gate",
             points=vertical_serpent_points,
             bounds={
                 "x_min": -44.0,
@@ -491,6 +497,7 @@ def main() -> None:
         "marine_race_mixed_endurance.json": make_track(
             name="Marine Race Mixed Endurance",
             track_label="mixed_endurance",
+            benchmark_task_mode="current_gate",
             points=mixed_endurance_points,
             bounds={
                 "x_min": -56.0,
@@ -506,35 +513,35 @@ def main() -> None:
             currents=[
                 {
                     "type": "constant",
-                    "velocity": [0.25, 0.35, 0.0],
+                    "velocity": [0.75, 1.05, 0.0],
                 },
                 {
                     "type": "localized_jet",
                     "center": [7.0, -2.0, -5.4],
                     "radius": 7.0,
-                    "velocity": [0.35, -0.20, 0.04],
+                    "velocity": [1.05, -0.60, 0.12],
                     "falloff": "gaussian",
                 },
                 {
                     "type": "localized_jet",
                     "center": [58.0, 12.0, -5.3],
                     "radius": 7.5,
-                    "velocity": [-0.15, 0.38, -0.03],
+                    "velocity": [-0.45, 1.14, -0.09],
                     "falloff": "gaussian",
                 },
                 {
                     "type": "vortex",
                     "center": [76.0, -10.0, -4.8],
                     "radius": 12.0,
-                    "tangential_speed": 0.45,
-                    "vertical_speed": 0.04,
+                    "tangential_speed": 1.35,
+                    "vertical_speed": 0.12,
                     "falloff": "gaussian",
                     "clockwise": False,
                 },
                 {
                     "type": "sinusoidal",
                     "axis": "z",
-                    "amplitude": 0.08,
+                    "amplitude": 0.24,
                     "frequency_hz": 0.08,
                     "phase": 0.0,
                 },

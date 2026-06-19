@@ -6,8 +6,16 @@ import importlib.util
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional
 
+from marine_race_arena.config.benchmark_tasks import (
+    BENCHMARK_TASK_CLEAN_GATE,
+    BENCHMARK_TASK_CURRENT_GATE,
+    BENCHMARK_TASK_MODES,
+    BENCHMARK_TASK_MULTI_ROV,
+    BENCHMARK_TASK_OBSTACLE_GATE,
+    STRONG_CURRENT_MIN_SPEED_M_S,
+)
 from marine_race_arena.config.schema import GateConfig, TrackConfig, Vector3
 
 
@@ -82,6 +90,7 @@ def validate_track_config(config: TrackConfig, strict: bool = True) -> Validatio
     _validate_currents(config, result)
     _validate_participants(config, result)
     _validate_referee(config, result)
+    _validate_benchmark_task(config, result)
     if strict:
         return result
     return result
@@ -350,6 +359,148 @@ def _validate_referee(config: TrackConfig, result: ValidationResult) -> None:
     clearance_margin = config.referee.gate_validation.get("vehicle_clearance_margin_m")
     if clearance_margin is not None and float(clearance_margin) < 0:
         result.error("referee.gate_validation.vehicle_clearance_margin_m must be zero or positive.")
+
+
+def _validate_benchmark_task(config: TrackConfig, result: ValidationResult) -> None:
+    mode = config.benchmark_task.mode
+    if mode is None:
+        return
+    if mode not in BENCHMARK_TASK_MODES:
+        result.error(
+            f"benchmark_task.mode '{mode}' is not supported. "
+            f"Allowed modes: {', '.join(BENCHMARK_TASK_MODES)}."
+        )
+        return
+
+    if mode == BENCHMARK_TASK_CLEAN_GATE:
+        _require_single_rov_task(config, mode, result)
+        if config.obstacles:
+            result.error("benchmark_task clean_gate must not configure obstacles.")
+        if config.currents:
+            result.error("benchmark_task clean_gate must not configure currents.")
+        return
+
+    if mode == BENCHMARK_TASK_OBSTACLE_GATE:
+        _require_single_rov_task(config, mode, result)
+        if config.currents:
+            result.error("benchmark_task obstacle_gate must not configure currents.")
+        if not config.obstacles:
+            result.error("benchmark_task obstacle_gate requires at least one static obstacle.")
+        _validate_static_obstacles_between_gates(config, result)
+        return
+
+    if mode == BENCHMARK_TASK_CURRENT_GATE:
+        _require_single_rov_task(config, mode, result)
+        if config.obstacles:
+            result.error("benchmark_task current_gate must not configure obstacles.")
+        if not config.currents:
+            result.error("benchmark_task current_gate requires at least one marine current.")
+        elif _max_configured_current_speed(config) < STRONG_CURRENT_MIN_SPEED_M_S:
+            result.error(
+                "benchmark_task current_gate requires at least one configured current with "
+                f"speed >= {STRONG_CURRENT_MIN_SPEED_M_S:.2f} m/s."
+            )
+        return
+
+    if mode == BENCHMARK_TASK_MULTI_ROV:
+        if len(config.participants) < 2:
+            result.error("benchmark_task multi_rov requires at least two participants.")
+        result.warn(
+            "benchmark_task multi_rov is parsed and validated, but execution still uses the "
+            "current shared-course referee model."
+        )
+
+
+def _require_single_rov_task(config: TrackConfig, mode: str, result: ValidationResult) -> None:
+    if len(config.participants) != 1:
+        result.error(f"benchmark_task {mode} requires exactly one participant.")
+    if not config.gates:
+        result.error(f"benchmark_task {mode} requires at least one gate.")
+
+
+def _validate_static_obstacles_between_gates(config: TrackConfig, result: ValidationResult) -> None:
+    gate_sequence = list(config.track.gate_sequence)
+    gate_sequence_index = {gate_id: index for index, gate_id in enumerate(gate_sequence)}
+    for index, obstacle in enumerate(config.obstacles):
+        owner = f"Obstacle #{index}"
+        if not isinstance(obstacle, Mapping):
+            result.error(f"{owner} must be an object.")
+            continue
+        obstacle_id = obstacle.get("id")
+        if not obstacle_id:
+            result.error(f"{owner} requires a non-empty id.")
+        if not obstacle.get("type"):
+            result.error(f"{owner} requires a type.")
+        if bool(obstacle.get("dynamic", False)):
+            result.error(f"{owner} must be static for benchmark_task obstacle_gate.")
+        motion = str(obstacle.get("motion", "static"))
+        if motion != "static":
+            result.error(f"{owner}.motion must be 'static' for benchmark_task obstacle_gate.")
+
+        position = obstacle.get("position", obstacle.get("center"))
+        if position is None:
+            result.error(f"{owner} requires a 3-value position or center.")
+        else:
+            obstacle_position = _parse_vector3(position)
+            if obstacle_position is None:
+                result.error(f"{owner}.position must contain exactly 3 numeric values.")
+            elif not config.world.bounds.contains(obstacle_position):
+                result.error(f"{owner}.position is outside world.bounds.")
+
+        between_gates = obstacle.get("between_gates")
+        if not isinstance(between_gates, list) or len(between_gates) != 2:
+            result.error(f"{owner} requires between_gates with two adjacent gate ids.")
+            continue
+        left_gate = str(between_gates[0])
+        right_gate = str(between_gates[1])
+        if left_gate not in gate_sequence_index or right_gate not in gate_sequence_index:
+            result.error(f"{owner}.between_gates must reference ids in track.gate_sequence.")
+            continue
+        if abs(gate_sequence_index[left_gate] - gate_sequence_index[right_gate]) != 1:
+            result.error(f"{owner}.between_gates must reference adjacent gate ids.")
+
+
+def _max_configured_current_speed(config: TrackConfig) -> float:
+    speeds = [_configured_current_speed(current.params, current.type) for current in config.currents]
+    return max(speeds, default=0.0)
+
+
+def _configured_current_speed(params: Mapping[str, Any], current_type: str) -> float:
+    if current_type == "constant":
+        return _vector_speed(params.get("velocity"))
+    if current_type == "localized_jet":
+        return _vector_speed(params.get("velocity"))
+    if current_type == "sinusoidal":
+        base_speed = _vector_speed(params.get("base_velocity"))
+        return base_speed + abs(_safe_float(params.get("amplitude", 0.0), 0.0))
+    if current_type == "vortex":
+        tangential = _safe_float(params.get("tangential_speed", 0.0), 0.0)
+        vertical = _safe_float(params.get("vertical_speed", 0.0), 0.0)
+        return math.hypot(tangential, vertical)
+    return 0.0
+
+
+def _vector_speed(value: Any) -> float:
+    vector = _parse_vector3(value)
+    if vector is None:
+        return 0.0
+    return _norm(vector)
+
+
+def _parse_vector3(value: Any) -> Optional[Vector3]:
+    if not isinstance(value, (list, tuple)) or len(value) != 3:
+        return None
+    try:
+        return (float(value[0]), float(value[1]), float(value[2]))
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _controller_reference_looks_valid(reference: str) -> bool:

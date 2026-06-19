@@ -8,6 +8,9 @@
     "max_duration_s": 1300,
     "official_mode": false
   },
+  "benchmark_task": {
+    "mode": "current_gate"
+  },
   "world": {
     "package": "Ocean",
     "map": "OpenWater-Hovering",

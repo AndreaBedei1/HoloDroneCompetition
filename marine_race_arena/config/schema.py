@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from marine_race_arena.config.benchmark_tasks import BenchmarkTaskConfig
+
 Vector3 = Tuple[float, float, float]
 Vector2 = Tuple[float, float]
 
@@ -133,6 +135,7 @@ class TrackConfig:
     currents: List[CurrentConfig]
     participants: List[ParticipantConfig]
     referee: RefereeConfig
+    benchmark_task: BenchmarkTaskConfig = field(default_factory=BenchmarkTaskConfig)
     obstacles: List[Dict[str, Any]] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
@@ -141,4 +144,3 @@ class TrackConfig:
             if gate.id == gate_id:
                 return gate
         raise KeyError(f"Unknown gate id: {gate_id}")
-

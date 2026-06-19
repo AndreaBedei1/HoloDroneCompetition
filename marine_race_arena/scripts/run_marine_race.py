@@ -24,6 +24,7 @@ from marine_race_arena.adapters import (
 )
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter
 from marine_race_arena.arena.arena_builder import Arena, ArenaBuilder
+from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
 from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
 from marine_race_arena.config.schema import TrackConfig, Vector3
 from marine_race_arena.participants.controller_loader import ControllerError, ControllerLoader
@@ -43,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     try:
-        config = load_track_config(args.track)
+        config = load_track_config(args.track, benchmark_task=args.benchmark_task)
     except (TrackConfigLoadError, ValueError) as exc:
         print(f"Track validation failed: {exc}", file=sys.stderr)
         return 1
@@ -138,6 +139,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Allow fallback kinematics when the HoloOcean adapter cannot initialize.",
     )
     parser.add_argument("--duration", type=float, default=None, help="Maximum race duration in seconds.")
+    parser.add_argument(
+        "--benchmark-task",
+        choices=BENCHMARK_TASK_MODES,
+        default=None,
+        help="Validate the track against an explicit benchmark task mode.",
+    )
     parser.add_argument("--official", action="store_true", help="Force official sensor/timing mode.")
     parser.add_argument("--headless", action="store_true", help="Request headless HoloOcean mode when supported.")
     parser.add_argument("--record", action="store_true", help="Request HoloOcean recording when supported.")
@@ -263,6 +270,7 @@ def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
         "gates_per_lap": len(config.track.gate_sequence),
         "timing_mode": config.race.timing_mode,
         "official_mode": config.race.official_mode,
+        "benchmark_task": config.benchmark_task.mode,
         "max_duration_s": config.race.max_duration_s,
         "adapter": adapter_name,
         "max_command": 0.95,

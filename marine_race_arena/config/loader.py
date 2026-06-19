@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
+from marine_race_arena.config.benchmark_tasks import (
+    BenchmarkTaskConfig,
+    normalize_benchmark_task_mode,
+)
 from marine_race_arena.config.schema import (
     BeaconConfig,
     BoundsConfig,
@@ -66,13 +71,18 @@ DEFAULT_OFFICIAL_SENSOR_PROFILE: Dict[str, Any] = {
 }
 
 
-def load_track_config(track_path: str | Path, debug: bool = False) -> TrackConfig:
+def load_track_config(
+    track_path: str | Path,
+    debug: bool = False,
+    benchmark_task: str | None = None,
+) -> TrackConfig:
     """Load and validate a track JSON file.
 
     Args:
         track_path: Path to a JSON track file.
         debug: When true, semantic validation errors are reported as warnings by the caller
             only if parsing succeeded. Parser errors are always fatal.
+        benchmark_task: Optional CLI/code override for benchmark task validation.
 
     Returns:
         Parsed TrackConfig.
@@ -91,6 +101,8 @@ def load_track_config(track_path: str | Path, debug: bool = False) -> TrackConfi
         raise TrackConfigLoadError("Track JSON root must be an object.")
 
     config = parse_track_config(raw)
+    if benchmark_task is not None:
+        config = with_benchmark_task(config, benchmark_task)
     result = validate_track_config(config)
     if result.errors and not debug:
         raise TrackValidationError(result.errors, result.warnings)
@@ -100,6 +112,7 @@ def load_track_config(track_path: str | Path, debug: bool = False) -> TrackConfi
 def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
     track = _parse_track(_required_mapping(raw, "track"))
     race = _parse_race(_required_mapping(raw, "race"), expected_gates_per_lap=len(track.gate_sequence))
+    benchmark_task = _parse_benchmark_task(raw.get("benchmark_task"))
     world = _parse_world(_required_mapping(raw, "world"))
     start = _parse_start(_required_mapping(raw, "start"))
     finish = _parse_finish(_required_mapping(raw, "finish"))
@@ -127,6 +140,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
     obstacles = list(raw.get("obstacles", []))
     return TrackConfig(
         race=race,
+        benchmark_task=benchmark_task,
         world=world,
         track=track,
         start=start,
@@ -141,6 +155,13 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
     )
 
 
+def with_benchmark_task(config: TrackConfig, mode: str | None) -> TrackConfig:
+    return replace(
+        config,
+        benchmark_task=BenchmarkTaskConfig(mode=normalize_benchmark_task_mode(mode)),
+    )
+
+
 def _parse_race(raw: Mapping[str, Any], expected_gates_per_lap: int) -> RaceConfig:
     return RaceConfig(
         name=str(_required(raw, "name")),
@@ -151,6 +172,18 @@ def _parse_race(raw: Mapping[str, Any], expected_gates_per_lap: int) -> RaceConf
         max_duration_s=float(raw.get("max_duration_s", 600.0)),
         official_mode=bool(raw.get("official_mode", False)),
     )
+
+
+def _parse_benchmark_task(raw: Any) -> BenchmarkTaskConfig:
+    if raw is None:
+        return BenchmarkTaskConfig()
+    if isinstance(raw, str):
+        return BenchmarkTaskConfig(mode=normalize_benchmark_task_mode(raw))
+    if not isinstance(raw, Mapping):
+        raise TrackConfigLoadError("benchmark_task must be a string or an object with a mode field.")
+    if "mode" not in raw:
+        raise TrackConfigLoadError("benchmark_task object must contain a mode field.")
+    return BenchmarkTaskConfig(mode=normalize_benchmark_task_mode(str(raw["mode"])))
 
 
 def _parse_world(raw: Mapping[str, Any]) -> WorldConfig:

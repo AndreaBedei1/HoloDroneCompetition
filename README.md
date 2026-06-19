@@ -46,6 +46,7 @@ The referee validates gates using simulation ground truth. This is allowed becau
 Track files live in `marine_race_arena/tracks/`. A track JSON contains:
 
 - `race`: name, format, laps, timing mode, duration, official mode.
+- `benchmark_task`: optional benchmark mode, either a string or `{ "mode": "..." }`.
 - `world`: HoloOcean package/map preference, arena origin, and explicit bounds.
 - `track`: declared path length, gate size defaults, gate sequence.
 - `start`: spawn pose.
@@ -57,6 +58,34 @@ Track files live in `marine_race_arena/tracks/`. A track JSON contains:
 - `referee`: validation, penalties, and scoring settings.
 
 All configured starts and gates must remain inside `world.bounds`. Underwater depth safety is enforced with `z_min` and `z_max`; values below `z_min` are unsafe and are logged as out-of-bounds events with penalties. The benchmark tracks use safe depths around `z = -4.0` to `z = -5.9` and avoid the seabed.
+
+## Benchmark Task Modes
+
+Marine Race Arena supports explicit benchmark task modes inspired by F1TENTH-style task definitions. The task mode is optional for backward compatibility; older/custom track JSON files without `benchmark_task` keep the existing validation behavior.
+
+Supported modes:
+
+- `clean_gate`: one ROV, gates only, no obstacles, no currents.
+- `obstacle_gate`: one ROV, gates plus static obstacle metadata between adjacent gates, no currents.
+- `current_gate`: one ROV, gates plus at least one configured current with speed >= 0.50 m/s, no obstacles.
+- `multi_rov`: future-ready multi-participant task; requires at least two participants but is not the default execution mode.
+
+Add a mode to JSON:
+
+```json
+"benchmark_task": {
+  "mode": "current_gate"
+}
+```
+
+Or validate/run an existing track under an explicit task mode:
+
+```bash
+conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task clean_gate
+conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --benchmark-task current_gate --controller pygame --adapter fallback
+```
+
+For `obstacle_gate`, each obstacle entry should be static and include `id`, `type`, a 3-value `position` or `center`, and `between_gates` with two adjacent ids from `track.gate_sequence`. Obstacle spawning remains adapter-specific; current code preserves and validates obstacle metadata.
 
 ## Gate Validation Rule
 
@@ -175,7 +204,7 @@ conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --t
 conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json
 ```
 
-Validation checks required fields, unique gate ids, sequence references, finish gate, bounds, depth safety, positive sizes, nonzero passage directions, declared length, linked gates, split-S consistency, beacon ids, participant controller references, and supported current types.
+Validation checks required fields, unique gate ids, sequence references, finish gate, bounds, depth safety, positive sizes, nonzero passage directions, declared length, linked gates, split-S consistency, beacon ids, participant controller references, supported current types, and any active benchmark task requirements.
 
 ## Run Races
 
@@ -200,6 +229,7 @@ Useful flags:
 - `--adapter auto`: try HoloOcean first. If it fails, fallback is used only when `--allow-fallback` is also set.
 - `--adapter fallback`: run the deterministic point-vehicle adapter.
 - `--adapter holoocean`: require the HoloOcean adapter.
+- `--benchmark-task`: validate this run as `clean_gate`, `obstacle_gate`, `current_gate`, or `multi_rov`.
 - `--allow-fallback`: explicitly allow fallback kinematics after HoloOcean initialization failure.
 - `--official`: force official mode and block oracle ground truth.
 - `--headless`: request headless HoloOcean mode when supported.
@@ -311,11 +341,11 @@ conda run -n ocean python -c "import holoocean; print(holoocean); print(getattr(
 
 ## Track Examples
 
-`marine_race_horseshoe_bay.json` is a 12-gate, 1-lap open U-shaped route with standard 1.5 m x 1.5 m gate openings, no currents, safe depth near `z = -4.0`, and clear point-to-point visibility.
+`marine_race_horseshoe_bay.json` is a `clean_gate` 12-gate, 1-lap open U-shaped route with standard 1.5 m x 1.5 m gate openings, no currents, safe depth near `z = -4.0`, and clear point-to-point visibility.
 
-`marine_race_vertical_serpent.json` is a 17-gate, 1-lap slalom with strong depth variation, vertical double-gate elements, no currents, and a longer duration budget.
+`marine_race_vertical_serpent.json` is a `clean_gate` 17-gate, 1-lap slalom with strong depth variation, vertical double-gate elements, no currents, and a longer duration budget.
 
-`marine_race_mixed_endurance.json` is a 22-gate, 1-lap endurance route with diagonals, vertical variation, double gates, a split-S-like section, strong currents, localized jets, a vortex, beacon noise, and dropout.
+`marine_race_mixed_endurance.json` is a `current_gate` 22-gate, 1-lap endurance route with diagonals, vertical variation, double gates, a split-S-like section, strong currents, localized jets, a vortex, beacon noise, and dropout.
 
 ## Add A Student Controller
 
@@ -376,6 +406,7 @@ Official observations exclude ground-truth pose, exact gate centers, full track 
 Copy one of the example JSON files and update:
 
 - Race metadata and lap count.
+- Optional `benchmark_task` mode if the track should be validated as a benchmark task.
 - Bounds with safe `z_min` and `z_max`.
 - Start pose.
 - Gate ids, positions, rotations, colors, and passage directions.
