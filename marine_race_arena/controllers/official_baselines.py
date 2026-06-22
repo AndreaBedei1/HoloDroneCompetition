@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import math
+import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from marine_race_arena.participants.controller_interface import BaseController
+
+LOGGER = logging.getLogger(__name__)
+
+PHASE_APPROACH_GATE = "APPROACH_GATE"
+PHASE_TRANSIT_GATE = "TRANSIT_GATE"
+PHASE_EXIT_GATE = "EXIT_GATE"
 
 
 class AcousticBaselineController(BaseController):
@@ -17,22 +25,65 @@ class AcousticBaselineController(BaseController):
 
     def reset(self, race_info: dict[str, Any]) -> None:
         max_command = _clamp(_safe_float(race_info.get("max_command"), 0.85), 0.1, 1.0)
-        self.max_surge = min(max_command, 0.72)
-        self.max_sway = min(max_command, 0.42)
-        self.max_heave = min(max_command, 0.45)
-        self.max_yaw = min(max_command, 0.38)
+        self.max_surge = min(max_command, 0.88)
+        self.max_sway = min(max_command, 0.55)
+        self.max_heave = min(max_command, 0.50)
+        self.max_yaw = min(max_command, 0.46)
         self._last_command = _zero_command()
+        self._last_completed_gates = 0
+        self._phase = PHASE_APPROACH_GATE
+        self._exit_steps_remaining = 0
+        self._step_count = 0
+        self._verbose = _env_flag("MARINE_RACE_ACOUSTIC_BASELINE_VERBOSE")
+
+    @property
+    def phase(self) -> str:
+        return self._phase
 
     def step(self, observation: dict[str, Any]) -> dict[str, float]:
         beacon = _mapping(observation.get("beacon"))
         sensors = _mapping(observation.get("sensors"))
         race = _mapping(observation.get("race"))
+        self._update_phase(beacon, race)
         target = self._target_command(beacon, sensors, race)
-        self._last_command = _smooth_command(self._last_command, target, alpha=0.45)
+        previous = self._last_command
+        self._last_command = _smooth_command(previous, target, alpha=0.55)
+        self._last_command["yaw"] = _rate_limit(
+            float(previous.get("yaw", 0.0)),
+            float(target.get("yaw", 0.0)),
+            max_delta=0.075,
+        )
+        self._step_count += 1
+        self._log_diagnostics(beacon, target)
         return dict(self._last_command)
 
     def close(self) -> None:
         pass
+
+    def _update_phase(self, beacon: Mapping[str, Any], race: Mapping[str, Any]) -> None:
+        completed_gates = max(0, int(_safe_float(race.get("completed_gates"), self._last_completed_gates)))
+        if completed_gates > self._last_completed_gates:
+            self._phase = PHASE_EXIT_GATE
+            self._exit_steps_remaining = 8
+            self._last_completed_gates = completed_gates
+            return
+
+        if self._phase == PHASE_EXIT_GATE:
+            self._exit_steps_remaining -= 1
+            if self._exit_steps_remaining > 0:
+                return
+            self._phase = PHASE_APPROACH_GATE
+
+        if not bool(beacon.get("valid")):
+            self._phase = PHASE_APPROACH_GATE
+            return
+
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        bearing_abs = abs(_safe_float(beacon.get("bearing_deg"), 0.0))
+        if range_m <= 2.6 and bearing_abs <= 65.0:
+            self._phase = PHASE_TRANSIT_GATE
+        elif range_m >= 3.4:
+            self._phase = PHASE_APPROACH_GATE
 
     def _target_command(
         self,
@@ -40,31 +91,58 @@ class AcousticBaselineController(BaseController):
         sensors: Mapping[str, Any],
         race: Mapping[str, Any],
     ) -> dict[str, float]:
-        del race
         if not bool(beacon.get("valid")):
-            return {"surge": 0.08, "sway": 0.0, "heave": 0.0, "yaw": 0.10}
+            return {"surge": 0.12, "sway": 0.0, "heave": 0.0, "yaw": 0.08}
 
         bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -120.0, 120.0)
         elevation_deg = _clamp(_safe_float(beacon.get("elevation_deg"), 0.0), -45.0, 45.0)
         range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
         bearing_rad = math.radians(bearing_deg)
-        elevation_rad = math.radians(elevation_deg)
+        centerline_elevation_deg = _centerline_elevation_deg(elevation_deg, range_m)
+        elevation_rad = math.radians(centerline_elevation_deg)
 
-        range_factor = _clamp(range_m / 8.0, 0.0, 1.0)
-        near_gate_factor = _clamp(range_m / 2.0, 0.25, 1.0)
-        alignment_factor = _clamp(math.cos(abs(bearing_rad)), 0.25, 1.0)
-        speed = (0.14 + 0.58 * range_factor) * near_gate_factor * alignment_factor
+        if self._phase == PHASE_EXIT_GATE:
+            surge = 0.74
+            sway = _clamp(0.10 * math.sin(bearing_rad), -0.12, 0.12)
+            yaw = _yaw_command_from_bearing(bearing_deg, max_yaw=0.18, gain_deg=95.0, deadband_deg=8.0)
+            heave = _heave_command(centerline_elevation_deg, sensors, self.max_heave)
+            return {"surge": surge, "sway": sway, "heave": heave, "yaw": yaw}
+
+        if self._phase == PHASE_TRANSIT_GATE:
+            speed = 0.52 + 0.10 * _clamp(range_m / 2.6, 0.0, 1.0)
+            sway_gain = 0.28
+            yaw = _yaw_command_from_bearing(bearing_deg, max_yaw=0.24, gain_deg=90.0, deadband_deg=5.0)
+        else:
+            range_factor = _clamp(range_m / 10.0, 0.0, 1.0)
+            alignment_factor = _clamp(math.cos(abs(bearing_rad)), 0.45, 1.0)
+            speed = (0.34 + 0.54 * range_factor) * alignment_factor
+            if range_m < 4.0:
+                speed = min(speed, 0.64)
+            sway_gain = 0.46
+            yaw = _yaw_command_from_bearing(bearing_deg, max_yaw=self.max_yaw, gain_deg=80.0, deadband_deg=3.0)
 
         surge = _clamp(speed * math.cos(elevation_rad), -self.max_surge, self.max_surge)
-        sway = _clamp(0.50 * math.sin(bearing_rad), -self.max_sway, self.max_sway)
-        heave = _clamp(0.70 * math.sin(elevation_rad), -self.max_heave, self.max_heave)
-        yaw = _clamp(bearing_deg / 85.0, -self.max_yaw, self.max_yaw)
-
-        depth_rate = _vertical_velocity_from_sensors(sensors)
-        if depth_rate is not None:
-            heave = _clamp(heave - 0.08 * depth_rate, -self.max_heave, self.max_heave)
+        if abs(bearing_deg) > 70.0:
+            surge = min(surge, 0.48)
+        sway = _clamp(sway_gain * math.sin(bearing_rad), -self.max_sway, self.max_sway)
+        heave = _heave_command(centerline_elevation_deg, sensors, self.max_heave)
 
         return {"surge": surge, "sway": sway, "heave": heave, "yaw": yaw}
+
+    def _log_diagnostics(self, beacon: Mapping[str, Any], command: Mapping[str, float]) -> None:
+        if not self._verbose or self._step_count % 10 != 0:
+            return
+        LOGGER.info(
+            "acoustic_baseline phase=%s range=%.2f bearing=%.2f elevation=%.2f "
+            "surge=%.3f yaw=%.3f heave=%.3f",
+            self._phase,
+            _safe_float(beacon.get("range_m"), -1.0),
+            _safe_float(beacon.get("bearing_deg"), 0.0),
+            _safe_float(beacon.get("elevation_deg"), 0.0),
+            command.get("surge", 0.0),
+            command.get("yaw", 0.0),
+            command.get("heave", 0.0),
+        )
 
 
 class AcousticVisionBaselineController(BaseController):
@@ -231,6 +309,32 @@ def _vertical_velocity_from_sensors(sensors: Mapping[str, Any]) -> float | None:
     return None
 
 
+def _yaw_command_from_bearing(
+    bearing_deg: float,
+    max_yaw: float,
+    gain_deg: float,
+    deadband_deg: float,
+) -> float:
+    if abs(bearing_deg) <= deadband_deg:
+        return 0.0
+    adjusted = math.copysign(abs(bearing_deg) - deadband_deg, bearing_deg)
+    return _clamp(adjusted / gain_deg, -max_yaw, max_yaw)
+
+
+def _centerline_elevation_deg(elevation_deg: float, range_m: float) -> float:
+    beacon_height_bias_deg = math.degrees(math.atan2(0.30, max(1.0, range_m)))
+    return _clamp(elevation_deg - beacon_height_bias_deg, -35.0, 35.0)
+
+
+def _heave_command(elevation_deg: float, sensors: Mapping[str, Any], max_heave: float) -> float:
+    elevation_rad = math.radians(elevation_deg)
+    heave = _clamp(0.95 * math.sin(elevation_rad), -max_heave, max_heave)
+    depth_rate = _vertical_velocity_from_sensors(sensors)
+    if depth_rate is not None:
+        heave = _clamp(heave - 0.12 * depth_rate, -max_heave, max_heave)
+    return heave
+
+
 def _smooth_command(previous: Mapping[str, float], target: Mapping[str, float], alpha: float) -> dict[str, float]:
     return {
         key: _clamp((1.0 - alpha) * float(previous.get(key, 0.0)) + alpha * float(target.get(key, 0.0)), -1.0, 1.0)
@@ -244,3 +348,11 @@ def _zero_command() -> dict[str, float]:
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
+
+
+def _rate_limit(previous: float, target: float, max_delta: float) -> float:
+    return previous + _clamp(target - previous, -max_delta, max_delta)
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}

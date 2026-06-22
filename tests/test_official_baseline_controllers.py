@@ -9,6 +9,9 @@ from marine_race_arena.config.loader import load_track_config
 from marine_race_arena.controllers.official_baselines import (
     AcousticBaselineController,
     AcousticVisionBaselineController,
+    PHASE_APPROACH_GATE,
+    PHASE_EXIT_GATE,
+    PHASE_TRANSIT_GATE,
 )
 from marine_race_arena.participants.controller_loader import ControllerLoader
 from marine_race_arena.participants.participant import RaceParticipant
@@ -77,6 +80,69 @@ def test_official_baselines_handle_missing_inputs_safely(controller: object) -> 
     command = controller.step(_guarded_observation({"beacon": {}, "sensors": {}, "race": {}}))
 
     assert set(command) == {"surge", "sway", "heave", "yaw"}
+    assert all(-1.0 <= value <= 1.0 for value in command.values())
+
+
+def test_acoustic_baseline_yaw_deadband() -> None:
+    controller = AcousticBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["beacon"]["bearing_deg"] = 1.5
+    observation["beacon"]["range_m"] = 8.0
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert command["yaw"] == 0.0
+
+
+def test_acoustic_baseline_reduces_speed_near_gate() -> None:
+    far_controller = AcousticBaselineController()
+    near_controller = AcousticBaselineController()
+    far_controller.reset({"max_command": 0.95})
+    near_controller.reset({"max_command": 0.95})
+    far_observation = _synthetic_observation()
+    far_observation["beacon"]["range_m"] = 12.0
+    far_observation["beacon"]["bearing_deg"] = 0.0
+    near_observation = _synthetic_observation()
+    near_observation["beacon"]["range_m"] = 1.4
+    near_observation["beacon"]["bearing_deg"] = 0.0
+
+    far_command = far_controller.step(_guarded_observation(far_observation))
+    near_command = near_controller.step(_guarded_observation(near_observation))
+
+    assert far_controller.phase == PHASE_APPROACH_GATE
+    assert near_controller.phase == PHASE_TRANSIT_GATE
+    assert near_command["surge"] < far_command["surge"]
+
+
+def test_acoustic_baseline_phase_transitions() -> None:
+    controller = AcousticBaselineController()
+    controller.reset({"max_command": 0.95})
+    far_observation = _synthetic_observation()
+    far_observation["race"]["completed_gates"] = 0
+    far_observation["beacon"]["range_m"] = 8.0
+    near_observation = _synthetic_observation()
+    near_observation["race"]["completed_gates"] = 0
+    near_observation["beacon"]["range_m"] = 1.8
+    crossed_observation = _synthetic_observation()
+    crossed_observation["race"]["completed_gates"] = 1
+    crossed_observation["beacon"]["range_m"] = 7.0
+
+    controller.step(_guarded_observation(far_observation))
+    assert controller.phase == PHASE_APPROACH_GATE
+    controller.step(_guarded_observation(near_observation))
+    assert controller.phase == PHASE_TRANSIT_GATE
+    controller.step(_guarded_observation(crossed_observation))
+    assert controller.phase == PHASE_EXIT_GATE
+
+
+def test_acoustic_baseline_missing_beacon_fallback_safety() -> None:
+    controller = AcousticBaselineController()
+    controller.reset({"max_command": 0.95})
+
+    command = controller.step(_guarded_observation({"beacon": {"valid": False}, "sensors": {}, "race": {}}))
+
+    assert command["surge"] > 0.0
     assert all(-1.0 <= value <= 1.0 for value in command.values())
 
 

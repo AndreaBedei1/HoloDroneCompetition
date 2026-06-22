@@ -137,10 +137,12 @@ conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark
 
 Two built-in non-cheating baseline controllers are available for benchmark evaluation:
 
-- `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, smooths commands, regulates vertical motion, and slows near gates.
+- `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, a small approach/transit/exit state machine, smoothed yaw with a deadband, vertical regulation, and speed scheduling around gates.
 - `acoustic_vision_baseline`: uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment when the camera image is available and confident.
 
 Both set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
+
+Set `MARINE_RACE_ACOUSTIC_BASELINE_VERBOSE=1` to log acoustic baseline diagnostics including phase, beacon range, bearing, elevation, surge, yaw, and heave.
 
 Clean-gate acoustic baseline:
 
