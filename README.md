@@ -37,7 +37,7 @@ The arena owns the static race definition: bounds, gate geometry, debug visual g
 
 The beacon system guides the rover toward the next expected gate. It does not validate gate passage. In official mode it returns bearing, elevation, range, signal strength, and metadata, but not exact gate positions.
 
-Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The reproducible official baselines are `acoustic_baseline`, `acoustic_vision_baseline`, and `vision_gate_baseline`; `vision_gate_baseline` is the main reproducible HoloOcean baseline. `pygame`/`keyboard` are manual demo controllers, and `oracle` is debug-only.
+Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The reproducible official baselines are `acoustic_baseline` and `rule_gate_baseline`. `pygame`/`keyboard` are manual demo controllers, and `oracle` is debug-only.
 
 The referee validates gates using simulation ground truth. This is allowed because the referee is not a participant controller. The first implementation validates the vehicle center point and keeps the interface ready for future full-body validation.
 
@@ -135,16 +135,24 @@ conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark
 
 ## Reproducible Official Baselines
 
-Three built-in non-cheating baseline controllers are available for benchmark evaluation:
+Built-in non-cheating baseline controllers are available for benchmark evaluation:
 
 - `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, a small approach/transit/exit state machine, smoothed yaw with a deadband, vertical regulation, and speed scheduling around gates.
-- `acoustic_vision_baseline`: uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment when the camera image is available and confident.
-- `vision_gate_baseline`: main reproducible HoloOcean baseline. It uses beacon guidance for long-range gate selection and switches to deterministic FrontCamera visual servoing when a gate-like opening is detected. In local visual phases it centers the gate with sway/heave, keeps yaw heavily damped, surges through the opening, and uses post-gate exit hysteresis to avoid yaw spin after crossing.
+- `rule_gate_baseline`: simple rule-based gate controller for visible-gate traversal. It uses the beacon for target direction, uses `FrontCamera` to center the visible square gate, applies only gentle yaw/sway corrections, regulates heave from image/elevation error, and surges forward only when the gate is roughly centered.
+- `acoustic_vision_baseline`: experimental/deprecated. It uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment, but it is not the preferred HoloOcean baseline.
+- `vision_gate_baseline`: experimental/deprecated. It attempts a more complex visual-servo state machine and can be useful for debugging, but it is not currently the recommended official baseline for reliable HoloOcean evaluation.
 
-All three set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
+The official baselines set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
 
 Set `MARINE_RACE_ACOUSTIC_BASELINE_VERBOSE=1` to log acoustic baseline diagnostics including phase, beacon range, bearing, elevation, surge, yaw, and heave.
 Set `MARINE_RACE_VISION_GATE_BASELINE_VERBOSE=1` to log vision baseline phase, visual confidence, image error, and commands.
+
+Single-gate rule baseline smoke tests are available under `marine_race_arena/tracks/tests/` with yaw offsets `-45`, `-25`, `0`, `25`, and `45` degrees. Example HoloOcean runs:
+
+```bash
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/single_gate_yaw_0.json --controller rule_gate_baseline --adapter holoocean --duration 120 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/single_gate_yaw_45.json --controller rule_gate_baseline --adapter holoocean --duration 120 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+```
 
 Clean-gate acoustic baseline:
 

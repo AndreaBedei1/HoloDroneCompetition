@@ -34,6 +34,10 @@ class ControllerLoader:
             "marine_race_arena.controllers.official_baselines",
             "AcousticVisionBaselineController",
         ),
+        "rule_gate_baseline": (
+            "marine_race_arena.controllers.official_baselines",
+            "RuleGateBaselineController",
+        ),
         "vision_gate_baseline": (
             "marine_race_arena.controllers.official_baselines",
             "VisionGateBaselineController",

@@ -181,11 +181,13 @@ class BaseRaceAdapter(abc.ABC):
             heave,
             heave,
         ]
+        # Keep the high-level yaw sign consistent with the fallback adapter:
+        # positive yaw turns toward positive beacon/image errors.
         horizontal = [
-            surge + sway - 0.35 * yaw,
-            surge - sway + 0.35 * yaw,
             surge + sway + 0.35 * yaw,
             surge - sway - 0.35 * yaw,
+            surge + sway - 0.35 * yaw,
+            surge - sway + 0.35 * yaw,
         ]
         return [
             _clamp(value * self.thruster_limit, -self.thruster_limit, self.thruster_limit)

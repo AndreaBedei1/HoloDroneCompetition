@@ -22,6 +22,20 @@ def test_example_tracks_validate() -> None:
         assert result.errors == []
 
 
+def test_single_gate_rule_baseline_tracks_validate() -> None:
+    for track_name in (
+        "tests/single_gate_yaw_neg45.json",
+        "tests/single_gate_yaw_neg25.json",
+        "tests/single_gate_yaw_0.json",
+        "tests/single_gate_yaw_25.json",
+        "tests/single_gate_yaw_45.json",
+    ):
+        config = load_track_config(TRACK_DIR / track_name)
+        result = validate_track_config(config)
+        assert result.errors == []
+        assert config.participants[0].controller == "rule_gate_baseline"
+
+
 def test_example_tracks_use_standard_gate_opening() -> None:
     for track_name in (
         "marine_race_horseshoe_bay.json",

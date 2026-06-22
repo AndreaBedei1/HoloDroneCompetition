@@ -47,10 +47,10 @@ def test_high_level_yaw_maps_to_counterrotating_horizontal_thrusters() -> None:
     )
 
     assert thrusters[:4] == [0.0, 0.0, 0.0, 0.0]
-    assert thrusters[4] < 0.0
-    assert thrusters[5] > 0.0
-    assert thrusters[6] > 0.0
-    assert thrusters[7] < 0.0
+    assert thrusters[4] > 0.0
+    assert thrusters[5] < 0.0
+    assert thrusters[6] < 0.0
+    assert thrusters[7] > 0.0
 
 
 def test_thruster_command_is_padded_and_clamped() -> None:

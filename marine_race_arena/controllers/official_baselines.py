@@ -17,9 +17,117 @@ PHASE_TRANSIT_GATE = "TRANSIT_GATE"
 PHASE_EXIT_GATE = "EXIT_GATE"
 
 VISION_PHASE_ACOUSTIC_APPROACH = "ACOUSTIC_APPROACH"
+VISION_PHASE_TURN_TO_BEACON = "TURN_TO_BEACON"
 VISION_PHASE_VISUAL_ALIGN = "VISUAL_ALIGN"
 VISION_PHASE_VISUAL_TRANSIT = "VISUAL_TRANSIT"
 VISION_PHASE_EXIT_GATE = "EXIT_GATE"
+
+
+class RuleGateBaselineController(BaseController):
+    """Simple official rule-based gate controller using beacon plus FrontCamera."""
+
+    debug_only = False
+    uses_ground_truth = False
+
+    def reset(self, race_info: dict[str, Any]) -> None:
+        max_command = _clamp(_safe_float(race_info.get("max_command"), 0.85), 0.1, 1.0)
+        self.max_surge = min(max_command, 0.62)
+        self.max_sway = min(max_command, 0.24)
+        self.max_heave = min(max_command, 0.34)
+        self.max_yaw = min(max_command, 0.12)
+        self._last_command = _zero_command()
+
+    def step(self, observation: dict[str, Any]) -> dict[str, float]:
+        beacon = _mapping(observation.get("beacon"))
+        sensors = _mapping(observation.get("sensors"))
+        visual_target = _vision_target_from_camera(sensors.get("FrontCamera"))
+        target = self._beacon_fallback(beacon, sensors)
+        if visual_target is not None and visual_target.confidence >= 0.35:
+            target = self._visual_gate_command(beacon, sensors, visual_target, target)
+        smoothed = _smooth_command(self._last_command, target, alpha=0.45)
+        command = _limit_command_delta(
+            self._last_command,
+            smoothed,
+            limits={"surge": 0.07, "sway": 0.05, "heave": 0.05, "yaw": 0.025},
+        )
+        command["yaw"] = _clamp(command["yaw"], -self.max_yaw, self.max_yaw)
+        self._last_command = command
+        return dict(command)
+
+    def close(self) -> None:
+        pass
+
+    def _beacon_fallback(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+    ) -> dict[str, float]:
+        if not bool(beacon.get("valid")):
+            return {"surge": 0.08, "sway": 0.0, "heave": 0.0, "yaw": 0.0}
+
+        bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -100.0, 100.0)
+        elevation_deg = _clamp(_safe_float(beacon.get("elevation_deg"), 0.0), -40.0, 40.0)
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        bearing_abs = abs(bearing_deg)
+        alignment = _clamp(1.0 - bearing_abs / 85.0, 0.18, 1.0)
+        range_speed = 0.18 + 0.30 * _clamp(range_m / 7.0, 0.0, 1.0)
+        surge = _clamp(range_speed * alignment, 0.06, self.max_surge)
+        if bearing_abs > 35.0:
+            surge = min(surge, 0.16)
+        yaw = _yaw_command_from_bearing(
+            bearing_deg,
+            max_yaw=self.max_yaw,
+            gain_deg=260.0,
+            deadband_deg=4.0,
+        )
+        heave = _heave_command(_centerline_elevation_deg(elevation_deg, range_m), sensors, self.max_heave)
+        return {"surge": surge, "sway": 0.0, "heave": heave, "yaw": yaw}
+
+    def _visual_gate_command(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+        target: "VisionTarget",
+        fallback: Mapping[str, float],
+    ) -> dict[str, float]:
+        bearing_deg = _safe_float(beacon.get("bearing_deg"), 0.0) if bool(beacon.get("valid")) else 0.0
+        bearing_abs = abs(bearing_deg)
+        error_x = target.center_x
+        error_y = target.center_y
+        centered_x = abs(error_x) <= 0.14
+        centered_y = abs(error_y) <= 0.32
+        roughly_aligned = bearing_abs <= 35.0
+
+        if bearing_abs >= 55.0:
+            yaw = _yaw_command_from_bearing(
+                bearing_deg,
+                max_yaw=0.09,
+                gain_deg=300.0,
+                deadband_deg=5.0,
+            )
+        elif abs(error_x) > 0.08:
+            yaw = _clamp(0.10 * error_x, -0.08, 0.08)
+        else:
+            yaw = _clamp(0.45 * float(fallback.get("yaw", 0.0)), -0.04, 0.04)
+
+        sway = _clamp(0.10 * error_x, -self.max_sway, self.max_sway) if abs(error_x) <= 0.30 else 0.0
+        heave = _clamp(
+            0.45 * float(fallback.get("heave", 0.0)) - 0.30 * error_y,
+            -self.max_heave,
+            self.max_heave,
+        )
+        if centered_x and centered_y and roughly_aligned:
+            surge = 0.44 + 0.10 * _clamp(target.area_fraction / 0.12, 0.0, 1.0)
+        else:
+            surge = 0.08 + 0.10 * max(0.0, 1.0 - abs(error_x))
+            if bearing_abs > 35.0:
+                surge = min(surge, 0.12)
+        return {
+            "surge": _clamp(surge, 0.04, self.max_surge),
+            "sway": sway,
+            "heave": heave,
+            "yaw": yaw,
+        }
 
 
 class AcousticBaselineController(BaseController):
@@ -210,7 +318,7 @@ class VisionGateBaselineController(BaseController):
         self.max_surge = min(max_command, 0.72)
         self.max_sway = min(max_command, 0.50)
         self.max_heave = min(max_command, 0.48)
-        self.max_yaw = min(max_command, 0.22)
+        self.max_yaw = min(max_command, 0.08)
         self._phase = VISION_PHASE_ACOUSTIC_APPROACH
         self._last_command = _zero_command()
         self._last_completed_gates = 0
@@ -218,6 +326,11 @@ class VisionGateBaselineController(BaseController):
         self._visual_lock_steps = 0
         self._exit_steps_remaining = 0
         self._transit_steps_remaining = 0
+        self._recovery_steps_remaining = 0
+        self._recovery_mode = "none"
+        self._collision_streak = 0
+        self._turn_direction = 0.0
+        self._turn_release_steps = 0
         self._step_count = 0
         self._verbose = _env_flag("MARINE_RACE_VISION_GATE_BASELINE_VERBOSE")
 
@@ -229,17 +342,40 @@ class VisionGateBaselineController(BaseController):
         beacon = _mapping(observation.get("beacon"))
         sensors = _mapping(observation.get("sensors"))
         race = _mapping(observation.get("race"))
-        acoustic_command = self._acoustic_fallback_command(observation)
         visual_target = self._locked_visual_target(
-            self._visual_candidate(beacon, _vision_target_from_camera(sensors.get("FrontCamera")))
+            self._visual_candidate(beacon, _vision_targets_from_camera(sensors.get("FrontCamera")))
         )
+        target_sequence_index = int(_safe_float(race.get("target_sequence_index"), 0.0))
+        if _collision_active_from_sensors(sensors):
+            self._collision_streak += 1
+        else:
+            self._collision_streak = 0
+        if (
+            target_sequence_index >= 2
+            and self._collision_streak >= 6
+            and self._recovery_steps_remaining <= 0
+        ):
+            if self._phase == VISION_PHASE_EXIT_GATE or _safe_float(beacon.get("range_m"), 0.0) < 2.0:
+                self._recovery_steps_remaining = 20
+                self._recovery_mode = "scrub"
+            else:
+                self._recovery_steps_remaining = 18
+                self._recovery_mode = "backoff"
+            self._collision_streak = 0
         self._update_phase(beacon, race, visual_target)
-        target_command = self._phase_command(acoustic_command, visual_target)
+        acoustic_command = self._acoustic_fallback_command(observation)
+        if self._recovery_steps_remaining > 0:
+            target_command = self._recovery_command(beacon, acoustic_command, visual_target)
+            self._recovery_steps_remaining -= 1
+            if self._recovery_steps_remaining <= 0:
+                self._recovery_mode = "none"
+        else:
+            target_command = self._phase_command(acoustic_command, visual_target)
         smoothed = _smooth_command(self._last_command, target_command, alpha=0.48)
         command = _limit_command_delta(
             self._last_command,
             smoothed,
-            limits={"surge": 0.08, "sway": 0.08, "heave": 0.07, "yaw": 0.035},
+            limits={"surge": 0.08, "sway": 0.08, "heave": 0.07, "yaw": 0.025},
         )
         command["yaw"] = _clamp(command["yaw"], -self.max_yaw, self.max_yaw)
         self._last_command = command
@@ -261,16 +397,41 @@ class VisionGateBaselineController(BaseController):
             return command
 
         range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
-        bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -150.0, 150.0)
+        bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -179.0, 179.0)
+        bearing_abs = abs(bearing_deg)
         bearing_rad = math.radians(bearing_deg)
         range_factor = _clamp(range_m / 9.0, 0.0, 1.0)
-        speed = 0.26 + 0.42 * range_factor
-        forward_alignment = max(0.18, math.cos(bearing_rad))
-        command["surge"] = _clamp(speed * forward_alignment, 0.08, self.max_surge)
-        command["sway"] = _clamp(0.62 * math.sin(bearing_rad), -self.max_sway, self.max_sway)
-        command["yaw"] = 0.0
+        if self._phase == VISION_PHASE_TURN_TO_BEACON:
+            turn_direction = self._turn_yaw_direction(bearing_deg)
+            yaw_limit = 0.045 if range_m < 4.0 else min(self.max_yaw, 0.060)
+            yaw_magnitude = _clamp((bearing_abs - 8.0) / 340.0, 0.018, yaw_limit)
+            turn_amount = _clamp((bearing_abs - 28.0) / 70.0, 0.0, 1.0)
+            turn_surge = 0.20 + 0.12 * _clamp(range_m / 7.0, 0.0, 1.0) - 0.08 * turn_amount
+            command["surge"] = _clamp(
+                turn_surge,
+                0.12,
+                0.32,
+            )
+            command["sway"] = _clamp(0.16 * math.sin(bearing_rad), -0.18, 0.18)
+            command["yaw"] = -turn_direction * yaw_magnitude
+        else:
+            speed = 0.24 + 0.42 * range_factor
+            turn_slowdown = _clamp(1.0 - bearing_abs / 115.0, 0.24, 1.0)
+            command["surge"] = _clamp(speed * turn_slowdown, 0.06, self.max_surge)
+            command["sway"] = _clamp(0.18 * math.sin(bearing_rad), -self.max_sway, self.max_sway)
+            command["yaw"] = _yaw_command_from_bearing(
+                -bearing_deg,
+                max_yaw=0.055 if range_m < 3.2 else min(self.max_yaw, 0.12),
+                gain_deg=170.0,
+                deadband_deg=10.0,
+            )
         command["heave"] = _clamp(command["heave"], -self.max_heave, self.max_heave)
         return command
+
+    def _turn_yaw_direction(self, bearing_deg: float) -> float:
+        if abs(bearing_deg) <= 1.0:
+            return self._turn_direction or 0.0
+        return math.copysign(1.0, bearing_deg)
 
     def _locked_visual_target(self, detected: VisionTarget | None) -> VisionTarget | None:
         if detected is not None and detected.confidence >= 0.38:
@@ -283,23 +444,22 @@ class VisionGateBaselineController(BaseController):
         self._last_visual_target = None
         return None
 
-    def _visual_candidate(self, beacon: Mapping[str, Any], detected: VisionTarget | None) -> VisionTarget | None:
-        if detected is None or self._phase == VISION_PHASE_EXIT_GATE:
+    def _visual_candidate(self, beacon: Mapping[str, Any], detected: list[VisionTarget]) -> VisionTarget | None:
+        if not detected or self._phase == VISION_PHASE_EXIT_GATE:
+            return None
+        selected = _select_visual_target_for_beacon(detected, beacon)
+        if selected is None:
             return None
         if self._phase in {VISION_PHASE_VISUAL_ALIGN, VISION_PHASE_VISUAL_TRANSIT}:
-            return detected
+            if bool(beacon.get("valid")):
+                range_m = max(0.0, _safe_float(beacon.get("range_m"), 999.0))
+                bearing_deg = _safe_float(beacon.get("bearing_deg"), 180.0)
+                if range_m > 3.2 and (abs(bearing_deg) > 55.0 or _vision_conflicts_with_beacon(selected, bearing_deg)):
+                    return None
+            return selected
         if not bool(beacon.get("valid")):
-            return None
-        range_m = max(0.0, _safe_float(beacon.get("range_m"), 999.0))
-        bearing_abs = abs(_safe_float(beacon.get("bearing_deg"), 180.0))
-        if range_m <= 8.0 and bearing_abs <= 25.0:
-            return detected
-        if range_m <= 5.5 and bearing_abs <= 80.0:
-            min_expected_offset = 0.25 if bearing_abs >= 55.0 else 0.12
-            if bearing_abs >= 30.0 and abs(detected.center_x) < min_expected_offset:
-                return None
-            return detected
-        return None
+            return selected if selected.confidence >= 0.72 and abs(selected.center_x) <= 0.35 else None
+        return selected
 
     def _update_phase(
         self,
@@ -310,10 +470,15 @@ class VisionGateBaselineController(BaseController):
         completed_gates = max(0, int(_safe_float(race.get("completed_gates"), self._last_completed_gates)))
         if completed_gates > self._last_completed_gates:
             self._phase = VISION_PHASE_EXIT_GATE
-            self._exit_steps_remaining = 34
+            self._exit_steps_remaining = 24
             self._transit_steps_remaining = 0
             self._visual_lock_steps = 0
             self._last_visual_target = None
+            self._recovery_steps_remaining = 0
+            self._recovery_mode = "none"
+            self._collision_streak = 0
+            self._turn_direction = 0.0
+            self._turn_release_steps = 0
             self._last_completed_gates = completed_gates
             return
 
@@ -323,25 +488,53 @@ class VisionGateBaselineController(BaseController):
                 return
             self._phase = VISION_PHASE_ACOUSTIC_APPROACH
 
+        bearing_deg = _safe_float(beacon.get("bearing_deg"), 0.0)
+        bearing_abs = abs(bearing_deg)
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        beacon_valid = bool(beacon.get("valid"))
+
         if self._phase in {VISION_PHASE_VISUAL_ALIGN, VISION_PHASE_VISUAL_TRANSIT} and _beacon_points_away(beacon):
             self._phase = VISION_PHASE_ACOUSTIC_APPROACH
             self._transit_steps_remaining = 0
             self._visual_lock_steps = 0
             self._last_visual_target = None
+            self._turn_release_steps = 0
             return
 
         if visual_target is None:
             if self._phase == VISION_PHASE_VISUAL_TRANSIT and self._transit_steps_remaining > 0:
                 self._transit_steps_remaining -= 1
                 return
+            if beacon_valid and (
+                range_m >= 3.2
+                and (bearing_abs >= 35.0 or (self._phase == VISION_PHASE_TURN_TO_BEACON and bearing_abs > 24.0))
+            ):
+                self._phase = VISION_PHASE_TURN_TO_BEACON
+                if bearing_abs < 120.0 or self._turn_direction == 0.0:
+                    self._turn_direction = math.copysign(1.0, bearing_deg or 1.0)
+                self._turn_release_steps = 0
+                return
+            if self._phase == VISION_PHASE_TURN_TO_BEACON and (bearing_abs <= 24.0 or range_m < 3.2):
+                self._turn_release_steps += 1
+                if self._turn_release_steps < 4:
+                    return
+            self._turn_direction = 0.0
+            self._turn_release_steps = 0
             self._phase = VISION_PHASE_ACOUSTIC_APPROACH
             return
 
-        if self._phase == VISION_PHASE_ACOUSTIC_APPROACH:
+        self._turn_direction = 0.0
+        self._turn_release_steps = 0
+        if self._phase in {VISION_PHASE_ACOUSTIC_APPROACH, VISION_PHASE_TURN_TO_BEACON}:
             self._phase = VISION_PHASE_VISUAL_ALIGN
 
         if self._phase == VISION_PHASE_VISUAL_ALIGN:
-            centered = abs(visual_target.center_x) <= 0.16 and abs(visual_target.center_y) <= 0.30
+            horizontal_center_limit = 0.16 if range_m < 4.0 else 0.14
+            vertical_center_limit = 0.40 if range_m < 4.0 else 0.30
+            centered = (
+                abs(visual_target.center_x) <= horizontal_center_limit
+                and abs(visual_target.center_y) <= vertical_center_limit
+            )
             large_enough = visual_target.area_fraction >= 0.030 or visual_target.confidence >= 0.62
             if centered and large_enough:
                 self._phase = VISION_PHASE_VISUAL_TRANSIT
@@ -363,8 +556,8 @@ class VisionGateBaselineController(BaseController):
         visual_target: VisionTarget | None,
     ) -> dict[str, float]:
         if self._phase == VISION_PHASE_EXIT_GATE:
-            return {"surge": 0.74, "sway": 0.0, "heave": 0.0, "yaw": 0.0}
-        if visual_target is None or self._phase == VISION_PHASE_ACOUSTIC_APPROACH:
+            return {"surge": 0.68, "sway": 0.0, "heave": 0.0, "yaw": 0.0}
+        if visual_target is None or self._phase in {VISION_PHASE_ACOUSTIC_APPROACH, VISION_PHASE_TURN_TO_BEACON}:
             return dict(acoustic_command)
 
         error_x = visual_target.center_x
@@ -372,17 +565,49 @@ class VisionGateBaselineController(BaseController):
         acoustic_heave = _clamp(float(acoustic_command.get("heave", 0.0)), -self.max_heave, self.max_heave)
         if self._phase == VISION_PHASE_VISUAL_TRANSIT:
             return {
-                "surge": _clamp(0.58 + 0.12 * min(1.0, visual_target.area_fraction / 0.15), 0.45, self.max_surge),
-                "sway": _clamp(-0.30 * error_x, -self.max_sway, self.max_sway),
-                "heave": _clamp(0.50 * acoustic_heave + 0.24 * error_y, -self.max_heave, self.max_heave),
-                "yaw": 0.0,
+                "surge": _clamp(0.48 + 0.08 * min(1.0, visual_target.area_fraction / 0.15), 0.38, 0.58),
+                "sway": _clamp(-0.38 * error_x, -self.max_sway, self.max_sway),
+                "heave": _clamp(0.50 * acoustic_heave - 0.28 * error_y, -self.max_heave, self.max_heave),
+                "yaw": _clamp(0.030 * error_x, -0.030, 0.030),
             }
         return {
-            "surge": _clamp(0.22 + 0.16 * visual_target.confidence, 0.16, 0.42),
-            "sway": _clamp(-0.46 * error_x, -self.max_sway, self.max_sway),
-            "heave": _clamp(acoustic_heave + 0.34 * error_y, -self.max_heave, self.max_heave),
-            "yaw": 0.0,
+            "surge": _clamp(0.18 + 0.16 * visual_target.confidence, 0.14, 0.38),
+            "sway": _clamp(-0.55 * error_x, -self.max_sway, self.max_sway),
+            "heave": _clamp(acoustic_heave - 0.38 * error_y, -self.max_heave, self.max_heave),
+            "yaw": _clamp(0.09 * error_x, -0.065, 0.065),
         }
+
+    def _recovery_command(
+        self,
+        beacon: Mapping[str, Any],
+        acoustic_command: Mapping[str, float],
+        visual_target: VisionTarget | None,
+    ) -> dict[str, float]:
+        bearing_deg = _safe_float(beacon.get("bearing_deg"), 0.0)
+        yaw = _yaw_command_from_bearing(-bearing_deg, max_yaw=0.08, gain_deg=150.0, deadband_deg=8.0)
+        sway = 0.0
+        heave = _clamp(float(acoustic_command.get("heave", 0.0)), -self.max_heave, self.max_heave)
+        if self._recovery_mode == "scrub":
+            side_step = 1.0 if (self._step_count // 14) % 2 == 0 else -1.0
+            if abs(bearing_deg) > 25.0:
+                side_step = math.copysign(1.0, bearing_deg)
+            if visual_target is not None and abs(visual_target.center_x) > 0.08:
+                side_step = -math.copysign(1.0, visual_target.center_x)
+            return {
+                "surge": 0.50,
+                "sway": 0.42 * side_step,
+                "heave": _clamp(heave - 0.08, -self.max_heave, self.max_heave),
+                "yaw": 0.0,
+            }
+        if visual_target is not None:
+            sway = _clamp(-0.22 * visual_target.center_x, -0.22, 0.22)
+            heave = _clamp(0.50 * heave - 0.20 * visual_target.center_y, -self.max_heave, self.max_heave)
+            yaw = _clamp(0.08 * visual_target.center_x + 0.50 * yaw, -0.08, 0.08)
+        else:
+            side_step = 1.0 if (self._step_count // 18) % 2 == 0 else -1.0
+            sway = 0.24 * side_step
+            heave = _clamp(heave - 0.12, -self.max_heave, self.max_heave)
+        return {"surge": -0.26, "sway": sway, "heave": heave, "yaw": yaw}
 
     def _log_diagnostics(self, visual_target: VisionTarget | None, command: Mapping[str, float]) -> None:
         if not self._verbose or self._step_count % 10 != 0:
@@ -427,6 +652,10 @@ class VisionTarget:
 
 
 def _vision_target_from_camera(image: Any) -> VisionTarget | None:
+    return _select_default_visual_target(_vision_targets_from_camera(image))
+
+
+def _vision_targets_from_camera(image: Any) -> list[VisionTarget]:
     shape = getattr(image, "shape", None)
     if shape is not None and len(shape) >= 2:
         height = int(shape[0])
@@ -435,21 +664,16 @@ def _vision_target_from_camera(image: Any) -> VisionTarget | None:
         height = len(image)
         width = len(image[0])
     else:
-        return None
+        return []
     if width <= 0 or height <= 0:
-        return None
+        return []
 
     step = max(1, int(max(width, height) / 80))
-    selected = 0
     sampled = 0
-    sum_x = 0.0
-    sum_y = 0.0
-    min_x = width
-    max_x = -1
-    min_y = height
-    max_y = -1
+    selected_cells: dict[tuple[int, int], tuple[int, int]] = {}
 
     for y in range(0, height, step):
+        grid_y = y // step
         for x in range(0, width, step):
             pixel = _pixel_channels(image, x, y)
             if pixel is None:
@@ -457,23 +681,69 @@ def _vision_target_from_camera(image: Any) -> VisionTarget | None:
             sampled += 1
             if not _looks_like_gate_bar_pixel(pixel):
                 continue
-            selected += 1
-            sum_x += x
-            sum_y += y
-            min_x = min(min_x, x)
-            max_x = max(max_x, x)
-            min_y = min(min_y, y)
-            max_y = max(max_y, y)
+            selected_cells[(x // step, grid_y)] = (x, y)
 
-    if sampled == 0 or selected < max(8, int(0.004 * sampled)):
+    if sampled == 0 or len(selected_cells) < max(8, int(0.004 * sampled)):
+        return []
+
+    targets: list[VisionTarget] = []
+    all_points = list(selected_cells.values())
+    global_target = _vision_target_from_points(all_points, sampled, width, height)
+    if global_target is not None:
+        targets.append(global_target)
+
+    visited: set[tuple[int, int]] = set()
+    for cell in selected_cells:
+        if cell in visited:
+            continue
+        stack = [cell]
+        visited.add(cell)
+        component_points: list[tuple[int, int]] = []
+        while stack:
+            current = stack.pop()
+            component_points.append(selected_cells[current])
+            cx, cy = current
+            for nx in range(cx - 1, cx + 2):
+                for ny in range(cy - 1, cy + 2):
+                    neighbor = (nx, ny)
+                    if neighbor in visited or neighbor not in selected_cells:
+                        continue
+                    visited.add(neighbor)
+                    stack.append(neighbor)
+        if len(component_points) < max(6, int(0.0015 * sampled)):
+            continue
+        target = _vision_target_from_points(component_points, sampled, width, height)
+        if target is not None:
+            targets.append(target)
+
+    deduped: list[VisionTarget] = []
+    for target in sorted(targets, key=lambda item: item.confidence, reverse=True):
+        if any(abs(target.center_x - existing.center_x) < 0.04 and abs(target.center_y - existing.center_y) < 0.04 for existing in deduped):
+            continue
+        deduped.append(target)
+    return deduped[:8]
+
+
+def _vision_target_from_points(
+    points: list[tuple[int, int]],
+    sampled: int,
+    width: int,
+    height: int,
+) -> VisionTarget | None:
+    if not points:
         return None
+    selected = len(points)
+    min_x = min(point[0] for point in points)
+    max_x = max(point[0] for point in points)
+    min_y = min(point[1] for point in points)
+    max_y = max(point[1] for point in points)
     box_width = max_x - min_x + 1
     box_height = max_y - min_y + 1
-    if box_width < width * 0.03 or box_height < height * 0.03:
+    if box_width < width * 0.025 or box_height < height * 0.025:
         return None
 
-    center_x_px = sum_x / selected
-    center_y_px = sum_y / selected
+    center_x_px = sum(point[0] for point in points) / selected
+    center_y_px = sum(point[1] for point in points) / selected
     center_x = _clamp((center_x_px - (width - 1) * 0.5) / max(1.0, (width - 1) * 0.5), -1.0, 1.0)
     center_y = _clamp((center_y_px - (height - 1) * 0.5) / max(1.0, (height - 1) * 0.5), -1.0, 1.0)
     coverage = selected / sampled
@@ -527,6 +797,60 @@ def _looks_like_gate_bar_pixel(pixel: tuple[float, float, float]) -> bool:
     return (high >= 115.0 and saturation >= 35.0) or mean >= 190.0
 
 
+def _select_visual_target_for_beacon(
+    targets: list[VisionTarget],
+    beacon: Mapping[str, Any],
+) -> VisionTarget | None:
+    if not targets:
+        return None
+    if not bool(beacon.get("valid")):
+        return _select_default_visual_target(targets)
+
+    bearing_deg = _safe_float(beacon.get("bearing_deg"), 0.0)
+    bearing_abs = abs(bearing_deg)
+    range_m = max(0.0, _safe_float(beacon.get("range_m"), 999.0))
+    close_default = _select_default_visual_target(targets)
+    if range_m <= 3.2 and close_default is not None and close_default.confidence >= 0.55:
+        if bearing_abs <= 45.0 or not _vision_conflicts_with_beacon(close_default, bearing_deg):
+            return close_default
+
+    scored: list[tuple[float, VisionTarget]] = []
+    for target in targets:
+        if target.confidence < 0.38:
+            continue
+        centered_score = _clamp(1.0 - 0.75 * abs(target.center_x) - 0.25 * abs(target.center_y), 0.0, 1.0)
+        size_score = _clamp(target.area_fraction / 0.12, 0.0, 1.0)
+        if bearing_abs <= 25.0:
+            scored.append((target.confidence + 0.35 * centered_score + 0.20 * size_score, target))
+            continue
+
+        # Positive acoustic bearing means the selected gate is to camera-left.
+        expected_side_amount = -math.copysign(1.0, bearing_deg) * target.center_x
+        min_offset = 0.10 if bearing_abs < 45.0 else 0.18
+        if expected_side_amount < min_offset:
+            continue
+        if bearing_abs > 70.0 and range_m > 3.0 and target.confidence < 0.86:
+            continue
+        side_score = _clamp(expected_side_amount / 0.55, 0.0, 1.0)
+        scored.append((target.confidence + 0.65 * side_score + 0.15 * size_score, target))
+    if not scored:
+        return None
+    return max(scored, key=lambda item: item[0])[1]
+
+
+def _select_default_visual_target(targets: list[VisionTarget]) -> VisionTarget | None:
+    if not targets:
+        return None
+    return max(
+        targets,
+        key=lambda target: (
+            target.confidence
+            + 0.30 * _clamp(1.0 - abs(target.center_x), 0.0, 1.0)
+            + 0.15 * _clamp(1.0 - abs(target.center_y), 0.0, 1.0)
+        ),
+    )
+
+
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
@@ -555,6 +879,23 @@ def _vertical_velocity_from_sensors(sensors: Mapping[str, Any]) -> float | None:
     return None
 
 
+def _collision_active_from_sensors(sensors: Mapping[str, Any]) -> bool:
+    for key, value in sensors.items():
+        if "collision" not in str(key).lower() and "contact" not in str(key).lower():
+            continue
+        if hasattr(value, "any"):
+            try:
+                return bool(value.any())
+            except Exception:
+                return bool(value)
+        if isinstance(value, Mapping):
+            return any(bool(item) for item in value.values())
+        if isinstance(value, (list, tuple)):
+            return any(bool(item) for item in value)
+        return bool(value)
+    return False
+
+
 def _yaw_command_from_bearing(
     bearing_deg: float,
     max_yaw: float,
@@ -578,6 +919,12 @@ def _beacon_points_away(beacon: Mapping[str, Any]) -> bool:
     range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
     bearing_abs = abs(_safe_float(beacon.get("bearing_deg"), 0.0))
     return range_m >= 3.5 and bearing_abs >= 95.0
+
+
+def _vision_conflicts_with_beacon(target: VisionTarget, bearing_deg: float) -> bool:
+    if abs(bearing_deg) <= 25.0 or abs(target.center_x) <= 0.10:
+        return False
+    return bearing_deg * target.center_x > 0.0
 
 
 def _heave_command(elevation_deg: float, sensors: Mapping[str, Any], max_heave: float) -> float:
