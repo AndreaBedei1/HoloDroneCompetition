@@ -5,6 +5,7 @@ from marine_race_arena.controllers.keyboard_manual import KeyboardManualControll
 from marine_race_arena.controllers.official_baselines import (
     AcousticBaselineController,
     AcousticVisionBaselineController,
+    VisionGateBaselineController,
 )
 from marine_race_arena.controllers.oracle_gate_follower import OracleGateFollowerController
 from marine_race_arena.controllers.pygame_manual import PygameManualController
@@ -14,6 +15,7 @@ __all__ = [
     "AcousticGateFollowerController",
     "AcousticBaselineController",
     "AcousticVisionBaselineController",
+    "VisionGateBaselineController",
     "KeyboardManualController",
     "OracleGateFollowerController",
     "PygameManualController",

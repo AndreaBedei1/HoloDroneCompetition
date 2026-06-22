@@ -37,7 +37,7 @@ The arena owns the static race definition: bounds, gate geometry, debug visual g
 
 The beacon system guides the rover toward the next expected gate. It does not validate gate passage. In official mode it returns bearing, elevation, range, signal strength, and metadata, but not exact gate positions.
 
-Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The reproducible official baselines are `acoustic_baseline` and `acoustic_vision_baseline`; `pygame`/`keyboard` are manual demo controllers, and `oracle` is debug-only.
+Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The reproducible official baselines are `acoustic_baseline`, `acoustic_vision_baseline`, and `vision_gate_baseline`; `vision_gate_baseline` is the main reproducible HoloOcean baseline. `pygame`/`keyboard` are manual demo controllers, and `oracle` is debug-only.
 
 The referee validates gates using simulation ground truth. This is allowed because the referee is not a participant controller. The first implementation validates the vehicle center point and keeps the interface ready for future full-body validation.
 
@@ -135,14 +135,16 @@ conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark
 
 ## Reproducible Official Baselines
 
-Two built-in non-cheating baseline controllers are available for benchmark evaluation:
+Three built-in non-cheating baseline controllers are available for benchmark evaluation:
 
 - `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, a small approach/transit/exit state machine, smoothed yaw with a deadband, vertical regulation, and speed scheduling around gates.
 - `acoustic_vision_baseline`: uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment when the camera image is available and confident.
+- `vision_gate_baseline`: main reproducible HoloOcean baseline. It uses beacon guidance for long-range gate selection and switches to deterministic FrontCamera visual servoing when a gate-like opening is detected. In local visual phases it centers the gate with sway/heave, keeps yaw heavily damped, surges through the opening, and uses post-gate exit hysteresis to avoid yaw spin after crossing.
 
-Both set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
+All three set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
 
 Set `MARINE_RACE_ACOUSTIC_BASELINE_VERBOSE=1` to log acoustic baseline diagnostics including phase, beacon range, bearing, elevation, surge, yaw, and heave.
+Set `MARINE_RACE_VISION_GATE_BASELINE_VERBOSE=1` to log vision baseline phase, visual confidence, image error, and commands.
 
 Clean-gate acoustic baseline:
 
@@ -160,6 +162,12 @@ Clean-gate acoustic plus vision baseline with `FrontCamera`:
 
 ```bash
 conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_vision_baseline --adapter holoocean --allow-fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.033 --output-dir results/benchmarks/clean_gate_acoustic_vision_baseline
+```
+
+Clean-gate HoloOcean vision gate baseline with beacon target diagnostics:
+
+```bash
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller vision_gate_baseline --adapter holoocean --duration 300 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
 ```
 
 ## Gate Validation Rule
@@ -326,6 +334,7 @@ Useful flags:
 - `--controller-class`: class name to instantiate when using a Python file or module path.
 - `--disable-front-camera`: disable `FrontCamera` capture for non-official live/debug runs when the viewport or control loop is too slow. This is rejected in `--official` mode.
 - `--show-front-camera`: open a live viewer for `observation["sensors"]["FrontCamera"]`. Press `V` or `Esc` in the camera viewer to close only that viewer while the race continues.
+- `--print-beacon-targets`: print de-duplicated beacon/race target diagnostics when the target gate, target index, or beacon availability changes, plus periodic 2 s updates. It can also be enabled with `MARINE_RACE_PRINT_BEACON_TARGETS=1`.
 - `--log-dir`: output directory for JSONL events and summary JSON.
 - `--seed`: deterministic beacon noise/dropout seed and random-obstacle seed.
 

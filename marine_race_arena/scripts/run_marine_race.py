@@ -6,6 +6,7 @@ import argparse
 import copy
 import json
 import logging
+import os
 import sys
 import time
 from dataclasses import replace
@@ -73,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     logger = RaceLogger(args.log_dir, config.race.name, track_file=args.track)
     referee = Referee(config, arena.gate_map, arena.bounds, logger=logger)
     camera_viewer = FrontCameraViewer(enabled=args.show_front_camera)
+    beacon_target_printer = BeaconTargetPrinter(
+        enabled=args.print_beacon_targets or _env_flag("MARINE_RACE_PRINT_BEACON_TARGETS")
+    )
 
     try:
         participants = _load_participants(config, args)
@@ -100,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             participants=participants,
             dt=args.dt,
             camera_viewer=camera_viewer,
+            beacon_target_printer=beacon_target_printer,
         )
         logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
         logger.write_summary(summary)
@@ -129,7 +134,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Built-in controller alias: pygame, pygame_keyboard, keyboard, manual, "
             "oracle, acoustic, acoustic_baseline, acoustic_vision_baseline, "
-            "student_template. Overrides track config."
+            "vision_gate_baseline, student_template. Overrides track config."
         ),
     )
     parser.add_argument(
@@ -199,6 +204,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "Display observation['sensors']['FrontCamera'] in a live viewer. "
             "Press V or Esc in the viewer window to close only the camera viewer."
         ),
+    )
+    parser.add_argument(
+        "--print-beacon-targets",
+        action="store_true",
+        help="Print de-duplicated beacon/race target diagnostics while the race loop runs.",
     )
     return parser
 
@@ -331,6 +341,7 @@ def _run_race_loop(
     participants: Mapping[str, RaceParticipant],
     dt: float,
     camera_viewer: "FrontCameraViewer | None" = None,
+    beacon_target_printer: "BeaconTargetPrinter | None" = None,
 ) -> Dict[str, Any]:
     LOGGER.info(
         "Starting race '%s' with adapter '%s' in %s.",
@@ -359,6 +370,8 @@ def _run_race_loop(
                 participant=participant,
                 participant_state=previous_state,
             )
+            if beacon_target_printer is not None:
+                beacon_target_printer.update(observation, participant.id)
             if camera_viewer is not None:
                 camera_viewer.update(observation, participant.id)
             try:
@@ -628,6 +641,64 @@ class FrontCameraViewer:
         return frame[:, :, [2, 1, 0, 3]][:, :, :3]
 
 
+class BeaconTargetPrinter:
+    """De-duplicated beacon/race target diagnostics for manual debugging."""
+
+    def __init__(
+        self,
+        enabled: bool,
+        periodic_interval_s: float = 2.0,
+        stream: Any = None,
+    ) -> None:
+        self.enabled = enabled
+        self.periodic_interval_s = max(0.0, float(periodic_interval_s))
+        self.stream = stream if stream is not None else sys.stdout
+        self._last_signature_by_participant: dict[str, tuple[object, ...]] = {}
+        self._last_print_time_by_participant: dict[str, float] = {}
+
+    def update(self, observation: Mapping[str, Any], participant_id: str) -> bool:
+        if not self.enabled:
+            return False
+        time_s = _safe_float(observation.get("time_s"), 0.0)
+        beacon = observation.get("beacon")
+        race = observation.get("race")
+        beacon_map = beacon if isinstance(beacon, Mapping) else {}
+        race_map = race if isinstance(race, Mapping) else {}
+        available = bool(beacon_map.get("valid")) and bool(
+            beacon_map.get("target_gate_id") or race_map.get("target_gate_id")
+        )
+        target = str(race_map.get("target_gate_id") or beacon_map.get("target_gate_id") or "")
+        index = race_map.get("target_sequence_index", beacon_map.get("sequence_index"))
+        status = race_map.get("status")
+        completed = race_map.get("completed_gates")
+        signature = (available, target if available else None, index if available else None, status, completed)
+        previous_signature = self._last_signature_by_participant.get(participant_id)
+        previous_time = self._last_print_time_by_participant.get(participant_id)
+        periodic_due = (
+            previous_time is None
+            or self.periodic_interval_s > 0.0
+            and (time_s - previous_time) >= self.periodic_interval_s
+        )
+        if signature == previous_signature and not periodic_due:
+            return False
+
+        if available:
+            line = (
+                f"[BEACON] t={time_s:.1f}s participant={participant_id} "
+                f"status={_display_value(status)} target={target} index={_display_value(index)} "
+                f"range={_display_number(beacon_map.get('range_m'))} "
+                f"bearing={_display_number(beacon_map.get('bearing_deg'))} "
+                f"elevation={_display_number(beacon_map.get('elevation_deg'))} "
+                f"completed={_display_value(completed)}"
+            )
+        else:
+            line = f"[BEACON] t={time_s:.1f}s participant={participant_id} target unavailable"
+        print(line, file=self.stream)
+        self._last_signature_by_participant[participant_id] = signature
+        self._last_print_time_by_participant[participant_id] = time_s
+        return True
+
+
 def _build_controller_observation(
     config: TrackConfig,
     arena: Arena,
@@ -735,6 +806,30 @@ def _copy_observation_for_controller(value: Any) -> Any:
 def _looks_like_image_array(value: Any) -> bool:
     shape = getattr(value, "shape", None)
     return shape is not None and len(shape) >= 2
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _display_number(value: Any) -> str:
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return "NA"
+
+
+def _display_value(value: Any) -> str:
+    if value is None:
+        return "NA"
+    return str(value)
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _print_summary(summary: Dict[str, Any]) -> None:

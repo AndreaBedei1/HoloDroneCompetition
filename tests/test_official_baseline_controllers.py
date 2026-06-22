@@ -12,6 +12,11 @@ from marine_race_arena.controllers.official_baselines import (
     PHASE_APPROACH_GATE,
     PHASE_EXIT_GATE,
     PHASE_TRANSIT_GATE,
+    VISION_PHASE_ACOUSTIC_APPROACH,
+    VISION_PHASE_EXIT_GATE,
+    VISION_PHASE_VISUAL_ALIGN,
+    VISION_PHASE_VISUAL_TRANSIT,
+    VisionGateBaselineController,
 )
 from marine_race_arena.participants.controller_loader import ControllerLoader
 from marine_race_arena.participants.participant import RaceParticipant
@@ -27,6 +32,7 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
     [
         ("acoustic_baseline", AcousticBaselineController),
         ("acoustic_vision_baseline", AcousticVisionBaselineController),
+        ("vision_gate_baseline", VisionGateBaselineController),
     ],
 )
 def test_official_baseline_aliases_load_and_are_not_ground_truth(
@@ -40,7 +46,7 @@ def test_official_baseline_aliases_load_and_are_not_ground_truth(
     assert controller.uses_ground_truth is False
 
 
-@pytest.mark.parametrize("alias", ["acoustic_baseline", "acoustic_vision_baseline"])
+@pytest.mark.parametrize("alias", ["acoustic_baseline", "acoustic_vision_baseline", "vision_gate_baseline"])
 def test_official_mode_accepts_reproducible_baselines(alias: str) -> None:
     config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
     config = replace(config, race=replace(config.race, official_mode=True))
@@ -58,7 +64,7 @@ def test_official_mode_accepts_reproducible_baselines(alias: str) -> None:
 
 @pytest.mark.parametrize(
     "controller",
-    [AcousticBaselineController(), AcousticVisionBaselineController()],
+    [AcousticBaselineController(), AcousticVisionBaselineController(), VisionGateBaselineController()],
 )
 def test_official_baselines_return_valid_commands_for_synthetic_observation(controller: object) -> None:
     controller.reset({"max_command": 0.95})
@@ -72,7 +78,7 @@ def test_official_baselines_return_valid_commands_for_synthetic_observation(cont
 
 @pytest.mark.parametrize(
     "controller",
-    [AcousticBaselineController(), AcousticVisionBaselineController()],
+    [AcousticBaselineController(), AcousticVisionBaselineController(), VisionGateBaselineController()],
 )
 def test_official_baselines_handle_missing_inputs_safely(controller: object) -> None:
     controller.reset({"max_command": 0.95})
@@ -173,6 +179,140 @@ def test_vision_baseline_uses_front_camera_for_local_alignment() -> None:
     assert command["sway"] < 0.0
 
 
+def test_vision_gate_baseline_handles_missing_camera_safely() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["sensors"].pop("FrontCamera", None)
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+    assert set(command) == {"surge", "sway", "heave", "yaw"}
+    assert all(-1.0 <= value <= 1.0 for value in command.values())
+
+
+def test_vision_gate_baseline_handles_invalid_image_safely() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["sensors"]["FrontCamera"] = "not an image"
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+    assert all(-1.0 <= value <= 1.0 for value in command.values())
+
+
+def test_vision_gate_baseline_low_confidence_falls_back_to_acoustic_phase() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["beacon"]["bearing_deg"] = 0.0
+    observation["sensors"]["FrontCamera"] = [[[5, 5, 5] for _ in range(80)] for _ in range(60)]
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+    assert command["surge"] > 0.0
+    assert abs(command["yaw"]) <= controller.max_yaw
+
+
+def test_vision_gate_baseline_does_not_acquire_visual_when_beacon_is_off_axis() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["beacon"]["range_m"] = 7.0
+    observation["beacon"]["bearing_deg"] = 42.0
+    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=35, x_stop=62)
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+    assert command["surge"] > 0.0
+
+
+def test_vision_gate_baseline_rejects_centered_visual_when_close_beacon_is_off_axis() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["beacon"]["range_m"] = 4.0
+    observation["beacon"]["bearing_deg"] = 60.0
+    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=35, x_stop=62)
+
+    controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+
+
+def test_vision_gate_baseline_off_axis_acoustic_approach_prefers_sway_over_yaw() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["sensors"].pop("FrontCamera", None)
+    observation["beacon"]["range_m"] = 7.0
+    observation["beacon"]["bearing_deg"] = 45.0
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+    assert command["sway"] > 0.0
+    assert abs(command["sway"]) > abs(command["yaw"])
+
+
+def test_vision_gate_baseline_phase_transitions() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    no_camera = _synthetic_observation()
+    no_camera["sensors"].pop("FrontCamera", None)
+    align = _synthetic_observation()
+    align["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=65, x_stop=92)
+    transit = _synthetic_observation()
+    transit["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=30, x_stop=70)
+    crossed = _synthetic_observation()
+    crossed["race"]["completed_gates"] = 1
+    crossed["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=30, x_stop=70)
+
+    controller.step(_guarded_observation(no_camera))
+    assert controller.phase == VISION_PHASE_ACOUSTIC_APPROACH
+    controller.step(_guarded_observation(align))
+    assert controller.phase == VISION_PHASE_VISUAL_ALIGN
+    controller.step(_guarded_observation(transit))
+    assert controller.phase == VISION_PHASE_VISUAL_TRANSIT
+    controller.step(_guarded_observation(crossed))
+    assert controller.phase == VISION_PHASE_EXIT_GATE
+
+
+def test_vision_gate_baseline_yaw_is_bounded() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=78, x_stop=99)
+
+    for _ in range(8):
+        command = controller.step(_guarded_observation(observation))
+
+    assert abs(command["yaw"]) <= controller.max_yaw
+
+
+def test_vision_gate_baseline_visual_heave_uses_camera_y_sign() -> None:
+    controller = VisionGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["beacon"]["elevation_deg"] = 0.0
+    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(
+        x_start=35,
+        x_stop=62,
+        y_start=42,
+        y_stop=76,
+    )
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert controller.phase == VISION_PHASE_VISUAL_ALIGN
+    assert command["heave"] > 0.0
+
+
 def test_acoustic_baseline_smoke_benchmark_with_fallback(tmp_path: Path) -> None:
     output_dir = tmp_path / "benchmark"
 
@@ -224,13 +364,18 @@ def _synthetic_observation() -> dict:
     }
 
 
-def _camera_with_colored_gate_blob(x_start: int, x_stop: int) -> list[list[list[int]]]:
+def _camera_with_colored_gate_blob(
+    x_start: int,
+    x_stop: int,
+    y_start: int = 22,
+    y_stop: int = 58,
+) -> list[list[list[int]]]:
     width = 100
     height = 80
     image = [[[8, 14, 22] for _ in range(width)] for _ in range(height)]
-    for y in range(22, 58):
+    for y in range(y_start, y_stop):
         for x in range(x_start, x_stop):
-            if x in (x_start, x_stop - 1) or y in (22, 57):
+            if x in (x_start, x_stop - 1) or y in (y_start, y_stop - 1):
                 image[y][x] = [20, 235, 80]
     return image
 

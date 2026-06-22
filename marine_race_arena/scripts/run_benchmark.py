@@ -137,6 +137,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default="results/benchmarks")
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--official", action="store_true")
+    parser.add_argument("--print-beacon-targets", action="store_true")
     return parser
 
 
@@ -171,6 +172,8 @@ def _race_args(args: argparse.Namespace, seed: int, run_dir: Path) -> list[str]:
         race_args.append("--allow-fallback")
     if args.official:
         race_args.append("--official")
+    if args.print_beacon_targets:
+        race_args.append("--print-beacon-targets")
     return race_args
 
 
@@ -201,6 +204,7 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
         "duration_s": args.duration,
         "dt": args.dt,
         "official": bool(args.official),
+        "print_beacon_targets": bool(args.print_beacon_targets),
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     try:

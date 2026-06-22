@@ -16,6 +16,11 @@ PHASE_APPROACH_GATE = "APPROACH_GATE"
 PHASE_TRANSIT_GATE = "TRANSIT_GATE"
 PHASE_EXIT_GATE = "EXIT_GATE"
 
+VISION_PHASE_ACOUSTIC_APPROACH = "ACOUSTIC_APPROACH"
+VISION_PHASE_VISUAL_ALIGN = "VISUAL_ALIGN"
+VISION_PHASE_VISUAL_TRANSIT = "VISUAL_TRANSIT"
+VISION_PHASE_EXIT_GATE = "EXIT_GATE"
+
 
 class AcousticBaselineController(BaseController):
     """Deterministic beacon-only baseline using official observation fields."""
@@ -192,11 +197,233 @@ class AcousticVisionBaselineController(BaseController):
         self.acoustic.close()
 
 
+class VisionGateBaselineController(BaseController):
+    """Official vision-servo baseline for HoloOcean gate traversal."""
+
+    debug_only = False
+    uses_ground_truth = False
+
+    def reset(self, race_info: dict[str, Any]) -> None:
+        max_command = _clamp(_safe_float(race_info.get("max_command"), 0.85), 0.1, 1.0)
+        self.acoustic = AcousticBaselineController()
+        self.acoustic.reset(race_info)
+        self.max_surge = min(max_command, 0.72)
+        self.max_sway = min(max_command, 0.50)
+        self.max_heave = min(max_command, 0.48)
+        self.max_yaw = min(max_command, 0.22)
+        self._phase = VISION_PHASE_ACOUSTIC_APPROACH
+        self._last_command = _zero_command()
+        self._last_completed_gates = 0
+        self._last_visual_target: VisionTarget | None = None
+        self._visual_lock_steps = 0
+        self._exit_steps_remaining = 0
+        self._transit_steps_remaining = 0
+        self._step_count = 0
+        self._verbose = _env_flag("MARINE_RACE_VISION_GATE_BASELINE_VERBOSE")
+
+    @property
+    def phase(self) -> str:
+        return self._phase
+
+    def step(self, observation: dict[str, Any]) -> dict[str, float]:
+        beacon = _mapping(observation.get("beacon"))
+        sensors = _mapping(observation.get("sensors"))
+        race = _mapping(observation.get("race"))
+        acoustic_command = self._acoustic_fallback_command(observation)
+        visual_target = self._locked_visual_target(
+            self._visual_candidate(beacon, _vision_target_from_camera(sensors.get("FrontCamera")))
+        )
+        self._update_phase(beacon, race, visual_target)
+        target_command = self._phase_command(acoustic_command, visual_target)
+        smoothed = _smooth_command(self._last_command, target_command, alpha=0.48)
+        command = _limit_command_delta(
+            self._last_command,
+            smoothed,
+            limits={"surge": 0.08, "sway": 0.08, "heave": 0.07, "yaw": 0.035},
+        )
+        command["yaw"] = _clamp(command["yaw"], -self.max_yaw, self.max_yaw)
+        self._last_command = command
+        self._step_count += 1
+        self._log_diagnostics(visual_target, command)
+        return dict(command)
+
+    def close(self) -> None:
+        self.acoustic.close()
+
+    def _acoustic_fallback_command(self, observation: dict[str, Any]) -> dict[str, float]:
+        command = self.acoustic.step(observation)
+        beacon = _mapping(observation.get("beacon"))
+        if not bool(beacon.get("valid")):
+            command["yaw"] = 0.0
+            command["surge"] = _clamp(command["surge"], 0.08, self.max_surge)
+            command["sway"] = _clamp(command["sway"], -self.max_sway, self.max_sway)
+            command["heave"] = _clamp(command["heave"], -self.max_heave, self.max_heave)
+            return command
+
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -150.0, 150.0)
+        bearing_rad = math.radians(bearing_deg)
+        range_factor = _clamp(range_m / 9.0, 0.0, 1.0)
+        speed = 0.26 + 0.42 * range_factor
+        forward_alignment = max(0.18, math.cos(bearing_rad))
+        command["surge"] = _clamp(speed * forward_alignment, 0.08, self.max_surge)
+        command["sway"] = _clamp(0.62 * math.sin(bearing_rad), -self.max_sway, self.max_sway)
+        command["yaw"] = 0.0
+        command["heave"] = _clamp(command["heave"], -self.max_heave, self.max_heave)
+        return command
+
+    def _locked_visual_target(self, detected: VisionTarget | None) -> VisionTarget | None:
+        if detected is not None and detected.confidence >= 0.38:
+            self._last_visual_target = detected
+            self._visual_lock_steps = 10
+            return detected
+        if self._last_visual_target is not None and self._visual_lock_steps > 0:
+            self._visual_lock_steps -= 1
+            return self._last_visual_target.with_confidence(self._last_visual_target.confidence * 0.75)
+        self._last_visual_target = None
+        return None
+
+    def _visual_candidate(self, beacon: Mapping[str, Any], detected: VisionTarget | None) -> VisionTarget | None:
+        if detected is None or self._phase == VISION_PHASE_EXIT_GATE:
+            return None
+        if self._phase in {VISION_PHASE_VISUAL_ALIGN, VISION_PHASE_VISUAL_TRANSIT}:
+            return detected
+        if not bool(beacon.get("valid")):
+            return None
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 999.0))
+        bearing_abs = abs(_safe_float(beacon.get("bearing_deg"), 180.0))
+        if range_m <= 8.0 and bearing_abs <= 25.0:
+            return detected
+        if range_m <= 5.5 and bearing_abs <= 80.0:
+            min_expected_offset = 0.25 if bearing_abs >= 55.0 else 0.12
+            if bearing_abs >= 30.0 and abs(detected.center_x) < min_expected_offset:
+                return None
+            return detected
+        return None
+
+    def _update_phase(
+        self,
+        beacon: Mapping[str, Any],
+        race: Mapping[str, Any],
+        visual_target: VisionTarget | None,
+    ) -> None:
+        completed_gates = max(0, int(_safe_float(race.get("completed_gates"), self._last_completed_gates)))
+        if completed_gates > self._last_completed_gates:
+            self._phase = VISION_PHASE_EXIT_GATE
+            self._exit_steps_remaining = 34
+            self._transit_steps_remaining = 0
+            self._visual_lock_steps = 0
+            self._last_visual_target = None
+            self._last_completed_gates = completed_gates
+            return
+
+        if self._phase == VISION_PHASE_EXIT_GATE:
+            self._exit_steps_remaining -= 1
+            if self._exit_steps_remaining > 0:
+                return
+            self._phase = VISION_PHASE_ACOUSTIC_APPROACH
+
+        if self._phase in {VISION_PHASE_VISUAL_ALIGN, VISION_PHASE_VISUAL_TRANSIT} and _beacon_points_away(beacon):
+            self._phase = VISION_PHASE_ACOUSTIC_APPROACH
+            self._transit_steps_remaining = 0
+            self._visual_lock_steps = 0
+            self._last_visual_target = None
+            return
+
+        if visual_target is None:
+            if self._phase == VISION_PHASE_VISUAL_TRANSIT and self._transit_steps_remaining > 0:
+                self._transit_steps_remaining -= 1
+                return
+            self._phase = VISION_PHASE_ACOUSTIC_APPROACH
+            return
+
+        if self._phase == VISION_PHASE_ACOUSTIC_APPROACH:
+            self._phase = VISION_PHASE_VISUAL_ALIGN
+
+        if self._phase == VISION_PHASE_VISUAL_ALIGN:
+            centered = abs(visual_target.center_x) <= 0.16 and abs(visual_target.center_y) <= 0.30
+            large_enough = visual_target.area_fraction >= 0.030 or visual_target.confidence >= 0.62
+            if centered and large_enough:
+                self._phase = VISION_PHASE_VISUAL_TRANSIT
+                self._transit_steps_remaining = 22
+            return
+
+        if self._phase == VISION_PHASE_VISUAL_TRANSIT:
+            self._transit_steps_remaining = max(0, self._transit_steps_remaining - 1)
+            if (
+                self._transit_steps_remaining <= 0
+                and visual_target.area_fraction < 0.010
+                and visual_target.confidence < 0.35
+            ):
+                self._phase = VISION_PHASE_ACOUSTIC_APPROACH
+
+    def _phase_command(
+        self,
+        acoustic_command: Mapping[str, float],
+        visual_target: VisionTarget | None,
+    ) -> dict[str, float]:
+        if self._phase == VISION_PHASE_EXIT_GATE:
+            return {"surge": 0.74, "sway": 0.0, "heave": 0.0, "yaw": 0.0}
+        if visual_target is None or self._phase == VISION_PHASE_ACOUSTIC_APPROACH:
+            return dict(acoustic_command)
+
+        error_x = visual_target.center_x
+        error_y = visual_target.center_y
+        acoustic_heave = _clamp(float(acoustic_command.get("heave", 0.0)), -self.max_heave, self.max_heave)
+        if self._phase == VISION_PHASE_VISUAL_TRANSIT:
+            return {
+                "surge": _clamp(0.58 + 0.12 * min(1.0, visual_target.area_fraction / 0.15), 0.45, self.max_surge),
+                "sway": _clamp(-0.30 * error_x, -self.max_sway, self.max_sway),
+                "heave": _clamp(0.50 * acoustic_heave + 0.24 * error_y, -self.max_heave, self.max_heave),
+                "yaw": 0.0,
+            }
+        return {
+            "surge": _clamp(0.22 + 0.16 * visual_target.confidence, 0.16, 0.42),
+            "sway": _clamp(-0.46 * error_x, -self.max_sway, self.max_sway),
+            "heave": _clamp(acoustic_heave + 0.34 * error_y, -self.max_heave, self.max_heave),
+            "yaw": 0.0,
+        }
+
+    def _log_diagnostics(self, visual_target: VisionTarget | None, command: Mapping[str, float]) -> None:
+        if not self._verbose or self._step_count % 10 != 0:
+            return
+        confidence = visual_target.confidence if visual_target is not None else 0.0
+        center_x = visual_target.center_x if visual_target is not None else 0.0
+        center_y = visual_target.center_y if visual_target is not None else 0.0
+        LOGGER.info(
+            "vision_gate_baseline phase=%s visual_confidence=%.3f gate_center=(%.3f, %.3f) "
+            "error_x=%.3f error_y=%.3f surge=%.3f sway=%.3f heave=%.3f yaw=%.3f",
+            self._phase,
+            confidence,
+            center_x,
+            center_y,
+            center_x,
+            center_y,
+            command.get("surge", 0.0),
+            command.get("sway", 0.0),
+            command.get("heave", 0.0),
+            command.get("yaw", 0.0),
+        )
+
+
 @dataclass(frozen=True)
 class VisionTarget:
     center_x: float
     center_y: float
     confidence: float
+    area_fraction: float = 0.0
+    width_fraction: float = 0.0
+    height_fraction: float = 0.0
+
+    def with_confidence(self, confidence: float) -> "VisionTarget":
+        return VisionTarget(
+            center_x=self.center_x,
+            center_y=self.center_y,
+            confidence=confidence,
+            area_fraction=self.area_fraction,
+            width_fraction=self.width_fraction,
+            height_fraction=self.height_fraction,
+        )
 
 
 def _vision_target_from_camera(image: Any) -> VisionTarget | None:
@@ -251,8 +478,27 @@ def _vision_target_from_camera(image: Any) -> VisionTarget | None:
     center_y = _clamp((center_y_px - (height - 1) * 0.5) / max(1.0, (height - 1) * 0.5), -1.0, 1.0)
     coverage = selected / sampled
     box_area = (box_width * box_height) / max(1.0, width * height)
-    confidence = _clamp(0.45 * min(1.0, coverage / 0.04) + 0.55 * min(1.0, box_area / 0.20), 0.0, 1.0)
-    return VisionTarget(center_x=center_x, center_y=center_y, confidence=confidence)
+    width_fraction = box_width / max(1.0, width)
+    height_fraction = box_height / max(1.0, height)
+    aspect_ratio = width_fraction / max(1e-6, height_fraction)
+    aspect_score = _clamp(1.0 - abs(math.log(max(1e-6, aspect_ratio))) / math.log(3.0), 0.0, 1.0)
+    center_score = _clamp(1.0 - 0.45 * abs(center_x) - 0.30 * abs(center_y), 0.0, 1.0)
+    confidence = _clamp(
+        0.30 * min(1.0, coverage / 0.04)
+        + 0.30 * min(1.0, box_area / 0.20)
+        + 0.20 * aspect_score
+        + 0.20 * center_score,
+        0.0,
+        1.0,
+    )
+    return VisionTarget(
+        center_x=center_x,
+        center_y=center_y,
+        confidence=confidence,
+        area_fraction=box_area,
+        width_fraction=width_fraction,
+        height_fraction=height_fraction,
+    )
 
 
 def _pixel_channels(image: Any, x: int, y: int) -> tuple[float, float, float] | None:
@@ -326,6 +572,14 @@ def _centerline_elevation_deg(elevation_deg: float, range_m: float) -> float:
     return _clamp(elevation_deg - beacon_height_bias_deg, -35.0, 35.0)
 
 
+def _beacon_points_away(beacon: Mapping[str, Any]) -> bool:
+    if not bool(beacon.get("valid")):
+        return False
+    range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+    bearing_abs = abs(_safe_float(beacon.get("bearing_deg"), 0.0))
+    return range_m >= 3.5 and bearing_abs >= 95.0
+
+
 def _heave_command(elevation_deg: float, sensors: Mapping[str, Any], max_heave: float) -> float:
     elevation_rad = math.radians(elevation_deg)
     heave = _clamp(0.95 * math.sin(elevation_rad), -max_heave, max_heave)
@@ -338,6 +592,22 @@ def _heave_command(elevation_deg: float, sensors: Mapping[str, Any], max_heave: 
 def _smooth_command(previous: Mapping[str, float], target: Mapping[str, float], alpha: float) -> dict[str, float]:
     return {
         key: _clamp((1.0 - alpha) * float(previous.get(key, 0.0)) + alpha * float(target.get(key, 0.0)), -1.0, 1.0)
+        for key in ("surge", "sway", "heave", "yaw")
+    }
+
+
+def _limit_command_delta(
+    previous: Mapping[str, float],
+    target: Mapping[str, float],
+    limits: Mapping[str, float],
+) -> dict[str, float]:
+    return {
+        key: float(previous.get(key, 0.0))
+        + _clamp(
+            float(target.get(key, 0.0)) - float(previous.get(key, 0.0)),
+            -float(limits.get(key, 1.0)),
+            float(limits.get(key, 1.0)),
+        )
         for key in ("surge", "sway", "heave", "yaw")
     }
 
