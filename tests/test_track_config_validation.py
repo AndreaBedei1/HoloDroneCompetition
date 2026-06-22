@@ -4,6 +4,7 @@ import copy
 import json
 from pathlib import Path
 
+from marine_race_arena.arena.obstacle import resolve_active_obstacles
 from marine_race_arena.config.loader import parse_track_config, load_track_config
 from marine_race_arena.config.validation import compute_declared_path_length_m, validate_track_config
 
@@ -34,6 +35,25 @@ def test_single_gate_rule_baseline_tracks_validate() -> None:
         result = validate_track_config(config)
         assert result.errors == []
         assert config.participants[0].controller == "rule_gate_baseline"
+
+
+def test_progressive_rule_baseline_tracks_validate() -> None:
+    for track_name in (
+        "tests/two_gate_straight.json",
+        "tests/two_gate_left_curve.json",
+        "tests/two_gate_right_curve.json",
+        "tests/three_gate_s_curve.json",
+        "tests/four_gate_horseshoe_start.json",
+    ):
+        config = load_track_config(TRACK_DIR / track_name)
+        result = validate_track_config(config)
+        assert result.errors == []
+        assert config.benchmark_task.mode == "clean_gate"
+        assert config.currents == []
+        assert config.obstacles == []
+        assert resolve_active_obstacles(config) == []
+        assert config.participants[0].controller == "rule_gate_baseline"
+        assert config.participants[0].sensors.get("profile") == "official_vision_acoustic"
 
 
 def test_example_tracks_use_standard_gate_opening() -> None:

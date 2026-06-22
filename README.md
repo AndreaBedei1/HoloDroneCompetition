@@ -138,7 +138,7 @@ conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark
 Built-in non-cheating baseline controllers are available for benchmark evaluation:
 
 - `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, a small approach/transit/exit state machine, smoothed yaw with a deadband, vertical regulation, and speed scheduling around gates.
-- `rule_gate_baseline`: simple rule-based gate controller for visible-gate traversal. It uses the beacon for target direction, uses `FrontCamera` to center the visible square gate, applies only gentle yaw/sway corrections, regulates heave from image/elevation error, and surges forward only when the gate is roughly centered.
+- `rule_gate_baseline`: simple rule-based gate controller for visible-gate traversal. It uses the beacon for target direction, uses `FrontCamera` to center the visible square gate, applies only gentle yaw/sway corrections, regulates heave from image/elevation error, and holds forward surge at zero until the beacon/camera target is roughly aligned.
 - `acoustic_vision_baseline`: experimental/deprecated. It uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment, but it is not the preferred HoloOcean baseline.
 - `vision_gate_baseline`: experimental/deprecated. It attempts a more complex visual-servo state machine and can be useful for debugging, but it is not currently the recommended official baseline for reliable HoloOcean evaluation.
 
@@ -152,6 +152,16 @@ Single-gate rule baseline smoke tests are available under `marine_race_arena/tra
 ```bash
 python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/single_gate_yaw_0.json --controller rule_gate_baseline --adapter holoocean --duration 120 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
 python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/single_gate_yaw_45.json --controller rule_gate_baseline --adapter holoocean --duration 120 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+```
+
+Progressive rule baseline tracks are available for testing small gate sequences before the full Horseshoe Bay route:
+
+```bash
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/two_gate_straight.json --controller rule_gate_baseline --adapter holoocean --duration 150 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/two_gate_left_curve.json --controller rule_gate_baseline --adapter holoocean --duration 150 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/two_gate_right_curve.json --controller rule_gate_baseline --adapter holoocean --duration 150 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/three_gate_s_curve.json --controller rule_gate_baseline --adapter holoocean --duration 180 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
+python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/four_gate_horseshoe_start.json --controller rule_gate_baseline --adapter holoocean --duration 240 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
 ```
 
 Clean-gate acoustic baseline:

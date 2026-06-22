@@ -28,18 +28,33 @@ class RuleGateBaselineController(BaseController):
 
     debug_only = False
     uses_ground_truth = False
+    align_before_surge_bearing_deg = 24.0
+    turn_in_place_bearing_deg = 34.0
+    visual_center_x_threshold = 0.13
+    visual_center_y_threshold = 0.30
+    visual_yaw_only_error_threshold = 0.18
+    turn_latch_bearing_deg = 75.0
+    alignment_brake_range_m = 2.0
+    alignment_brake_surge = -0.08
 
     def reset(self, race_info: dict[str, Any]) -> None:
         max_command = _clamp(_safe_float(race_info.get("max_command"), 0.85), 0.1, 1.0)
         self.max_surge = min(max_command, 0.62)
         self.max_sway = min(max_command, 0.24)
         self.max_heave = min(max_command, 0.34)
-        self.max_yaw = min(max_command, 0.12)
+        self.max_yaw = min(max_command, 0.16)
         self._last_command = _zero_command()
+        self._turn_sign = 0.0
+        self._last_target_key = None
 
     def step(self, observation: dict[str, Any]) -> dict[str, float]:
         beacon = _mapping(observation.get("beacon"))
         sensors = _mapping(observation.get("sensors"))
+        race = _mapping(observation.get("race"))
+        target_key = self._target_key(beacon, race)
+        if target_key != self._last_target_key:
+            self._turn_sign = 0.0
+            self._last_target_key = target_key
         visual_target = _vision_target_from_camera(sensors.get("FrontCamera"))
         target = self._beacon_fallback(beacon, sensors)
         if visual_target is not None and visual_target.confidence >= 0.35:
@@ -48,7 +63,7 @@ class RuleGateBaselineController(BaseController):
         command = _limit_command_delta(
             self._last_command,
             smoothed,
-            limits={"surge": 0.07, "sway": 0.05, "heave": 0.05, "yaw": 0.025},
+            limits={"surge": 0.10, "sway": 0.05, "heave": 0.05, "yaw": 0.03},
         )
         command["yaw"] = _clamp(command["yaw"], -self.max_yaw, self.max_yaw)
         self._last_command = command
@@ -69,18 +84,31 @@ class RuleGateBaselineController(BaseController):
         elevation_deg = _clamp(_safe_float(beacon.get("elevation_deg"), 0.0), -40.0, 40.0)
         range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
         bearing_abs = abs(bearing_deg)
-        alignment = _clamp(1.0 - bearing_abs / 85.0, 0.18, 1.0)
-        range_speed = 0.18 + 0.30 * _clamp(range_m / 7.0, 0.0, 1.0)
-        surge = _clamp(range_speed * alignment, 0.06, self.max_surge)
-        if bearing_abs > 35.0:
-            surge = min(surge, 0.16)
-        yaw = _yaw_command_from_bearing(
+        yaw = self._yaw_command_for_bearing(
             bearing_deg,
             max_yaw=self.max_yaw,
-            gain_deg=260.0,
+            gain_deg=220.0,
             deadband_deg=4.0,
         )
         heave = _heave_command(_centerline_elevation_deg(elevation_deg, range_m), sensors, self.max_heave)
+        if bearing_abs >= self.turn_in_place_bearing_deg:
+            return {
+                "surge": self._surge_when_not_aligned(range_m),
+                "sway": 0.0,
+                "heave": heave,
+                "yaw": yaw,
+            }
+        if bearing_abs >= self.align_before_surge_bearing_deg:
+            return {
+                "surge": self._surge_when_not_aligned(range_m),
+                "sway": 0.0,
+                "heave": heave,
+                "yaw": yaw,
+            }
+
+        alignment = _clamp(1.0 - bearing_abs / self.align_before_surge_bearing_deg, 0.25, 1.0)
+        range_speed = 0.16 + 0.30 * _clamp(range_m / 7.0, 0.0, 1.0)
+        surge = _clamp(range_speed * alignment, 0.06, self.max_surge)
         return {"surge": surge, "sway": 0.0, "heave": heave, "yaw": yaw}
 
     def _visual_gate_command(
@@ -92,25 +120,39 @@ class RuleGateBaselineController(BaseController):
     ) -> dict[str, float]:
         bearing_deg = _safe_float(beacon.get("bearing_deg"), 0.0) if bool(beacon.get("valid")) else 0.0
         bearing_abs = abs(bearing_deg)
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
         error_x = target.center_x
         error_y = target.center_y
-        centered_x = abs(error_x) <= 0.14
-        centered_y = abs(error_y) <= 0.32
-        roughly_aligned = bearing_abs <= 35.0
+        centered_x = abs(error_x) <= self.visual_center_x_threshold
+        centered_y = abs(error_y) <= self.visual_center_y_threshold
+        roughly_aligned = bearing_abs <= self.align_before_surge_bearing_deg
 
-        if bearing_abs >= 55.0:
-            yaw = _yaw_command_from_bearing(
+        if bearing_abs >= self.turn_in_place_bearing_deg:
+            yaw = self._yaw_command_for_bearing(
                 bearing_deg,
-                max_yaw=0.09,
-                gain_deg=300.0,
+                max_yaw=self.max_yaw,
+                gain_deg=220.0,
                 deadband_deg=5.0,
             )
+            surge = self._surge_when_not_aligned(range_m)
+            sway = 0.0
         elif abs(error_x) > 0.08:
-            yaw = _clamp(0.10 * error_x, -0.08, 0.08)
+            yaw = _clamp(0.11 * error_x, -0.09, 0.09)
+            sway = (
+                _clamp(0.08 * error_x, -self.max_sway, self.max_sway)
+                if abs(error_x) <= self.visual_yaw_only_error_threshold
+                else 0.0
+            )
+            surge = (
+                self._surge_when_not_aligned(range_m)
+                if abs(error_x) > self.visual_yaw_only_error_threshold
+                else 0.04
+            )
         else:
             yaw = _clamp(0.45 * float(fallback.get("yaw", 0.0)), -0.04, 0.04)
+            sway = _clamp(0.08 * error_x, -self.max_sway, self.max_sway)
+            surge = 0.0
 
-        sway = _clamp(0.10 * error_x, -self.max_sway, self.max_sway) if abs(error_x) <= 0.30 else 0.0
         heave = _clamp(
             0.45 * float(fallback.get("heave", 0.0)) - 0.30 * error_y,
             -self.max_heave,
@@ -118,16 +160,64 @@ class RuleGateBaselineController(BaseController):
         )
         if centered_x and centered_y and roughly_aligned:
             surge = 0.44 + 0.10 * _clamp(target.area_fraction / 0.12, 0.0, 1.0)
-        else:
-            surge = 0.08 + 0.10 * max(0.0, 1.0 - abs(error_x))
-            if bearing_abs > 35.0:
-                surge = min(surge, 0.12)
+        elif bearing_abs >= self.align_before_surge_bearing_deg:
+            surge = self._surge_when_not_aligned(range_m)
         return {
-            "surge": _clamp(surge, 0.04, self.max_surge),
+            "surge": _clamp(surge, self.alignment_brake_surge, self.max_surge),
             "sway": sway,
             "heave": heave,
             "yaw": yaw,
         }
+
+    def _yaw_command_for_bearing(
+        self,
+        bearing_deg: float,
+        max_yaw: float,
+        gain_deg: float,
+        deadband_deg: float,
+    ) -> float:
+        bearing_abs = abs(bearing_deg)
+        if bearing_abs < self.align_before_surge_bearing_deg:
+            self._turn_sign = 0.0
+            yaw_bearing = bearing_deg
+        elif bearing_abs >= self.turn_latch_bearing_deg:
+            if self._turn_sign == 0.0:
+                self._turn_sign = 1.0 if bearing_deg >= 0.0 else -1.0
+            yaw_bearing = self._turn_sign * min(bearing_abs, 100.0)
+        else:
+            self._turn_sign = 1.0 if bearing_deg >= 0.0 else -1.0
+            yaw_bearing = bearing_deg
+        return _yaw_command_from_bearing(
+            yaw_bearing,
+            max_yaw=max_yaw,
+            gain_deg=gain_deg,
+            deadband_deg=deadband_deg,
+        )
+
+    def _surge_when_not_aligned(self, range_m: float) -> float:
+        if 0.0 < range_m <= self.alignment_brake_range_m:
+            return self.alignment_brake_surge
+        return 0.0
+
+    def _target_key(
+        self,
+        beacon: Mapping[str, Any],
+        race: Mapping[str, Any],
+    ) -> tuple[Any, Any]:
+        target_id = (
+            beacon.get("target_gate_id")
+            or beacon.get("next_gate_id")
+            or race.get("target_gate_id")
+            or race.get("next_gate_id")
+        )
+        target_index = beacon.get("target_sequence_index")
+        if target_index is None:
+            target_index = beacon.get("next_gate_index")
+        if target_index is None:
+            target_index = race.get("target_sequence_index")
+        if target_index is None:
+            target_index = race.get("next_gate_index")
+        return (target_id, target_index)
 
 
 class AcousticBaselineController(BaseController):
