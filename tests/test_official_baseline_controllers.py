@@ -215,12 +215,12 @@ def test_rule_gate_baseline_off_center_gate_uses_gentle_yaw() -> None:
     observation = _synthetic_observation()
     observation["beacon"]["bearing_deg"] = 0.0
     observation["beacon"]["elevation_deg"] = 0.0
-    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=65, x_stop=92)
+    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=55, x_stop=82)
 
     command = controller.step(_guarded_observation(observation))
 
     assert 0.0 < command["yaw"] <= controller.max_yaw
-    assert 0.0 <= command["sway"] <= controller.max_sway
+    assert -controller.max_sway <= command["sway"] < 0.0
     assert command["surge"] == 0.0
 
 
@@ -281,6 +281,24 @@ def test_rule_gate_baseline_missing_camera_uses_beacon_fallback() -> None:
 
     assert command["surge"] == 0.0
     assert command["yaw"] > 0.0
+
+
+def test_rule_gate_baseline_exit_holds_crossing_depth() -> None:
+    controller = RuleGateBaselineController()
+    controller.reset({"max_command": 0.95})
+    observation = _synthetic_observation()
+    observation["beacon"]["bearing_deg"] = 0.0
+    observation["beacon"]["elevation_deg"] = 0.0
+    observation["sensors"].pop("FrontCamera", None)
+
+    controller.step(_guarded_observation(observation))
+    observation["race"]["completed_gates"] = 1
+    observation["sensors"]["depth_m"] = 5.4
+
+    command = controller.step(_guarded_observation(observation))
+
+    assert command["surge"] > 0.0
+    assert command["heave"] <= 0.02
 
 
 def test_vision_baseline_falls_back_without_camera() -> None:

@@ -34,31 +34,51 @@ class RuleGateBaselineController(BaseController):
     visual_center_y_threshold = 0.30
     visual_yaw_only_error_threshold = 0.18
     turn_latch_bearing_deg = 75.0
-    alignment_brake_range_m = 2.0
-    alignment_brake_surge = -0.08
+    alignment_brake_range_m = 3.0
+    alignment_brake_surge = -0.10
+    visual_required_range_m = 5.5
+    exit_steps_after_gate = 35
 
     def reset(self, race_info: dict[str, Any]) -> None:
         max_command = _clamp(_safe_float(race_info.get("max_command"), 0.85), 0.1, 1.0)
-        self.max_surge = min(max_command, 0.62)
-        self.max_sway = min(max_command, 0.24)
+        self.max_surge = min(max_command, 0.46)
+        self.max_sway = min(max_command, 0.30)
         self.max_heave = min(max_command, 0.34)
         self.max_yaw = min(max_command, 0.16)
         self._last_command = _zero_command()
         self._turn_sign = 0.0
         self._last_target_key = None
+        self._last_completed_gates = 0
+        self._exit_steps_remaining = 0
+        self._nominal_depth_m = None
+        self._exit_hold_depth_m = None
 
     def step(self, observation: dict[str, Any]) -> dict[str, float]:
         beacon = _mapping(observation.get("beacon"))
         sensors = _mapping(observation.get("sensors"))
         race = _mapping(observation.get("race"))
+        self._update_depth_hold(sensors)
+        completed_gates = max(0, int(_safe_float(race.get("completed_gates"), self._last_completed_gates)))
+        if completed_gates > self._last_completed_gates:
+            self._last_completed_gates = completed_gates
+            self._exit_steps_remaining = self.exit_steps_after_gate
+            self._exit_hold_depth_m = self._current_depth_m(sensors)
+            self._last_command = dict(self._last_command)
+            self._last_command["surge"] = min(float(self._last_command.get("surge", 0.0)), 0.08)
         target_key = self._target_key(beacon, race)
         if target_key != self._last_target_key:
             self._turn_sign = 0.0
             self._last_target_key = target_key
+            self._last_command = dict(self._last_command)
+            self._last_command["surge"] = min(float(self._last_command.get("surge", 0.0)), 0.08)
         visual_target = _vision_target_from_camera(sensors.get("FrontCamera"))
-        target = self._beacon_fallback(beacon, sensors)
-        if visual_target is not None and visual_target.confidence >= 0.35:
-            target = self._visual_gate_command(beacon, sensors, visual_target, target)
+        if self._exit_steps_remaining > 0:
+            target = self._exit_gate_command(beacon, sensors)
+            self._exit_steps_remaining -= 1
+        else:
+            target = self._beacon_fallback(beacon, sensors, visual_target is not None)
+            if visual_target is not None and visual_target.confidence >= 0.35:
+                target = self._visual_gate_command(beacon, sensors, visual_target, target)
         smoothed = _smooth_command(self._last_command, target, alpha=0.45)
         command = _limit_command_delta(
             self._last_command,
@@ -76,9 +96,10 @@ class RuleGateBaselineController(BaseController):
         self,
         beacon: Mapping[str, Any],
         sensors: Mapping[str, Any],
+        has_visual_target: bool,
     ) -> dict[str, float]:
         if not bool(beacon.get("valid")):
-            return {"surge": 0.08, "sway": 0.0, "heave": 0.0, "yaw": 0.0}
+            return {"surge": 0.0, "sway": 0.0, "heave": self._depth_hold_heave(sensors), "yaw": 0.0}
 
         bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -100.0, 100.0)
         elevation_deg = _clamp(_safe_float(beacon.get("elevation_deg"), 0.0), -40.0, 40.0)
@@ -90,7 +111,7 @@ class RuleGateBaselineController(BaseController):
             gain_deg=220.0,
             deadband_deg=4.0,
         )
-        heave = _heave_command(_centerline_elevation_deg(elevation_deg, range_m), sensors, self.max_heave)
+        heave = self._mixed_heave(_centerline_elevation_deg(elevation_deg, range_m), sensors, visual_error_y=None)
         if bearing_abs >= self.turn_in_place_bearing_deg:
             return {
                 "surge": self._surge_when_not_aligned(range_m),
@@ -105,9 +126,18 @@ class RuleGateBaselineController(BaseController):
                 "heave": heave,
                 "yaw": yaw,
             }
+        if range_m <= self.visual_required_range_m and not has_visual_target:
+            return {
+                "surge": self._surge_when_not_aligned(range_m),
+                "sway": 0.0,
+                "heave": heave,
+                "yaw": yaw,
+            }
 
         alignment = _clamp(1.0 - bearing_abs / self.align_before_surge_bearing_deg, 0.25, 1.0)
-        range_speed = 0.16 + 0.30 * _clamp(range_m / 7.0, 0.0, 1.0)
+        range_speed = 0.10 + 0.24 * _clamp(range_m / 8.0, 0.0, 1.0)
+        if range_m <= self.visual_required_range_m:
+            range_speed = min(range_speed, 0.16)
         surge = _clamp(range_speed * alignment, 0.06, self.max_surge)
         return {"surge": surge, "sway": 0.0, "heave": heave, "yaw": yaw}
 
@@ -139,27 +169,31 @@ class RuleGateBaselineController(BaseController):
         elif abs(error_x) > 0.08:
             yaw = _clamp(0.11 * error_x, -0.09, 0.09)
             sway = (
-                _clamp(0.08 * error_x, -self.max_sway, self.max_sway)
-                if abs(error_x) <= self.visual_yaw_only_error_threshold
+                _clamp(-0.26 * error_x, -self.max_sway, self.max_sway)
+                if abs(error_x) <= 0.45
                 else 0.0
             )
             surge = (
                 self._surge_when_not_aligned(range_m)
-                if abs(error_x) > self.visual_yaw_only_error_threshold
-                else 0.04
+                if abs(error_x) > self.visual_yaw_only_error_threshold or range_m <= 4.0
+                else 0.0
             )
         else:
             yaw = _clamp(0.45 * float(fallback.get("yaw", 0.0)), -0.04, 0.04)
-            sway = _clamp(0.08 * error_x, -self.max_sway, self.max_sway)
+            sway = _clamp(-0.20 * error_x, -self.max_sway, self.max_sway)
             surge = 0.0
 
-        heave = _clamp(
-            0.45 * float(fallback.get("heave", 0.0)) - 0.30 * error_y,
-            -self.max_heave,
-            self.max_heave,
+        heave = self._mixed_heave(
+            _centerline_elevation_deg(_safe_float(beacon.get("elevation_deg"), 0.0), range_m),
+            sensors,
+            visual_error_y=error_y,
         )
         if centered_x and centered_y and roughly_aligned:
-            surge = 0.44 + 0.10 * _clamp(target.area_fraction / 0.12, 0.0, 1.0)
+            surge = 0.24 + 0.08 * _clamp(target.area_fraction / 0.12, 0.0, 1.0)
+            if range_m <= 2.5:
+                surge = min(surge, 0.22)
+            elif range_m <= 5.0:
+                surge = min(surge, 0.28)
         elif bearing_abs >= self.align_before_surge_bearing_deg:
             surge = self._surge_when_not_aligned(range_m)
         return {
@@ -198,6 +232,75 @@ class RuleGateBaselineController(BaseController):
         if 0.0 < range_m <= self.alignment_brake_range_m:
             return self.alignment_brake_surge
         return 0.0
+
+    def _exit_gate_command(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+    ) -> dict[str, float]:
+        yaw = 0.0
+        if bool(beacon.get("valid")):
+            yaw = self._yaw_command_for_bearing(
+                _safe_float(beacon.get("bearing_deg"), 0.0),
+                max_yaw=0.06,
+                gain_deg=260.0,
+                deadband_deg=8.0,
+            )
+        return {
+            "surge": 0.24,
+            "sway": 0.0,
+            "heave": self._depth_hold_heave(sensors, target_depth_m=self._exit_hold_depth_m),
+            "yaw": yaw,
+        }
+
+    def _update_depth_hold(self, sensors: Mapping[str, Any]) -> None:
+        if self._nominal_depth_m is not None:
+            return
+        depth = self._current_depth_m(sensors)
+        if depth is not None and math.isfinite(depth):
+            self._nominal_depth_m = depth
+
+    def _current_depth_m(self, sensors: Mapping[str, Any]) -> float | None:
+        depth = _safe_optional_float(sensors.get("depth_m"))
+        if depth is None:
+            depth = _safe_optional_float(sensors.get("DepthSensor"))
+        return depth
+
+    def _depth_hold_heave(self, sensors: Mapping[str, Any], target_depth_m: float | None = None) -> float:
+        hold_depth_m = self._nominal_depth_m if target_depth_m is None else target_depth_m
+        if hold_depth_m is None:
+            return 0.0
+        depth = self._current_depth_m(sensors)
+        if depth is None:
+            return 0.0
+        depth_error_m = depth - hold_depth_m
+        depth_rate = _vertical_velocity_from_sensors(sensors)
+        correction = 0.20 * depth_error_m
+        if depth_rate is not None:
+            correction -= 0.08 * depth_rate
+        return _clamp(correction, -0.16, 0.16)
+
+    def _mixed_heave(
+        self,
+        beacon_elevation_deg: float,
+        sensors: Mapping[str, Any],
+        visual_error_y: float | None,
+    ) -> float:
+        beacon_heave = _heave_command(beacon_elevation_deg, sensors, self.max_heave)
+        depth_hold = self._depth_hold_heave(sensors)
+        heave = 0.70 * beacon_heave + 0.30 * depth_hold
+        if visual_error_y is not None:
+            heave -= 0.42 * visual_error_y
+        depth = _safe_optional_float(sensors.get("depth_m"))
+        if depth is None:
+            depth = _safe_optional_float(sensors.get("DepthSensor"))
+        if depth is not None and self._nominal_depth_m is not None:
+            depth_error_m = depth - self._nominal_depth_m
+            if depth_error_m > 0.65 and beacon_elevation_deg > -5.0:
+                heave = max(heave, 0.04)
+            elif depth_error_m < -0.65 and beacon_elevation_deg < 5.0:
+                heave = min(heave, -0.04)
+        return _clamp(heave, -self.max_heave, self.max_heave)
 
     def _target_key(
         self,
@@ -952,6 +1055,16 @@ def _safe_float(value: Any, default: float) -> float:
         return default
     if not math.isfinite(converted):
         return default
+    return converted
+
+
+def _safe_optional_float(value: Any) -> float | None:
+    try:
+        converted = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(converted):
+        return None
     return converted
 
 
