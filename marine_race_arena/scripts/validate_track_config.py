@@ -17,7 +17,12 @@ from marine_race_arena.arena.obstacle import (
     resolve_active_obstacles,
 )
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
-from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
+from marine_race_arena.config.loader import (
+    CURRENT_PROFILE_MODES,
+    TrackConfigLoadError,
+    describe_current_profile,
+    load_track_config,
+)
 from marine_race_arena.config.validation import compute_declared_path_length_m, validate_track_config
 
 
@@ -48,6 +53,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="HoloOcean obstacle prop physics mode for validation.",
     )
+    parser.add_argument(
+        "--current-profile",
+        choices=CURRENT_PROFILE_MODES,
+        default=None,
+        help="Current profile override. none disables currents; medium/strong use track current_profiles.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Seed for deterministic random obstacles.")
     parser.add_argument(
         "--debug",
@@ -64,6 +75,7 @@ def main(argv: list[str] | None = None) -> int:
             obstacles=args.obstacles,
             obstacle_density=args.obstacle_density,
             obstacle_physics=args.obstacle_physics,
+            current_profile=args.current_profile,
             seed=args.seed,
         )
     except TrackConfigLoadError as exc:
@@ -75,6 +87,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Track: {config.race.name}")
     print(f"Environment: {config.world.map}")
     print(f"Benchmark task: {config.benchmark_task.mode or 'custom'}")
+    print(f"Selected current profile: {config.selected_current_profile or 'track-default'}")
+    print(f"Active currents: {len(config.currents)}")
+    for line in describe_current_profile(config):
+        print(f"  {line}")
     print(f"Obstacle physics: {config.obstacle_generation.obstacle_physics}")
     try:
         active_obstacle_count = len(resolve_active_obstacles(config))

@@ -294,6 +294,7 @@ def _validate_currents(config: TrackConfig, result: ValidationResult) -> None:
             _require_vector(current.params, "velocity", f"Current #{index}", result)
         if current.type == "localized_jet":
             _require_vector(current.params, "center", f"Current #{index}", result)
+            _validate_current_center(config, current.params.get("center"), index, result)
             _require_vector(current.params, "velocity", f"Current #{index}", result)
             if float(current.params.get("radius", 0.0)) <= 0:
                 result.error(f"Current #{index} localized_jet.radius must be positive.")
@@ -306,6 +307,7 @@ def _validate_currents(config: TrackConfig, result: ValidationResult) -> None:
                 result.error(f"Current #{index} sinusoidal.frequency_hz must be zero or positive.")
         if current.type == "vortex":
             _require_vector(current.params, "center", f"Current #{index}", result)
+            _validate_current_center(config, current.params.get("center"), index, result)
             if float(current.params.get("radius", 0.0)) <= 0:
                 result.error(f"Current #{index} vortex.radius must be positive.")
             if float(current.params.get("tangential_speed", 0.0)) < 0:
@@ -433,6 +435,19 @@ def _validate_benchmark_task(
             "benchmark_task multi_rov is parsed and validated, but execution still uses the "
             "current shared-course referee model."
         )
+
+
+def _validate_current_center(
+    config: TrackConfig,
+    value: Any,
+    index: int,
+    result: ValidationResult,
+) -> None:
+    center = _parse_vector3(value)
+    if center is None:
+        return
+    if not config.world.bounds.contains(center):
+        result.error(f"Current #{index} center is outside world.bounds.")
 
 
 def _require_single_rov_task(config: TrackConfig, mode: str, result: ValidationResult) -> None:

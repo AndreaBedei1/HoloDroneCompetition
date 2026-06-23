@@ -32,7 +32,12 @@ from marine_race_arena.arena.obstacle import (
     effective_obstacle_mode,
 )
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
-from marine_race_arena.config.loader import TrackConfigLoadError, load_track_config
+from marine_race_arena.config.loader import (
+    CURRENT_PROFILE_MODES,
+    TrackConfigLoadError,
+    describe_current_profile,
+    load_track_config,
+)
 from marine_race_arena.config.schema import TrackConfig, Vector3
 from marine_race_arena.participants.controller_interface import ManualStopRequested
 from marine_race_arena.participants.controller_loader import ControllerError, ControllerLoader
@@ -58,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             obstacles=args.obstacles,
             obstacle_density=args.obstacle_density,
             obstacle_physics=args.obstacle_physics,
+            current_profile=args.current_profile,
             seed=args.seed,
         )
     except (TrackConfigLoadError, ValueError) as exc:
@@ -68,6 +74,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
+    print(f"Selected current profile: {_current_profile_label(config)}")
+    print(f"Active currents: {len(config.currents)}")
+    for line in describe_current_profile(config):
+        print(f"  {line}")
     if args.disable_front_camera:
         config = _without_front_camera(config)
     arena = ArenaBuilder(config, seed=args.seed).build()
@@ -182,6 +192,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=OBSTACLE_PHYSICS_MODES,
         default=None,
         help="HoloOcean obstacle prop physics. static keeps obstacles suspended; dynamic enables gravity/physics.",
+    )
+    parser.add_argument(
+        "--current-profile",
+        choices=CURRENT_PROFILE_MODES,
+        default=None,
+        help="Current profile override. none disables currents; medium/strong use track current_profiles.",
     )
     parser.add_argument("--official", action="store_true", help="Force official sensor/timing mode.")
     parser.add_argument("--headless", action="store_true", help="Request headless HoloOcean mode when supported.")
@@ -319,6 +335,8 @@ def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
         "obstacle_mode": effective_obstacle_mode(config),
         "obstacle_density": config.obstacle_generation.density,
         "obstacle_physics": config.obstacle_generation.obstacle_physics,
+        "current_profile": _current_profile_label(config),
+        "active_current_count": len(config.currents),
         "max_duration_s": config.race.max_duration_s,
         "adapter": adapter_name,
         "max_command": 0.95,
@@ -331,6 +349,12 @@ def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
             "z_max": config.world.bounds.z_max,
         },
     }
+
+
+def _current_profile_label(config: TrackConfig) -> str:
+    if config.selected_current_profile:
+        return config.selected_current_profile
+    return "track-default"
 
 
 def _run_race_loop(

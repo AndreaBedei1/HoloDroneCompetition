@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from marine_race_arena.config.benchmark_tasks import (
     BenchmarkTaskConfig,
@@ -33,6 +33,45 @@ from marine_race_arena.config.validation import TrackValidationError, validate_t
 
 class TrackConfigLoadError(ValueError):
     """Raised when a track JSON file is malformed before semantic validation."""
+
+
+CURRENT_PROFILE_NONE = "none"
+CURRENT_PROFILE_MEDIUM = "medium"
+CURRENT_PROFILE_STRONG = "strong"
+CURRENT_PROFILE_MODES = (
+    CURRENT_PROFILE_NONE,
+    CURRENT_PROFILE_MEDIUM,
+    CURRENT_PROFILE_STRONG,
+)
+CURRENT_PROFILE_LAYOUT_GATE_RELATIVE = "gate_relative"
+
+STRONG_CURRENT_TEMPLATE: tuple[dict[str, Any], ...] = (
+    {"type": "constant", "velocity": [0.75, 1.05, 0.0]},
+    {
+        "type": "localized_jet",
+        "center_fraction": 0.25,
+        "radius": 7.0,
+        "velocity": [1.05, -0.6, 0.12],
+        "falloff": "gaussian",
+    },
+    {
+        "type": "localized_jet",
+        "center_fraction": 0.60,
+        "radius": 7.5,
+        "velocity": [-0.45, 1.14, -0.09],
+        "falloff": "gaussian",
+    },
+    {
+        "type": "vortex",
+        "center_fraction": 0.75,
+        "radius": 12.0,
+        "tangential_speed": 1.35,
+        "vertical_speed": 0.12,
+        "falloff": "gaussian",
+        "clockwise": False,
+    },
+    {"type": "sinusoidal", "axis": "z", "amplitude": 0.24, "frequency_hz": 0.08, "phase": 0.0},
+)
 
 
 DEFAULT_OFFICIAL_SENSOR_PROFILE: Dict[str, Any] = {
@@ -79,6 +118,7 @@ def load_track_config(
     obstacles: str | None = None,
     obstacle_density: str | None = None,
     obstacle_physics: str | None = None,
+    current_profile: str | None = None,
     seed: int | None = None,
 ) -> TrackConfig:
     """Load and validate a track JSON file.
@@ -91,6 +131,7 @@ def load_track_config(
         obstacles: Optional CLI/code override for obstacle mode.
         obstacle_density: Optional CLI/code override for generated obstacle density.
         obstacle_physics: Optional CLI/code override for HoloOcean obstacle prop physics.
+        current_profile: Optional CLI/code override for active current profile.
         seed: Optional CLI/code override for deterministic obstacle generation.
 
     Returns:
@@ -112,6 +153,8 @@ def load_track_config(
     config = parse_track_config(raw)
     if benchmark_task is not None:
         config = with_benchmark_task(config, benchmark_task)
+    if current_profile is not None:
+        config = with_current_profile(config, current_profile)
     if (
         obstacles is not None
         or obstacle_density is not None
@@ -145,6 +188,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
         for gate in _required_list(raw, "gates")
     ]
     currents = [_parse_current(current) for current in raw.get("currents", [])]
+    current_profiles = _parse_current_profiles(raw.get("current_profiles", {}))
     participants = [_parse_participant(participant) for participant in raw.get("participants", [])]
     if not participants:
         participants = [
@@ -171,6 +215,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
         gates=gates,
         beacon=global_beacon,
         currents=currents,
+        current_profiles=current_profiles,
         participants=participants,
         referee=referee,
         obstacle_generation=obstacle_generation,
@@ -184,6 +229,76 @@ def with_benchmark_task(config: TrackConfig, mode: str | None) -> TrackConfig:
         config,
         benchmark_task=BenchmarkTaskConfig(mode=normalize_benchmark_task_mode(mode)),
     )
+
+
+def with_current_profile(config: TrackConfig, profile: str | None) -> TrackConfig:
+    selected = normalize_current_profile(profile)
+    if selected is None:
+        return config
+    if selected == CURRENT_PROFILE_NONE:
+        return replace(config, currents=[], selected_current_profile=selected)
+    if selected in config.current_profiles:
+        currents = _resolve_current_profile(config, selected, config.current_profiles[selected])
+        return replace(
+            config,
+            currents=currents,
+            selected_current_profile=selected,
+        )
+    if selected == CURRENT_PROFILE_STRONG and config.currents:
+        return replace(config, selected_current_profile=selected)
+    raise TrackConfigLoadError(
+        f"current_profile '{selected}' is not available in this track. "
+        f"Available profiles: {', '.join(sorted(config.current_profiles)) or 'none'}."
+    )
+
+
+def normalize_current_profile(profile: str | None) -> str | None:
+    if profile is None:
+        return None
+    normalized = str(profile).strip().lower()
+    if not normalized:
+        return None
+    if normalized not in CURRENT_PROFILE_MODES:
+        raise TrackConfigLoadError(
+            f"current_profile '{profile}' is not supported. "
+            f"Allowed profiles: {', '.join(CURRENT_PROFILE_MODES)}."
+        )
+    return normalized
+
+
+def describe_current_profile(config: TrackConfig) -> list[str]:
+    lines = []
+    for index, current in enumerate(config.currents, start=1):
+        params = current.params
+        if current.type == "constant":
+            velocity = _float_vector(params.get("velocity", [0.0, 0.0, 0.0]))
+            lines.append(
+                f"current#{index} constant velocity={_fmt_vector(velocity)} intensity={_vector_norm(velocity):.3f}"
+            )
+        elif current.type == "localized_jet":
+            center = _float_vector(params.get("center", [0.0, 0.0, 0.0]))
+            velocity = _float_vector(params.get("velocity", [0.0, 0.0, 0.0]))
+            lines.append(
+                f"current#{index} localized_jet center={_fmt_vector(center)} "
+                f"velocity={_fmt_vector(velocity)} intensity={_vector_norm(velocity):.3f}"
+            )
+        elif current.type == "vortex":
+            center = _float_vector(params.get("center", [0.0, 0.0, 0.0]))
+            tangential = float(params.get("tangential_speed", 0.0))
+            vertical = float(params.get("vertical_speed", 0.0))
+            lines.append(
+                f"current#{index} vortex center={_fmt_vector(center)} "
+                f"tangential={tangential:.3f} vertical={vertical:.3f}"
+            )
+        elif current.type == "sinusoidal":
+            lines.append(
+                f"current#{index} sinusoidal axis={params.get('axis', 'x')} "
+                f"amplitude={float(params.get('amplitude', 0.0)):.3f} "
+                f"frequency_hz={float(params.get('frequency_hz', params.get('frequency', 0.0))):.3f}"
+            )
+        else:
+            lines.append(f"current#{index} {current.type}")
+    return lines
 
 
 def with_obstacle_options(
@@ -359,6 +474,131 @@ def _parse_current(raw: Any) -> CurrentConfig:
     params = dict(raw)
     params.pop("type", None)
     return CurrentConfig(type=current_type, params=params)
+
+
+def _parse_current_profiles(raw: Any) -> Dict[str, Any]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise TrackConfigLoadError("current_profiles must be an object when provided.")
+    profiles: Dict[str, Any] = {}
+    for profile_name, currents in raw.items():
+        normalized = normalize_current_profile(str(profile_name))
+        if normalized is None:
+            continue
+        if isinstance(currents, list):
+            profiles[normalized] = [_parse_current(current) for current in currents]
+        elif isinstance(currents, Mapping):
+            profiles[normalized] = dict(currents)
+        else:
+            raise TrackConfigLoadError(f"current_profiles.{profile_name} must be a list or object.")
+    return profiles
+
+
+def _resolve_current_profile(
+    config: TrackConfig,
+    profile: str,
+    profile_spec: Any,
+) -> list[CurrentConfig]:
+    if isinstance(profile_spec, list):
+        return list(profile_spec)
+    if not isinstance(profile_spec, Mapping):
+        raise TrackConfigLoadError(f"current_profiles.{profile} must be a list or object.")
+    layout = str(profile_spec.get("layout", profile_spec.get("type", ""))).strip().lower()
+    if layout != CURRENT_PROFILE_LAYOUT_GATE_RELATIVE:
+        raise TrackConfigLoadError(
+            f"current_profiles.{profile}.layout must be '{CURRENT_PROFILE_LAYOUT_GATE_RELATIVE}'."
+        )
+    scale = float(profile_spec.get("scale", 0.5 if profile == CURRENT_PROFILE_MEDIUM else 1.0))
+    return _generate_gate_relative_currents(config, scale)
+
+
+def _generate_gate_relative_currents(config: TrackConfig, scale: float) -> list[CurrentConfig]:
+    currents = []
+    for template in STRONG_CURRENT_TEMPLATE:
+        current_type = str(template["type"])
+        if current_type == "constant":
+            currents.append(
+                CurrentConfig(
+                    type=current_type,
+                    params={"velocity": _scale_vector(template["velocity"], scale)},
+                )
+            )
+        elif current_type == "localized_jet":
+            currents.append(
+                CurrentConfig(
+                    type=current_type,
+                    params={
+                        "center": list(_profile_center(config, float(template["center_fraction"]))),
+                        "radius": float(template["radius"]),
+                        "velocity": _scale_vector(template["velocity"], scale),
+                        "falloff": template["falloff"],
+                    },
+                )
+            )
+        elif current_type == "vortex":
+            currents.append(
+                CurrentConfig(
+                    type=current_type,
+                    params={
+                        "center": list(_profile_center(config, float(template["center_fraction"]))),
+                        "radius": float(template["radius"]),
+                        "tangential_speed": float(template["tangential_speed"]) * scale,
+                        "vertical_speed": float(template["vertical_speed"]) * scale,
+                        "falloff": template["falloff"],
+                        "clockwise": bool(template["clockwise"]),
+                    },
+                )
+            )
+        elif current_type == "sinusoidal":
+            currents.append(
+                CurrentConfig(
+                    type=current_type,
+                    params={
+                        "axis": template["axis"],
+                        "amplitude": float(template["amplitude"]) * scale,
+                        "frequency_hz": float(template["frequency_hz"]),
+                        "phase": float(template["phase"]),
+                    },
+                )
+            )
+    return currents
+
+
+def _profile_center(config: TrackConfig, fraction: float) -> Vector3:
+    gate_by_id = {gate.id: gate for gate in config.gates}
+    sequence = [gate_by_id[gate_id] for gate_id in config.track.gate_sequence if gate_id in gate_by_id]
+    if not sequence:
+        return _clamp_to_bounds(config, config.start.position)
+    index = round((len(sequence) - 1) * min(1.0, max(0.0, fraction)))
+    return _clamp_to_bounds(config, sequence[int(index)].position)
+
+
+def _clamp_to_bounds(config: TrackConfig, position: Vector3) -> Vector3:
+    bounds = config.world.bounds
+    return (
+        min(max(float(position[0]), bounds.x_min), bounds.x_max),
+        min(max(float(position[1]), bounds.y_min), bounds.y_max),
+        min(max(float(position[2]), bounds.z_min), bounds.z_max),
+    )
+
+
+def _scale_vector(value: Sequence[Any], scale: float) -> list[float]:
+    return [float(component) * scale for component in value]
+
+
+def _float_vector(value: Any) -> Vector3:
+    if not isinstance(value, (list, tuple)) or len(value) != 3:
+        return (0.0, 0.0, 0.0)
+    return (float(value[0]), float(value[1]), float(value[2]))
+
+
+def _vector_norm(value: Vector3) -> float:
+    return (value[0] ** 2 + value[1] ** 2 + value[2] ** 2) ** 0.5
+
+
+def _fmt_vector(value: Vector3) -> str:
+    return f"[{value[0]:.2f}, {value[1]:.2f}, {value[2]:.2f}]"
 
 
 def _parse_participant(raw: Any) -> ParticipantConfig:

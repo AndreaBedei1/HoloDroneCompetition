@@ -145,6 +145,8 @@ class TrackConfig:
     participants: List[ParticipantConfig]
     referee: RefereeConfig
     benchmark_task: BenchmarkTaskConfig = field(default_factory=BenchmarkTaskConfig)
+    current_profiles: Dict[str, Any] = field(default_factory=dict)
+    selected_current_profile: Optional[str] = None
     obstacle_generation: ObstacleGenerationConfig = field(default_factory=ObstacleGenerationConfig)
     obstacles: List[Dict[str, Any]] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)

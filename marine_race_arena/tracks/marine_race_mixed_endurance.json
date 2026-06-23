@@ -549,6 +549,17 @@
       ]
     }
   ],
+  "current_profiles": {
+    "none": [],
+    "medium": {
+      "layout": "gate_relative",
+      "scale": 0.5
+    },
+    "strong": {
+      "layout": "gate_relative",
+      "scale": 1.0
+    }
+  },
   "currents": [
     {
       "type": "constant",

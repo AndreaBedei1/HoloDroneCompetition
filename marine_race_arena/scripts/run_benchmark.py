@@ -26,7 +26,7 @@ from marine_race_arena.config.benchmark_tasks import (
     BENCHMARK_TASK_CURRENT_GATE,
     BENCHMARK_TASK_OBSTACLE_GATE,
 )
-from marine_race_arena.config.loader import load_track_config
+from marine_race_arena.config.loader import CURRENT_PROFILE_MODES, load_track_config
 from marine_race_arena.config.validation import validate_track_config
 from marine_race_arena.scripts import run_marine_race
 
@@ -134,6 +134,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--obstacles", choices=OBSTACLE_MODES, default=None)
     parser.add_argument("--obstacle-density", choices=OBSTACLE_DENSITIES, default=None)
     parser.add_argument("--obstacle-physics", choices=OBSTACLE_PHYSICS_MODES, default=None)
+    parser.add_argument("--current-profile", choices=CURRENT_PROFILE_MODES, default=None)
     parser.add_argument("--output-dir", default="results/benchmarks")
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--official", action="store_true")
@@ -168,6 +169,8 @@ def _race_args(args: argparse.Namespace, seed: int, run_dir: Path) -> list[str]:
         race_args.extend(["--obstacle-density", args.obstacle_density])
     if args.obstacle_physics is not None:
         race_args.extend(["--obstacle-physics", args.obstacle_physics])
+    if args.current_profile is not None:
+        race_args.extend(["--current-profile", args.current_profile])
     if args.allow_fallback:
         race_args.append("--allow-fallback")
     if args.official:
@@ -201,6 +204,7 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
         "obstacles_requested": args.obstacles,
         "obstacle_density_requested": args.obstacle_density,
         "obstacle_physics_requested": args.obstacle_physics,
+        "current_profile_requested": args.current_profile,
         "duration_s": args.duration,
         "dt": args.dt,
         "official": bool(args.official),
@@ -215,6 +219,7 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
             obstacles=args.obstacles,
             obstacle_density=args.obstacle_density,
             obstacle_physics=args.obstacle_physics,
+            current_profile=args.current_profile,
             seed=seed,
         )
     except Exception as exc:
@@ -229,6 +234,7 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
     metadata["obstacle_density"] = config.obstacle_generation.density
     metadata["obstacle_physics"] = config.obstacle_generation.obstacle_physics
     metadata["current_mode"] = _current_mode(config.currents)
+    metadata["current_profile"] = config.selected_current_profile or "track-default"
     metadata["current_count"] = len(config.currents)
     metadata["duration_s"] = args.duration if args.duration is not None else config.race.max_duration_s
     metadata["validation_errors"] = list(validation.errors)

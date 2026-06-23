@@ -117,10 +117,18 @@ def test_cli_benchmark_task_override_is_applied_by_loader(tmp_path: Path) -> Non
 
 def test_run_parser_accepts_benchmark_task_argument() -> None:
     args = _build_arg_parser().parse_args(
-        ["--track", "track.json", "--benchmark-task", BENCHMARK_TASK_CURRENT_GATE]
+        [
+            "--track",
+            "track.json",
+            "--benchmark-task",
+            BENCHMARK_TASK_CURRENT_GATE,
+            "--current-profile",
+            "medium",
+        ]
     )
 
     assert args.benchmark_task == BENCHMARK_TASK_CURRENT_GATE
+    assert args.current_profile == "medium"
 
 
 def test_benchmark_task_override_can_be_applied_after_parsing() -> None:
