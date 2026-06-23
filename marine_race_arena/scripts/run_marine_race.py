@@ -39,6 +39,12 @@ from marine_race_arena.config.loader import (
     load_track_config,
 )
 from marine_race_arena.config.schema import TrackConfig, Vector3
+from marine_race_arena.controllers.motion_compensation import (
+    MOTION_COMPENSATION_MODES,
+    MOTION_COMPENSATION_NONE,
+    make_motion_compensator,
+    normalize_motion_compensation_mode,
+)
 from marine_race_arena.participants.controller_interface import ManualStopRequested
 from marine_race_arena.participants.controller_loader import ControllerError, ControllerLoader
 from marine_race_arena.participants.participant import RaceParticipant
@@ -78,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Active currents: {len(config.currents)}")
     for line in describe_current_profile(config):
         print(f"  {line}")
+    motion_compensation = normalize_motion_compensation_mode(args.motion_compensation)
+    print(f"Motion compensation: {motion_compensation}")
     if args.disable_front_camera:
         config = _without_front_camera(config)
     arena = ArenaBuilder(config, seed=args.seed).build()
@@ -99,11 +107,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     referee.register_participants(participants.keys())
-    race_info = _race_info(config, adapter.name)
+    race_info = _race_info(config, adapter.name, motion_compensation)
+    motion_compensators = {
+        participant_id: make_motion_compensator(motion_compensation)
+        for participant_id in participants
+    }
     for participant in participants.values():
         participant.controller.reset(
             race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)}
         )
+        motion_compensators[participant.id].reset()
 
     try:
         summary = _run_race_loop(
@@ -115,7 +128,10 @@ def main(argv: list[str] | None = None) -> int:
             dt=args.dt,
             camera_viewer=camera_viewer,
             beacon_target_printer=beacon_target_printer,
+            motion_compensators=motion_compensators,
+            gate_timeout_s=args.gate_timeout_s,
         )
+        summary["motion_compensation"] = motion_compensation
         logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
         logger.write_summary(summary)
     finally:
@@ -226,6 +242,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print de-duplicated beacon/race target diagnostics while the race loop runs.",
     )
+    parser.add_argument(
+        "--motion-compensation",
+        choices=MOTION_COMPENSATION_MODES,
+        default=MOTION_COMPENSATION_NONE,
+        help="Optional high-level command compensation layer. dvl_pi uses DVL/VelocitySensor horizontal velocity feedback.",
+    )
+    parser.add_argument(
+        "--gate-timeout-s",
+        type=float,
+        default=None,
+        help="Optional experiment safety stop: mark STUCK if no new gate is passed within this many seconds.",
+    )
     return parser
 
 
@@ -323,7 +351,7 @@ def _prepare_adapter(
         ) from exc
 
 
-def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
+def _race_info(config: TrackConfig, adapter_name: str, motion_compensation: str = MOTION_COMPENSATION_NONE) -> Dict[str, Any]:
     return {
         "race_name": config.race.name,
         "format": config.race.format,
@@ -337,6 +365,7 @@ def _race_info(config: TrackConfig, adapter_name: str) -> Dict[str, Any]:
         "obstacle_physics": config.obstacle_generation.obstacle_physics,
         "current_profile": _current_profile_label(config),
         "active_current_count": len(config.currents),
+        "motion_compensation": motion_compensation,
         "max_duration_s": config.race.max_duration_s,
         "adapter": adapter_name,
         "max_command": 0.95,
@@ -357,6 +386,46 @@ def _current_profile_label(config: TrackConfig) -> str:
     return "track-default"
 
 
+def _positive_float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        converted = float(value)
+    except (TypeError, ValueError):
+        return None
+    if converted <= 0.0:
+        return None
+    return converted
+
+
+def _log_motion_compensation(
+    *,
+    referee: Referee,
+    participant_id: str,
+    time_s: float,
+    compensator: Any,
+    last_log_times: Dict[str, float],
+    interval_s: float = 1.0,
+) -> None:
+    if getattr(compensator, "mode", MOTION_COMPENSATION_NONE) == MOTION_COMPENSATION_NONE:
+        return
+    logger = referee.logger
+    if logger is None:
+        return
+    last_time = last_log_times.get(participant_id)
+    if last_time is not None and time_s - last_time < interval_s:
+        return
+    diagnostics = compensator.diagnostics()
+    last_log_times[participant_id] = time_s
+    logger.log_event(
+        "motion_compensation",
+        time_s,
+        participant_id,
+        mode=getattr(compensator, "mode", "unknown"),
+        **diagnostics.as_event_payload(),
+    )
+
+
 def _run_race_loop(
     config: TrackConfig,
     arena: Arena,
@@ -366,6 +435,8 @@ def _run_race_loop(
     dt: float,
     camera_viewer: "FrontCameraViewer | None" = None,
     beacon_target_printer: "BeaconTargetPrinter | None" = None,
+    motion_compensators: Mapping[str, Any] | None = None,
+    gate_timeout_s: float | None = None,
 ) -> Dict[str, Any]:
     LOGGER.info(
         "Starting race '%s' with adapter '%s' in %s.",
@@ -374,6 +445,16 @@ def _run_race_loop(
         arena.environment_name,
     )
     referee.start_race(adapter.get_current_time())
+    motion_compensation_log_times: Dict[str, float] = {}
+    gate_timeout_s = _positive_float_or_none(gate_timeout_s)
+    last_gate_counts = {
+        participant_id: referee.states[participant_id].valid_gate_crossings
+        for participant_id in participants
+    }
+    last_gate_progress_times = {
+        participant_id: adapter.get_current_time()
+        for participant_id in participants
+    }
     while adapter.get_current_time() <= config.race.max_duration_s:
         all_terminal = True
         manual_stop_requested = False
@@ -406,6 +487,16 @@ def _run_race_loop(
             except Exception as exc:  # pragma: no cover - exercised by external controllers
                 controller_errors[participant.id] = f"{type(exc).__name__}: {exc}"
                 command = {}
+            compensator = motion_compensators.get(participant.id) if motion_compensators is not None else None
+            if compensator is not None:
+                command = compensator.compensate(command, observation, dt)
+                _log_motion_compensation(
+                    referee=referee,
+                    participant_id=participant.id,
+                    time_s=adapter.get_current_time(),
+                    compensator=compensator,
+                    last_log_times=motion_compensation_log_times,
+                )
             adapter.apply_command(participant.id, command, participant.config.control_mode)
 
         if manual_stop_requested:
@@ -438,6 +529,17 @@ def _run_race_loop(
                 obstacle_collisions=obstacle_collisions,
                 controller_error=controller_errors.get(participant_id),
             )
+            if state.is_terminal:
+                continue
+            completed_gates = state.valid_gate_crossings
+            if completed_gates > last_gate_counts.get(participant_id, 0):
+                last_gate_counts[participant_id] = completed_gates
+                last_gate_progress_times[participant_id] = time_s
+            elif (
+                gate_timeout_s is not None
+                and time_s - last_gate_progress_times.get(participant_id, time_s) >= gate_timeout_s
+            ):
+                referee.gate_timeout_stuck(participant_id, time_s, gate_timeout_s)
 
     for participant in participants.values():
         state = referee.states[participant.id]

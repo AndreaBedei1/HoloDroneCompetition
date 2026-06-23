@@ -56,6 +56,17 @@ def test_stuck_adds_penalty_once_but_does_not_dnf() -> None:
     assert state.penalties_s == 15.0
 
 
+def test_gate_timeout_stuck_is_terminal_experiment_stop() -> None:
+    referee = _referee()
+
+    referee.gate_timeout_stuck("p1", time_s=180.0, timeout_s=180.0)
+    state = referee.states["p1"]
+
+    assert state.status == ParticipantStatus.STUCK
+    assert state.is_terminal
+    assert state.stuck_events == 1
+
+
 def test_wrong_direction_is_event_only() -> None:
     config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
     arena = ArenaBuilder(config).build()

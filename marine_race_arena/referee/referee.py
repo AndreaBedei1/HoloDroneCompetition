@@ -57,6 +57,24 @@ class Referee:
             state.last_update_time = time_s
             self._log("manual_stop", time_s, participant_id, reason="manual_stop")
 
+    def gate_timeout_stuck(self, participant_id: str, time_s: float, timeout_s: float) -> None:
+        state = self.states.get(participant_id)
+        if state is None or state.is_terminal:
+            return
+        expected_gate_id = self.expected_gate_id(participant_id)
+        state.status = ParticipantStatus.STUCK
+        state.stuck_events += 1
+        state.last_update_time = time_s
+        self._log(
+            "stuck",
+            time_s,
+            participant_id,
+            reason="gate_timeout",
+            duration_s=timeout_s,
+            expected_gate_id=expected_gate_id,
+        )
+        self._log("dnf", time_s, participant_id, reason="gate_timeout_stuck")
+
     def update(
         self,
         participant_id: str,

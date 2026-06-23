@@ -28,6 +28,10 @@ from marine_race_arena.config.benchmark_tasks import (
 )
 from marine_race_arena.config.loader import CURRENT_PROFILE_MODES, load_track_config
 from marine_race_arena.config.validation import validate_track_config
+from marine_race_arena.controllers.motion_compensation import (
+    MOTION_COMPENSATION_MODES,
+    MOTION_COMPENSATION_NONE,
+)
 from marine_race_arena.scripts import run_marine_race
 
 BENCHMARK_TASKS = (
@@ -37,7 +41,7 @@ BENCHMARK_TASKS = (
 )
 MANUAL_CONTROLLER_ALIASES = {"pygame", "pygame_keyboard", "keyboard", "manual", "manual_keyboard"}
 DEBUG_CONTROLLER_ALIASES = {"oracle"}
-DNF_STATUSES = {"DNF", "DSQ", "TIMEOUT"}
+DNF_STATUSES = {"DNF", "DSQ", "TIMEOUT", "STUCK"}
 SUMMARY_CSV_FIELDS = [
     "number_of_runs",
     "completion_rate",
@@ -135,6 +139,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--obstacle-density", choices=OBSTACLE_DENSITIES, default=None)
     parser.add_argument("--obstacle-physics", choices=OBSTACLE_PHYSICS_MODES, default=None)
     parser.add_argument("--current-profile", choices=CURRENT_PROFILE_MODES, default=None)
+    parser.add_argument("--motion-compensation", choices=MOTION_COMPENSATION_MODES, default=MOTION_COMPENSATION_NONE)
+    parser.add_argument("--gate-timeout-s", type=float, default=None)
     parser.add_argument("--output-dir", default="results/benchmarks")
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--official", action="store_true")
@@ -171,6 +177,10 @@ def _race_args(args: argparse.Namespace, seed: int, run_dir: Path) -> list[str]:
         race_args.extend(["--obstacle-physics", args.obstacle_physics])
     if args.current_profile is not None:
         race_args.extend(["--current-profile", args.current_profile])
+    if args.motion_compensation is not None:
+        race_args.extend(["--motion-compensation", args.motion_compensation])
+    if args.gate_timeout_s is not None:
+        race_args.extend(["--gate-timeout-s", str(args.gate_timeout_s)])
     if args.allow_fallback:
         race_args.append("--allow-fallback")
     if args.official:
@@ -205,6 +215,8 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
         "obstacle_density_requested": args.obstacle_density,
         "obstacle_physics_requested": args.obstacle_physics,
         "current_profile_requested": args.current_profile,
+        "motion_compensation": args.motion_compensation,
+        "gate_timeout_s": args.gate_timeout_s,
         "duration_s": args.duration,
         "dt": args.dt,
         "official": bool(args.official),

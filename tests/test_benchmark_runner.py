@@ -8,6 +8,7 @@ import pytest
 from marine_race_arena.scripts.run_benchmark import (
     BenchmarkRunResult,
     aggregate_run_results,
+    _build_run_metadata,
     write_aggregate_outputs,
 )
 
@@ -126,6 +127,37 @@ def test_benchmark_aggregation_handles_missing_metrics_safely(tmp_path: Path) ->
     assert rows[2]["status"] == "RUN_FAILED"
 
 
+def test_benchmark_metadata_records_motion_compensation() -> None:
+    args = _Args(
+        benchmark_task="clean_gate",
+        track=str(Path("marine_race_arena/tracks/marine_race_horseshoe_bay.json")),
+        controller="rule_gate_baseline",
+        controller_class=None,
+        adapter="fallback",
+        allow_fallback=False,
+        obstacles="none",
+        obstacle_density=None,
+        obstacle_physics=None,
+        current_profile="none",
+        motion_compensation="dvl_pi",
+        gate_timeout_s=180.0,
+        duration=120.0,
+        dt=0.1,
+        official=False,
+        print_beacon_targets=False,
+    )
+
+    metadata = _build_run_metadata(args, seed=0, controller_role="automatic")
+
+    assert metadata["motion_compensation"] == "dvl_pi"
+    assert metadata["gate_timeout_s"] == 180.0
+
+
 def _write_summary(path: Path, payload: dict) -> Path:
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+class _Args:
+    def __init__(self, **kwargs: object) -> None:
+        self.__dict__.update(kwargs)
