@@ -32,6 +32,7 @@ class ParticipantRaceState:
     wrong_direction_crossings: int = 0
     collision_events: int = 0
     obstacle_collision_events: int = 0
+    involved_inter_vehicle_collisions: int = 0
     out_of_bounds_events: int = 0
     stuck_events: int = 0
     penalties_s: float = 0.0

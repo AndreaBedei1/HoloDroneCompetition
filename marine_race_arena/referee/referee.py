@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import math
 from typing import Dict, Iterable, List, Mapping, Optional
 
@@ -13,6 +14,15 @@ from marine_race_arena.referee.logger import RaceLogger
 from marine_race_arena.referee.race_state import ParticipantRaceState, ParticipantStatus
 from marine_race_arena.referee.scoring import penalized_time_s, rank_participants
 
+INTER_VEHICLE_COLLISION_OFF = "off"
+INTER_VEHICLE_COLLISION_DIAGNOSTIC = "diagnostic"
+INTER_VEHICLE_COLLISION_PENALIZE = "penalize"
+INTER_VEHICLE_COLLISION_MODES = (
+    INTER_VEHICLE_COLLISION_OFF,
+    INTER_VEHICLE_COLLISION_DIAGNOSTIC,
+    INTER_VEHICLE_COLLISION_PENALIZE,
+)
+
 
 class Referee:
     def __init__(
@@ -21,6 +31,12 @@ class Referee:
         gate_map: Dict[str, Gate],
         bounds: ArenaBounds,
         logger: Optional[RaceLogger] = None,
+        inter_vehicle_collision_mode: str = INTER_VEHICLE_COLLISION_OFF,
+        inter_vehicle_collision_xy_threshold_m: float = 0.8,
+        inter_vehicle_collision_z_threshold_m: float = 0.75,
+        inter_vehicle_collision_release_threshold_m: Optional[float] = None,
+        inter_vehicle_collision_cooldown_s: float = 1.0,
+        team_id: str = "fleet_01",
     ):
         self.config = config
         self.gate_map = gate_map
@@ -34,6 +50,33 @@ class Referee:
             0.0,
             float(config.referee.gate_validation.get("vehicle_clearance_margin_m", 0.0)),
         )
+        self.team_id = team_id
+        if inter_vehicle_collision_mode not in INTER_VEHICLE_COLLISION_MODES:
+            raise ValueError(
+                "inter_vehicle_collision_mode must be one of "
+                f"{', '.join(INTER_VEHICLE_COLLISION_MODES)}."
+            )
+        self.inter_vehicle_collision_mode = inter_vehicle_collision_mode
+        self.inter_vehicle_collision_xy_threshold_m = max(
+            0.0, float(inter_vehicle_collision_xy_threshold_m)
+        )
+        self.inter_vehicle_collision_z_threshold_m = max(
+            0.0, float(inter_vehicle_collision_z_threshold_m)
+        )
+        if inter_vehicle_collision_release_threshold_m is None:
+            inter_vehicle_collision_release_threshold_m = max(
+                self.inter_vehicle_collision_xy_threshold_m + 0.25,
+                self.inter_vehicle_collision_xy_threshold_m * 1.25,
+            )
+        self.inter_vehicle_collision_release_threshold_m = max(
+            self.inter_vehicle_collision_xy_threshold_m,
+            float(inter_vehicle_collision_release_threshold_m),
+        )
+        self.inter_vehicle_collision_cooldown_s = max(0.0, float(inter_vehicle_collision_cooldown_s))
+        self.inter_vehicle_collision_events = 0
+        self.inter_vehicle_collision_penalties_s = 0.0
+        self._inter_vehicle_pair_last_event_time: Dict[tuple[str, str], float] = {}
+        self._inter_vehicle_pair_active: set[tuple[str, str]] = set()
 
     def register_participants(self, participant_ids: Iterable[str]) -> None:
         for participant_id in participant_ids:
@@ -155,40 +198,104 @@ class Referee:
             "official_time_started": state.official_start_time is not None,
         }
 
+    def detect_inter_vehicle_collisions(
+        self,
+        time_s: float,
+        positions: Optional[Mapping[str, Vector3]] = None,
+    ) -> List[Dict[str, object]]:
+        if self.inter_vehicle_collision_mode == INTER_VEHICLE_COLLISION_OFF:
+            return []
+        running_ids = sorted(
+            participant_id
+            for participant_id, state in self.states.items()
+            if state.status == ParticipantStatus.RUNNING
+        )
+        if len(running_ids) < 2:
+            return []
+
+        current_positions = positions if positions is not None else self.latest_positions
+        events: List[Dict[str, object]] = []
+        for participant_a, participant_b in itertools.combinations(running_ids, 2):
+            position_a = current_positions.get(participant_a)
+            position_b = current_positions.get(participant_b)
+            if position_a is None or position_b is None:
+                continue
+            pair = _ordered_pair(participant_a, participant_b)
+            horizontal_distance_m = _horizontal_distance(position_a, position_b)
+            vertical_distance_m = abs(position_a[2] - position_b[2])
+            distance_3d_m = _distance(position_a, position_b)
+            within_threshold = (
+                horizontal_distance_m <= self.inter_vehicle_collision_xy_threshold_m
+                and vertical_distance_m <= self.inter_vehicle_collision_z_threshold_m
+            )
+            if not within_threshold:
+                if (
+                    pair in self._inter_vehicle_pair_active
+                    and horizontal_distance_m >= self.inter_vehicle_collision_release_threshold_m
+                ) or vertical_distance_m > self.inter_vehicle_collision_z_threshold_m:
+                    self._inter_vehicle_pair_active.discard(pair)
+                continue
+
+            if pair in self._inter_vehicle_pair_active:
+                continue
+            last_event_time = self._inter_vehicle_pair_last_event_time.get(pair)
+            if not _cooldown_elapsed(last_event_time, time_s, self.inter_vehicle_collision_cooldown_s):
+                continue
+
+            event = self._record_inter_vehicle_collision(
+                participant_a=participant_a,
+                participant_b=participant_b,
+                position_a=position_a,
+                position_b=position_b,
+                horizontal_distance_m=horizontal_distance_m,
+                vertical_distance_m=vertical_distance_m,
+                distance_3d_m=distance_3d_m,
+                time_s=time_s,
+            )
+            self._inter_vehicle_pair_active.add(pair)
+            self._inter_vehicle_pair_last_event_time[pair] = time_s
+            events.append(event)
+        return events
+
     def summary(self) -> Dict[str, object]:
         ranking = rank_participants(
             self.states.values(), self.gate_sequence, self.gate_map, self.latest_positions
         )
+        fleet_mode = len(self.states) > 1
         participant_summaries = []
         for rank, state in enumerate(ranking, start=1):
-            participant_summaries.append(
-                {
-                    "rank": rank,
-                    "participant_id": state.participant_id,
-                    "status": state.status.value,
-                    "start_delay_s": state.start_delay_s,
-                    "release_time_s": state.release_time_s,
-                    "official_time_s": state.official_time_s,
-                    "green_to_finish_time_s": state.green_to_finish_time_s,
-                    "penalties_s": state.penalties_s,
-                    "penalized_time_s": penalized_time_s(state),
-                    "completed_gates": state.valid_gate_crossings,
-                    "lap": state.current_lap,
-                    "collisions": state.collision_events,
-                    "obstacle_collisions": state.obstacle_collision_events,
-                    "wrong_direction_crossings": state.wrong_direction_crossings,
-                    "missed_gate_attempts": state.missed_gate_attempts,
-                    "out_of_bounds_events": state.out_of_bounds_events,
-                    "stuck_events": state.stuck_events,
-                }
-            )
-        return {
+            row = {
+                "rank": rank,
+                "participant_id": state.participant_id,
+                "status": state.status.value,
+                "start_delay_s": state.start_delay_s,
+                "release_time_s": state.release_time_s,
+                "official_time_s": state.official_time_s,
+                "green_to_finish_time_s": state.green_to_finish_time_s,
+                "penalties_s": state.penalties_s,
+                "penalized_time_s": penalized_time_s(state),
+                "completed_gates": state.valid_gate_crossings,
+                "lap": state.current_lap,
+                "collisions": state.collision_events,
+                "obstacle_collisions": state.obstacle_collision_events,
+                "wrong_direction_crossings": state.wrong_direction_crossings,
+                "missed_gate_attempts": state.missed_gate_attempts,
+                "out_of_bounds_events": state.out_of_bounds_events,
+                "stuck_events": state.stuck_events,
+            }
+            if fleet_mode:
+                row["involved_inter_vehicle_collisions"] = state.involved_inter_vehicle_collisions
+            participant_summaries.append(row)
+        summary = {
             "race_name": self.config.race.name,
             "environment": self.config.world.map,
             "timing_mode": self.config.race.timing_mode,
             "participants": participant_summaries,
             "ranking": [state.participant_id for state in ranking],
         }
+        if fleet_mode:
+            summary["team_summary"] = self._team_summary()
+        return summary
 
     def _release_state(
         self,
@@ -377,6 +484,124 @@ class Referee:
             position=event["position"],
         )
 
+    def _record_inter_vehicle_collision(
+        self,
+        *,
+        participant_a: str,
+        participant_b: str,
+        position_a: Vector3,
+        position_b: Vector3,
+        horizontal_distance_m: float,
+        vertical_distance_m: float,
+        distance_3d_m: float,
+        time_s: float,
+    ) -> Dict[str, object]:
+        state_a = self.states[participant_a]
+        state_b = self.states[participant_b]
+        penalty_s = 0.0
+        if self.inter_vehicle_collision_mode == INTER_VEHICLE_COLLISION_PENALIZE:
+            penalty_s = float(self.config.referee.penalties.get("minor_collision_s", 5.0))
+            self.inter_vehicle_collision_penalties_s += penalty_s
+        self.inter_vehicle_collision_events += 1
+        state_a.involved_inter_vehicle_collisions += 1
+        state_b.involved_inter_vehicle_collisions += 1
+        event = {
+            "event": "inter_vehicle_collision",
+            "team_id": self.team_id,
+            "participant_a": participant_a,
+            "participant_b": participant_b,
+            "time_s": time_s,
+            "horizontal_distance_m": horizontal_distance_m,
+            "vertical_distance_m": vertical_distance_m,
+            "distance_3d_m": distance_3d_m,
+            "position_a": position_a,
+            "position_b": position_b,
+            "completed_gates_a": state_a.valid_gate_crossings,
+            "completed_gates_b": state_b.valid_gate_crossings,
+            "target_gate_a": self._target_gate_id_or_none(state_a),
+            "target_gate_b": self._target_gate_id_or_none(state_b),
+            "mode": self.inter_vehicle_collision_mode,
+            "penalty_s": penalty_s,
+        }
+        self._log(
+            "inter_vehicle_collision",
+            time_s,
+            None,
+            team_id=self.team_id,
+            participant_a=participant_a,
+            participant_b=participant_b,
+            horizontal_distance_m=horizontal_distance_m,
+            vertical_distance_m=vertical_distance_m,
+            distance_3d_m=distance_3d_m,
+            position_a=position_a,
+            position_b=position_b,
+            completed_gates_a=state_a.valid_gate_crossings,
+            completed_gates_b=state_b.valid_gate_crossings,
+            target_gate_a=event["target_gate_a"],
+            target_gate_b=event["target_gate_b"],
+            mode=self.inter_vehicle_collision_mode,
+            penalty_s=penalty_s,
+        )
+        return event
+
+    def _target_gate_id_or_none(self, state: ParticipantRaceState) -> Optional[str]:
+        if state.is_terminal or not self.gate_sequence:
+            return None
+        return self.gate_sequence[state.expected_gate_index]
+
+    def _team_summary(self) -> Dict[str, object]:
+        states = list(self.states.values())
+        rover_count = len(states)
+        expected_gates_per_rover = int(self.config.race.laps) * len(self.gate_sequence)
+        expected_total_gates = expected_gates_per_rover * rover_count
+        total_completed_gates = sum(state.valid_gate_crossings for state in states)
+        all_rovers_finished = all(state.status == ParticipantStatus.FINISHED for state in states)
+        release_times = [state.release_time_s for state in states if state.release_time_s is not None]
+        team_start_time_s = min(release_times) if release_times else self._green_time
+        finish_times = [
+            state.official_finish_time for state in states if state.official_finish_time is not None
+        ]
+        team_finish_time_s = max(finish_times) if all_rovers_finished and finish_times else None
+        team_elapsed_time_s = None
+        if team_start_time_s is not None and team_finish_time_s is not None:
+            team_elapsed_time_s = team_finish_time_s - team_start_time_s
+        total_obstacle_collisions = sum(state.obstacle_collision_events for state in states)
+        total_gate_collisions = sum(
+            max(0, state.collision_events - state.obstacle_collision_events)
+            for state in states
+        )
+        total_inter_vehicle_collisions = self.inter_vehicle_collision_events
+        total_collisions = (
+            total_gate_collisions
+            + total_obstacle_collisions
+            + total_inter_vehicle_collisions
+        )
+        total_penalties_s = (
+            sum(state.penalties_s for state in states) + self.inter_vehicle_collision_penalties_s
+        )
+        team_penalized_time_s = (
+            team_elapsed_time_s + total_penalties_s
+            if team_elapsed_time_s is not None
+            else None
+        )
+        return {
+            "team_id": self.team_id,
+            "rover_count": rover_count,
+            "expected_total_gates": expected_total_gates,
+            "total_completed_gates": total_completed_gates,
+            "all_rovers_finished": all_rovers_finished,
+            "team_start_time_s": team_start_time_s,
+            "team_finish_time_s": team_finish_time_s,
+            "team_elapsed_time_s": team_elapsed_time_s,
+            "total_gate_collisions": total_gate_collisions,
+            "total_obstacle_collisions": total_obstacle_collisions,
+            "total_inter_vehicle_collisions": total_inter_vehicle_collisions,
+            "total_collisions": total_collisions,
+            "total_penalties_s": total_penalties_s,
+            "team_penalized_time_s": team_penalized_time_s,
+            "inter_vehicle_collision_mode": self.inter_vehicle_collision_mode,
+        }
+
     def _handle_out_of_bounds(
         self,
         state: ParticipantRaceState,
@@ -470,6 +695,15 @@ class Referee:
 
 def _distance(a: Vector3, b: Vector3) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
+def _horizontal_distance(a: Vector3, b: Vector3) -> float:
+    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+
+
+def _ordered_pair(participant_a: str, participant_b: str) -> tuple[str, str]:
+    ordered = sorted((participant_a, participant_b))
+    return (ordered[0], ordered[1])
 
 
 def _cooldown_elapsed(previous_time_s: Optional[float], time_s: float, cooldown_s: float) -> bool:

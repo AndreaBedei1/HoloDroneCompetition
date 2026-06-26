@@ -52,7 +52,7 @@ from marine_race_arena.participants.participant import RaceParticipant
 from marine_race_arena.participants.sensor_profile import build_observation
 from marine_race_arena.referee.logger import RaceLogger
 from marine_race_arena.referee.race_state import ParticipantStatus
-from marine_race_arena.referee.referee import Referee
+from marine_race_arena.referee.referee import INTER_VEHICLE_COLLISION_MODES, Referee
 
 LOGGER = logging.getLogger(__name__)
 
@@ -96,7 +96,18 @@ def main(argv: list[str] | None = None) -> int:
         config = _without_front_camera(config)
     arena = ArenaBuilder(config, seed=args.seed).build()
     logger = RaceLogger(args.log_dir, config.race.name, track_file=args.track)
-    referee = Referee(config, arena.gate_map, arena.bounds, logger=logger)
+    referee = Referee(
+        config,
+        arena.gate_map,
+        arena.bounds,
+        logger=logger,
+        inter_vehicle_collision_mode=args.inter_vehicle_collision_mode,
+        inter_vehicle_collision_xy_threshold_m=args.inter_vehicle_collision_xy_threshold_m,
+        inter_vehicle_collision_z_threshold_m=args.inter_vehicle_collision_z_threshold_m,
+        inter_vehicle_collision_release_threshold_m=args.inter_vehicle_collision_release_threshold_m,
+        inter_vehicle_collision_cooldown_s=args.inter_vehicle_collision_cooldown_s,
+        team_id=args.team_id,
+    )
     camera_viewer = FrontCameraViewer(enabled=args.show_front_camera)
     beacon_target_printer = BeaconTargetPrinter(
         enabled=args.print_beacon_targets or _env_flag("MARINE_RACE_PRINT_BEACON_TARGETS")
@@ -139,6 +150,8 @@ def main(argv: list[str] | None = None) -> int:
             log_participant_states=args.log_participant_states,
         )
         summary["motion_compensation"] = motion_compensation
+        if len(participants) > 1 or args.inter_vehicle_collision_mode != "off":
+            summary["inter_vehicle_collision_mode"] = args.inter_vehicle_collision_mode
         logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
         logger.write_summary(summary)
     finally:
@@ -288,6 +301,44 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--log-participant-states",
         action="store_true",
         help="Log per-tick participant states for multi-agent diagnostics.",
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-mode",
+        choices=INTER_VEHICLE_COLLISION_MODES,
+        default="off",
+        help=(
+            "Referee-side rover-rover proximity detector. off preserves existing scoring; "
+            "diagnostic logs fleet events without penalty; penalize adds one team penalty per pair event."
+        ),
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-xy-threshold-m",
+        type=float,
+        default=0.8,
+        help="Horizontal distance threshold for referee-side inter-vehicle collision detection.",
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-z-threshold-m",
+        type=float,
+        default=0.75,
+        help="Vertical distance threshold for referee-side inter-vehicle collision detection.",
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-release-threshold-m",
+        type=float,
+        default=None,
+        help="Horizontal separation required before the same rover pair can count again.",
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-cooldown-s",
+        type=float,
+        default=1.0,
+        help="Minimum time between inter-vehicle collision events for the same rover pair.",
+    )
+    parser.add_argument(
+        "--team-id",
+        default="fleet_01",
+        help="Team identifier used in fleet-level summary and inter-vehicle collision events.",
     )
     return parser
 
@@ -746,6 +797,12 @@ def _run_race_loop(
                 and time_s - last_gate_progress_times.get(participant_id, time_s) >= gate_timeout_s
             ):
                 referee.gate_timeout_stuck(participant_id, time_s, gate_timeout_s)
+        if len(participants) > 1:
+            participant_positions = {
+                participant_id: adapter.get_participant_state(participant_id).position
+                for participant_id in participants
+            }
+            referee.detect_inter_vehicle_collisions(time_s, participant_positions)
         if log_participant_states:
             _log_participant_states(
                 referee=referee,

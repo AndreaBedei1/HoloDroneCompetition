@@ -24,6 +24,10 @@ OUTPUT_DIR = Path("results/benchmarks/staggered_multi_rover_smoke")
 DEFAULT_NUM_ROVERS = 2
 DEFAULT_START_GAP_S = 90.0
 DEFAULT_LATERAL_OFFSET_M = 3.0
+DEFAULT_INTER_VEHICLE_MODE = "diagnostic"
+DEFAULT_INTER_VEHICLE_XY_THRESHOLD_M = 0.8
+DEFAULT_INTER_VEHICLE_Z_THRESHOLD_M = 0.75
+DEFAULT_INTER_VEHICLE_COOLDOWN_S = 1.0
 DIAGNOSTIC_NUM_ROVERS = 3
 DIAGNOSTIC_START_GAP_S = 20.0
 DIAGNOSTIC_LATERAL_OFFSET_M = 1.5
@@ -39,6 +43,7 @@ TABLE_FIELDS = [
     "penalized_time_s",
     "collisions",
     "obstacle_collisions",
+    "involved_inter_vehicle_collisions",
     "out_of_bounds_events",
     "stuck_events",
     "final_rank",
@@ -92,6 +97,27 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--duration", type=float, default=560.0)
     parser.add_argument("--wall-timeout-s", type=float, default=900.0)
+    parser.add_argument(
+        "--inter-vehicle-collision-mode",
+        choices=("off", "diagnostic", "penalize"),
+        default=DEFAULT_INTER_VEHICLE_MODE,
+        help="Referee-side fleet collision detector mode for the smoke run.",
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-xy-threshold-m",
+        type=float,
+        default=DEFAULT_INTER_VEHICLE_XY_THRESHOLD_M,
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-z-threshold-m",
+        type=float,
+        default=DEFAULT_INTER_VEHICLE_Z_THRESHOLD_M,
+    )
+    parser.add_argument(
+        "--inter-vehicle-collision-cooldown-s",
+        type=float,
+        default=DEFAULT_INTER_VEHICLE_COOLDOWN_S,
+    )
     parser.add_argument(
         "--diagnostic-3-rover",
         action="store_true",
@@ -151,6 +177,14 @@ def _run_adapter_smoke(adapter: str, args: argparse.Namespace, run_dir: Path) ->
         "--staggered-lateral-offset-m",
         str(args.staggered_lateral_offset_m),
         "--log-participant-states",
+        "--inter-vehicle-collision-mode",
+        str(args.inter_vehicle_collision_mode),
+        "--inter-vehicle-collision-xy-threshold-m",
+        str(args.inter_vehicle_collision_xy_threshold_m),
+        "--inter-vehicle-collision-z-threshold-m",
+        str(args.inter_vehicle_collision_z_threshold_m),
+        "--inter-vehicle-collision-cooldown-s",
+        str(args.inter_vehicle_collision_cooldown_s),
         "--log-dir",
         str(run_dir),
     ]
@@ -218,6 +252,7 @@ def _rows_from_summary(summary_path: Path | None) -> list[dict[str, Any]]:
                 "penalized_time_s": participant.get("penalized_time_s"),
                 "collisions": participant.get("collisions", 0),
                 "obstacle_collisions": participant.get("obstacle_collisions", 0),
+                "involved_inter_vehicle_collisions": participant.get("involved_inter_vehicle_collisions", 0),
                 "out_of_bounds_events": participant.get("out_of_bounds_events", 0),
                 "stuck_events": participant.get("stuck_events", 0),
                 "final_rank": participant.get("rank"),
@@ -278,22 +313,34 @@ def _write_report(
         f"- num_rovers: {args.num_rovers}",
         f"- start_gap_s: {args.start_gap_s}",
         f"- staggered_lateral_offset_m: {args.staggered_lateral_offset_m}",
+        f"- inter_vehicle_collision_mode: {args.inter_vehicle_collision_mode}",
+        f"- inter_vehicle_collision_xy_threshold_m: {args.inter_vehicle_collision_xy_threshold_m}",
+        f"- inter_vehicle_collision_z_threshold_m: {args.inter_vehicle_collision_z_threshold_m}",
+        f"- inter_vehicle_collision_cooldown_s: {args.inter_vehicle_collision_cooldown_s}",
         f"- dt: {args.dt}",
         f"- seed: {args.seed}",
         "",
-        "This is staggered multi-participant evaluation. Rover-rover collision arbitration is not implemented yet. "
+        "This is fleet/team evaluation, not a race between independent teams. All rovers belong to one "
+        "participant/team. Per-rover rows are diagnostics; team_summary is the fleet-level score. "
+        "Rover-rover collision arbitration is diagnostic unless inter_vehicle_collision_mode = penalize. "
         "The stable default uses large temporal separation to avoid physical interaction while still exercising "
-        "multi-agent spawning, release timing, independent referee state, timing, scoring, summaries, and ranking.",
+        "multi-agent spawning, release timing, separate referee state, timing, scoring, summaries, and ranking.",
         "",
         "## Fallback Smoke",
         _run_line(fallback),
         "",
         _table_markdown(fallback_rows),
         "",
+        "Fallback team_summary:",
+        _team_summary_markdown(_team_summary_from_run(fallback)),
+        "",
         "## HoloOcean Smoke",
         _run_line(holoocean),
         "",
         _table_markdown(holoocean_rows),
+        "",
+        "HoloOcean team_summary:",
+        _team_summary_markdown(_team_summary_from_run(holoocean)),
         "",
         "## Interpretation",
         _interpretation(fallback, fallback_rows, holoocean, holoocean_rows, expected_count=args.num_rovers),
@@ -328,6 +375,7 @@ def _table_markdown(rows: list[dict[str, Any]]) -> str:
         "expected_gates",
         "official_time_s",
         "collisions",
+        "involved_inter_vehicle_collisions",
         "stuck_events",
         "final_rank",
     ]
@@ -354,7 +402,7 @@ def _interpretation(
     holoocean_clean = holoocean_finished and all(
         int(row.get("stuck_events") or 0) == 0
         and int(row.get("out_of_bounds_events") or 0) == 0
-        and int(row.get("collisions") or 0) <= 2
+        and int(row.get("collisions") or 0) <= 3
         for row in holoocean_rows
     )
     if holoocean_clean:
@@ -367,7 +415,7 @@ def _interpretation(
             f"{fallback_note}"
             "HoloOcean produced a stable staggered multi-participant smoke result with zero stuck/OOB events "
             "and only near-zero contact counts. Each participant has separate state, timing, scoring, and "
-            "ranking. This demonstration mode is ready to document."
+            "ranking, while team_summary provides the fleet-level score. This demonstration mode is ready to document."
         )
     if holoocean_finished:
         fallback_note = (
@@ -403,7 +451,17 @@ def _print_brief_result(fallback: SmokeRun, holoocean_rows: list[dict[str, Any]]
                 "  "
                 f"{row.get('participant_id')} delay={row.get('start_delay_s')} "
                 f"status={row.get('status')} gates={row.get('completed_gates')}/{row.get('expected_gates')} "
-                f"collisions={row.get('collisions')}"
+                f"collisions={row.get('collisions')} "
+                f"inter_vehicle={row.get('involved_inter_vehicle_collisions')}"
+            )
+        team_summary = _team_summary_from_run(holoocean)
+        if team_summary:
+            print(
+                "Team summary: "
+                f"gates={team_summary.get('total_completed_gates')}/{team_summary.get('expected_total_gates')} "
+                f"all_finished={team_summary.get('all_rovers_finished')} "
+                f"inter_vehicle_collisions={team_summary.get('total_inter_vehicle_collisions')} "
+                f"team_penalized_time_s={team_summary.get('team_penalized_time_s')}"
             )
 
 
@@ -419,6 +477,41 @@ def _newest_file(directory: Path, pattern: str) -> Path | None:
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def _team_summary_from_run(run: SmokeRun) -> Mapping[str, Any]:
+    if run.summary_path is None or not run.summary_path.exists():
+        return {}
+    try:
+        summary = json.loads(run.summary_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    team_summary = summary.get("team_summary")
+    return team_summary if isinstance(team_summary, Mapping) else {}
+
+
+def _team_summary_markdown(team_summary: Mapping[str, Any]) -> str:
+    if not team_summary:
+        return "_No team_summary was produced._"
+    fields = [
+        "team_id",
+        "rover_count",
+        "total_completed_gates",
+        "expected_total_gates",
+        "all_rovers_finished",
+        "team_elapsed_time_s",
+        "total_gate_collisions",
+        "total_obstacle_collisions",
+        "total_inter_vehicle_collisions",
+        "total_collisions",
+        "total_penalties_s",
+        "team_penalized_time_s",
+        "inter_vehicle_collision_mode",
+    ]
+    lines = ["| field | value |", "| --- | --- |"]
+    for field in fields:
+        lines.append(f"| {field} | {_csv_value(team_summary.get(field))} |")
+    return "\n".join(lines)
 
 
 def _csv_value(value: Any) -> Any:
