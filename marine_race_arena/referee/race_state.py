@@ -39,6 +39,8 @@ class ParticipantRaceState:
     official_finish_time: Optional[float] = None
     green_start_time: Optional[float] = None
     green_to_finish_time_s: Optional[float] = None
+    start_delay_s: float = 0.0
+    release_time_s: Optional[float] = None
     last_position: Optional[Vector3] = None
     last_motion_time: Optional[float] = None
     last_update_time: Optional[float] = None

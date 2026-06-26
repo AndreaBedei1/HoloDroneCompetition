@@ -114,6 +114,7 @@ class ParticipantConfig:
     sensors: Any
     control_mode: str
     official_sensor_profile: bool
+    start_delay_s: float = 0.0
 
 
 @dataclass(frozen=True)

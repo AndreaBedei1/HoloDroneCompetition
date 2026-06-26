@@ -108,6 +108,38 @@ class BaseRaceAdapter(abc.ABC):
         current = current_position if current_position is not None else state.position
         return obstacle_collision_events(self.arena.obstacles, previous, current)
 
+    def diagnose_multi_agent_state(
+        self,
+        participants: Mapping[str, RaceParticipant],
+        stage: str,
+    ) -> Dict[str, Any]:
+        """Return a small sanity report for multi-participant adapter state."""
+
+        diagnostics: Dict[str, Any] = {
+            "adapter": self.name,
+            "stage": stage,
+            "participant_ids": list(participants.keys()),
+            "participants": {},
+        }
+        positions = []
+        for participant_id, participant in participants.items():
+            state = self.get_participant_state(participant_id)
+            sensors = self.get_allowed_sensor_data(participant_id, participant.config.sensors)
+            sensor_keys = sorted(str(key) for key in sensors.keys())
+            if not sensor_keys:
+                raise RaceAdapterError(
+                    f"Adapter '{self.name}' returned no sensor data for participant "
+                    f"'{participant_id}' during {stage}."
+                )
+            positions.append(tuple(round(float(component), 4) for component in state.position))
+            diagnostics["participants"][participant_id] = {
+                "position": state.position,
+                "rotation_rpy_deg": state.rotation_rpy_deg,
+                "sensor_keys": sensor_keys,
+            }
+        diagnostics["unique_position_count"] = len(set(positions))
+        return diagnostics
+
     @abc.abstractmethod
     def get_current_time(self) -> float:
         """Return adapter simulation time in seconds."""

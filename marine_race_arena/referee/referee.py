@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Mapping, Optional
 
 from marine_race_arena.arena.bounds import ArenaBounds
 from marine_race_arena.arena.gate import Gate
@@ -39,14 +39,27 @@ class Referee:
         for participant_id in participant_ids:
             self.states[participant_id] = ParticipantRaceState(participant_id=participant_id)
 
-    def start_race(self, time_s: float) -> None:
+    def start_race(self, time_s: float, start_delays: Optional[Mapping[str, float]] = None) -> None:
         self._green_time = time_s
-        for state in self.states.values():
-            state.status = ParticipantStatus.RUNNING
-            state.green_start_time = time_s
-            state.last_motion_time = time_s
-            state.last_update_time = time_s
+        log_releases = start_delays is not None
         self._log("race_start", time_s, race_name=self.config.race.name)
+        for state in self.states.values():
+            start_delay_s = max(0.0, float((start_delays or {}).get(state.participant_id, 0.0)))
+            state.start_delay_s = start_delay_s
+            if start_delay_s <= 0.0:
+                self._release_state(state, time_s, log_event=log_releases)
+            else:
+                state.status = ParticipantStatus.NOT_STARTED
+                state.green_start_time = None
+                state.release_time_s = None
+                state.last_motion_time = None
+                state.last_update_time = None
+
+    def release_participant(self, participant_id: str, time_s: float) -> None:
+        state = self.states.get(participant_id)
+        if state is None or state.is_terminal or state.status == ParticipantStatus.RUNNING:
+            return
+        self._release_state(state, time_s, log_event=True)
 
     def manual_stop(self, participant_ids: Iterable[str], time_s: float) -> None:
         for participant_id in participant_ids:
@@ -59,7 +72,7 @@ class Referee:
 
     def gate_timeout_stuck(self, participant_id: str, time_s: float, timeout_s: float) -> None:
         state = self.states.get(participant_id)
-        if state is None or state.is_terminal:
+        if state is None or state.is_terminal or state.status == ParticipantStatus.NOT_STARTED:
             return
         expected_gate_id = self.expected_gate_id(participant_id)
         state.status = ParticipantStatus.STUCK
@@ -91,7 +104,7 @@ class Referee:
         if state.is_terminal:
             return events
         if state.status == ParticipantStatus.NOT_STARTED:
-            state.status = ParticipantStatus.RUNNING
+            return events
 
         if controller_error is not None:
             state.controller_error = controller_error
@@ -153,6 +166,8 @@ class Referee:
                     "rank": rank,
                     "participant_id": state.participant_id,
                     "status": state.status.value,
+                    "start_delay_s": state.start_delay_s,
+                    "release_time_s": state.release_time_s,
                     "official_time_s": state.official_time_s,
                     "green_to_finish_time_s": state.green_to_finish_time_s,
                     "penalties_s": state.penalties_s,
@@ -174,6 +189,28 @@ class Referee:
             "participants": participant_summaries,
             "ranking": [state.participant_id for state in ranking],
         }
+
+    def _release_state(
+        self,
+        state: ParticipantRaceState,
+        time_s: float,
+        log_event: bool,
+    ) -> None:
+        state.status = ParticipantStatus.RUNNING
+        state.green_start_time = time_s
+        state.release_time_s = time_s
+        state.last_motion_time = time_s
+        state.last_update_time = time_s
+        state.stuck_accumulator_s = 0.0
+        state.stuck_penalty_active = False
+        if log_event:
+            self._log(
+                "participant_released",
+                time_s,
+                state.participant_id,
+                start_delay_s=state.start_delay_s,
+                release_time_s=time_s,
+            )
 
     def _validate_gate_progression(
         self,

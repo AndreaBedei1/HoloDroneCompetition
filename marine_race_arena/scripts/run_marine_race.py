@@ -6,6 +6,7 @@ import argparse
 import copy
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -79,7 +80,12 @@ def main(argv: list[str] | None = None) -> int:
         print("Race setup failed: --disable-front-camera is not allowed in official mode.", file=sys.stderr)
         return 1
 
-    config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
+    try:
+        config = _with_cli_overrides(config, duration_s=args.duration, official=args.official)
+        config = _with_staggered_participants(config, args)
+    except ValueError as exc:
+        print(f"Race setup failed: {exc}", file=sys.stderr)
+        return 1
     print(f"Selected current profile: {_current_profile_label(config)}")
     print(f"Active currents: {len(config.currents)}")
     for line in describe_current_profile(config):
@@ -254,6 +260,23 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional experiment safety stop: mark STUCK if no new gate is passed within this many seconds.",
     )
+    parser.add_argument(
+        "--staggered-start",
+        action="store_true",
+        help="Clone the base participant into multiple staggered-start rovers.",
+    )
+    parser.add_argument(
+        "--num-rovers",
+        type=int,
+        default=1,
+        help="Number of participants to generate when --staggered-start is enabled.",
+    )
+    parser.add_argument(
+        "--start-gap-s",
+        type=float,
+        default=20.0,
+        help="Start delay between generated staggered participants in seconds.",
+    )
     return parser
 
 
@@ -267,6 +290,84 @@ def _with_cli_overrides(config: TrackConfig, duration_s: float | None, official:
         )
         config = replace(config, race=race)
     return config
+
+
+def _with_staggered_participants(config: TrackConfig, args: argparse.Namespace) -> TrackConfig:
+    if not args.staggered_start:
+        if args.num_rovers != 1:
+            raise ValueError("--num-rovers requires --staggered-start.")
+        return config
+    if args.num_rovers < 1:
+        raise ValueError("--num-rovers must be at least 1.")
+    if args.start_gap_s < 0.0:
+        raise ValueError("--start-gap-s must be non-negative.")
+    if not config.participants:
+        raise ValueError("Cannot generate staggered participants because the track has no base participant.")
+
+    base = config.participants[0]
+    offsets = _staggered_lateral_offsets(args.num_rovers, spacing_m=1.5)
+    participants = []
+    for index in range(args.num_rovers):
+        participant_id = f"bluerov2_{index + 1:02d}"
+        spawn = dict(base.spawn)
+        base_position = _vector3(spawn.get("position", config.start.position))
+        base_rotation = _vector3(spawn.get("rotation_rpy_deg", config.start.rotation_rpy_deg))
+        spawn["position"] = list(_offset_spawn_position(config, base_position, base_rotation[2], offsets[index]))
+        spawn["rotation_rpy_deg"] = list(base_rotation)
+        spawn["start_delay_s"] = float(index) * float(args.start_gap_s)
+        participants.append(
+            replace(
+                base,
+                id=participant_id,
+                spawn=spawn,
+                start_delay_s=float(spawn["start_delay_s"]),
+            )
+        )
+    return replace(config, participants=participants)
+
+
+def _staggered_lateral_offsets(num_rovers: int, spacing_m: float) -> list[float]:
+    if num_rovers == 1:
+        return [0.0]
+    offsets = [0.0]
+    for pair_index in range(1, num_rovers):
+        magnitude = ((pair_index + 1) // 2) * spacing_m
+        sign = -1.0 if pair_index % 2 == 1 else 1.0
+        offsets.append(sign * magnitude)
+    return offsets
+
+
+def _offset_spawn_position(
+    config: TrackConfig,
+    base_position: Vector3,
+    yaw_deg: float,
+    lateral_offset_m: float,
+) -> Vector3:
+    yaw_rad = math.radians(yaw_deg)
+    right_axis = (-math.sin(yaw_rad), math.cos(yaw_rad))
+    bounds = config.world.bounds
+    candidate = (
+        base_position[0] + lateral_offset_m * right_axis[0],
+        base_position[1] + lateral_offset_m * right_axis[1],
+        base_position[2],
+    )
+    if bounds.contains(candidate):
+        return candidate
+    scale = 0.9
+    while scale > 0.0:
+        candidate = (
+            base_position[0] + lateral_offset_m * scale * right_axis[0],
+            base_position[1] + lateral_offset_m * scale * right_axis[1],
+            base_position[2],
+        )
+        if bounds.contains(candidate):
+            return candidate
+        scale -= 0.1
+    return (
+        min(max(base_position[0], bounds.x_min), bounds.x_max),
+        min(max(base_position[1], bounds.y_min), bounds.y_max),
+        min(max(base_position[2], bounds.z_min), bounds.z_max),
+    )
 
 
 def _load_participants(config: TrackConfig, args: argparse.Namespace) -> Dict[str, RaceParticipant]:
@@ -321,6 +422,7 @@ def _prepare_adapter(
     try:
         adapter.spawn_participants(participants)
         adapter.reset()
+        _print_multi_agent_diagnostics(adapter, participants, "after_reset")
         adapter.spawn_visual_gates(arena.visual_gates)
         adapter.spawn_obstacles(arena.obstacles)
         return adapter
@@ -342,6 +444,7 @@ def _prepare_adapter(
             fallback.initialize()
             fallback.spawn_participants(participants)
             fallback.reset()
+            _print_multi_agent_diagnostics(fallback, participants, "after_reset")
             fallback.spawn_visual_gates(arena.visual_gates)
             fallback.spawn_obstacles(arena.obstacles)
             return fallback
@@ -349,6 +452,30 @@ def _prepare_adapter(
             "HoloOcean adapter failed during environment setup and fallback is not allowed. "
             "Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly."
         ) from exc
+
+
+def _print_multi_agent_diagnostics(
+    adapter: BaseRaceAdapter,
+    participants: Mapping[str, RaceParticipant],
+    stage: str,
+) -> None:
+    if len(participants) <= 1:
+        return
+    diagnostics = adapter.diagnose_multi_agent_state(participants, stage)
+    print(
+        f"Multi-agent diagnostics ({adapter.name}, {stage}): "
+        f"participant_ids={diagnostics['participant_ids']}"
+    )
+    participant_details = diagnostics.get("participants", {})
+    if isinstance(participant_details, Mapping):
+        for participant_id, detail in participant_details.items():
+            if not isinstance(detail, Mapping):
+                continue
+            print(
+                "  "
+                f"{participant_id}: position={detail.get('position')} "
+                f"sensors={detail.get('sensor_keys')}"
+            )
 
 
 def _race_info(config: TrackConfig, adapter_name: str, motion_compensation: str = MOTION_COMPENSATION_NONE) -> Dict[str, Any]:
@@ -398,6 +525,19 @@ def _positive_float_or_none(value: Any) -> float | None:
     return converted
 
 
+def _participant_start_delay_s(participant: RaceParticipant) -> float:
+    configured = getattr(participant.config, "start_delay_s", 0.0)
+    try:
+        delay = float(configured)
+    except (TypeError, ValueError):
+        delay = 0.0
+    return max(0.0, delay)
+
+
+def _zero_command() -> dict[str, float]:
+    return {"surge": 0.0, "sway": 0.0, "heave": 0.0, "yaw": 0.0}
+
+
 def _log_motion_compensation(
     *,
     referee: Referee,
@@ -444,7 +584,12 @@ def _run_race_loop(
         adapter.name,
         arena.environment_name,
     )
-    referee.start_race(adapter.get_current_time())
+    race_start_time = adapter.get_current_time()
+    start_delays = {
+        participant_id: _participant_start_delay_s(participant)
+        for participant_id, participant in participants.items()
+    }
+    referee.start_race(race_start_time, start_delays=start_delays)
     motion_compensation_log_times: Dict[str, float] = {}
     gate_timeout_s = _positive_float_or_none(gate_timeout_s)
     last_gate_counts = {
@@ -452,16 +597,29 @@ def _run_race_loop(
         for participant_id in participants
     }
     last_gate_progress_times = {
-        participant_id: adapter.get_current_time()
+        participant_id: adapter.get_current_time() + start_delays.get(participant_id, 0.0)
         for participant_id in participants
     }
+    multi_agent_tick_checked = False
     while adapter.get_current_time() <= config.race.max_duration_s:
         all_terminal = True
         manual_stop_requested = False
         previous_states: Dict[str, AdapterParticipantState] = {}
         controller_errors: Dict[str, str] = {}
+        current_time_s = adapter.get_current_time()
         for participant in participants.values():
             state = referee.states[participant.id]
+            if state.status == ParticipantStatus.NOT_STARTED:
+                release_time_s = race_start_time + start_delays.get(participant.id, 0.0)
+                if current_time_s + 1e-9 >= release_time_s:
+                    referee.release_participant(participant.id, current_time_s)
+                    last_gate_counts[participant.id] = referee.states[participant.id].valid_gate_crossings
+                    last_gate_progress_times[participant.id] = current_time_s
+                    state = referee.states[participant.id]
+                else:
+                    all_terminal = False
+                    adapter.apply_command(participant.id, _zero_command(), participant.config.control_mode)
+                    continue
             if state.is_terminal:
                 continue
             all_terminal = False
@@ -508,6 +666,9 @@ def _run_race_loop(
             break
 
         adapter.step(dt)
+        if not multi_agent_tick_checked:
+            _print_multi_agent_diagnostics(adapter, participants, "after_first_tick")
+            multi_agent_tick_checked = True
         time_s = adapter.get_current_time()
         for participant_id, previous_state in previous_states.items():
             state = referee.states[participant_id]

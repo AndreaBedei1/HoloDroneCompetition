@@ -340,6 +340,36 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             return self._raw_state
         return {}
 
+    def diagnose_multi_agent_state(
+        self,
+        participants: Mapping[str, RaceParticipant],
+        stage: str,
+    ) -> Dict[str, Any]:
+        if len(participants) > 1:
+            if not isinstance(self._raw_state, dict):
+                raise RaceAdapterError(
+                    f"HoloOcean multi-agent state during {stage} was "
+                    f"{type(self._raw_state).__name__}, expected a dict keyed by participant id."
+                )
+            missing = [
+                participant_id
+                for participant_id in participants
+                if not isinstance(self._raw_state.get(participant_id), dict)
+            ]
+            if missing:
+                available = sorted(str(key) for key in self._raw_state.keys())
+                raise RaceAdapterError(
+                    "HoloOcean multi-agent state is missing participant sensor dictionaries "
+                    f"during {stage}. Missing={missing}; available_keys={available}."
+                )
+        diagnostics = super().diagnose_multi_agent_state(participants, stage)
+        if len(participants) > 1 and diagnostics.get("unique_position_count", 0) <= 1:
+            raise RaceAdapterError(
+                "HoloOcean multi-agent participants do not have distinct state positions "
+                f"during {stage}; check spawn offsets and state parsing."
+            )
+        return diagnostics
+
 
 def _world_from_environment(environment_name: str) -> str:
     return environment_name.split("-", 1)[0] if "-" in environment_name else environment_name

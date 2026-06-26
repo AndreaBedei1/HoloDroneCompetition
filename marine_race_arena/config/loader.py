@@ -201,6 +201,7 @@ def parse_track_config(raw: Mapping[str, Any]) -> TrackConfig:
                 sensors=dict(DEFAULT_OFFICIAL_SENSOR_PROFILE),
                 control_mode="high_level",
                 official_sensor_profile=True,
+                start_delay_s=0.0,
             )
         ]
     referee = _parse_referee(raw.get("referee", {}))
@@ -604,16 +605,31 @@ def _fmt_vector(value: Vector3) -> str:
 def _parse_participant(raw: Any) -> ParticipantConfig:
     if not isinstance(raw, Mapping):
         raise TrackConfigLoadError("Each participant entry must be an object.")
+    spawn = dict(raw.get("spawn", {}))
     return ParticipantConfig(
         id=str(_required(raw, "id")),
         vehicle=str(raw.get("vehicle", "BlueROV2")),
         controller=str(raw.get("controller", "pygame")),
         controller_class=str(raw["controller_class"]) if raw.get("controller_class") is not None else None,
-        spawn=dict(raw.get("spawn", {})),
+        spawn=spawn,
         sensors=raw.get("sensors", {}),
         control_mode=str(raw.get("control_mode", "high_level")),
         official_sensor_profile=bool(raw.get("official_sensor_profile", True)),
+        start_delay_s=_nonnegative_float(
+            spawn.get("start_delay_s", 0.0),
+            f"participants.{raw.get('id', '<unknown>')}.spawn.start_delay_s",
+        ),
     )
+
+
+def _nonnegative_float(value: Any, field_name: str) -> float:
+    try:
+        converted = float(value)
+    except (TypeError, ValueError) as exc:
+        raise TrackConfigLoadError(f"{field_name} must be a non-negative number.") from exc
+    if converted < 0.0:
+        raise TrackConfigLoadError(f"{field_name} must be non-negative.")
+    return converted
 
 
 def _parse_referee(raw: Any) -> RefereeConfig:
