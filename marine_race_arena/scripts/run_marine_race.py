@@ -136,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             beacon_target_printer=beacon_target_printer,
             motion_compensators=motion_compensators,
             gate_timeout_s=args.gate_timeout_s,
+            log_participant_states=args.log_participant_states,
         )
         summary["motion_compensation"] = motion_compensation
         logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
@@ -277,6 +278,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=20.0,
         help="Start delay between generated staggered participants in seconds.",
     )
+    parser.add_argument(
+        "--staggered-lateral-offset-m",
+        type=float,
+        default=1.5,
+        help="Lateral spacing between generated staggered participants in meters.",
+    )
+    parser.add_argument(
+        "--log-participant-states",
+        action="store_true",
+        help="Log per-tick participant states for multi-agent diagnostics.",
+    )
     return parser
 
 
@@ -301,11 +313,13 @@ def _with_staggered_participants(config: TrackConfig, args: argparse.Namespace) 
         raise ValueError("--num-rovers must be at least 1.")
     if args.start_gap_s < 0.0:
         raise ValueError("--start-gap-s must be non-negative.")
+    if args.staggered_lateral_offset_m < 0.0:
+        raise ValueError("--staggered-lateral-offset-m must be non-negative.")
     if not config.participants:
         raise ValueError("Cannot generate staggered participants because the track has no base participant.")
 
     base = config.participants[0]
-    offsets = _staggered_lateral_offsets(args.num_rovers, spacing_m=1.5)
+    offsets = _staggered_lateral_offsets(args.num_rovers, spacing_m=float(args.staggered_lateral_offset_m))
     participants = []
     for index in range(args.num_rovers):
         participant_id = f"bluerov2_{index + 1:02d}"
@@ -566,6 +580,36 @@ def _log_motion_compensation(
     )
 
 
+def _log_participant_states(
+    *,
+    referee: Referee,
+    adapter: BaseRaceAdapter,
+    participants: Mapping[str, RaceParticipant],
+    time_s: float,
+) -> None:
+    logger = referee.logger
+    if logger is None:
+        return
+    for participant_id in participants:
+        state = referee.states[participant_id]
+        participant_state = adapter.get_participant_state(participant_id)
+        target_gate_id = None
+        if not state.is_terminal and state.valid_gate_crossings < len(referee.gate_sequence):
+            target_gate_id = referee.expected_gate_id(participant_id)
+        logger.log_event(
+            "participant_state",
+            time_s,
+            participant_id,
+            status=state.status.value,
+            start_delay_s=state.start_delay_s,
+            release_time_s=state.release_time_s,
+            completed_gates=state.valid_gate_crossings,
+            target_gate_id=target_gate_id,
+            position=participant_state.position,
+            rotation_rpy_deg=participant_state.rotation_rpy_deg,
+        )
+
+
 def _run_race_loop(
     config: TrackConfig,
     arena: Arena,
@@ -577,6 +621,7 @@ def _run_race_loop(
     beacon_target_printer: "BeaconTargetPrinter | None" = None,
     motion_compensators: Mapping[str, Any] | None = None,
     gate_timeout_s: float | None = None,
+    log_participant_states: bool = False,
 ) -> Dict[str, Any]:
     LOGGER.info(
         "Starting race '%s' with adapter '%s' in %s.",
@@ -701,6 +746,13 @@ def _run_race_loop(
                 and time_s - last_gate_progress_times.get(participant_id, time_s) >= gate_timeout_s
             ):
                 referee.gate_timeout_stuck(participant_id, time_s, gate_timeout_s)
+        if log_participant_states:
+            _log_participant_states(
+                referee=referee,
+                adapter=adapter,
+                participants=participants,
+                time_s=time_s,
+            )
 
     for participant in participants.values():
         state = referee.states[participant.id]

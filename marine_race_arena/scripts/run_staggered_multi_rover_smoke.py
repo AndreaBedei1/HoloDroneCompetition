@@ -21,6 +21,12 @@ from marine_race_arena.config.loader import load_track_config
 
 TRACK_PATH = Path("marine_race_arena/tracks/marine_race_horseshoe_bay.json")
 OUTPUT_DIR = Path("results/benchmarks/staggered_multi_rover_smoke")
+DEFAULT_NUM_ROVERS = 2
+DEFAULT_START_GAP_S = 90.0
+DEFAULT_LATERAL_OFFSET_M = 3.0
+DIAGNOSTIC_NUM_ROVERS = 3
+DIAGNOSTIC_START_GAP_S = 20.0
+DIAGNOSTIC_LATERAL_OFFSET_M = 1.5
 TABLE_FIELDS = [
     "participant_id",
     "start_delay_s",
@@ -56,6 +62,7 @@ class SmokeRun:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
+    _apply_mode_defaults(args)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -78,13 +85,32 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--track", default=str(TRACK_PATH))
     parser.add_argument("--output-dir", default=str(OUTPUT_DIR))
-    parser.add_argument("--num-rovers", type=int, default=3)
-    parser.add_argument("--start-gap-s", type=float, default=20.0)
+    parser.add_argument("--num-rovers", type=int, default=DEFAULT_NUM_ROVERS)
+    parser.add_argument("--start-gap-s", type=float, default=DEFAULT_START_GAP_S)
+    parser.add_argument("--staggered-lateral-offset-m", type=float, default=DEFAULT_LATERAL_OFFSET_M)
     parser.add_argument("--dt", type=float, default=0.033)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--duration", type=float, default=560.0)
     parser.add_argument("--wall-timeout-s", type=float, default=900.0)
+    parser.add_argument(
+        "--diagnostic-3-rover",
+        action="store_true",
+        help=(
+            "Run the older 3-rover proximity diagnostic "
+            f"({DIAGNOSTIC_START_GAP_S:g}s gap, {DIAGNOSTIC_LATERAL_OFFSET_M:g}m offset)."
+        ),
+    )
     return parser
+
+
+def _apply_mode_defaults(args: argparse.Namespace) -> None:
+    if not args.diagnostic_3_rover:
+        args.mode_name = "stable_2_rover_demo"
+        return
+    args.mode_name = "diagnostic_3_rover_proximity"
+    args.num_rovers = DIAGNOSTIC_NUM_ROVERS
+    args.start_gap_s = DIAGNOSTIC_START_GAP_S
+    args.staggered_lateral_offset_m = DIAGNOSTIC_LATERAL_OFFSET_M
 
 
 def _run_adapter_smoke(adapter: str, args: argparse.Namespace, run_dir: Path) -> SmokeRun:
@@ -122,6 +148,9 @@ def _run_adapter_smoke(adapter: str, args: argparse.Namespace, run_dir: Path) ->
         str(args.num_rovers),
         "--start-gap-s",
         str(args.start_gap_s),
+        "--staggered-lateral-offset-m",
+        str(args.staggered_lateral_offset_m),
+        "--log-participant-states",
         "--log-dir",
         str(run_dir),
     ]
@@ -240,6 +269,7 @@ def _write_report(
         "# Staggered Multi-Rover Smoke",
         "",
         "Configuration:",
+        f"- mode: {args.mode_name}",
         f"- track: {args.track}",
         "- controller: rule_gate_baseline",
         "- current_profile: none",
@@ -247,8 +277,13 @@ def _write_report(
         "- motion_compensation: none",
         f"- num_rovers: {args.num_rovers}",
         f"- start_gap_s: {args.start_gap_s}",
+        f"- staggered_lateral_offset_m: {args.staggered_lateral_offset_m}",
         f"- dt: {args.dt}",
         f"- seed: {args.seed}",
+        "",
+        "This is staggered multi-participant evaluation. Rover-rover collision arbitration is not implemented yet. "
+        "The stable default uses large temporal separation to avoid physical interaction while still exercising "
+        "multi-agent spawning, release timing, independent referee state, timing, scoring, summaries, and ranking.",
         "",
         "## Fallback Smoke",
         _run_line(fallback),
@@ -261,7 +296,7 @@ def _write_report(
         _table_markdown(holoocean_rows),
         "",
         "## Interpretation",
-        _interpretation(fallback, fallback_rows, holoocean, holoocean_rows),
+        _interpretation(fallback, fallback_rows, holoocean, holoocean_rows, expected_count=args.num_rovers),
         "",
         "## Output Paths",
         f"- fallback summary: {_path_text(fallback.summary_path)}",
@@ -310,32 +345,52 @@ def _interpretation(
     fallback_rows: list[dict[str, Any]],
     holoocean: SmokeRun,
     holoocean_rows: list[dict[str, Any]],
+    expected_count: int,
 ) -> str:
-    fallback_ok = fallback.return_code == 0 and len(fallback_rows) == 3
+    fallback_ok = fallback.return_code == 0 and len(fallback_rows) == expected_count
     fallback_finished = fallback_ok and all(row.get("status") == "FINISHED" for row in fallback_rows)
-    holoocean_ok = holoocean.return_code == 0 and len(holoocean_rows) == 3
+    holoocean_ok = holoocean.return_code == 0 and len(holoocean_rows) == expected_count
     holoocean_finished = holoocean_ok and all(row.get("status") == "FINISHED" for row in holoocean_rows)
-    if holoocean_finished:
+    holoocean_clean = holoocean_finished and all(
+        int(row.get("stuck_events") or 0) == 0
+        and int(row.get("out_of_bounds_events") or 0) == 0
+        and int(row.get("collisions") or 0) <= 2
+        for row in holoocean_rows
+    )
+    if holoocean_clean:
         fallback_note = (
-            "Fallback also finished all rovers. "
+            "Fallback also finished all participants. "
             if fallback_finished
-            else "Fallback produced three participant summaries but did not finish with this baseline. "
+            else "Fallback produced the expected participant summaries but did not finish with this baseline. "
         )
         return (
             f"{fallback_note}"
-            "All HoloOcean rovers finished; this is ready for rover-rover collision handling."
+            "HoloOcean produced a stable staggered multi-participant smoke result with zero stuck/OOB events "
+            "and only near-zero contact counts. Each participant has separate state, timing, scoring, and "
+            "ranking. This demonstration mode is ready to document."
+        )
+    if holoocean_finished:
+        fallback_note = (
+            "Fallback also finished all participants. "
+            if fallback_finished
+            else "Fallback produced the expected participant summaries but did not finish with this baseline. "
+        )
+        return (
+            f"{fallback_note}"
+            "All HoloOcean participants finished, but contacts or penalties remain. Treat this as a diagnostic "
+            "multi-agent result rather than the stable clean demonstration."
         )
     if holoocean_ok:
         return (
-            "HoloOcean produced three participant summaries, but not all rovers finished. "
+            "HoloOcean produced the expected participant summaries, but not all participants finished. "
             "The staggered multi-agent plumbing works, but race behavior needs inspection before collision handling."
         )
     if fallback_ok:
         return (
-            "Fallback multi-rover logic produced three participant summaries, but HoloOcean did not. "
+            "Fallback multi-rover logic produced the expected participant summaries, but HoloOcean did not. "
             "Inspect the HoloOcean stdout/stderr and event paths for the failing stage."
         )
-    return "Fallback did not produce a complete three-participant summary, so fix runner/referee logic first."
+    return "Fallback did not produce a complete participant summary, so fix runner/referee logic first."
 
 
 def _print_brief_result(fallback: SmokeRun, holoocean_rows: list[dict[str, Any]], holoocean: SmokeRun) -> None:

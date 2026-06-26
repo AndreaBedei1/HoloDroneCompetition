@@ -32,7 +32,12 @@ def test_participant_spawn_start_delay_is_parsed() -> None:
 
 def test_cli_staggered_start_generates_offsets_and_delays() -> None:
     config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
-    args = argparse.Namespace(staggered_start=True, num_rovers=3, start_gap_s=20.0)
+    args = argparse.Namespace(
+        staggered_start=True,
+        num_rovers=3,
+        start_gap_s=20.0,
+        staggered_lateral_offset_m=2.5,
+    )
 
     updated = _with_staggered_participants(config, args)
 
@@ -45,6 +50,8 @@ def test_cli_staggered_start_generates_offsets_and_delays() -> None:
     positions = [tuple(participant.spawn["position"]) for participant in updated.participants]
     assert len(set(positions)) == 3
     assert all(updated.world.bounds.contains(position) for position in positions)
+    assert _horizontal_distance(positions[0], positions[1]) > 2.0
+    assert _horizontal_distance(positions[0], positions[2]) > 2.0
 
 
 def test_referee_staggered_release_timing_and_waiting_gate_timeout() -> None:
@@ -178,6 +185,7 @@ def _run_short_staggered_fallback(gate_timeout_s: float | None = None) -> _RunCo
         participants=participants,
         dt=0.1,
         gate_timeout_s=gate_timeout_s,
+        log_participant_states=False,
     )
     return _RunContext(controllers=controllers, adapter=adapter, referee=referee, summary=summary)
 
@@ -188,3 +196,7 @@ def _referee(participant_ids: list[str]) -> Referee:
     referee = Referee(config, arena.gate_map, arena.bounds)
     referee.register_participants(participant_ids)
     return referee
+
+
+def _horizontal_distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
