@@ -35,6 +35,9 @@ HoloOceanLogs/
 Saved/
 *.jsonl
 *_summary.json
+*.log
+*.out
+*.err
 
 # Video and large generated artifacts
 *.mp4
@@ -59,3 +62,7 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Local agent/tool state
+.agents/
+.codex/

@@ -1,0 +1,51 @@
+\documentclass[conference]{IEEEtran}
+
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{url}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc}
+
+\begin{document}
+
+\title{Marine Race Arena: A Configurable Simulation Environment for Underwater Multi-Robot Racing and Evaluation}
+
+\author{\IEEEauthorblockN{Andrea Bedei}
+\IEEEauthorblockA{University of Bologna\\
+Cesena, Italy\\
+email: to be added}
+}
+
+\maketitle
+
+\begin{abstract}
+Autonomous racing has become an effective way to stress perception, planning, control, and decision-making under reproducible constraints. Ground platforms such as F1TENTH and gate-based aerial racing have shown that competition formats can accelerate robotics research by standardizing tracks, rules, baselines, and evaluation metrics. In marine robotics, however, existing simulators and competitions mainly target inspection, navigation, intervention, or surface-vessel missions. They do not provide a dedicated, configurable underwater racing benchmark in which underwater vehicles traverse gate sequences under currents, obstacles, limited sensing, multi-robot interaction, and an explicit independent referee. This paper presents Marine Race Arena, a simulation-oriented evaluation layer for underwater racing. The system is designed around declarative race configurations, geometric gate definitions, acoustic beacon guidance, configurable marine disturbances, replaceable participant controllers, simulator adapters, event logging, scoring, and referee logic that remains separated from the autonomy stack under test. Rather than proposing a new controller or a new underwater physics simulator, Marine Race Arena provides a reproducible benchmark structure in which classical, vision-based, learning-based, manual, and oracle controllers can be compared under common rules. The current draft reports the architecture, benchmark protocol, and implemented baselines, while quantitative controller performance under currents remains part of ongoing work.
+\end{abstract}
+
+\begin{IEEEkeywords}
+underwater robotics, autonomous racing, simulation benchmark, multi-robot systems, marine robotics, evaluation protocol, HoloOcean
+\end{IEEEkeywords}
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_system_overview}
+\input{sections/04_environment_design}
+\input{sections/05_evaluation_protocol}
+\input{sections/06_implementation_status}
+\input{sections/07_discussion}
+\input{sections/08_conclusion}
+
+\section*{Acknowledgment}
+This section is intentionally left as a placeholder for funding, laboratory, and collaborator acknowledgments.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

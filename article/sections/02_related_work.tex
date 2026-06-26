@@ -1,0 +1,55 @@
+\section{Related Work}
+
+\subsection{Autonomous Racing as an Evaluation Paradigm}
+
+Autonomous racing has become a useful benchmark because it compresses several hard autonomy problems into a compact, repeatable task. Vehicles must perceive the environment, estimate state, plan dynamically feasible trajectories, react to disturbances or competitors, and execute commands under strict latency constraints. The F1/10 platform was introduced as an open-source, affordable, 1/10-scale autonomous vehicle testbed with sensors, software, simulation, and competitions intended to make cyber-physical autonomy research more reproducible and accessible~\cite{okelly2019f110}. Later surveys emphasize that F1TENTH/RoboRacer has grown into a broad research ecosystem, but also that the diversity of methods can make direct comparison difficult without unified benchmark definitions and baseline results~\cite{evans2024unifyingf1tenth,charles2025roboracer}.
+
+This history is important for underwater racing. The value of F1TENTH is not only the vehicle model; it is the combination of shared platform, software interfaces, competition rules, baselines, and metrics. Marine Race Arena follows this evaluation-centered view, but replaces the ground-track assumptions with underwater-specific elements: 3D gate traversal, depth regulation, acoustic-like guidance, marine currents, limited visibility, obstacles, and possible multi-robot interaction.
+
+\subsection{Gate-Based Autonomous Drone Racing}
+
+Aerial drone racing provides a second relevant model because the task is naturally gate-based and three-dimensional. The AlphaPilot system combined learned visual abstraction, nonlinear filtering, and time-optimal planning to navigate race gates during the 2019 autonomous drone racing world championship~\cite{foehn2020alphapilot}. More recent systems have demonstrated champion-level autonomous drone racing using deep reinforcement learning~\cite{kaufmann2023swift}, robust monocular perception and control in A2RL-style competition settings~\cite{bahnam2026monorace}, and pro-level racing in uninstrumented arenas~\cite{bosello2025onyourown}. Other competition reports show the importance of drift correction, gate detection, and perception-aware planning when only limited onboard sensing is allowed~\cite{azhari2025driftcorrected}.
+
+Marine Race Arena borrows the structural idea of a gate sequence, not the vehicle dynamics or sensing assumptions. Aerial racing gates are usually crossed at high speed in air, often with lightweight cameras and IMUs. Underwater racing introduces different constraints: lower speed, stronger fluid disturbances relative to vehicle authority, depth safety, acoustic aids, light attenuation, and the possibility of evaluating ROV-like vehicles rather than only fully untethered AUVs. This motivates a benchmark format that is similar in logic but different in physical assumptions.
+
+\subsection{Marine Robotics Simulators}
+
+A number of underwater simulators already address the need for realistic, repeatable marine robotics development. DAVE provides an open-source underwater simulation stack with vehicles, sensors, dynamic bathymetry, ocean currents, and tools for algorithm development~\cite{zhang2022dave}. Stonefish is an open-source marine robotics simulator with advanced hydrodynamics, sensor simulation, and recent extensions supporting machine-learning research through improved sensors, tethered operations, thruster modeling, visual-light communication, and annotation tools~\cite{grimaldi2025stonefish}. UNav-Sim focuses on visually realistic underwater simulation and synthetic data generation using Unreal Engine 5~\cite{amer2023unavsim}. Recent surveys compare HoloOcean, Stonefish, DAVE, MARUS, and UNav-Sim in terms of sensor fidelity, physical modeling, task support, and sim-to-real issues~\cite{aldhaheri2025review}. HoloOcean itself has also been extended toward higher-fidelity dynamics, Unreal Engine 5 rendering, ROS~2 support, sonar improvements, semantic sensors, and environment-generation tools~\cite{romrell2025holoocean2}. 
+
+These simulators are complementary to Marine Race Arena. They provide physics, rendering, vehicles, and sensors; Marine Race Arena provides the race-level abstraction: configured tracks, gate geometry, beacons, benchmark tasks, participant interfaces, referee state, penalties, ranking, and output logs. In other words, the proposed contribution is not another simulator backend but a benchmark and competition layer that can use such backends.
+
+\subsection{Marine Robotics Competitions and Maritime Benchmarks}
+
+Marine competitions have played an important role in robotics education and research. RoboSub challenges teams to build autonomous underwater vehicles capable of solving underwater mission tasks, and recent technical design reports illustrate how teams integrate vision, sonar, controls, and mechanical subsystems for the competition~\cite{denton2024oogway2023,denton2024oogway2024}. Maritime RobotX focuses primarily on autonomous surface-vessel capabilities, while related work has explored how ideas from the AI Driving Olympics and Duckietown could be adapted to RobotX using containerized agents and uniform observation/action interfaces~\cite{huang2019robotxduckietown}. MBZIRC and other field robotics challenges show the importance of autonomous multi-robot mission execution, GPS-denied navigation, and rapid deployment under real-world conditions~\cite{bhattacharya2021mbzirc}.
+
+These competitions are valuable, but their objectives differ from underwater racing. RoboSub is mission-task oriented; RobotX is surface-vessel oriented; MBZIRC emphasizes heterogeneous aerial, ground, or maritime mission execution rather than structured underwater gate traversal. Marine Race Arena targets a narrower and more repeatable niche: underwater vehicles traversing race tracks under standardized timing and penalty rules.
+
+\subsection{Automated Evaluation and Plug-in Agent Interfaces}
+
+Modern autonomy benchmarks increasingly separate the evaluated agent from the evaluator. CARLA was introduced as an open urban driving simulator with configurable environments, sensors, and benchmark-style metrics~\cite{dosovitskiy2017carla}. The AI Driving Olympics used Duckietown tasks, simulators, code templates, baseline implementations, and standardized hardware to evaluate mobile-robot agents in both simulation and real settings~\cite{zilly2019aido}. Robotics extensions of OpenAI Gym further illustrate the value of common interfaces for comparing algorithms under the same virtual conditions~\cite{zamora2016gymgazebo}.
+
+Marine Race Arena adopts the same principle. A controller is a plug-in that receives observations and returns either high-level commands or lower-level thruster commands. The referee, in contrast, is not part of the controller. It uses privileged simulator state only to score the run, validate gate passages, detect penalties, and produce logs. This separation is essential: a controller may be acoustic-only, vision-assisted, learning-based, manual, or oracle-like for debugging, but all controllers are judged by the same independent protocol.
+
+\subsection{Positioning of Marine Race Arena}
+
+Table~\ref{tab:related_comparison} summarizes the positioning. Existing work provides either racing platforms, gate-based aerial racing systems, underwater simulators, maritime competitions, or benchmark infrastructure. Marine Race Arena is designed to cover the specific intersection that remains weakly represented: configurable underwater racing with gate traversal, currents, obstacles, multi-robot support, independent scoring, and swappable controller plug-ins.
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.12}
+\caption{Positioning of Marine Race Arena with respect to related benchmark families. The table is qualitative and emphasizes evaluation structure rather than simulator fidelity alone.}
+\label{tab:related_comparison}
+\begin{tabular}{p{0.20\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.25\textwidth}}
+\toprule
+Family & Domain & Race / gates & Swappable agents & Main limitation for this paper's target \\
+\midrule
+F1TENTH/RoboRacer~\cite{okelly2019f110,evans2024unifyingf1tenth,charles2025roboracer} & Ground vehicles & Yes, track racing & Yes & Ground dynamics and 2D road assumptions \\
+Autonomous drone racing~\cite{foehn2020alphapilot,kaufmann2023swift,bahnam2026monorace} & Aerial vehicles & Yes, 3D gates & Usually system-specific & Air dynamics, no marine currents or underwater sensing \\
+Marine simulators~\cite{zhang2022dave,grimaldi2025stonefish,amer2023unavsim,aldhaheri2025review} & Underwater / marine & Not primarily & Simulator-dependent & Provide physics and sensors, not a race referee and scoring format \\
+RoboSub / RobotX / MBZIRC~\cite{denton2024oogway2023,denton2024oogway2024,huang2019robotxduckietown,bhattacharya2021mbzirc} & Marine robotics & Mission-oriented & Competition-dependent & Focus on task completion or surface vessels rather than repeatable underwater racing \\
+Marine Race Arena & Underwater vehicles & Yes, configurable gate tracks & Yes & Current work is simulation-only and still requires quantitative baseline completion \\
+\bottomrule
+\end{tabular}
+\end{table*}

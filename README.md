@@ -1,562 +1,548 @@
 # Marine Race Arena
 
-This repository contains a modular marine racing arena library for BlueROV2-style underwater racing in HoloOcean-inspired scenarios. The racing format is inspired by the Abu Dhabi A2RL x DCL Autonomous Drone Championship, adapted from aerial drones to underwater marine vehicles.
+Marine Race Arena is a HoloOcean-based underwater drone racing benchmark for BlueROV2-style vehicles. It is inspired by underwater gate and corridor racing, and it is designed to evaluate controllers against configurable tracks, gates, sensors, currents, obstacles, participants, referee rules, and scoring.
 
-The package focuses on race infrastructure, not autonomy. It provides configurable tracks, gates, acoustic beacons, currents, participant/controller interfaces, referee logic, scoring, JSONL logs, example tracks, and test coverage for the simulator-independent logic.
+The v0.1 release scope is deliberately narrow and reproducible:
 
-## Race Format
+- Official single-rover clean-gate benchmark.
+- HoloOcean BlueROV2 integration plus a simulator-independent fallback adapter for tests and plumbing.
+- Three official track JSON files with official 1.5 m x 1.5 m gate openings.
+- `rule_gate_baseline`, a deterministic beacon plus `FrontCamera` baseline controller.
+- Custom controller loading for users and students.
+- Staggered fleet/team evaluation for multiple rovers belonging to one team.
+- `team_summary` aggregation for fleet runs.
+- Inter-vehicle collision diagnostics with an optional penalty mode.
 
-The standard marine race uses the same high-level structure as the Abu Dhabi reference format:
+The following are available but not claimed as solved v0.1 results: current compensation, DVL PI compensation, close-proximity multi-rover racing, fully calibrated rover-rover collision penalties, and full empirical inter-vehicle collision calibration.
 
-- 11 gates per lap.
-- 2 laps for a valid standard finish.
-- 22 valid gate crossings.
-- 1.5 m x 1.5 m internal gate opening.
-- Official timing can start on the first valid G01 crossing on lap 1 and stop on the valid G11 crossing on lap 2.
+## 1. Project Overview
 
-The marine version supports single gates, double gates, vertical double gates, and a marine split-S where an upper gate is followed by a lower gate with a different passage direction.
+Marine Race Arena separates the race definition, simulator adapter, controller observation, and referee. Controllers decide commands from observations; the referee validates progress and scoring from simulator state.
 
-## Package Layout
+Modes used in this repository:
+
+| Mode | Meaning | Intended use |
+| --- | --- | --- |
+| Official benchmark mode | Uses official tracks, official gate size, official sensor filtering, and reproducible scoring. Run with `--official` and an explicit `--benchmark-task`. | Main v0.1 single-rover clean-gate benchmark. |
+| Diagnostic mode | Adds instrumentation or controlled smoke tests without changing official tracks or rules. | Adapter checks, staggered fleet smoke, collision analysis, calibration attempts. |
+| Experimental mode | Components useful for research but not release claims. | DVL PI compensation, current stress tests, obstacle/current variants, close-proximity fleet experiments. |
+
+## 2. Repository Structure
 
 ```text
 marine_race_arena/
-  config/          JSON schema dataclasses, loader, validation
-  arena/           bounds, gates, gate factory, beacons, currents, obstacles
-  adapters/        fallback and HoloOcean simulator adapters
-  participants/    participant state, controller interface, controller loader
-  controllers/     Pygame/manual keyboard controllers, student template, acoustic baseline, debug oracle
-  referee/         gate validation, race state, scoring, logger, referee
-  tracks/          benchmark JSON tracks
-  scripts/         validation and race runner entry points
-tests/             simulator-independent pytest tests
+  adapters/        HoloOcean and fallback simulator adapters
+  arena/           gates, bounds, beacon manager, currents, obstacles
+  config/          dataclasses, JSON loader, validation, benchmark task modes
+  controllers/     built-in controllers, official baselines, manual controllers, student template
+  participants/    participant model, sensor filtering, controller loader/interface
+  referee/         gate validation, race state, scoring, event logger, team summary
+  scripts/         runnable CLIs for race execution, validation, smoke tests, diagnostics
+  tracks/          official tracks and smaller validation/tuning tracks
+tests/             simulator-independent pytest coverage
+results/           generated outputs; normally ignored and not committed
+diagnostics/       generated diagnostic images/logs; normally ignored and not committed
+docs/              release notes and longer project notes
 ```
 
-## Arena, Beacon, Controller, Referee
+`create_best_tracks.py` is a track-authoring helper kept for reproducibility of the current track family. It is not part of the normal benchmark execution path.
 
-The arena owns the static race definition: bounds, gate geometry, debug visual gate bars, acoustic beacons, currents, and optional static obstacles.
+## 3. Installation / Environment
 
-The beacon system guides the rover toward the next expected gate. It does not validate gate passage. In official mode it returns bearing, elevation, range, signal strength, and metadata, but not exact gate positions.
+The expected local environment is:
 
-Controllers receive observations and return commands. The default sample-track controller is the manual `pygame` controller. Student controllers should use only allowed sensors and beacon observations. The reproducible official baselines are `acoustic_baseline` and `rule_gate_baseline`. `pygame`/`keyboard` are manual demo controllers, and `oracle` is debug-only.
+- A conda environment named `ocean`.
+- HoloOcean installed in that environment.
+- Python able to import this repository from the checkout root.
+- `pytest` available in the environment.
 
-The referee validates gates using simulation ground truth. This is allowed because the referee is not a participant controller. The first implementation validates the vehicle center point and keeps the interface ready for future full-body validation.
+This repository does not currently provide a packaged environment file. Use the existing local `ocean` environment assumptions and run commands from the repository root.
 
-## JSON Track Configuration
+## 4. Quick Validation
 
-Track files live in `marine_race_arena/tracks/`. A track JSON contains:
+Run these from the repository root:
 
-- `race`: name, format, laps, timing mode, duration, official mode.
-- `benchmark_task`: optional benchmark mode, either a string or `{ "mode": "..." }`.
-- `world`: HoloOcean package/map preference, arena origin, and explicit bounds.
-- `track`: declared path length, gate size defaults, gate sequence.
-- `start`: spawn pose.
+```bash
+python -m compileall -q marine_race_arena tests
+conda run -n ocean python -m pytest -q
+conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover_smoke
+```
+
+The smoke test runs the stable two-rover fleet/team demonstration on Horseshoe Bay with no currents, no obstacles, no motion compensation, and diagnostic inter-vehicle collision detection.
+
+To print the same release-check commands without running them:
+
+```bash
+python -m marine_race_arena.scripts.run_release_v0_1_checks
+```
+
+To run them sequentially:
+
+```bash
+python -m marine_race_arena.scripts.run_release_v0_1_checks --run
+```
+
+## 5. Single-Rover Official Clean Benchmark
+
+POSIX-style line continuation:
+
+```bash
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race \
+  --track marine_race_arena/tracks/marine_race_horseshoe_bay.json \
+  --benchmark-task clean_gate \
+  --controller rule_gate_baseline \
+  --adapter holoocean \
+  --official \
+  --headless \
+  --seed 0 \
+  --dt 0.033 \
+  --duration 560 \
+  --obstacles none \
+  --current-profile none \
+  --motion-compensation none \
+  --log-dir results/benchmarks/single_rover_clean_manual_run
+```
+
+Windows caret-continuation form:
+
+```bat
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race ^
+  --track marine_race_arena/tracks/marine_race_horseshoe_bay.json ^
+  --benchmark-task clean_gate ^
+  --controller rule_gate_baseline ^
+  --adapter holoocean ^
+  --official ^
+  --headless ^
+  --seed 0 ^
+  --dt 0.033 ^
+  --duration 560 ^
+  --obstacles none ^
+  --current-profile none ^
+  --motion-compensation none ^
+  --log-dir results/benchmarks/single_rover_clean_manual_run
+```
+
+PowerShell users can also paste the command as one line; native PowerShell line continuation uses backticks rather than `^`.
+
+## 6. Stable Fleet/Team Demo
+
+This run evaluates two BlueROV2 agents as one fleet/team. Rovers are released 90 seconds apart and laterally offset by 3 m to avoid close physical interaction. Per-rover rows are diagnostics; `team_summary` is the fleet-level result.
+
+```bash
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race \
+  --track marine_race_arena/tracks/marine_race_horseshoe_bay.json \
+  --benchmark-task clean_gate \
+  --controller rule_gate_baseline \
+  --adapter holoocean \
+  --official \
+  --headless \
+  --seed 0 \
+  --dt 0.033 \
+  --duration 560 \
+  --obstacles none \
+  --current-profile none \
+  --motion-compensation none \
+  --staggered-start \
+  --num-rovers 2 \
+  --start-gap-s 90.0 \
+  --staggered-lateral-offset-m 3.0 \
+  --inter-vehicle-collision-mode diagnostic \
+  --inter-vehicle-collision-xy-threshold-m 0.8 \
+  --inter-vehicle-collision-z-threshold-m 0.75 \
+  --inter-vehicle-collision-cooldown-s 1.0 \
+  --team-id fleet_01 \
+  --log-participant-states \
+  --log-dir results/benchmarks/staggered_multi_rover_manual_run
+```
+
+Shortcut:
+
+```bash
+conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover_smoke
+```
+
+## 7. Command-Line Parameters
+
+| Parameter | What it does | Typical values | Scope |
+| --- | --- | --- | --- |
+| `--track` | Path to a track JSON. | `marine_race_arena/tracks/marine_race_horseshoe_bay.json` | Official |
+| `--benchmark-task` | Validates/runs the track under a task mode. | `clean_gate`, `obstacle_gate`, `current_gate`, `multi_rov` | Official/experimental by task |
+| `--controller` | Built-in controller alias. Overrides the participant config. | `rule_gate_baseline`, `student_template`, `keyboard`, `pygame`, `oracle` | Official if non-debug |
+| `--participant-controller` | External controller module, `module:Class`, fully qualified class, or `.py` file. | `path/to/my_controller.py`, `my_pkg.ctrl:MyController` | Official if controller follows rules |
+| `--controller-class` | Class name for a module or file-path controller. | `MyController` | Official if controller follows rules |
+| `--adapter` | Simulator adapter selection. | `holoocean`, `fallback`, `auto` | `holoocean` official; `fallback` diagnostic |
+| `--official` | Forces official sensor/timing mode and blocks debug-only controllers. | flag | Official |
+| `--headless` | Requests HoloOcean without viewport. | flag | Official/diagnostic |
+| `--seed` | Seed for deterministic beacons/adapters/generation. | `0` | Official |
+| `--dt` | Race-loop step size in seconds. | `0.033` for HoloOcean | Official |
+| `--duration` | Maximum run duration in seconds. | Horseshoe `560`, Vertical `900`, Mixed `1300` | Official |
+| `--obstacles` | Runtime obstacle mode. | `none`, `fixed`, `random` | `none` official clean; others experimental |
+| `--current-profile` | Runtime current profile override. | `none`, `medium`, `strong` | `none` official clean; currents experimental in v0.1 |
+| `--motion-compensation` | Optional command compensation layer. | `none`, `dvl_pi` | `none` official; `dvl_pi` experimental |
+| `--staggered-start` | Clones the base participant into multiple delayed rovers. | flag | Diagnostic fleet/team |
+| `--num-rovers` | Number of generated staggered participants. | `2` for stable demo | Diagnostic fleet/team |
+| `--start-gap-s` | Release delay between generated rovers. | `90.0` stable, `20.0` diagnostic stress | Diagnostic |
+| `--staggered-lateral-offset-m` | Lateral spawn spacing around the base start. | `3.0` stable | Diagnostic |
+| `--inter-vehicle-collision-mode` | Referee-side rover-rover proximity detector. | `off`, `diagnostic`, `penalize` | Diagnostic; `penalize` experimental |
+| `--inter-vehicle-collision-xy-threshold-m` | Horizontal threshold for inter-vehicle proximity events. | `0.8` | Diagnostic/experimental |
+| `--inter-vehicle-collision-z-threshold-m` | Vertical threshold for inter-vehicle proximity events. | `0.75` | Diagnostic/experimental |
+| `--inter-vehicle-collision-cooldown-s` | Per-pair cooldown between counted events. | `1.0` | Diagnostic/experimental |
+| `--team-id` | Team identifier in fleet summaries and events. | `fleet_01` | Diagnostic fleet/team |
+| `--log-participant-states` | Logs per-tick participant positions/status for analysis. | flag | Diagnostic |
+| `--log-dir` | Output directory for summary JSON and event JSONL. | `results/benchmarks/...` | Official/diagnostic |
+
+Additional useful diagnostic options include `--print-beacon-targets`, `--show-front-camera`, `--allow-fallback`, and `--gate-timeout-s`.
+
+## 8. Tracks / Circuits
+
+All three official tracks use `gate_inner_size_m = [1.5, 1.5]` and `timing_mode = first_gate_to_last_gate`.
+
+| Track | File | Gates | Laps | Total gates | Declared length | Purpose | Difficulty |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- |
+| Marine Race Horseshoe Bay | `marine_race_arena/tracks/marine_race_horseshoe_bay.json` | 12 | 1 | 12 | 93.8 m | Primary clean-gate route and stable fleet demo. | Medium, mostly clean-gate/horseshoe. |
+| Marine Race Vertical Serpent | `marine_race_arena/tracks/marine_race_vertical_serpent.json` | 17 | 1 | 17 | 118.3 m | Vertical and slalom-style gate sequencing. | Higher, serpent/slalom. |
+| Marine Race Mixed Endurance | `marine_race_arena/tracks/marine_race_mixed_endurance.json` | 22 | 1 | 22 | 206.3 m | Longer endurance route with configured current profiles. | Highest, endurance/current-oriented. |
+
+Recommended clean commands:
+
+```bash
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task clean_gate --controller rule_gate_baseline --adapter holoocean --official --headless --seed 0 --dt 0.033 --duration 560 --obstacles none --current-profile none --motion-compensation none --log-dir results/benchmarks/horseshoe_clean_manual
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race --track marine_race_arena/tracks/marine_race_vertical_serpent.json --benchmark-task clean_gate --controller rule_gate_baseline --adapter holoocean --official --headless --seed 0 --dt 0.033 --duration 900 --obstacles none --current-profile none --motion-compensation none --log-dir results/benchmarks/vertical_clean_manual
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race --track marine_race_arena/tracks/marine_race_mixed_endurance.json --benchmark-task clean_gate --controller rule_gate_baseline --adapter holoocean --official --headless --seed 0 --dt 0.033 --duration 1300 --obstacles none --current-profile none --motion-compensation none --log-dir results/benchmarks/mixed_clean_manual
+```
+
+Mixed Endurance also contains `medium` and `strong` current profiles, but current robustness is experimental in v0.1.
+
+## 9. Configuration System
+
+Track JSON files are loaded into dataclasses from `marine_race_arena/config/schema.py` and semantically validated before execution.
+
+Main sections:
+
+- `race`: race name, format, laps, expected gates per lap, timing mode, max duration, official-mode default.
+- `world`: HoloOcean package/map names, arena origin, preferred/fallback environments, world bounds.
+- `start`: default spawn position and rotation.
 - `finish`: final gate id.
-- `gates`: gate id, type, position, rotation, size, color, passage direction, optional linked gate and beacon override.
-- `beacon`: global acoustic beacon defaults.
-- `currents`: constant, localized jet, sinusoidal, and vortex fields.
-- `obstacle_generation`: optional obstacle mode, density, clearance, and seed settings.
-- `obstacles`: optional fixed static box obstacle definitions.
-- `participants`: vehicle, controller, sensors, spawn, and control mode.
-- `referee`: validation, penalties, and scoring settings.
+- `track`: declared length, gate-size defaults, gate-bar dimensions, depth defaults, gate sequence.
+- `gates`: each gate id, type, position, rotation, inner size, bar thickness, color, passage direction, optional linked gate, optional beacon override.
+- `beacon`: default acoustic beacon settings for gates.
+- `currents`: active current fields.
+- `current_profiles`: named current presets such as `none`, `medium`, and `strong`.
+- `obstacle_generation`: random obstacle mode, density, clearance, seed, and physics settings.
+- `obstacles`: fixed static obstacle definitions.
+- `participants`: vehicle type, controller, controller class, spawn, sensor profile, control mode, `start_delay_s`.
+- `referee`: gate validation settings, penalties, and ranking/scoring options.
+- `benchmark_task`: intended task mode for validation and benchmark reporting.
 
-All configured starts and gates must remain inside `world.bounds`. Underwater depth safety is enforced with `z_min` and `z_max`; values below `z_min` are unsafe and are logged as out-of-bounds events with penalties. The benchmark tracks use safe depths around `z = -4.0` to `z = -5.9` and avoid the seabed.
+Practical edits:
 
-## Benchmark Task Modes
+- Change gate positions in `gates[*].position`.
+- Change the required order in `track.gate_sequence`.
+- Change lap count in `race.laps`; expected total gates are `laps * len(gate_sequence)`.
+- Select current behavior by defining `currents` or named `current_profiles`, then run with `--current-profile`.
+- Select obstacles with fixed `obstacles` or generated obstacles via `obstacle_generation` and `--obstacles`.
+- Set participant spawn in `participants[*].spawn.position` and `rotation_rpy_deg`.
+- Add staggered release with `participants[*].spawn.start_delay_s` or the `--staggered-start` runner options.
+- Configure sensors through `participants[*].sensors.allowed_sensors` and `holoocean_sensors`.
+- Configure controller loading with `participants[*].controller` and `controller_class`, or override from the CLI.
+- Adjust penalties under `referee.penalties`; adjust stuck/collision cooldowns under `referee.gate_validation`.
 
-Marine Race Arena supports explicit benchmark task modes inspired by F1TENTH-style task definitions. The task mode is optional for backward compatibility; older/custom track JSON files without `benchmark_task` keep the existing validation behavior.
+Do not enlarge official gate sizes or change official track geometry when reporting v0.1 official benchmark results.
 
-Supported modes:
+## 10. Controller Architecture
 
-- `clean_gate`: one ROV, gates only, no obstacles, no currents.
-- `obstacle_gate`: one ROV, gates plus active static box obstacles between adjacent gates, no currents.
-- `current_gate`: one ROV, gates plus at least one configured current with speed >= 0.50 m/s. Obstacles can be ignored with `--obstacles none` unless intentionally enabled.
-- `multi_rov`: future-ready multi-participant task; requires at least two participants but is not the default execution mode.
+A controller object only needs:
 
-Add a mode to JSON:
+- `reset(self, race_info)`
+- `step(self, observation) -> command dict`
+- `close(self)`
 
-```json
-"benchmark_task": {
-  "mode": "current_gate"
-}
+Minimal example:
+
+```python
+class MyController:
+    def reset(self, race_info):
+        self.target_gate = race_info.get("initial_target_gate_id")
+
+    def step(self, observation):
+        sensors = observation.get("sensors", {})
+        race = observation.get("race", {})
+        beacon = observation.get("beacon", {})
+
+        return {
+            "surge": 0.3,
+            "sway": 0.0,
+            "heave": 0.0,
+            "yaw": 0.0,
+        }
+
+    def close(self):
+        pass
 ```
 
-Or validate/run an existing track under an explicit task mode:
+Command fields:
 
-```bash
-conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task clean_gate
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --benchmark-task current_gate --controller pygame --adapter fallback
-```
+- `surge`: forward/back command in the vehicle body frame.
+- `sway`: lateral body-frame command.
+- `heave`: vertical command. Negative goes deeper, positive moves toward the surface.
+- `yaw`: yaw-rate command.
 
-For `obstacle_gate`, active obstacles can come from fixed JSON definitions or deterministic random generation. `--obstacles none` removes active obstacles at runtime and validation time, `--obstacles fixed` uses the JSON `obstacles` array, and `--obstacles random` generates boxes between adjacent gates using `--seed`. Generated obstacles are placed at the midpoint between each selected gate pair, aligned to that local corridor direction, and given small symmetric lateral offsets around the centerline. In HoloOcean, benchmark obstacles are static suspended props by default, so they remain fixed at their configured underwater positions.
+High-level commands are clamped to `[-1.0, 1.0]` by the adapter. The BlueROV2 HoloOcean adapter maps high-level commands to 8 thruster values. Controllers should not directly access HoloOcean, referee internals, other rover positions, or ground truth outside the provided observation.
 
-A fixed box obstacle entry uses:
+## 11. Controller Observations
 
-```json
+`build_observation()` returns:
+
+```python
 {
-  "id": "OBS01",
-  "type": "box",
-  "position": [-28.2, -6.25, -4.05],
-  "size": [0.8, 0.8, 0.8],
-  "rotation_rpy_deg": [0.0, 0.0, 33.7],
-  "collision": true,
-  "penalty_s": 5.0,
-  "between_gates": ["G01", "G02"]
+    "participant_id": "...",
+    "time_s": 0.0,
+    "sensors": {...},
+    "beacon": {...},
+    "race": {...},
 }
 ```
 
-Random obstacle default box sizes are `0.8 m`, `1.0 m`, and `1.2 m` cubes for `low`, `medium`, and `high` density respectively. Obstacle validation requires box obstacles to be inside bounds, between adjacent gates, away from gate apertures and start/finish spawn, and small enough or offset enough to leave passable clearance on at least one side of the corridor.
-
-## Benchmark Evaluation Protocol
-
-Use `marine_race_arena/scripts/run_benchmark.py` for repeated benchmark trials with consistent runner settings and aggregate paper-style metrics. The benchmark runner calls the normal `run_marine_race.py` pipeline once per seed, writes each run's normal JSONL event log and summary JSON under `OUTPUT_DIR/runs/`, writes a `benchmark_metadata.json` next to each run, and produces:
-
-- `OUTPUT_DIR/benchmark_summary.csv`
-- `OUTPUT_DIR/benchmark_summary.json`
-
-The aggregate files report completion rate, official and penalized time mean/std, completed gates, collision/event averages, DNF totals and reasons, manual-stop count, and controller-error count. Pygame and keyboard controllers are accepted for manual demos, but their metadata is marked `manual_demo` and they should not be treated as main scientific baselines. The oracle controller is marked `debug_only`.
-
-Clean-gate example:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --output-dir results/benchmarks/clean_gate_acoustic
-```
-
-Obstacle-gate example:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task obstacle_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --obstacles random --obstacle-density low --obstacle-physics static --output-dir results/benchmarks/obstacle_gate_acoustic
-```
-
-Current-gate example:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task current_gate --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller acoustic --adapter fallback --seeds 0 1 2 3 4 --duration 1300 --dt 0.1 --obstacles none --output-dir results/benchmarks/current_gate_acoustic
-```
-
-## Reproducible Official Baselines
-
-Built-in non-cheating baseline controllers are available for benchmark evaluation:
-
-- `acoustic_baseline`: deterministic high-level controller using only `observation["beacon"]`, `observation["sensors"]`, and `observation["race"]`. It uses acoustic bearing/range/elevation, a small approach/transit/exit state machine, smoothed yaw with a deadband, vertical regulation, and speed scheduling around gates.
-- `rule_gate_baseline`: simple rule-based gate controller for visible-gate traversal. It uses the beacon for target direction, uses `FrontCamera` to center the visible square gate, applies only gentle yaw/sway corrections, regulates heave from image/elevation error, and holds forward surge at zero until the beacon/camera target is roughly aligned.
-- `acoustic_vision_baseline`: experimental/deprecated. It uses `acoustic_baseline` as fallback and applies simple deterministic `FrontCamera` color/brightness heuristics for local gate-bar alignment, but it is not the preferred HoloOcean baseline.
-- `vision_gate_baseline`: experimental/deprecated. It attempts a more complex visual-servo state machine and can be useful for debugging, but it is not currently the recommended official baseline for reliable HoloOcean evaluation.
-
-The official baselines set `debug_only = False` and `uses_ground_truth = False`; they do not consume `debug_ground_truth`. The existing `pygame` and terminal keyboard controllers remain manual/demo tools. The `oracle` controller remains debug-only and is blocked in official mode.
-
-Set `MARINE_RACE_ACOUSTIC_BASELINE_VERBOSE=1` to log acoustic baseline diagnostics including phase, beacon range, bearing, elevation, surge, yaw, and heave.
-Set `MARINE_RACE_VISION_GATE_BASELINE_VERBOSE=1` to log vision baseline phase, visual confidence, image error, and commands.
-
-Single-gate rule baseline smoke tests are available under `marine_race_arena/tracks/tests/` with yaw offsets `-45`, `-25`, `0`, `25`, and `45` degrees. Example HoloOcean runs:
-
-```bash
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/single_gate_yaw_0.json --controller rule_gate_baseline --adapter holoocean --duration 120 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/single_gate_yaw_45.json --controller rule_gate_baseline --adapter holoocean --duration 120 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-```
-
-Progressive rule baseline tracks are available for testing small gate sequences before the full Horseshoe Bay route:
-
-```bash
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/two_gate_straight.json --controller rule_gate_baseline --adapter holoocean --duration 150 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/two_gate_left_curve.json --controller rule_gate_baseline --adapter holoocean --duration 150 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/two_gate_right_curve.json --controller rule_gate_baseline --adapter holoocean --duration 150 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/three_gate_s_curve.json --controller rule_gate_baseline --adapter holoocean --duration 180 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/tests/four_gate_horseshoe_start.json --controller rule_gate_baseline --adapter holoocean --duration 240 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-```
-
-Clean-gate acoustic baseline:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_baseline --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --output-dir results/benchmarks/clean_gate_acoustic_baseline
-```
-
-Obstacle-gate acoustic baseline:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task obstacle_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_baseline --adapter fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.1 --obstacles random --obstacle-density low --obstacle-physics static --output-dir results/benchmarks/obstacle_gate_acoustic_baseline
-```
-
-Clean-gate acoustic plus vision baseline with `FrontCamera`:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_benchmark.py --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller acoustic_vision_baseline --adapter holoocean --allow-fallback --seeds 0 1 2 3 4 --duration 500 --dt 0.033 --output-dir results/benchmarks/clean_gate_acoustic_vision_baseline
-```
-
-Clean-gate HoloOcean vision gate baseline with beacon target diagnostics:
-
-```bash
-python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller vision_gate_baseline --adapter holoocean --duration 300 --dt 0.033 --benchmark-task clean_gate --print-beacon-targets
-```
-
-## Gate Validation Rule
-
-A gate crossing is valid only when:
-
-- The vehicle center crosses the expected gate plane between the previous and current pose.
-- The crossing direction matches the gate `passage_direction`.
-- The segment intersection point is inside the internal opening.
-- The gate is the expected id in `track.gate_sequence`.
-- The participant has not skipped the expected sequence by crossing a different gate.
-
-The referee uses the abstract gate geometry, not visual collision geometry.
-Set `referee.gate_validation.vehicle_clearance_margin_m` to shrink the valid center-point aperture by a safety margin. The default is `0.0` for backward compatibility; the sample tracks use small positive margins to reduce valid-but-too-close center crossings near physical bars.
-
-## Timing
-
-Two timing modes are supported:
-
-- `green_to_finish`: official time starts at the GREEN/simulation start event and ends at the final gate.
-- `first_gate_to_last_gate`: official time starts at the first valid crossing of G01 on lap 1 and ends at the final valid crossing of the finish gate.
-
-The logger also saves green-to-finish time for every finished participant.
-
-## Scoring And Ranking
-
-Final benchmark rules:
-
-- Minor collision: +5 s.
-- Gate collision: +10 s.
-- Obstacle collision: obstacle-specific `penalty_s`, default examples use +5 s.
-- Out of bounds: +10 s.
-- Stuck episode: +15 s.
-- Wrong direction: logged only, no default penalty or DSQ.
-- Collision, obstacle collision, out-of-bounds, and stuck are penalty/events, not DNF.
-- Missing or skipping a gate by crossing a different gate than expected is DNF.
-- Timeout is disabled by default. The runner may still stop at the configured duration guard, but the referee does not mark TIMEOUT unless `referee.gate_validation.timeout_enabled` is true.
-- Controller failure remains terminal as `CONTROLLER_ERROR`.
-
-Finished participants rank ahead of unfinished participants. Finished racers rank by lower penalized official time. Non-finished racers rank by more completed gates, fewer collisions, lower accumulated penalty, then shorter distance to the next expected gate.
-
-## Official And Debug Modes
-
-Official mode does not expose ground-truth pose, exact gate positions, the full track geometry, or referee internals to participant controllers.
-
-The debug oracle controller is explicitly a cheating feasibility tool:
-
-```text
-marine_race_arena.controllers.oracle_gate_follower.OracleGateFollowerController
-```
-
-It uses own ground-truth pose and exact target gate geometry. It is blocked by the runner when `--official` is set and is not competition-valid. The current oracle is a simplified no-yaw translator: it commands surge, sway, and heave toward each gate centerline and always returns `yaw = 0.0`.
-
-## Manual Pygame Control
-
-Use the built-in `pygame` controller for manual local testing:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033
-```
-
-Controls:
-
-- `W` / `S`: forward and backward on the horizontal plane.
-- `A` / `D`: left and right sway on the horizontal plane.
-- `Q` / `E`: yaw left and right.
-- Up arrow / Down arrow: raise and lower the rover.
-- Space: stop motion.
-- Esc: cleanly stop the race.
-
-The controller opens a small Pygame control window. Keep focus on that Pygame window while driving. Pressing Esc or closing the Pygame control window prints `Manual stop requested.`, marks the participant as `MANUAL_STOP`, and closes the controller, camera viewer, adapter, and logger through the normal runner cleanup path. It does not use ground truth.
-
-## Acoustic Beacons
-
-Supported beacon activation modes:
-
-- `active_when_target`: only the expected gate beacon is active.
-- `always_on`: all beacon ids are visible, while the target observation remains focused on the expected gate.
-- `sequential_channel`: simple channel index based on sequence position.
-
-Supported observation modes:
-
-- `oracle`: exact gate pose, debug only.
-- `acoustic_ideal`: bearing/range/elevation without noise.
-- `acoustic_noisy`: bearing/range/elevation with configured noise and dropout.
-
-Official observations never include exact gate center or full track ground truth.
-
-## Currents
-
-The current manager supports:
-
-- `constant`: uniform velocity vector.
-- `localized_jet`: radius-limited current with Gaussian or linear falloff.
-- `sinusoidal`: oscillating velocity component.
-- `vortex`: analytic horizontal swirl around a configured center, with optional vertical component and linear or Gaussian falloff.
-
-In the fallback adapter, currents are applied to the simple point-vehicle kinematics and exposed in logs/observations. In the tested HoloOcean 2.3.0 installation, the HoloOcean adapter applies currents through `env.set_ocean_currents(agent_name, velocity)`. If that method is missing in another installation, the adapter reports the limitation and exposes configured currents in observations/logs only.
-
-The first two benchmark tracks intentionally have no currents. `marine_race_mixed_endurance.json` is the current benchmark and combines constant flow, localized jets, a sinusoidal vertical component, and a vortex. Use the stopped-rover diagnostic to verify physical drift:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter holoocean --duration 10 --zero-command
-```
-
-To test physical drift inside a strong current zone instead of the track start, pass an explicit drift spawn position. For the mixed endurance benchmark, this uses the second localized jet:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter holoocean --duration 10 --zero-command --drift-position 58.0 12.0 -5.3
-```
-
-## Validate Tracks
-
-Run validation with either module or script style:
-
-```bash
-conda run -n ocean python -m marine_race_arena.scripts.validate_track_config --track marine_race_arena/tracks/marine_race_horseshoe_bay.json
-conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json
-conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json
-```
-
-Validation checks required fields, unique gate ids, sequence references, finish gate, bounds, depth safety, positive sizes, nonzero passage directions, declared length, linked gates, split-S consistency, beacon ids, participant controller references, supported current types, active obstacle generation/layout, and any active benchmark task requirements.
-
-## Run Races
-
-The runner builds the arena, loads controllers, starts the referee/logger, and runs the selected simulator adapter.
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter fallback --duration 500
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller pygame --adapter fallback --duration 850
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter fallback --duration 1300
-```
-
-Obstacle benchmark examples:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --seed 7
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --seed 7 --controller pygame --adapter fallback --duration 500
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task obstacle_gate --obstacles random --obstacle-density low --obstacle-physics static --seed 7 --controller pygame --adapter holoocean --duration 300 --dt 0.033
-```
-
-Current diagnostics:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --adapter fallback
-conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --adapter fallback
-conda run -n ocean python marine_race_arena/scripts/diagnose_currents.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --adapter fallback
-```
-
-Useful flags:
-
-- `--adapter auto`: try HoloOcean first. If it fails, fallback is used only when `--allow-fallback` is also set.
-- `--adapter fallback`: run the deterministic point-vehicle adapter.
-- `--adapter holoocean`: require the HoloOcean adapter.
-- `--benchmark-task`: validate this run as `clean_gate`, `obstacle_gate`, `current_gate`, or `multi_rov`.
-- `--obstacles`: `none` removes active obstacles, `fixed` uses JSON obstacles, `random` generates deterministic boxes between gates.
-- `--obstacle-density`: `low`, `medium`, or `high` density for random obstacle generation.
-- `--obstacle-physics`: `static` keeps HoloOcean obstacles suspended and fixed; `dynamic` enables simulator physics for experiments.
-- `--allow-fallback`: explicitly allow fallback kinematics after HoloOcean initialization failure.
-- `--official`: force official mode and block oracle ground truth.
-- `--headless`: request headless HoloOcean mode when supported.
-- `--record`: request HoloOcean recording when supported.
-- `--participant-controller`: external `module:Class`, fully qualified `module.Class`, or file path.
-- `--controller-class`: class name to instantiate when using a Python file or module path.
-- `--disable-front-camera`: disable `FrontCamera` capture for non-official live/debug runs when the viewport or control loop is too slow. This is rejected in `--official` mode.
-- `--show-front-camera`: open a live viewer for `observation["sensors"]["FrontCamera"]`. Press `V` or `Esc` in the camera viewer to close only that viewer while the race continues.
-- `--print-beacon-targets`: print de-duplicated beacon/race target diagnostics when the target gate, target index, or beacon availability changes, plus periodic 2 s updates. It can also be enabled with `MARINE_RACE_PRINT_BEACON_TARGETS=1`.
-- `--log-dir`: output directory for JSONL events and summary JSON.
-- `--seed`: deterministic beacon noise/dropout seed and random-obstacle seed.
-
-## HoloOcean Adapter
-
-Two simulator adapters are available:
-
-- `fallback`: simple point-vehicle kinematics, no Unreal/HoloOcean process, metadata-only gate visuals, and currents applied as direct velocity disturbance.
-- `holoocean`: attempts to create a HoloOcean BlueROV2 scenario, queue BlueROV2 thruster commands, read simulator state for the referee/debug path, and expose filtered sensor data to controllers.
-
-Run the easy track in fallback first:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter fallback --duration 500
-```
-
-Then run the diagnostic and try HoloOcean:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/diagnose_holoocean_adapter.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --print-gate-bars
-conda run -n ocean python marine_race_arena/scripts/diagnose_gate_visual_rotations.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --output-dir diagnostics/gate_rotation_tests_selected --selected-only
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter holoocean --duration 500 --dt 0.033 --show-front-camera
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller pygame --adapter holoocean --duration 850 --dt 0.033
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_mixed_endurance.json --controller pygame --adapter holoocean --duration 1300 --dt 0.033
-```
-
-Auto mode is strict by default. It does not silently fall back if HoloOcean is missing or misconfigured:
-
-```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller pygame --adapter auto --allow-fallback --duration 500
-```
-
-The HoloOcean adapter imports `holoocean` only inside the adapter. It builds a custom scenario dictionary with configured BlueROV2 participants, prefers the configured map such as `OpenWater-Hovering`, and then tries the configured fallback such as `PierHarbor-Hovering`. It fails loudly when `--adapter holoocean` cannot initialize. The diagnostic script also tries prebuilt scenario names so environment-name problems are easier to distinguish from custom scenario problems.
-
-Command mapping:
-
-- `thrusters` mode sends an 8-value clamped BlueROV2 thruster list for HoloOcean control scheme `0`.
-- `high_level` mode maps `surge`, `sway`, `heave`, and `yaw` to a conservative 8-thruster baseline.
-- Commands are clamped to safe ranges, and heave is limited near configured `z_min` and `z_max` to avoid pushing the simulator into unstable extremes.
-
-Sensor separation:
-
-- Official/student observations include configured non-ground-truth sensors, beacon observations, time, participant id, and race progress.
-- The benchmark tracks include an official front RGB camera exposed as `observation["sensors"]["FrontCamera"]`.
-- The HoloOcean scenario config mounts this camera as `RGBCamera` named `FrontCamera` on `CameraSocket`, with rotation `[0.0, 0.0, 0.0]`, `Hz=30`, `640x480`, and FOV `90.0`.
-- If the installed HoloOcean runtime returns the image under `RGBCamera`, the adapter aliases it to `FrontCamera` before filtering.
-- Manual pygame testing can show this feed live with `--show-front-camera`. The viewer uses the filtered controller observation, supports image arrays or nested lists, and does not expose ground truth. In the tested HoloOcean 2.3.0 installation, the Python sensor docstring still says `RGBA`, but the runtime `FrontCamera` buffer behaves as `BGRA/BGR`; the viewer now uses that practical ordering for correct colors. OpenCV is used when installed; if OpenCV is unavailable, the runner prints a clear warning or uses a pygame fallback when no other pygame display is active.
-- The adapter filters out `PoseSensor`, `LocationSensor`, `RotationSensor`, `DynamicsSensor`, and explicit ground-truth fields in official mode.
-- The referee still uses ground-truth pose internally for gate validation and out-of-bounds checks.
-- The oracle controller receives ground truth only when not in official mode.
-
-Obstacles:
-
-- Fixed obstacles are loaded from JSON when `--obstacles fixed` is active. Random obstacles are generated reproducibly from `--seed`.
-- Random obstacles are centered at gate-pair midpoints in the local corridor frame, with only small symmetric lateral offsets so they do not always appear on one side of the route.
-- In HoloOcean, active box obstacles are spawned with `env.spawn_prop("box", ..., sim_physics=False)` by default. They are visible, collidable props but are not affected by gravity/current unless `--obstacle-physics dynamic` is explicitly selected.
-- In fallback, active obstacles remain metadata and collisions are approximated with a simple bounding check along the participant movement segment.
-- Obstacle collisions emit `obstacle_collision`, add the obstacle's `penalty_s`, and do not cause DNF by default.
-
-Gate visuals:
-
-- In HoloOcean 2.3.0, gate visuals are spawned at runtime with `env.spawn_prop("box", location, rotation, scale, sim_physics=False, material, tag)`.
-- Each logical gate is still built from four bars: top, bottom, left, and right.
-- Gate visual orientation is generated from `passage_direction`, which is the source of truth for the gate normal. The factory derives a full 3D frame with local X along the gate normal, local Y along the right/opening width axis, and local Z along the up/opening height axis. This supports yaw-only and pitched gate definitions.
-- All sample tracks use the Abu Dhabi-style 1.5 m x 1.5 m internal opening. The side bars are generated as vertical pillars with their height on world Z.
-- Runtime HoloOcean spawning uses a hybrid visual mode by default: the left and right pillars are single vertical box props, while the top and bottom bars are dense overlapping micro-blocks. The default micro-blocks are intentionally much smaller than the bar thickness so the top and bottom read as continuous strips instead of visible large cubes.
-- The optional `uniform` mode uses one elongated box prop per logical gate bar. The installed HoloOcean 2.3.0 Python API documents prop rotation as `[roll, pitch, yaw]`, but the tested Unreal backend renders box yaw correctly when the generated gate rotation is sent as `[yaw, pitch, roll]`. The adapter keeps the internal math in roll/pitch/yaw and applies that HoloOcean-specific conversion only at the `spawn_prop` boundary.
-- HoloOcean `spawn_prop` box `scale` is a multiplier on a one-meter box, so each logical bar passes its meter dimensions directly as `scale`.
-- Set `MARINE_RACE_GATE_VISUAL_MODE=uniform` only when intentionally testing the four-long-bar version. Set `MARINE_RACE_GATE_VISUAL_MODE=segmented` to represent every logical bar as a chain of axis-aligned box segments along the same mathematical centerline.
-- If `spawn_prop` is unavailable, gate bars remain metadata and can be exported by `HoloOceanVisualSpawner` for manual Unreal placement.
-- The referee always uses abstract gate geometry, regardless of visual spawning status.
-- Use `--print-gate-bars` with the diagnostic script to print every gate id, source bar id, position, logical rotation, runtime spawn rotation, dimensions, and spawn method. Use `diagnose_gate_visual_rotations.py --single-long-only --fixed-front-camera` to spawn one four-long-bar test gate per yaw/pitch case and save `ViewportCapture` screenshots under `diagnostics/`. Add `--rotation-mapping rpy` only when intentionally reproducing the broken mapping for comparison.
-- The box props are physical/collidable in the tested runtime. The no-yaw oracle attempts simple translational gate transits, but it remains a debug feasibility controller rather than a competition-quality controller.
-
-Currents:
-
-- In HoloOcean 2.3.0, physical current coupling is active through `env.set_ocean_currents(agent_name, velocity)`.
-- The adapter applies the configured current field at the rover position each simulator tick.
-- If this API is not available in another HoloOcean installation, the adapter warns and exposes currents in observations/logs only.
-- The fallback adapter physically applies currents to its simple kinematic point vehicle.
-
-Collision sensor:
-
-- The generated BlueROV2 scenario includes `CollisionSensor`.
-- The adapter maps `CollisionSensor`/contact values to `adapter.get_collision_state(participant_id)`.
-- The referee receives collision status and applies the configured time penalty with cooldown. Collision is not DNF in the final benchmark rules.
-
-Depth safety:
-
-- `z_min` and `z_max` are enforced by the referee using adapter ground truth.
-- A vehicle below `z_min` or above `z_max` is marked as out-of-bounds and receives the configured penalty with cooldown.
-- Official controllers do not receive this bounds check as privileged navigation ground truth.
-
-Troubleshooting HoloOcean environments:
-
-- Verify that the `holoocean` Python package imports in the same Python environment used to run the script.
-- Verify that the Ocean package containing `OpenWater-Hovering` or `PierHarbor-Hovering` is installed.
-- To check basic availability, run:
-
-```bash
-conda run -n ocean python -c "import holoocean; print(holoocean); print(getattr(holoocean, '__version__', 'unknown')); print(getattr(holoocean, '__file__', None))"
-```
-
-- If `OpenWater-Hovering` is unavailable, set `world.map` or `world.fallback_environment` to an installed scenario and revalidate the track.
-- If the rover does not move, run the diagnostic first. It prints the generated agent config, raw sensor keys, zero-action test, forward-action test, current-coupling method, and whether the pose changed.
-- If expected sensors are missing, check the generated sensor list in the diagnostic output and compare it with the installed HoloOcean package.
-- If the live viewport is very choppy during manual/debug runs, try `--disable-front-camera`. The official RGB camera is 640x480 at 30 Hz and can be expensive on some machines.
-
-## Track Examples
-
-`marine_race_horseshoe_bay.json` is a `clean_gate` 12-gate, 1-lap open U-shaped route with standard 1.5 m x 1.5 m gate openings, no currents, safe depth near `z = -4.0`, and clear point-to-point visibility.
-
-`marine_race_vertical_serpent.json` is a `clean_gate` 17-gate, 1-lap slalom with strong depth variation, vertical double-gate elements, no currents, and a longer duration budget.
-
-`marine_race_mixed_endurance.json` is a `current_gate` 22-gate, 1-lap endurance route with diagonals, vertical variation, double gates, a split-S-like section, strong currents, localized jets, a vortex, beacon noise, and dropout.
-
-## Add A Student Controller
-
-Start from:
-
-```text
-marine_race_arena/controllers/student_template.py
-```
-
-A controller must implement:
-
-```python
-def reset(self, race_info): ...
-def step(self, observation): ...
-def close(self): ...
-```
-
-For high-level control return:
-
-```python
-return {
-    "surge": 0.4,
-    "sway": 0.0,
-    "heave": 0.0,
-    "yaw": 0.0,
-}
-```
-
-`surge` is forward/backward, `sway` is lateral, `heave` is vertical, and `yaw` is rotation. Values are clamped by the adapter.
-
-Official controllers can read the front camera like this:
+`debug_ground_truth` is only included for debug controllers in non-official mode.
+
+`observation["race"]` contains:
+
+- `status`
+- `lap`
+- `laps`
+- `completed_gates`
+- `target_gate_id`
+- `target_sequence_index`
+- `official_time_started`
+
+`observation["beacon"]` contains fields such as:
+
+- `valid`
+- `reason`
+- `active_beacon_id`
+- `target_gate_id`
+- `sequence_index`
+- `bearing_deg`
+- `elevation_deg`
+- `range_m`
+- `signal_strength`
+- `noise_level`
+- `mode`
+- `message`
+
+In non-official oracle mode, beacon observations can include exact gate/beacon fields; those are not available in official mode.
+
+Official sensor profiles can include:
+
+- `FrontCamera`: RGB/BGRA image buffer from the front camera.
+- `DepthSensor` and derived `depth_m`.
+- `IMUSensor`.
+- `DVLSensor` and `VelocitySensor` when configured.
+- `CollisionSensor`.
+- `heading_yaw_deg`.
+- `current_physical_coupling_active`, `current_coupling_method`, and `control_mode` metadata.
+- `environment_current_m_s` may appear as current metadata in local configs, but it should not be used for no-cheat official controller claims unless the benchmark explicitly allows direct current-vector input.
+
+Ground-truth sensors such as `PoseSensor`, `LocationSensor`, `RotationSensor`, and `DynamicsSensor` are filtered out in official mode.
+
+Practical examples:
 
 ```python
 image = observation["sensors"].get("FrontCamera")
-if image is not None:
-    # HoloOcean RGBCamera usually returns a uint8 array shaped (480, 640, 4).
-    height = image.shape[0] if hasattr(image, "shape") else len(image)
+beacon = observation["beacon"]
+race = observation["race"]
+
+if beacon.get("valid") and beacon.get("bearing_deg") is not None:
+    yaw = max(-0.2, min(0.2, beacon["bearing_deg"] / 90.0))
+else:
+    yaw = 0.0
+
+command = {
+    "surge": 0.25 if race.get("status") == "RUNNING" else 0.0,
+    "sway": 0.0,
+    "heave": 0.0,
+    "yaw": yaw,
+}
 ```
 
-For thruster control return:
+## 12. Loading a Custom Controller
 
-```python
-{"thrusters": [0.0, 0.0, 0.0, 0.0]}
-```
+Built-in aliases include:
 
-Run an external controller with:
+- `rule_gate_baseline`
+- `acoustic_baseline`
+- `student_template`
+- `keyboard`, `manual`, `manual_keyboard`
+- `pygame`, `pygame_keyboard`
+- `oracle` for debug only, blocked in official mode
+
+External controller syntaxes supported by `ControllerLoader`:
+
+- Python file path ending in `.py`; requires `--controller-class`.
+- `module:Class`.
+- Fully qualified `module.Class`.
+- Module plus `--controller-class`.
+
+Example file-path command:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/run_marine_race.py --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --participant-controller path/to/my_controller.py --controller-class MyController --adapter holoocean --duration 500 --dt 0.033
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race \
+  --track marine_race_arena/tracks/marine_race_horseshoe_bay.json \
+  --benchmark-task clean_gate \
+  --participant-controller path/to/my_controller.py \
+  --controller-class MyController \
+  --adapter holoocean \
+  --official \
+  --headless \
+  --obstacles none \
+  --current-profile none \
+  --motion-compensation none
 ```
 
-You can also use `--participant-controller package.module:MyController` or `--participant-controller package.module.MyController`.
-
-Official observations exclude ground-truth pose, exact gate centers, full track geometry, and referee internals. They may include beacon messages, `FrontCamera`, depth, IMU, DVL/velocity when configured, and current estimates when allowed by the sensor profile. The oracle controller is debug-only and not competition-valid.
-
-## Add A New Track
-
-Copy one of the example JSON files and update:
-
-- Race metadata and lap count.
-- Optional `benchmark_task` mode if the track should be validated as a benchmark task.
-- Bounds with safe `z_min` and `z_max`.
-- Start pose.
-- Gate ids, positions, rotations, colors, and passage directions.
-- Gate sequence and finish gate.
-- Beacon noise/dropout.
-- Currents.
-- Fixed obstacles or `obstacle_generation` settings for `obstacle_gate` tracks.
-- Participant controller settings.
-- Declared path length.
-
-Then validate before running:
+Example module/class command:
 
 ```bash
-conda run -n ocean python marine_race_arena/scripts/validate_track_config.py --track path/to/your_track.json
+conda run -n ocean python -m marine_race_arena.scripts.run_marine_race --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --benchmark-task clean_gate --participant-controller my_package.my_controller:MyController --adapter holoocean --official --headless --obstacles none --current-profile none --motion-compensation none
 ```
 
-## Logs
+## 13. Architecture Diagram
 
-The runner writes JSONL race events and a final summary JSON under `results/marine_race` by default. Events include race start, gate passed, lap completed, collision, obstacle collision, out of bounds, stuck, penalty, race finish, DNF, manual stop, controller error, and race summary.
+```text
+Track JSON
+  |
+  v
+Config Loader
+  |
+  v
+ArenaBuilder ----> Gates / Bounds / Obstacles / Currents / Beacons
+  |
+  v
+Race Runner
+  |
+  +--> Adapter: HoloOcean or fallback
+  |
+  +--> Controller observation
+  |       |
+  |       v
+  |   User Controller
+  |       |
+  |       v
+  |   Command: surge / sway / heave / yaw
+  |
+  +--> Referee
+          |
+          +--> gate validation
+          +--> collisions
+          +--> stuck / out-of-bounds
+          +--> penalties
+          +--> per-rover summary
+          +--> team_summary for fleet mode
+```
 
-## Known Limitations
+## 14. Referee And Arbitration
 
-- The HoloOcean adapter has been validated against the local `ocean` conda environment with HoloOcean 2.3.0. Other HoloOcean versions may expose different worlds, sensors, or control behavior.
-- Runtime gate spawning uses `spawn_prop("box", ...)` with hybrid micro-block top/bottom bars by default; scenario-based static object config was not identified in the installed Python API.
-- Visual gate boxes are physical in the tested runtime. The no-yaw oracle is intended for feasibility testing and may still collide if dynamics, currents, or track geometry exceed its simple controller assumptions.
-- The referee validates the vehicle center point only. `vehicle_clearance_margin_m` can shrink the accepted aperture, but full-body gate validation is reserved for a future extension.
-- The fallback runner is a simple point-vehicle feasibility tool, not a BlueROV2 physics model.
-- HoloOcean physical current coupling depends on `env.set_ocean_currents`; the adapter reports inactive coupling if that API is missing.
-- Vortex current is a simplified analytic field, not a CFD model.
-- HoloOcean obstacle spawning depends on `env.spawn_prop`; fallback obstacle collisions use approximate geometry rather than full rigid-body contact.
+The referee is not part of the controller observation. It uses simulator state to validate and score the race.
+
+Referee logic:
+
+- Gate validation checks that the vehicle center crosses the expected gate plane, in the expected direction, through the aperture.
+- `wrong_direction` is logged when the expected gate is crossed backwards.
+- `missed_gate` is logged when a different gate is crossed before the expected gate; by default this causes DNF.
+- Collision events add the configured collision penalty subject to cooldown.
+- Obstacle collisions add obstacle-specific penalties when obstacles are active.
+- Out-of-bounds events add penalties subject to cooldown.
+- Stuck detection accumulates time below a movement threshold and adds stuck penalties.
+- Optional gate-timeout stuck handling can mark a participant stuck in experiment runners.
+- Ranking sorts finished participants by penalized time. Unfinished participants are ranked by completed gates, collisions, penalties, distance to next gate, and participant id.
+
+Fleet/team mode:
+
+- Each rover still has its own referee state, progress, events, and diagnostic row.
+- All rovers belong to one team.
+- `team_summary` aggregates gates, collisions, penalties, and team elapsed time.
+- `team_summary` is the official fleet-level result.
+- `participants` rows are diagnostics.
+
+Inter-vehicle collision modes:
+
+- `off`: disabled; preserves old behavior.
+- `diagnostic`: detects and logs rover-rover proximity events without penalty. Recommended default for v0.1.
+- `penalize`: adds one team-level penalty per inter-vehicle collision event.
+
+One inter-vehicle event counts once at team level, not once per rover. Per-rover `involved_inter_vehicle_collisions` is diagnostic only. Detection uses referee-side geometric proximity from participant positions; controllers do not receive other rover positions.
+
+Recommended v0.1 default: `--inter-vehicle-collision-mode diagnostic` until full calibration succeeds.
+
+## 15. Calibration Script
+
+Quick calibration:
+
+```bash
+conda run -n ocean python -m marine_race_arena.scripts.calibrate_inter_vehicle_collision_threshold --quick
+```
+
+Full calibration:
+
+```bash
+conda run -n ocean python -m marine_race_arena.scripts.calibrate_inter_vehicle_collision_threshold
+```
+
+The calibration script tries to estimate a geometric BlueROV2-vs-BlueROV2 contact threshold in HoloOcean by spawning two BlueROV2 agents with zero commands and sweeping relative placements/yaw angles. It writes:
+
+- `results/benchmarks/inter_vehicle_collision_calibration/calibration_samples.csv`
+- `results/benchmarks/inter_vehicle_collision_calibration/calibration_summary.json`
+- `results/benchmarks/inter_vehicle_collision_calibration/calibration_report.md`
+
+Current limitation: quick calibration may fail or timeout while repeatedly loading HoloOcean scenarios on some machines. The current conservative defaults are:
+
+- `xy threshold = 0.8 m`
+- `z threshold = 0.75 m`
+- `release threshold = 1.05 m`
+- `cooldown = 1.0 s`
+
+Do not claim these thresholds are fully empirically validated until the full calibration completes with enough contact and non-contact samples.
+
+## 16. Results And Outputs
+
+Race outputs are written under `--log-dir`:
+
+- Summary JSON, usually `*_summary.json`.
+- Event JSONL, one event per line.
+- Optional stdout/stderr files from wrapper scripts.
+- CSV tables and markdown reports from benchmark/smoke scripts.
+
+Useful fields/events:
+
+- `participants`: per-rover diagnostic summaries.
+- `ranking`: per-rover diagnostic order.
+- `team_summary`: fleet-level score for multi-rover runs.
+- `inter_vehicle_collision`: diagnostic or penalized rover-rover proximity event.
+- `participant_released`: staggered release event.
+- `participant_state`: per-tick diagnostic state when `--log-participant-states` is enabled.
+
+Generated `results/` and `diagnostics/` outputs are ignored by Git by default. Do not commit large logs, videos, JSONL files, HoloOcean recordings, or generated cache directories.
+
+## 17. Known Limitations
+
+- Inter-vehicle collision calibration is incomplete.
+- `inter_vehicle_collision_mode=diagnostic` is recommended for now.
+- Close-proximity fleet racing is not fully validated.
+- `inter_vehicle_collision_mode=penalize` is available but should be treated as experimental until calibration is complete.
+- Current compensation is experimental and is not part of v0.1 official results.
+- `dvl_pi` modifies surge/sway using DVL or velocity feedback, but it is not an official v0.1 robustness claim.
+- The fallback adapter is useful for unit tests and control-flow plumbing, but it is not a physical simulator.
+- HoloOcean loading can be slow or can timeout for calibration sweeps.
+- Manual controllers are demos, not benchmark baselines.
+- The debug `oracle` controller uses ground truth and is blocked in official mode.
+
+## 18. Release Checklist
+
+- `python -m compileall -q marine_race_arena tests` passes.
+- `conda run -n ocean python -m pytest -q` passes.
+- `conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover_smoke` passes.
+- At least one single-rover official clean command runs from a clean checkout.
+- README is updated.
+- `docs/release_v0_1.md` is updated.
+- No large generated results, logs, videos, caches, or recordings are committed.
+- Official examples run from the repository root.
+- Release tag is created only after the above checks pass.

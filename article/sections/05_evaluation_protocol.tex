@@ -1,0 +1,63 @@
+\section{Evaluation Protocol}
+
+\subsection{Gate Validation}
+
+A valid gate crossing occurs when the vehicle trajectory segment between two consecutive poses intersects the expected gate plane, the crossing direction matches the configured passage direction, and the intersection point lies inside the internal aperture after applying any configured clearance margin. If the vehicle crosses another gate while the referee expects a different gate, the event is treated as a missed-gate attempt and may trigger a penalty or DNF depending on the benchmark settings.
+
+Fig.~\ref{fig:gate_validation} illustrates the validation concept. The referee evaluates the vehicle center point in the current implementation. The interface is intentionally compatible with future full-body or footprint-based validation, which would shrink the valid aperture based on vehicle dimensions or explicit collision geometry.
+
+\begin{figure}[t]
+\centering
+\resizebox{0.47\textwidth}{!}{%
+\begin{tikzpicture}[scale=1.0, every node/.style={font=\small}]
+    \draw[thick] (-2,-1.4) rectangle (2,1.4);
+    \draw[very thick] (-1.2,-0.8) rectangle (1.2,0.8);
+    \fill[gray!15] (-2,-1.4) rectangle (-1.2,1.4);
+    \fill[gray!15] (1.2,-1.4) rectangle (2,1.4);
+    \fill[gray!15] (-1.2,0.8) rectangle (1.2,1.4);
+    \fill[gray!15] (-1.2,-1.4) rectangle (1.2,-0.8);
+    \draw[-Latex, thick] (-3.0,0.1) -- (0.0,0.1);
+    \draw[-Latex, thick, dashed] (0.0,0.1) -- (2.7,0.1);
+    \draw[-Latex, thick] (0,-2.0) -- (0,-1.2);
+    \node at (0,-2.25) {configured passage direction};
+    \node at (0,1.75) {gate plane and aperture};
+    \fill (0,0.1) circle (2.2pt);
+    \node[anchor=west] at (0.15,0.28) {valid intersection};
+    \draw[red, thick, -Latex] (-2.8,1.25) -- (-1.45,1.25);
+    \node[anchor=west, red] at (-1.35,1.25) {bar / invalid};
+\end{tikzpicture}}
+\caption{Gate validation is performed on abstract gate geometry. The segment between previous and current vehicle positions must cross the expected gate plane in the correct direction and inside the aperture.}
+\label{fig:gate_validation}
+\end{figure}
+
+\subsection{Timing, Penalties, and Ranking}
+
+The protocol supports two timing modes. In green-to-finish timing, the official clock starts at the race start event and ends when the finish condition is satisfied. In first-gate-to-last-gate timing, the official clock starts at the first valid crossing of the first gate and ends at the final valid crossing of the finish gate. The latter is useful when one wants to exclude spawn settling time or manual launch transients from the official race time.
+
+Penalties are accumulated as seconds added to the official time. Events include minor collision, gate collision, obstacle collision, out-of-bounds, stuck episode, missed gate, timeout, manual stop, and controller error. Ranking first prioritizes finish status and completed gates, then penalized time. The event log records all relevant events with timestamps so that a run can be audited after completion.
+
+\subsection{Benchmark Tasks}
+
+Table~\ref{tab:benchmark_tasks} defines the benchmark tasks used in the current design. The tasks are cumulative: clean-gate isolates navigation and gate sequencing; obstacle-gate adds spatial avoidance; current-gate adds marine disturbances; multi-ROV adds interaction and congestion effects.
+
+\begin{table}[t]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\caption{Benchmark task definitions.}
+\label{tab:benchmark_tasks}
+\begin{tabular}{p{0.23\linewidth}p{0.65\linewidth}}
+\toprule
+Task & Purpose \\
+\midrule
+\texttt{clean\_gate} & One vehicle, gate sequence, no active obstacles, no active currents. Tests basic navigation, depth regulation, and referee consistency. \\
+\texttt{obstacle\_gate} & Gate sequence with fixed or seeded generated obstacles. Tests local avoidance and robustness to clutter. \\
+\texttt{current\_gate} & Gate sequence under configured current fields. Tests controller robustness to marine disturbances. \\
+\texttt{multi\_rov} & Multiple participants in the same arena. Tests referee scalability, ranking, interaction handling, and future multi-agent policies. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Reported Metrics}
+
+For each controller and task, the benchmark runner should report completion rate, number of completed gates, official time, penalized time, collisions, obstacle collisions, out-of-bounds events, stuck events, DNF reasons, manual stops, controller errors, and per-seed summaries. These metrics deliberately combine performance and reliability. A controller that is fast but frequently misses gates should not be ranked as more robust than a slower controller with higher completion rate.

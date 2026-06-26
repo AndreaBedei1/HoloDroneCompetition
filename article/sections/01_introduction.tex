@@ -1,0 +1,19 @@
+\section{Introduction}
+
+Evaluating autonomy for underwater vehicles is difficult for reasons that are both physical and methodological. The underwater domain combines six-degree-of-freedom motion, buoyancy, drag, limited visibility, noisy or intermittent sensing, delayed or low-bandwidth communication, and disturbances such as spatially varying currents. Real deployments also require tanks, pools, basins, boats, safety procedures, waterproof hardware, and repeated calibration. As a result, early-stage autonomy algorithms are often evaluated either in isolated simulation scenarios or in real experiments that are expensive to reproduce.
+
+Autonomous racing offers a complementary evaluation paradigm. A race is not merely a demonstration of speed: it is a compact stress test for perception, state estimation, planning, control, recovery behavior, and rule compliance. The appeal of platforms such as F1TENTH is that they convert autonomy into a repeatable competition problem with common tracks, common constraints, and quantitative metrics. A similar idea is visible in autonomous drone racing, where gate sequences, onboard sensing, aggressive motion, and timing rules create a clear benchmark for embodied intelligence.
+
+The underwater case is less mature. Marine robotics already has strong simulators and competitions, but the dominant tasks are mission-oriented: inspection, localization, docking, manipulation, object search, mapping, surface-vessel navigation, and heterogeneous swarm missions. These are important, but they do not directly provide a repeatable underwater race format with gate sequences, marine disturbances, multi-vehicle interaction, swappable controller submissions, and an explicit referee independent of the controller.
+
+This paper presents Marine Race Arena, a configurable simulation environment for underwater multi-robot racing and evaluation. The aim is not to introduce a new underwater vehicle simulator or to claim a validated sim-to-real racing platform. Instead, Marine Race Arena defines a benchmark layer above a simulator backend: tracks, gates, beacons, currents, obstacles, participants, controller interfaces, referee rules, scoring, and logs are specified as explicit configuration objects. Controllers receive observations and return commands, while the referee uses ground-truth simulator state only for evaluation. This separation mirrors the structure of serious benchmarks: the autonomy stack under test is isolated from the scoring system.
+
+The contributions of this paper are:
+\begin{itemize}
+    \item a configurable underwater race format based on gate sequences, laps, start/finish timing, acoustic beacons, marine currents, and obstacles;
+    \item a modular architecture separating arena definition, simulator adapters, participants, controller plug-ins, event logging, scoring, and referee logic;
+    \item an evaluation protocol with explicit benchmark tasks, penalties, completion metrics, and status handling for reproducible comparison;
+    \item initial official baselines and a transparent implementation status that distinguishes implemented infrastructure from controller-performance claims still under evaluation.
+\end{itemize}
+
+The rest of the paper is organized as follows. Section~II reviews autonomous racing, drone racing, marine simulators, marine competitions, and automated evaluation frameworks. Section~III describes the system architecture. Section~IV details arena design. Section~V defines the evaluation protocol. Section~VI summarizes the current implementation and baseline status. Sections~VII and~VIII discuss limitations and conclude.

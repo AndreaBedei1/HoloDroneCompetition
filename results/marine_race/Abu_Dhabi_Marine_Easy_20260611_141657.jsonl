@@ -1,9 +1,0 @@
-{"event": "race_start", "race_name": "Abu Dhabi Marine Easy", "time_s": 0.0}
-{"event": "gate_passed", "gate_id": "G01", "intersection": [-2.0, 0.02093080321475552, -4.000754181305683], "lap": 1, "participant_id": "bluerov2_01", "sequence_index": 0, "time_s": 3.9}
-{"event": "gate_passed", "gate_id": "G02", "intersection": [5.0, 0.05427160439235323, -3.9995242318634574], "lap": 1, "participant_id": "bluerov2_01", "sequence_index": 1, "time_s": 8.7}
-{"event": "gate_passed", "gate_id": "G03", "intersection": [9.817586829499188, 5.182413170500812, -3.978469292689703], "lap": 1, "participant_id": "bluerov2_01", "sequence_index": 2, "time_s": 14.4}
-{"event": "gate_passed", "gate_id": "G04", "intersection": [16.0, 4.955560587838907, -3.9987268100065845], "lap": 1, "participant_id": "bluerov2_01", "sequence_index": 3, "time_s": 18.9}
-{"event": "gate_passed", "gate_id": "G05", "intersection": [20.812736416544485, -0.18726358345551597, -3.989938634123518], "lap": 1, "participant_id": "bluerov2_01", "sequence_index": 4, "time_s": 24.8}
-{"event": "collision", "participant_id": "bluerov2_01", "penalty_s": 5.0, "time_s": 24.9}
-{"event": "dnf", "participant_id": "bluerov2_01", "reason": "severe_collision", "time_s": 24.9}
-{"event": "race_summary", "summary": {"environment": "OpenWater-Hovering", "participants": [{"collisions": 1, "completed_gates": 5, "green_to_finish_time_s": null, "lap": 1, "missed_gate_attempts": 0, "official_time_s": null, "out_of_bounds_events": 0, "participant_id": "bluerov2_01", "penalized_time_s": null, "penalties_s": 5.0, "rank": 1, "status": "DNF", "wrong_direction_crossings": 0}], "race_name": "Abu Dhabi Marine Easy", "ranking": ["bluerov2_01"], "timing_mode": "first_gate_to_last_gate"}, "time_s": 24.9}

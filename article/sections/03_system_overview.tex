@@ -1,0 +1,63 @@
+\section{System Overview}
+
+\subsection{Design Principles}
+
+Marine Race Arena is built around four design principles.
+First, the arena must be declarative: a race should be described by configuration rather than hard-coded scenario logic. Second, the autonomy stack must be replaceable: the same race should accept manual, rule-based, learning-based, acoustic-only, vision-assisted, or debugging controllers through a common interface. Third, the referee must be independent from the controller: privileged information can be used for scoring, but it must not be exposed to official controllers. Fourth, the system should remain simulator-adapter based: the benchmark layer should not depend on a single rendering or dynamics implementation.
+
+\subsection{Architecture}
+
+Fig.~\ref{fig:architecture} shows the high-level architecture. A race configuration defines the world bounds, gates, start pose, finish rule, beacon behavior, current profiles, obstacle generation, participants, controller selection, and referee settings. The arena builder converts this configuration into simulator objects and abstract race geometry. The simulator adapter steps the backend and returns observations. Participant controllers consume observations and output commands. The referee consumes simulator state, validates race progress, applies penalties, and writes logs and summaries.
+
+
+
+\begin{figure*}[t]
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\scriptsize,
+    block/.style={draw, rounded corners, align=center, minimum width=2.25cm, minimum height=0.72cm},
+    arrow/.style={-Latex, thick}
+]
+
+\node[block, fill=gray!10] (config) at (0,1.8) {Race JSON\\configuration};
+\node[block, fill=gray!10] (arena) at (3.0,1.8) {Arena builder\\gates, beacons, currents};
+\node[block, fill=gray!10] (sim) at (6.0,1.8) {Simulator adapter\\fallback / HoloOcean};
+\node[block, fill=gray!5] (obs) at (9.0,1.8) {Observation\\sensors + beacon + race};
+\node[block, fill=gray!5] (ctrl) at (12.0,1.8) {Controller plug-in\\manual / acoustic / vision / RL};
+\node[block, fill=gray!5] (cmd) at (15.0,1.8) {Command mapper\\body command / thrusters};
+
+\node[block, fill=gray!10] (ref) at (6.0,0.2) {Independent referee\\gates, timing, penalties};
+\node[block, fill=gray!5] (logs) at (3.0,0.2) {Event logs\\CSV/JSON summaries};
+\node[block, fill=gray!5] (rank) at (9.0,0.2) {Ranking\\completion, time, DNF};
+
+\draw[arrow] (config) -- (arena);
+\draw[arrow] (arena) -- (sim);
+\draw[arrow] (sim) -- (obs);
+\draw[arrow] (obs) -- (ctrl);
+\draw[arrow] (ctrl) -- (cmd);
+\draw[arrow] (cmd.north) to[out=90,in=90,looseness=0.75] node[above]{commands} (sim.north);
+\draw[arrow] (sim) -- (ref);
+\draw[arrow] (ref) -- (logs);
+\draw[arrow] (ref) -- (rank);
+\draw[arrow] (ref.north east) -- (obs.south west);
+
+\node[align=center] at (12.0,0.75) {official interface:\\no referee ground truth};
+\node[align=center] at (6.0,-0.45) {evaluation layer:\\privileged state only for scoring};
+
+\end{tikzpicture}}
+\caption{Marine Race Arena architecture. The controller is a plug-in evaluated by an independent referee. Privileged simulator state is used for scoring and logging, but official controllers consume only allowed observations.}
+\label{fig:architecture}
+\end{figure*}
+
+
+
+\subsection{Controller Interface}
+
+The controller interface follows a simple reset-step-close lifecycle. At reset time, a controller receives race metadata. At each step, it receives an observation containing allowed sensor values, beacon information, and race progress. It returns either a high-level body-frame command, for example surge, sway, heave, and yaw, or a lower-level thruster command. This interface is intentionally small: it makes it easy to compare controllers implemented with different assumptions and different internal software stacks.
+
+Official controllers are expected to set two semantic flags: whether they are debug-only and whether they consume ground truth. In official evaluation, debug-only or ground-truth-consuming controllers should be excluded from scientific baselines. This allows oracle controllers to remain useful for debugging tracks and referee logic without contaminating benchmark claims.
+
+\subsection{Simulator Adapters}
+
+The current implementation distinguishes race logic from simulator execution. A fallback adapter supports simulator-independent tests of gate validation, scoring, logging, and command flow. A HoloOcean-oriented adapter targets underwater vehicle execution in a 3D marine simulator. This separation is important because the proposed benchmark should not be tied to one version of one simulator. It also allows the referee and configuration logic to be tested without requiring graphics, hydrodynamics, or real-time rendering.

@@ -1,0 +1,25 @@
+\section{Environment Design}
+
+\subsection{Track Geometry and Gate Sequence}
+
+A race is represented as an ordered sequence of gates. Each gate has an identifier, position, orientation, internal aperture size, bar thickness, color, and passage direction. The referee validates the abstract gate geometry rather than relying on visual collision geometry. This distinction matters because the visual bars shown in a simulator are rendering objects, whereas the scoring rule must be deterministic and independent of visual artifacts.
+
+The current reference format uses a two-lap race over an 11-gate sequence, for 22 valid crossings in total. The gate aperture is configurable; the current marine reference configuration uses a square internal opening of $1.5\,\mathrm{m} \times 1.5\,\mathrm{m}$. The system supports single gates, double gates, vertically separated gate pairs, and split-S-like underwater sequences in which the vehicle must change depth between consecutive gates. These structures adapt the gate logic of aerial racing to slower, disturbance-prone underwater motion.
+
+\subsection{Acoustic Beacon Guidance}
+
+Marine Race Arena includes acoustic-beacon-like guidance associated with the next expected gate. The beacon does not validate gate passage. Instead, it provides a restricted navigation cue such as bearing, elevation, range, signal strength, update rate, and optional noise/dropout parameters. This design allows an official controller to receive useful guidance without receiving exact privileged gate geometry.
+
+This distinction is central to the benchmark. A controller may use the beacon to approach the next gate, but it still must regulate heading, depth, and lateral alignment under vehicle dynamics and disturbances. A vision-assisted controller may combine beacon guidance with local gate observations, while an acoustic-only baseline can be evaluated as a minimal non-cheating reference.
+
+\subsection{Marine Currents}
+
+Currents are modeled as configurable disturbances rather than hidden implementation details. The current configuration supports profiles such as constant flow, localized jets, sinusoidal fields, and vortex-like disturbances. This enables benchmark tasks in which the same track can be evaluated under no-current, moderate-current, and structured-current conditions.
+
+The most important design choice is that currents belong to the environment configuration, not to the controller. A benchmark run should therefore record the active current profile, random seeds, obstacle settings, and simulator adapter in its metadata. This makes later comparisons meaningful: a controller that completes a clean track cannot be compared directly with one evaluated under a localized jet unless the task definition records that difference.
+
+\subsection{Obstacles and Arena Bounds}
+
+The arena can include fixed or generated obstacles. Obstacles are defined with position, size, orientation, collision flag, penalty, and optionally the gate corridor in which they are placed. Generated obstacles are seeded so that obstacle-gate tasks can be repeated exactly. World bounds define legal operating space, including depth limits. Out-of-bounds events are logged and penalized according to referee settings.
+
+The environment design therefore separates three types of geometry: abstract gate geometry for scoring, visual geometry for simulator rendering, and obstacle/bounds geometry for safety and penalties. This prevents the benchmark from depending on accidental simulator collisions for gate validation.
