@@ -1,0 +1,33 @@
+{
+  "run": {
+    "scenario": "fleet",
+    "adapter": "holoocean",
+    "headless": true,
+    "official": true,
+    "seed": 0,
+    "dt": 0.033,
+    "duration_s": 560,
+    "motion_compensation": "none"
+  },
+  "track": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
+  "controller": { "name": "rule_gate_baseline" },
+  "benchmark_task": "clean_gate",
+  "obstacles": { "mode": "none" },
+  "currents": { "profile": "none" },
+  "output": {
+    "log_dir": "results/benchmarks/fleet_run",
+    "log_participant_states": true
+  },
+  "fleet": {
+    "num_rovers": 2,
+    "start_gap_s": 90.0,
+    "lateral_offset_m": 3.0,
+    "team_id": "fleet_01",
+    "inter_vehicle_collision": {
+      "mode": "diagnostic",
+      "xy_threshold_m": 0.8,
+      "z_threshold_m": 0.75,
+      "cooldown_s": 1.0
+    }
+  }
+}

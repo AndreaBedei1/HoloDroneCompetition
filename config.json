@@ -1,0 +1,62 @@
+{
+  "run": {
+    "scenario": "single",
+    "adapter": "holoocean",
+    "allow_fallback": false,
+    "headless": true,
+    "record": false,
+    "official": true,
+    "seed": 0,
+    "dt": 0.033,
+    "duration_s": 560,
+    "motion_compensation": "none",
+    "gate_timeout_s": null
+  },
+  "track": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
+  "controller": {
+    "name": "rule_gate_baseline",
+    "module_or_file": null,
+    "class": null
+  },
+  "benchmark_task": "clean_gate",
+  "obstacles": {
+    "mode": "none",
+    "density": "medium",
+    "physics": "static"
+  },
+  "currents": {
+    "profile": "none"
+  },
+  "sensors": {
+    "disable_front_camera": false
+  },
+  "output": {
+    "log_dir": "results/marine_race",
+    "log_participant_states": false
+  },
+  "debug": {
+    "show_front_camera": false,
+    "print_beacon_targets": false
+  },
+  "fleet": {
+    "num_rovers": 2,
+    "start_gap_s": 90.0,
+    "lateral_offset_m": 3.0,
+    "team_id": "fleet_01",
+    "inter_vehicle_collision": {
+      "mode": "diagnostic",
+      "xy_threshold_m": 0.8,
+      "z_threshold_m": 0.75,
+      "release_threshold_m": null,
+      "cooldown_s": 1.0
+    }
+  },
+  "benchmark": {
+    "seeds": [0, 1, 2],
+    "output_dir": "results/benchmarks/config_run"
+  },
+  "smoke": {
+    "wall_timeout_s": 900,
+    "output_dir": "results/benchmarks/staggered_multi_rover_smoke"
+  }
+}

@@ -1,0 +1,41 @@
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  scale=1.0,
+  font=\small,
+  gate/.style={line width=1.1pt},
+  axis/.style={-{Latex[length=2mm]}, thick},
+  traj/.style={-{Latex[length=2.4mm]}, thick},
+  dot/.style={circle, fill=mradark, inner sep=1.3pt}
+]
+% aperture (outer) and acceptance region (inner, shrunk by margin m_g)
+\fill[mralight] (-1.25,-0.8) rectangle (1.25,0.8);
+\draw[gate] (-1.55,-1.1) rectangle (1.55,1.1);
+\draw[dashed] (-1.55,0) -- (1.55,0);
+\draw[dashed] (0,-1.1) -- (0,1.1);
+\node[font=\scriptsize] at (0,-1.34) {aperture $w_g \times h_g$};
+\node[font=\scriptsize, mradark] at (0.62,-0.55) {\itshape acceptance};
+
+% margin m_g annotation on the right edge
+\draw[{Latex[length=1.3mm]}-{Latex[length=1.3mm]}] (1.25,-0.55) -- (1.55,-0.55);
+\node[font=\scriptsize] at (1.74,-0.58) {$m_g$};
+
+% gate frame at center: u_g, v_g in-plane; n_g out of plane
+\node[dot] (c) at (0,0) {};
+\node[font=\scriptsize] at (-0.26,-0.24) {$c_g$};
+\draw[axis] (0,0) -- (1.55,0); \node[font=\scriptsize] at (1.80,0.02) {$u_g$};
+\draw[axis] (0,0) -- (0,1.1);  \node[font=\scriptsize] at (0.0,1.34) {$v_g$};
+\draw (-0.6,0.45) circle (1.3pt); \fill (-0.6,0.45) circle (0.5pt);
+\node[font=\scriptsize] at (-0.86,0.5) {$n_g$};
+
+% crossing trajectory through q
+\coordinate (q) at (0.25,0.18);
+\draw[traj] (-2.3,-1.5) -- (q);
+\draw[traj] (q) -- (2.2,1.45);
+\node[dot] at (q) {}; \node[font=\scriptsize] at (0.46,0.04) {$q$};
+\node[dot] at (-2.3,-1.5) {}; \node[font=\scriptsize] at (-2.3,-1.74) {$p_{t-1}$};
+\node[dot] at (2.2,1.45) {}; \node[font=\scriptsize] at (2.2,1.68) {$p_{t}$};
+\end{tikzpicture}
+\caption{Gate-crossing validation on the aperture face. The segment from the previous to the current referee position must cross the gate plane in the direction of the normal $n_g$ (out of the page here, \eqref{eq:direction}); the plane intersection $q$ (\eqref{eq:intersection}) must lie inside the shaded acceptance region---the aperture shrunk on every side by the safety margin $m_g$, i.e.\ $|u_g^{\!\top}(q-c_g)|\le w_g/2-m_g$ and $|v_g^{\!\top}(q-c_g)|\le h_g/2-m_g$ (\eqref{eq:aperture}). The frame $(u_g,v_g,n_g)$ derives from the passage direction alone.}
+\label{fig:gate_geometry}
+\end{figure}

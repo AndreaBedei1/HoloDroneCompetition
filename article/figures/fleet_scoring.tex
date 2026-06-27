@@ -1,0 +1,42 @@
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  x=0.95cm, y=0.82cm, font=\small,
+  arrow/.style={-{Latex[length=2mm]}, thick},
+  rover/.style={draw, rounded corners, align=center, fill=mralight, minimum height=5mm, font=\scriptsize},
+  bar/.style={line width=2pt, mradark}
+]
+% team summary box (top)
+\node[draw, rounded corners, align=center, fill=white, minimum width=44mm, font=\scriptsize]
+     (team) at (3.4,4.15) {team summary\\ $\textstyle\sum$ gates,\, $\textstyle\sum$ penalties,\, last finish};
+
+% rover activity bars (release -> finish)
+\draw[bar] (1.8,2.5) -- (5.0,2.5);
+\node[rover] at (3.4,2.5) {rover 2};
+\node[circle, fill=mradark, inner sep=1.2pt] at (5.0,2.5) {};
+
+\draw[bar] (0,1.4) -- (3.4,1.4);
+\node[rover] at (1.6,1.4) {rover 1};
+\node[circle, fill=mradark, inner sep=1.2pt] at (3.4,1.4) {};
+
+% contributions to the team summary (routed to avoid crossing the bars)
+\draw[arrow] (0.4,1.62) -- (team.south west);
+\draw[arrow] (5.0,2.72) -- (team.south east);
+
+% team elapsed-time bracket: earliest release -> latest finish
+\draw[decorate,decoration={brace,amplitude=4pt,mirror}] (0,1.0) -- (5.0,1.0);
+\node[font=\scriptsize, anchor=north] at (2.5,0.66)
+     {$T_{\mathrm{team}}=\max_i T_i^{\mathrm{finish}}-\min_i T_i^{\mathrm{release}}$};
+
+% time axis with release ticks
+\draw[arrow] (0,0) -- (6.5,0);
+\node[font=\scriptsize] at (6.8,0) {$t$};
+\foreach \x/\lab in {0/{$T_1^{\mathrm{release}}=0$}, 1.8/{$T_2^{\mathrm{release}}=g$}} {
+  \draw (\x,0.12) -- (\x,-0.12);
+}
+\node[font=\scriptsize, anchor=north] at (0,-0.32) {$T_1^{\mathrm{release}}=0$};
+\node[font=\scriptsize, anchor=north] at (1.95,-0.32) {$T_2^{\mathrm{release}}=g$};
+\end{tikzpicture}
+\caption{Team-level evaluation of a two-rover staggered fleet. Each rover is active from its release to its finish; the team elapsed time spans the earliest release to the latest finish (\eqref{eq:team_time}), and the team summary aggregates gates, penalties, and inter-vehicle events (\eqref{eq:team_gates}--\eqref{eq:team_pen}). Per-rover rows remain diagnostics; the fleet competes as one team rather than against itself.}
+\label{fig:fleet_scoring}
+\end{figure}

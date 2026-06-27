@@ -19,6 +19,16 @@ ENV/
 .conda/
 conda-env/
 
+# Article source and the compiled release PDF are tracked; ignore LaTeX build artifacts.
+article/*.aux
+article/*.bbl
+article/*.blg
+article/*.fdb_latexmk
+article/*.fls
+article/*.log
+article/*.synctex.gz
+article/_pdf_pages/
+
 # Environment variable files
 .env
 .env.*

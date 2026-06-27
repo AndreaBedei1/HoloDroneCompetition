@@ -1,0 +1,70 @@
+\section{Referee, Gate Validation, and Scoring}
+\label{sec:referee}
+
+The referee evaluates progress independently of the controller (requirement R3) using privileged ground-truth state. This section formalizes the gate-crossing test, the referee state machine and its arbitration order, the penalty model, and the single-rover score.
+
+\subsection{Gate Frame and Crossing}
+
+Each gate's orientation derives solely from its passage direction $n_g$, giving a right-handed frame
+\begin{equation}
+\label{eq:gate_frame}
+\hat{n}=\frac{n_g}{\lVert n_g\rVert},\quad u_g=\frac{\hat{z}\times\hat{n}}{\lVert\hat{z}\times\hat{n}\rVert},\quad v_g=\hat{n}\times u_g,
+\end{equation}
+with world-up $\hat{z}=(0,0,1)$. For consecutive referee-side positions $p_{t-1},p_t$, the signed distances to the gate plane are
+\begin{equation}
+\label{eq:signed_dist}
+d_{t-1}=\hat{n}^{\!\top}(p_{t-1}-c_g),\qquad d_t=\hat{n}^{\!\top}(p_t-c_g).
+\end{equation}
+A candidate crossing requires a sign change in the \emph{correct direction},
+\begin{equation}
+\label{eq:direction}
+d_{t-1}\le 0\le d_t \;\wedge\; (p_t-p_{t-1})^{\!\top}\hat{n}>0,
+\end{equation}
+i.e.\ travel from the negative to the positive side along the normal. The intersection of the segment with the plane is
+\begin{equation}
+\label{eq:intersection}
+\lambda=\frac{-d_{t-1}}{d_t-d_{t-1}},\quad q=p_{t-1}+\lambda\,(p_t-p_{t-1}),\quad \lambda\in[0,1],
+\end{equation}
+and the crossing is accepted only when $q$ lies inside the aperture, shrunk by the configured safety margin $m_g$,
+\begin{equation}
+\label{eq:aperture}
+\big|u_g^{\!\top}(q-c_g)\big|\le \tfrac{w_g}{2}-m_g,\qquad
+\big|v_g^{\!\top}(q-c_g)\big|\le \tfrac{h_g}{2}-m_g.
+\end{equation}
+Gates must be passed \emph{in sequence}: the referee tests only the expected gate $g_{\sigma}$, advancing the index $\sigma\!\leftarrow\!\sigma+1$ on a valid crossing and incrementing the lap when the sequence completes. A crossing of a \emph{non-target} gate aperture is a missed-gate event; a sign change in the wrong direction is logged but neither penalized nor counted as progress. Fig.~\ref{fig:gate_geometry} illustrates the test and Fig.~\ref{fig:lifecycle} the participant lifecycle.
+
+\input{figures/gate_geometry}
+\input{figures/participant_lifecycle}
+
+\subsection{Referee State Machine and Arbitration}
+
+Each participant occupies one of the states \textsc{not\_started}, \textsc{running}, \textsc{finished}, \textsc{dnf}, \textsc{timeout}, \textsc{stuck}, \textsc{manual\_stop}, or \textsc{controller\_error}; all but the first two are terminal. A participant is released to \textsc{running} when the race clock reaches its start delay (Section~\ref{sec:fleet}). On each tick of a running participant, events are evaluated in a fixed priority order that defines the arbitration: (1) a controller error transitions to \textsc{controller\_error} and returns; (2) out-of-bounds; (3) generic collision; (4) obstacle collision; (5) stuck accumulation; (6) duration timeout; (7) gate progression. Steps (2)--(5) accrue penalties without terminating; only (1), (6), a missed gate in (7), or an external gate-timeout produce a terminal state. To avoid double counting, an obstacle-collision tick suppresses the generic collision flag, and each event class has an independent cooldown.
+
+\subsection{Penalties and Termination}
+
+\input{tables/penalties}
+
+Penalties accumulate into a per-participant total $P_i$; the defaults applied in v0.1 are listed in Table~\ref{tab:penalties}. The non-trivial conditions are formalized as follows. The instantaneous speed is $s_t=\lVert p_t-p_{t-1}\rVert/\Delta t$; a stuck accumulator integrates low-speed time,
+\begin{equation}
+\label{eq:stuck}
+T^{\mathrm{stuck}}\!\leftarrow\!\begin{cases} T^{\mathrm{stuck}}+\Delta t, & s_t<v_{\mathrm{stuck}}\\ 0, & \text{otherwise,}\end{cases}
+\end{equation}
+and a one-time soft penalty is charged when $T^{\mathrm{stuck}}\ge T^{\mathrm{stuck}}_{\max}$, with $v_{\mathrm{stuck}}=0.02$\,m/s and $T^{\mathrm{stuck}}_{\max}=45$\,s. An out-of-bounds event is $p_t\notin\mathcal{B}$. A duration timeout, disabled by default, fires when $t-t_{\mathrm{green}}>T_{\max}$. A missed gate sets \textsc{dnf} when \cmd{missed\_gate\_dnf} is enabled (the default), but carries no time penalty, so a disqualifying error is never cheaper than a slow-but-legal lap.
+
+\subsection{Single-Rover Score and Ranking}
+
+For a finished participant the official time $T_i^{\mathrm{official}}$ is measured between the first and last gate (or green-to-finish, per the timing mode), and the score is the penalized time
+\begin{equation}
+\label{eq:penalized}
+T_i^{\mathrm{pen}}=T_i^{\mathrm{official}}+P_i .
+\end{equation}
+Ranking places finished participants before unfinished ones and is defined by the ascending lexicographic key
+\begin{equation}
+\label{eq:ranking}
+\kappa_i=\big(\,\overline{f_i},\; T_i^{\mathrm{pen}},\; -G_i,\; n_i^{\mathrm{coll}},\; P_i,\; \mathrm{dist}_i\,\big),
+\end{equation}
+where $\overline{f_i}=0$ for finished and $1$ otherwise, $G_i$ is the number of completed gates, $n_i^{\mathrm{coll}}$ the collision count, and $\mathrm{dist}_i$ the distance to the next gate. Thus finished rovers sort by penalized time, while unfinished rovers sort by progress, then fewer collisions, then fewer penalties, then proximity to the next gate, so partial runs remain informative rather than being discarded.
+
+\subsection{Event Logging}
+
+Every run emits a line-delimited event log and a machine-readable summary (requirement R5). Events include \cmd{gate\_passed}, \cmd{wrong\_direction}, \cmd{collision}, \cmd{obstacle\_collision}, \cmd{out\_of\_bounds}, \cmd{stuck}, \cmd{race\_finish}, and \cmd{dnf}, each timestamped and attributed to a participant. The summary records, per participant, the status, official and penalized times, completed gates, and counts of collisions, out-of-bounds, missed gates, and stuck events, together with the final ranking; in fleet mode it additionally carries the team summary of Section~\ref{sec:fleet}.

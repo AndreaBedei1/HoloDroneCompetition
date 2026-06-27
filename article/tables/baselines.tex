@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{Baseline controllers shipped with \mra{}. All return the high-level command of \eqref{eq:command} and use only official observations, except the oracle, which is a debug-only feasibility tool that reads privileged geometry and is excluded from official runs.}
+\label{tab:baselines}
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.40\columnwidth}p{0.54\columnwidth}@{}}
+\toprule
+Controller & Sensing and method \\
+\midrule
+\cmd{rule\_gate\_baseline} & Beacon + front camera + depth hold; conservative rule-based servo with align-before-surge and post-gate exit hold (reference baseline). \\
+\cmd{acoustic\_baseline} & Beacon only; three-phase approach/transit/exit state machine. \\
+\cmd{acoustic\_vision\_baseline} & Beacon plus front-camera correction blended near the gate. \\
+\cmd{vision\_gate\_baseline} & Beacon-cued visual servo with multi-target detection and collision recovery. \\
+\cmd{student\_template} & Minimal proportional beacon follower provided as a starting point. \\
+\cmd{oracle} & \emph{Debug only}: reads ground-truth gate geometry; used for feasibility checks, never scored officially. \\
+\cmd{keyboard} / \cmd{pygame} & Manual teleoperation for inspection and data collection. \\
+\bottomrule
+\end{tabular}
+\end{table}

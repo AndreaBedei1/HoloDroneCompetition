@@ -1,25 +1,105 @@
-\section{Environment Design}
+\section{Vehicle, Simulator, and Sensing}
+\label{sec:configuration}
 
-\subsection{Track Geometry and Gate Sequence}
+This section describes the simulation backend, the vehicle and its sensors, the acoustic and current models, the declarative track configuration, and the official observation contract that the referee enforces.
 
-A race is represented as an ordered sequence of gates. Each gate has an identifier, position, orientation, internal aperture size, bar thickness, color, and passage direction. The referee validates the abstract gate geometry rather than relying on visual collision geometry. This distinction matters because the visual bars shown in a simulator are rendering objects, whereas the scoring rule must be deterministic and independent of visual artifacts.
+\subsection{Simulator and Vehicle}
 
-The current reference format uses a two-lap race over an 11-gate sequence, for 22 valid crossings in total. The gate aperture is configurable; the current marine reference configuration uses a square internal opening of $1.5\,\mathrm{m} \times 1.5\,\mathrm{m}$. The system supports single gates, double gates, vertically separated gate pairs, and split-S-like underwater sequences in which the vehicle must change depth between consecutive gates. These structures adapt the gate logic of aerial racing to slower, disturbance-prone underwater motion.
+The reference adapter uses HoloOcean~\cite{potokar2022holoocean}, an Unreal-Engine underwater simulator, with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second; the benchmark runs a control loop at timestep $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz. The adapter is intentionally replaceable: a pure-kinematic fallback adapter implements the same interface for unit and plumbing tests, integrating a damped point-vehicle model (maximum linear speed $1.25$\,m/s, maximum yaw rate $65^\circ$/s) and adding the current as a world-frame velocity, so that referee, scoring, and fleet logic can be tested deterministically without the engine.
 
-\subsection{Acoustic Beacon Guidance}
+A high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$ is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters receive
+\begin{equation}
+\label{eq:thruster_mix}
+\tau_{1\text{--}4}= s_t\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
+\end{equation}
+with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_t$, each component clamped to the thruster limit. A controller may instead return the eight thruster values directly; the high-level interface is the default because it is the one the official baselines and the documented contract use.
 
-Marine Race Arena includes acoustic-beacon-like guidance associated with the next expected gate. The beacon does not validate gate passage. Instead, it provides a restricted navigation cue such as bearing, elevation, range, signal strength, update rate, and optional noise/dropout parameters. This design allows an official controller to receive useful guidance without receiving exact privileged gate geometry.
+\subsection{Sensor Suite}
 
-This distinction is central to the benchmark. A controller may use the beacon to approach the next gate, but it still must regulate heading, depth, and lateral alignment under vehicle dynamics and disturbances. A vision-assisted controller may combine beacon guidance with local gate observations, while an acoustic-only baseline can be evaluated as a minimal non-cheating reference.
+Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines a forward RGB camera, a depth sensor, an IMU, a DVL and a world-velocity sensor, a contact sensor, and a synthesized acoustic beacon. Ground-truth pose, location, rotation, and dynamics sensors exist in the simulator and are used internally by the referee, but are removed from the controller-visible observation in official mode (Section~\ref{sec:obs_contract}).
 
-\subsection{Marine Currents}
+\input{tables/sensors}
 
-Currents are modeled as configurable disturbances rather than hidden implementation details. The current configuration supports profiles such as constant flow, localized jets, sinusoidal fields, and vortex-like disturbances. This enables benchmark tasks in which the same track can be evaluated under no-current, moderate-current, and structured-current conditions.
+\subsection{Acoustic Beacon Model}
 
-The most important design choice is that currents belong to the environment configuration, not to the controller. A benchmark run should therefore record the active current profile, random seeds, obstacle settings, and simulator adapter in its metadata. This makes later comparisons meaningful: a controller that completes a clean track cannot be compared directly with one evaluated under a localized jet unless the task definition records that difference.
+Each gate carries one beacon, placed at $b_k=c_k+\delta_n n_k+\delta_r u_k+\delta_u v_k$ relative to the gate center (default offset $(0,0,0.35)$\,m along the gate-up axis). For a receiver at position $r$ with heading $\psi$, let $\boldsymbol{\delta}=b_k-r$ and $\rho=\lVert\boldsymbol{\delta}\rVert$. The beacon reports range, a yaw-relative bearing, an elevation, and a signal strength:
+\begin{align}
+\label{eq:beacon}
+\rho &= \lVert\boldsymbol{\delta}\rVert, &
+\beta &= \operatorname{wrap}\!\big(\operatorname{atan2}(\delta_y,\delta_x)-\psi\big),\\
+\varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big), &
+\mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\rho}{\rho_{\max}}\Big),\nonumber
+\end{align}
+where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A reading is invalid beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$, and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.6\}$ and dropout probabilities up to $0.04$. Only the beacon of the current target gate is active in the default \emph{active-when-target} mode, so the beacon provides a target cue but not a map of the whole course.
 
-\subsection{Obstacles and Arena Bounds}
+\subsection{Current Field Model}
 
-The arena can include fixed or generated obstacles. Obstacles are defined with position, size, orientation, collision flag, penalty, and optionally the gate corridor in which they are placed. Generated obstacles are seeded so that obstacle-gate tasks can be repeated exactly. World bounds define legal operating space, including depth limits. Out-of-bounds events are logged and penalized according to referee settings.
+The current field is a sum of analytic primitives evaluated at the vehicle position $p$ and time $t$,
+\begin{equation}
+\label{eq:current_sum}
+\mathbf{v}_c(p,t)=\sum_{j} \mathbf{v}_j(p,t),
+\end{equation}
+where each primitive is one of the following. A \emph{constant} term contributes a fixed velocity $\mathbf{v}_0$. A \emph{localized jet} centered at $c_j$ with radius $R_j$ contributes, for $\lVert p-c_j\rVert\le R_j$,
+\begin{equation}
+\label{eq:jet}
+\mathbf{v}_j=\mathbf{v}_0\, w(d), \qquad
+w(d)=\begin{cases} \max\!\big(0,1-\tfrac{d}{R_j}\big) & \text{linear,}\\[2pt] \exp\!\big(-\tfrac{d^2}{2\sigma^2}\big) & \text{Gaussian,} \end{cases}
+\end{equation}
+with $d=\lVert p-c_j\rVert$ and $\sigma=\max(R_j/2,10^{-6})$, and zero outside $R_j$. A \emph{sinusoidal} term modulates one axis, $v_{j,\mathrm{axis}}(t)=v_{0,\mathrm{axis}}+A\sin(2\pi f t+\phi)$. A \emph{vortex} of radius $R_j$, tangential speed $T$, and vertical speed $V_z$ contributes, with $r=\sqrt{\Delta x^2+\Delta y^2}$ and tangent $\hat{t}=(-\Delta y,\Delta x)/r$,
+\begin{equation}
+\label{eq:vortex}
+\mathbf{v}_j=\big(\hat{t}_x\,T\,w(r),\;\hat{t}_y\,T\,w(r),\;V_z\,w(r)\big).
+\end{equation}
+The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex, and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. The current physically perturbs the vehicle when the HoloOcean build exposes ocean-current coupling; otherwise the field is exposed as telemetry only, and the fallback adapter always couples it kinematically.
 
-The environment design therefore separates three types of geometry: abstract gate geometry for scoring, visual geometry for simulator rendering, and obstacle/bounds geometry for safety and penalties. This prevents the benchmark from depending on accidental simulator collisions for gate validation.
+\subsection{Declarative Track Configuration}
+
+A track is a self-contained JSON file. Its principal sections are \texttt{race} (name, benchmark task, timing mode, laps, duration), \texttt{world} (bounds and environment), \texttt{start}/\texttt{finish}, \texttt{track}/\texttt{gates} (ordered sequence, centers, passage directions, aperture sizes), \texttt{beacon}, \texttt{currents}/\texttt{current\_profiles}, \texttt{obstacle\_generation}/\texttt{obstacles}, \texttt{participants} (vehicle, spawn, sensors, controller, optional \texttt{start\_delay\_s}), and \texttt{referee} (gate validation, penalties, scoring). A named \texttt{benchmark\_task}---\texttt{clean\_gate}, \texttt{obstacle\_gate}, \texttt{current\_gate}, or \texttt{multi\_rov}---selects a preset overlay. Listing~\ref{lst:trackjson} shows a representative excerpt.
+
+\begin{lstlisting}[caption={Representative excerpt of a track configuration.}, label={lst:trackjson}]
+"track": { "gate_inner_size_m": [1.5, 1.5],
+           "gate_sequence": ["G01", "G02", "..."] },
+"gates": [ { "id": "G01",
+             "center": [4.0, -2.0, -3.5],
+             "passage_direction": [1.0, 0.0, 0.0] } ],
+"beacon": { "mode": "active_when_target",
+            "range_m": 90.0, "noise_std": 0.2,
+            "update_rate_hz": 10.0 },
+"participants": [ { "id": "bluerov2_01",
+                    "vehicle": "BlueROV2",
+                    "controller": "rule_gate_baseline",
+                    "official_sensor_profile": true,
+                    "start_delay_s": 0.0 } ],
+"referee": { "penalties": { "minor_collision_s": 5.0,
+                            "missed_gate_dnf": true },
+             "gate_validation": {
+                "vehicle_clearance_margin_m": 0.1 } }
+\end{lstlisting}
+
+The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}; all use $1.5\,\text{m}\times1.5\,\text{m}$ apertures that are never enlarged for validation (requirement R4).
+
+\input{tables/official_tracks}
+
+\subsection{Official Observation Contract}
+\label{sec:obs_contract}
+
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth, and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. The environment current vector may appear in diagnostic telemetry, but using it as a control input voids official no-cheat claims, since it constitutes privileged knowledge of the disturbance. The intended information contract is therefore acoustic target guidance, onboard sensing, and race progress---not global state.
+
+\begin{table}[t]
+\centering
+\caption{Top-level fields of the official observation passed to a controller. Sensor subkeys follow the configured participant profile (Table~\ref{tab:sensors}).}
+\label{tab:observation}
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{0.26\columnwidth}p{0.62\columnwidth}}
+\toprule
+Field & Meaning \\
+\midrule
+\cmd{time\_s} & Race time in seconds. \\
+\cmd{participant\_id} & Identifier of the vehicle receiving the observation. \\
+\cmd{sensors} & Filtered onboard sensor dictionary (camera, depth, IMU, DVL/velocity, collision, derived heading/depth). \\
+\cmd{beacon} & Acoustic message: validity, target gate id, bearing, elevation, range, signal strength, and mode. \\
+\cmd{race} & Participant-visible progress: status, lap, completed gates, target gate id, target sequence index, and official-timing status. \\
+\bottomrule
+\end{tabular}
+\end{table}

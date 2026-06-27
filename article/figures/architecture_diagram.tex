@@ -1,0 +1,52 @@
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  block/.style={draw, rounded corners, align=center, minimum width=26mm, minimum height=9mm, fill=mralight},
+  narrow/.style={draw, rounded corners, align=center, minimum width=22mm, minimum height=9mm, fill=mralight},
+  store/.style={draw, align=center, minimum width=26mm, minimum height=9mm, fill=white},
+  ctrl/.style={draw, rounded corners, align=center, minimum width=26mm, minimum height=9mm, fill=white, line width=0.9pt},
+  arrow/.style={-{Latex[length=2mm]}, thick},
+  birarrow/.style={{Latex[length=2mm]}-{Latex[length=2mm]}, thick}
+]
+% top configuration pipeline
+\node[store]  (track)   at (0,5.4)   {Track JSON\\\scriptsize race, gates, currents};
+\node[block]  (loader)  at (3.3,5.4) {Config loader\\\scriptsize + validator};
+\node[block]  (builder) at (6.6,5.4) {Arena builder\\\scriptsize world objects};
+
+% runtime row
+\node[block]  (runner)  at (6.6,3.5) {Race runner\\\scriptsize control loop};
+\node[narrow] (adapter) at (2.6,3.5) {Adapter\\\scriptsize HoloOcean};
+\node[narrow] (referee) at (10.2,3.5){Referee\\\scriptsize events, score};
+\node[block]  (logs)    at (10.2,1.5){Outputs\\\scriptsize summary, events};
+
+% control-loop row (official side)
+\node[block]  (obs)        at (6.6,1.5) {Official observation\\\scriptsize sensors, beacon, race};
+\node[ctrl]   (controller) at (2.7,1.5) {Controller\\\scriptsize user or baseline};
+
+% configuration edges
+\draw[arrow] (track) -- (loader);
+\draw[arrow] (loader) -- (builder);
+\draw[arrow] (builder) -- (runner);
+
+% runtime edges
+\draw[birarrow] (runner) -- node[above, pos=0.42, font=\scriptsize]{state / act / tick} (adapter);
+\draw[arrow]    (runner) -- node[above, font=\scriptsize]{progress} (referee);
+\draw[arrow]    (referee) -- (logs);
+
+% control loop: runner -> obs -> controller -> runner
+\draw[arrow] (runner) -- node[right, font=\scriptsize]{observation} (obs);
+\draw[arrow] (obs) -- (controller);
+\draw[arrow] (controller.north) -- node[above left=-1mm and -1mm, font=\scriptsize]{command $u\in[-1,1]^4$} (runner.south west);
+
+% official-observation trust boundary
+\begin{scope}[on background layer]
+  \node[draw, dashed, rounded corners, line width=0.8pt, fill=mralight!45,
+        fit=(controller)(obs), inner sep=4mm] (tb) {};
+\end{scope}
+\node[anchor=north, font=\scriptsize\itshape] at (tb.south)
+     {official-observation boundary: no ground-truth state};
+\end{tikzpicture}
+\caption{Runtime architecture of \mra{}. Declarative configuration (top) is loaded and validated into an arena; the race runner drives the control loop, exchanging state and actions with the simulator adapter and reporting progress to the independent referee, which emits structured outputs. The dashed region is the official-observation boundary: the controller observes only the filtered observation and returns a command, while ground-truth pose and gate geometry remain on the referee side. Single-rover and fleet runs share the same pipeline.}
+\label{fig:architecture}
+\end{figure*}

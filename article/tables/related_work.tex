@@ -1,0 +1,25 @@
+\begin{table*}[t]
+\centering
+\caption{Positioning of \mra{} relative to representative robotics simulators and racing benchmarks. ``Racing task'' denotes a built-in gate/lap protocol with timing; ``Indep.\ referee'' denotes scoring logic that is separated from the controller and uses privileged state; ``Official obs.\ contract'' denotes an enforced filter that excludes ground-truth pose from the control input.}
+\label{tab:related_work}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}l l p{0.265\textwidth} c c c c@{}}
+\toprule
+System & Domain & Physics / sensing & Racing task & Multi-robot & Indep.\ referee & Official obs.\ contract \\
+\midrule
+UUV Simulator~\cite{manhas2016uuvsim}      & Underwater & Gazebo, hydrodynamics, multi-robot     & --        & \checkmark & --        & --        \\
+Stonefish~\cite{cieslak2019stonefish}      & Underwater & Custom physics, marine sensors, ROS    & --        & --         & --        & --        \\
+DAVE~\cite{zhang2022dave}                  & Underwater & Gazebo, acoustic/optical sensing       & --        & \checkmark & --        & --        \\
+HoloOcean~\cite{potokar2022holoocean}      & Underwater & Unreal Engine, sonar/camera/DVL/IMU    & --        & \checkmark & --        & --        \\
+F1TENTH~\cite{okelly2020f1tenth}           & Ground     & Scaled car, LiDAR, RL/control          & \checkmark & partial   & partial   & \checkmark \\
+AlphaPilot / Swift~\cite{foehn2020alphapilot,kaufmann2023swift} & Aerial & Quadrotor, vision-based gate racing & \checkmark & --        & \checkmark & \checkmark \\
+CARLA~\cite{dosovitskiy2017carla}          & Ground     & Unreal Engine, urban sensing, tasks    & partial   & --         & partial   & \checkmark \\
+\midrule
+\textbf{\mra{} (this work)}                & Underwater & HoloOcean, BlueROV2, acoustic+camera   & \checkmark & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\par\vspace{0.6mm}
+\footnotesize ``--'' not provided as a first-class feature; ``partial'' available but not the primary design contract. \mra{} is the only entry that combines an underwater simulation backend with a gate-racing protocol, an independent referee, multi-vehicle/team scoring, and an enforced official-observation contract.
+\end{table*}

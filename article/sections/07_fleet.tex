@@ -1,0 +1,49 @@
+\section{Fleet and Team Evaluation}
+\label{sec:fleet}
+
+Fleet mode evaluates several rovers as one cooperative team rather than as competitors against each other (requirement R7). All rovers share a single simulated world and a single referee, but each keeps an independent progress and scoring state, and enabling fleet mode does not alter single-rover behavior (R6).
+
+\subsection{Staggered Release and Spawn Geometry}
+
+Each participant $i$ is assigned a release delay $\tau_i=(i-1)\,g$ for a start gap $g$, so rovers enter the course at $0,g,2g,\dots$ A waiting rover is sent a zero command, its controller \cmd{step} is \emph{not} called, and neither stuck nor gate-timeout timers accumulate; at release the referee logs a \cmd{participant\_released} event and resets the rover's progress timers, so a delayed start is never misclassified as stuck or timed out. Spawn poses are laterally separated about the base spawn to reduce launch interference: the $k$-th rover is offset by
+\begin{equation}
+\label{eq:spawn_offset}
+o_k = (-1)^{k}\Big\lceil \tfrac{k}{2}\Big\rceil\, s
+\end{equation}
+along the right axis $(-\sin\psi_0,\cos\psi_0)$ of the base yaw $\psi_0$, giving the alternating pattern $0,-s,+s,-2s,+2s,\dots$ for spacing $s$; a candidate that would fall outside the world bounds $\mathcal{B}$ is scaled inward until admissible.
+
+\subsection{Inter-Vehicle Collision Diagnostics}
+
+Rover--rover proximity is detected on the referee side and is never exposed to controllers. For two running rovers $a,b$ the detector applies a separable cylinder test
+\begin{equation}
+\label{eq:ivc}
+\sqrt{(x_a-x_b)^2+(y_a-y_b)^2}\le r_{xy}\;\wedge\;|z_a-z_b|\le r_z,
+\end{equation}
+with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 conservative defaults are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m, and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs proximity events without changing any score; and \cmd{penalize} additionally charges one team-level penalty per pair event. Because the geometric thresholds have not yet been calibrated against measured BlueROV2--BlueROV2 contact distances (Section~\ref{sec:discussion}), \cmd{diagnostic} is the recommended default.
+
+\subsection{Team-Level Score}
+
+Only the \cmd{team\_summary} is the official fleet result; per-rover rows are diagnostics. For a team $\mathcal{P}$ of $N$ rovers with $G_{\mathrm{exp}}$ expected gates each,
+\begin{equation}
+\label{eq:team_gates}
+G_{\mathrm{team}}^{\mathrm{exp}}=N\,G_{\mathrm{exp}},\qquad
+G_{\mathrm{team}}^{\mathrm{done}}=\sum_{i\in\mathcal{P}} G_i^{\mathrm{done}}.
+\end{equation}
+The team finishes only if every rover finishes,
+\begin{equation}
+\label{eq:team_finished}
+\mathrm{finished}_{\mathrm{team}}=\bigwedge_{i\in\mathcal{P}}\mathrm{finished}_i,
+\end{equation}
+in which case the team elapsed time spans the first release to the last finish,
+\begin{equation}
+\label{eq:team_time}
+T_{\mathrm{team}}=\max_{i} T_i^{\mathrm{finish}}-\min_{i} T_i^{\mathrm{release}},
+\end{equation}
+and the penalized team score aggregates all penalties,
+\begin{equation}
+\label{eq:team_pen}
+T_{\mathrm{team}}^{\mathrm{pen}}=T_{\mathrm{team}}+P_{\mathrm{gate}}+P_{\mathrm{obstacle}}+P_{\mathrm{ivc}},
+\end{equation}
+where $P_{\mathrm{ivc}}$ counts each inter-vehicle event once per pair, not once per rover. Fig.~\ref{fig:fleet_scoring} illustrates the aggregation.
+
+\input{figures/fleet_scoring}

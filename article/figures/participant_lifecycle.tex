@@ -1,0 +1,27 @@
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  node distance=8mm and 12mm,
+  state/.style={draw, rounded corners, align=center, minimum width=24mm, minimum height=8mm, fill=mralight},
+  terminal/.style={draw, align=center, minimum width=20mm, minimum height=7mm, fill=white, font=\scriptsize},
+  arrow/.style={-{Latex[length=2mm]}, thick}
+]
+\node[state] (wait) {\textsc{not\_started}\\\scriptsize waiting};
+\node[state, below=12mm of wait] (run) {\textsc{running}\\\scriptsize referee active};
+
+\node[terminal, below=11mm of run] (finish) {\textsc{finished}};
+\node[terminal, left=of finish] (dnf) {\textsc{dnf}\\\scriptsize missed gate};
+\node[terminal, right=of finish] (timeout) {\textsc{timeout} /\\\textsc{stuck}};
+
+\draw[arrow] (wait) -- node[right, font=\scriptsize]{release at $\tau_i$} (run);
+\draw[arrow] (run) -- node[left, font=\scriptsize]{last gate} (finish);
+\draw[arrow] (run) -- (dnf);
+\draw[arrow] (run) -- (timeout);
+
+\node[align=left, font=\scriptsize, right=2mm of wait, text width=30mm]
+  {while waiting:\\ zero command;\\ no controller step;\\ no stuck timer};
+\end{tikzpicture}
+\caption{Participant lifecycle. A rover is released to \textsc{running} when the clock reaches its start delay $\tau_i$; before release it receives a zero command, its controller is not stepped, and no stuck or gate-timeout timer accrues. Running rovers reach a terminal state by finishing the last gate, missing a gate (\textsc{dnf}), or exceeding a timeout/stuck condition. A single-rover run is the degenerate case $\tau_i=0$.}
+\label{fig:lifecycle}
+\end{figure}

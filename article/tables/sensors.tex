@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\caption{Onboard sensor suite of the BlueROV2-class vehicle. Rates are the configured HoloOcean update rates; the acoustic beacon is synthesized by the arena rather than rendered by the engine. Ground-truth pose sensors used internally by the referee are excluded from the official observation.}
+\label{tab:sensors}
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{0.20\columnwidth}p{0.13\columnwidth}p{0.55\columnwidth}}
+\toprule
+Sensor & Rate & Output and configuration \\
+\midrule
+Depth        & 30\,Hz & Scalar depth (m); noise $\sigma=0$. \\
+IMU          & 30\,Hz & Linear acceleration and angular rate, with bias terms. \\
+DVL          & 15\,Hz & Body-frame velocity (m/s); beam elevation $22.5^\circ$, max range $50$\,m. \\
+Front camera & 30\,Hz & RGB image, $640\times480$, $90^\circ$ field of view. \\
+Velocity     & 30\,Hz & World-frame linear velocity (m/s). \\
+Collision    & 30\,Hz & Boolean contact flag. \\
+Acoustic beacon & 10\,Hz & Range, bearing, and elevation to the target-gate beacon; range $50$--$130$\,m, noise std.\ $0$--$0.6$ depending on track. \\
+\midrule
+\multicolumn{3}{p{0.92\columnwidth}}{\emph{Derived fields:} heading $\psi$ (deg) and depth (m) from the pose used by the referee; the environment current vector is exposed as telemetry but is excluded from official no-cheat control.} \\
+\bottomrule
+\end{tabular}
+\end{table}

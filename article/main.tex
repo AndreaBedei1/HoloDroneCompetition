@@ -11,39 +11,58 @@
 \usepackage{array}
 \usepackage{url}
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc}
+\usepackage{listings}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc,backgrounds,decorations.pathreplacing}
+
+\definecolor{mralight}{rgb}{0.95,0.96,0.98}
+\definecolor{mradark}{rgb}{0.10,0.18,0.28}
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  backgroundcolor=\color{mralight},
+  xleftmargin=0.4em,
+  xrightmargin=0.4em
+}
+
+\newcommand{\mra}{Marine Race Arena}
+\newcommand{\cmd}[1]{\texttt{#1}}
 
 \begin{document}
 
-\title{Marine Race Arena: A Configurable Simulation Environment for Underwater Multi-Robot Racing and Evaluation}
+\title{\mra: A Configurable HoloOcean Benchmark for Underwater Gate Racing and Fleet Coordination}
 
-\author{\IEEEauthorblockN{Andrea Bedei}
-\IEEEauthorblockA{University of Bologna\\
-Cesena, Italy\\
-email: to be added}
+% TODO(authors): co-authors confirmed by the user but names/affiliations pending.
+% Replace the placeholder block below with the final author list.
+\author{\IEEEauthorblockN{Andrea Bedei\IEEEauthorrefmark{1}\quad
+\textit{[co-author]}\IEEEauthorrefmark{1}\quad
+\textit{[co-author / supervisor]}\IEEEauthorrefmark{1}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}Department of Computer Science and Engineering, University of Bologna, Cesena, Italy}
 }
 
 \maketitle
 
 \begin{abstract}
-Autonomous racing has become an effective way to stress perception, planning, control, and decision-making under reproducible constraints. Ground platforms such as F1TENTH and gate-based aerial racing have shown that competition formats can accelerate robotics research by standardizing tracks, rules, baselines, and evaluation metrics. In marine robotics, however, existing simulators and competitions mainly target inspection, navigation, intervention, or surface-vessel missions. They do not provide a dedicated, configurable underwater racing benchmark in which underwater vehicles traverse gate sequences under currents, obstacles, limited sensing, multi-robot interaction, and an explicit independent referee. This paper presents Marine Race Arena, a simulation-oriented evaluation layer for underwater racing. The system is designed around declarative race configurations, geometric gate definitions, acoustic beacon guidance, configurable marine disturbances, replaceable participant controllers, simulator adapters, event logging, scoring, and referee logic that remains separated from the autonomy stack under test. Rather than proposing a new controller or a new underwater physics simulator, Marine Race Arena provides a reproducible benchmark structure in which classical, vision-based, learning-based, manual, and oracle controllers can be compared under common rules. The current draft reports the architecture, benchmark protocol, and implemented baselines, while quantitative controller performance under currents remains part of ongoing work.
+Autonomous racing turns perception, planning, and control into a single measurable task under reproducible time pressure, and ground and aerial racing platforms have become effective evaluation substrates for this reason. Underwater robotics, however, lacks a comparable gate-racing benchmark: existing marine simulators provide vehicles and sensors but not a compact racing protocol that couples damped vehicle dynamics, range-limited and low-bandwidth sensing, currents, obstacles, an independent referee, and fleet coordination. This work presents \mra{}, a configurable evaluation layer built around the HoloOcean simulator and a BlueROV2-class underwater vehicle. The central design principle is a strict separation between the autonomy stack and the evaluation: a controller observes only a documented official observation, while an independent referee uses privileged state to validate gate crossings, collisions, out-of-bounds and stuck conditions, timeouts, ranking, and team scoring. The benchmark is declarative---tracks, sensors, currents, obstacles, participants, and scoring are specified in a single configuration---and a custom controller is integrated by implementing three methods. We formalize the benchmark model, the gate-crossing and scoring rules, and the staggered fleet/team aggregation, and we report HoloOcean validation in which a deterministic rule-based baseline completes three official clean tracks. In clean, current-free conditions the baseline is collision-free; physical gate contact emerges under disturbance currents, which we report honestly rather than suppress. A stable two-rover staggered fleet run completes Horseshoe Bay with independent per-rover summaries and a single aggregated team score. The goal of \mra{} is not to provide an optimal underwater racing controller, but a reproducible benchmark and evaluation contract on which such controllers---including learning-based ones---can be built and compared; current compensation, close-proximity fleet racing, and empirically calibrated rover--rover penalties are scoped explicitly as open extensions.
 \end{abstract}
 
 \begin{IEEEkeywords}
-underwater robotics, autonomous racing, simulation benchmark, multi-robot systems, marine robotics, evaluation protocol, HoloOcean
+underwater robotics, autonomous racing, HoloOcean, BlueROV2, simulation benchmark, referee, multi-robot systems, fleet coordination
 \end{IEEEkeywords}
 
 \input{sections/01_introduction}
 \input{sections/02_related_work}
 \input{sections/03_system_overview}
 \input{sections/04_environment_design}
-\input{sections/05_evaluation_protocol}
-\input{sections/06_implementation_status}
-\input{sections/07_discussion}
-\input{sections/08_conclusion}
-
-\section*{Acknowledgment}
-This section is intentionally left as a placeholder for funding, laboratory, and collaborator acknowledgments.
+\input{sections/05_controller}
+\input{sections/06_referee}
+\input{sections/07_fleet}
+\input{sections/08_evaluation}
+\input{sections/09_discussion}
+\input{sections/10_conclusion}
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
