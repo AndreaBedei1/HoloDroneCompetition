@@ -46,6 +46,7 @@ from marine_race_arena.controllers.motion_compensation import (
     make_motion_compensator,
     normalize_motion_compensation_mode,
 )
+from marine_race_arena.arena.acoustic_comms import AcousticCommsChannel, CommsConfig
 from marine_race_arena.participants.controller_interface import ManualStopRequested
 from marine_race_arena.participants.controller_loader import ControllerError, ControllerLoader
 from marine_race_arena.participants.participant import RaceParticipant
@@ -108,6 +109,20 @@ def main(argv: list[str] | None = None) -> int:
         inter_vehicle_collision_cooldown_s=args.inter_vehicle_collision_cooldown_s,
         team_id=args.team_id,
     )
+    comms_channel = None
+    if args.comms_enabled:
+        comms_channel = AcousticCommsChannel(
+            CommsConfig(
+                enabled=True,
+                sound_speed_m_s=args.comms_sound_speed_m_s,
+                max_range_m=args.comms_max_range_m,
+                processing_delay_s=args.comms_processing_delay_s,
+                packet_loss_prob=args.comms_packet_loss_prob,
+                max_payload_bytes=args.comms_max_payload_bytes,
+                min_send_interval_s=args.comms_min_send_interval_s,
+            ),
+            seed=args.seed,
+        )
     camera_viewer = FrontCameraViewer(enabled=args.show_front_camera)
     beacon_target_printer = BeaconTargetPrinter(
         enabled=args.print_beacon_targets or _env_flag("MARINE_RACE_PRINT_BEACON_TARGETS")
@@ -148,10 +163,13 @@ def main(argv: list[str] | None = None) -> int:
             motion_compensators=motion_compensators,
             gate_timeout_s=args.gate_timeout_s,
             log_participant_states=args.log_participant_states,
+            comms_channel=comms_channel,
         )
         summary["motion_compensation"] = motion_compensation
         if len(participants) > 1 or args.inter_vehicle_collision_mode != "off":
             summary["inter_vehicle_collision_mode"] = args.inter_vehicle_collision_mode
+        if comms_channel is not None:
+            summary["comms"] = comms_channel.summary()
         logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
         logger.write_summary(summary)
     finally:
@@ -339,6 +357,47 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--team-id",
         default="fleet_01",
         help="Team identifier used in fleet-level summary and inter-vehicle collision events.",
+    )
+    parser.add_argument(
+        "--comms-enabled",
+        action="store_true",
+        help="Enable the optional inter-rover acoustic communication channel (fleet only).",
+    )
+    parser.add_argument(
+        "--comms-sound-speed-m-s",
+        type=float,
+        default=1500.0,
+        help="Acoustic propagation speed used to compute range-dependent message latency.",
+    )
+    parser.add_argument(
+        "--comms-max-range-m",
+        type=float,
+        default=100.0,
+        help="Maximum range beyond which inter-rover messages are not delivered.",
+    )
+    parser.add_argument(
+        "--comms-processing-delay-s",
+        type=float,
+        default=0.05,
+        help="Fixed per-message processing delay added to the acoustic propagation latency.",
+    )
+    parser.add_argument(
+        "--comms-packet-loss-prob",
+        type=float,
+        default=0.0,
+        help="Per-link probability that a message is dropped (seeded, deterministic).",
+    )
+    parser.add_argument(
+        "--comms-max-payload-bytes",
+        type=int,
+        default=128,
+        help="Maximum JSON-serialized payload size; larger messages are dropped (bandwidth limit).",
+    )
+    parser.add_argument(
+        "--comms-min-send-interval-s",
+        type=float,
+        default=0.5,
+        help="Minimum time between transmissions from the same rover (half-duplex rate limit).",
     )
     return parser
 
@@ -673,6 +732,7 @@ def _run_race_loop(
     motion_compensators: Mapping[str, Any] | None = None,
     gate_timeout_s: float | None = None,
     log_participant_states: bool = False,
+    comms_channel: "AcousticCommsChannel | None" = None,
 ) -> Dict[str, Any]:
     LOGGER.info(
         "Starting race '%s' with adapter '%s' in %s.",
@@ -702,6 +762,7 @@ def _run_race_loop(
         manual_stop_requested = False
         previous_states: Dict[str, AdapterParticipantState] = {}
         controller_errors: Dict[str, str] = {}
+        outgoing_messages: Dict[str, Any] = {}
         current_time_s = adapter.get_current_time()
         for participant in participants.values():
             state = referee.states[participant.id]
@@ -729,6 +790,10 @@ def _run_race_loop(
                 participant=participant,
                 participant_state=previous_state,
             )
+            if comms_channel is not None:
+                observation["comms"] = {
+                    "inbox": comms_channel.deliver(participant.id, current_time_s)
+                }
             if beacon_target_printer is not None:
                 beacon_target_printer.update(observation, participant.id)
             if camera_viewer is not None:
@@ -741,6 +806,9 @@ def _run_race_loop(
             except Exception as exc:  # pragma: no cover - exercised by external controllers
                 controller_errors[participant.id] = f"{type(exc).__name__}: {exc}"
                 command = {}
+            if comms_channel is not None and isinstance(command, dict) and command.get("message") is not None:
+                outgoing_messages[participant.id] = command.get("message")
+                command = {key: value for key, value in command.items() if key != "message"}
             compensator = motion_compensators.get(participant.id) if motion_compensators is not None else None
             if compensator is not None:
                 command = compensator.compensate(command, observation, dt)
@@ -760,6 +828,28 @@ def _run_race_loop(
 
         if all_terminal:
             break
+
+        if comms_channel is not None and outgoing_messages:
+            sender_positions = {
+                participant_id: state.position
+                for participant_id, state in previous_states.items()
+            }
+            for sender_id in sorted(outgoing_messages):
+                sender_position = sender_positions.get(sender_id)
+                if sender_position is None:
+                    continue
+                receiver_positions = {
+                    rid: position
+                    for rid, position in sender_positions.items()
+                    if rid != sender_id
+                }
+                comms_channel.send(
+                    sender_id=sender_id,
+                    payload=outgoing_messages[sender_id],
+                    send_time_s=current_time_s,
+                    sender_position=sender_position,
+                    receiver_positions=receiver_positions,
+                )
 
         adapter.step(dt)
         if not multi_agent_tick_checked:

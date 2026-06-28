@@ -110,6 +110,14 @@ def _fleet_flags(argv: list[str], config: dict) -> None:
     _flag(argv, "--inter-vehicle-collision-z-threshold-m", ivc.get("z_threshold_m"))
     _flag(argv, "--inter-vehicle-collision-release-threshold-m", ivc.get("release_threshold_m"))
     _flag(argv, "--inter-vehicle-collision-cooldown-s", ivc.get("cooldown_s"))
+    comms = fleet.get("comms", {})
+    _flag(argv, "--comms-enabled", comms.get("enabled"), store_true=True)
+    _flag(argv, "--comms-sound-speed-m-s", comms.get("sound_speed_m_s"))
+    _flag(argv, "--comms-max-range-m", comms.get("max_range_m"))
+    _flag(argv, "--comms-processing-delay-s", comms.get("processing_delay_s"))
+    _flag(argv, "--comms-packet-loss-prob", comms.get("packet_loss_prob"))
+    _flag(argv, "--comms-max-payload-bytes", comms.get("max_payload_bytes"))
+    _flag(argv, "--comms-min-send-interval-s", comms.get("min_send_interval_s"))
 
 
 def build_argv(config: dict) -> tuple[str, list[str]]:

@@ -137,6 +137,12 @@ Fields (all optional fall back to runner defaults):
       "mode": "diagnostic",                      // off | diagnostic | penalize
       "xy_threshold_m": 0.8, "z_threshold_m": 0.75,
       "release_threshold_m": null, "cooldown_s": 1.0
+    },
+    "comms": {                                   // optional inter-rover acoustic channel
+      "enabled": false,                          // off by default
+      "sound_speed_m_s": 1500.0, "max_range_m": 100.0,
+      "processing_delay_s": 0.05, "packet_loss_prob": 0.0,
+      "max_payload_bytes": 128, "min_send_interval_s": 0.5
     }
   },
   "benchmark": { "seeds": [0, 1, 2], "output_dir": "results/benchmarks/config_run" },
@@ -210,6 +216,15 @@ sensors are filtered out, and the true environment current vector
 (`environment_current_m_s`) is stripped from the observation entirely (it is
 available only as non-official diagnostic telemetry). A controller must infer
 current effects from onboard sensing (e.g. the DVL/velocity residual).
+
+When the optional inter-rover acoustic channel is enabled (`fleet.comms`), a
+controller may broadcast by returning a small `"message"` payload alongside its
+command, and receives an `observation["comms"]["inbox"]` of teammates' messages.
+The channel models the underwater acoustic medium (range-dependent latency,
+limited range, packet loss, tiny payloads, half-duplex rate limit), not a perfect
+link, and is off by default. Message content/handling is up to your controller;
+because payloads are authored by controllers, they carry only legally observable
+information (the channel never injects ground-truth state).
 
 Built-in controller aliases: `rule_gate_baseline`, `acoustic_baseline`,
 `acoustic_vision_baseline`, `vision_gate_baseline`, `student_template`,

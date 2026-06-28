@@ -28,6 +28,15 @@
       "xy_threshold_m": 0.8,
       "z_threshold_m": 0.75,
       "cooldown_s": 1.0
+    },
+    "comms": {
+      "enabled": false,
+      "sound_speed_m_s": 1500.0,
+      "max_range_m": 100.0,
+      "processing_delay_s": 0.05,
+      "packet_loss_prob": 0.0,
+      "max_payload_bytes": 128,
+      "min_send_interval_s": 0.5
     }
   }
 }

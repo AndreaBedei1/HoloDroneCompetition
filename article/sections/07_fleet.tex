@@ -21,6 +21,19 @@ Rover-rover proximity is detected on the referee side and is never exposed to co
 \end{equation}
 with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 conservative defaults are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs proximity events without changing any score; and \cmd{penalize} additionally charges one team-level penalty per pair event. Because the geometric thresholds have not yet been calibrated against measured contact distances between two BlueROV2 vehicles (Section~\ref{sec:discussion}), \cmd{diagnostic} is the recommended default.
 
+\subsection{Inter-Rover Acoustic Communication}
+
+Because the fleet is a single cooperative team, \mra{} provides an optional channel so that rovers can share information while running the course. It is off by default and changes nothing for single-rover runs (R6). A controller transmits by returning a small \cmd{message} payload alongside its command and receives an \cmd{inbox} of teammates' messages in its observation; what a message contains and how it is used are entirely the user's responsibility, so the framework provides only the transport.
+
+To stay faithful to the medium rather than model a perfect radio link, the channel reproduces the constraints of the underwater acoustic channel of Section~\ref{sec:related_work}. A message broadcast by rover $i$ reaches a teammate $j$ only if the two are within a maximum range $R_{\max}$, after a range-dependent delay
+\begin{equation}
+\label{eq:comms_latency}
+\tau_{ij}=\frac{d_{ij}}{c}+\tau_{\mathrm{proc}},
+\end{equation}
+where $d_{ij}$ is the inter-rover distance, $c$ the speed of sound and $\tau_{\mathrm{proc}}$ a fixed processing delay; each delivery is additionally dropped with probability $p_{\mathrm{loss}}$, payloads are capped to a small size to model the low bandwidth and a rover may not transmit faster than a minimum interval (a half-duplex rate limit). Packet loss is drawn from a seeded generator, so a run stays reproducible.
+
+The channel preserves the official observation contract. A payload is authored by the sending controller, which sees only its official observation, so it can carry only information that controller may legally observe; the framework uses the true rover positions solely to compute the channel physics ($d_{ij}$, $\tau_{ij}$, range and loss) and never injects pose, geometry or other privileged state into a delivered message. Inter-rover communication is therefore an evaluation substrate for the cooperative strategies discussed in Section~\ref{sec:discussion}.
+
 \subsection{Team-Level Score}
 
 Only the \cmd{team\_summary} is the official fleet result; per-rover rows are diagnostics. For a team $\mathcal{P}$ of $N$ rovers with $G_{\mathrm{exp}}$ expected gates each,

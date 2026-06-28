@@ -83,7 +83,7 @@ The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. The true environment current vector is privileged disturbance state: it is stripped from official observations unconditionally---this strip cannot be re-enabled by an allow-list entry---and remains available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL/velocity residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state.
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. The true environment current vector is privileged disturbance state: it is stripped from official observations unconditionally---this strip cannot be re-enabled by an allow-list entry---and remains available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL/velocity residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose messages are authored by other controllers and therefore contain only information those controllers may legally observe.
 
 \begin{table}[t]
 \centering
@@ -100,6 +100,7 @@ Field & Meaning \\
 \cmd{sensors} & Filtered onboard sensor dictionary (camera, depth, IMU, DVL/velocity, collision, derived heading/depth). \\
 \cmd{beacon} & Acoustic message: validity, target gate id, bearing, elevation, range, signal strength and mode. \\
 \cmd{race} & Participant-visible progress: status, lap, completed gates, target gate id, target sequence index and official-timing status. \\
+\cmd{comms} & Present only when the optional inter-rover acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and send/receive timestamps (Section~\ref{sec:fleet}). \\
 \bottomrule
 \end{tabular}
 \end{table}

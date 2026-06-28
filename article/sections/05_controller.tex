@@ -22,7 +22,7 @@ class MyController:
         pass
 \end{lstlisting}
 
-The high-level command fields are listed in Table~\ref{tab:commands}; values are normalized to $[-1,1]$ and clamped by the framework before the action mapping.
+The high-level command fields are listed in Table~\ref{tab:commands}; values are normalized to $[-1,1]$ and clamped by the framework before the action mapping. In fleet mode a controller may additionally return a small \cmd{message} payload alongside its command and read incoming teammate messages from the observation, using the optional inter-rover acoustic channel of Section~\ref{sec:fleet}.
 
 \begin{table}[t]
 \centering
