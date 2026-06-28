@@ -1,6 +1,6 @@
 \begin{table*}[t]
 \centering
-\caption{Positioning of \mra{} against representative simulators and racing benchmarks. Racing task: a built-in timed gate/lap protocol; Indep.\ referee: controller-independent scoring on privileged state; Official obs.\ contract: an enforced filter excluding ground-truth pose.}
+\caption{Positioning of \mra{} against representative simulators and racing benchmarks. Racing task: a built-in timed gate and lap protocol; Indep.\ referee: controller-independent scoring on privileged state; Official obs.\ contract: an enforced filter excluding ground-truth pose.}
 \label{tab:related_work}
 \scriptsize
 \setlength{\tabcolsep}{4pt}
@@ -11,8 +11,8 @@ System & Domain & Physics / sensing & Racing task & Multi-robot & Indep.\ refere
 \midrule
 UUV Simulator~\cite{manhas2016uuvsim} & Underwater & Gazebo, hydrodynamics & no & \checkmark & no & no \\
 Stonefish~\cite{cieslak2019stonefish} & Underwater & Custom physics, marine sensors, ROS & no & no & no & no \\
-DAVE~\cite{zhang2022dave} & Underwater & Gazebo, acoustic/optical sensing & no & \checkmark & no & no \\
-F1TENTH~\cite{okelly2020f1tenth} & Ground & Scaled car, LiDAR, RL/control & \checkmark & partial & partial & \checkmark \\
+DAVE~\cite{zhang2022dave} & Underwater & Gazebo, acoustic and optical sensing & no & \checkmark & no & no \\
+F1TENTH~\cite{okelly2020f1tenth} & Ground & Scaled car, LiDAR, RL and control & \checkmark & partial & partial & \checkmark \\
 AlphaPilot / Swift~\cite{foehn2020alphapilot,kaufmann2023swift} & Aerial & Quadrotor, vision-based gate racing & \checkmark & no & partial & \checkmark \\
 CARLA~\cite{dosovitskiy2017carla} & Ground & Unreal Engine, urban sensing, tasks & partial & no & partial & \checkmark \\
 \midrule
@@ -20,5 +20,5 @@ CARLA~\cite{dosovitskiy2017carla} & Ground & Unreal Engine, urban sensing, tasks
 \bottomrule
 \end{tabular}
 \par\vspace{0.6mm}
-\footnotesize ``no'' marks a feature that is not provided as a first-class capability; ``partial'' marks one that is available but not the primary design contract. \mra{} is the only entry that combines an underwater simulation backend with a gate-racing protocol, an independent referee, multi-rover/team scoring and an enforced official-observation contract.
+\footnotesize ``no'' marks a feature that is not provided as a first-class capability; ``partial'' marks one that is available but not the primary design contract. \mra{} is the only entry that combines an underwater simulation backend with a gate-racing protocol, an independent referee, multi-rover and team scoring and an enforced official-observation contract.
 \end{table*}

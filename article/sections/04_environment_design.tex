@@ -12,7 +12,7 @@ A high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}}
 \label{eq:thruster_mix}
 \tau_{1\text{--}4}= s_\tau\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
 \end{equation}
-with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_\tau$, each component clamped to the thruster limit. A controller may instead return the eight thruster values directly; the high-level interface is the default because it is simpler and vehicle-agnostic---a controller expresses intended body-frame motion while the framework handles the mixing and depth-safety---whereas direct thruster control is available when finer actuator authority is wanted.
+with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_\tau$, each component clamped to the thruster limit. A controller may instead return the eight thruster values directly; the high-level interface is the default because it is simpler and vehicle-agnostic (a controller expresses intended body-frame motion while the framework handles the mixing and depth-safety), whereas direct thruster control is available when finer actuator authority is wanted.
 
 \subsection{Sensor Suite}
 
@@ -87,11 +87,11 @@ The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. The true environment current vector is privileged disturbance state: it is stripped from official observations unconditionally---this strip cannot be re-enabled by an allow-list entry---and remains available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL/velocity residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose messages are authored by other controllers and therefore contain only information those controllers may legally observe.
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. The true environment current vector is privileged disturbance state: it is stripped from official observations unconditionally (this strip cannot be re-enabled by an allow-list entry) and remains available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL or velocity-sensor residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose messages are authored by other controllers and therefore contain only information those controllers may legally observe.
 
 \begin{table}[t]
 \centering
-\caption{Top-level fields of the official observation. Sensor subkeys follow the participant profile (Table~\ref{tab:sensors}).}
+\caption{Top-level fields of the official observation.}
 \label{tab:observation}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
@@ -101,10 +101,10 @@ Field & Meaning \\
 \midrule
 \cmd{time\_s} & Race time in seconds. \\
 \cmd{participant\_id} & Identifier of the vehicle receiving the observation. \\
-\cmd{sensors} & Filtered onboard sensor dictionary (camera, depth, IMU, DVL/velocity, collision, derived heading/depth). \\
+\cmd{sensors} & Filtered onboard sensor dictionary (camera, depth, IMU, DVL, velocity, collision and the derived heading and depth). \\
 \cmd{beacon} & Acoustic message: validity, target gate id, bearing, elevation, range, signal strength and mode. \\
 \cmd{race} & Participant-visible progress: status, lap, completed gates, target gate id, target sequence index and official-timing status. \\
-\cmd{comms} & Present only when the optional inter-rover acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and send/receive timestamps (Section~\ref{sec:fleet}). \\
+\cmd{comms} & Present only when the optional inter-rover acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and send and receive timestamps (Section~\ref{sec:fleet}). \\
 \bottomrule
 \end{tabular}
 \end{table}

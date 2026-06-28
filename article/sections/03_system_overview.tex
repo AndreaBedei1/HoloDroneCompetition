@@ -35,7 +35,7 @@ mapping the official observation $o_{i,t}$ (Section~\ref{sec:configuration}) to 
 \label{eq:command}
 u_{i,t}=\big[u^{\mathrm{surge}},\,u^{\mathrm{sway}},\,u^{\mathrm{heave}},\,u^{\mathrm{yaw}}\big]^{\!\top}\in[-1,1]^4 .
 \end{equation}
-The action of \eqref{eq:command} is the simpler, constrained interface; equivalently, a controller may bypass it and command the eight BlueROV2 thrusters directly (a \cmd{thrusters} action), a more expressive option, with the choice left to the user. Time is discretized at a fixed control timestep $\Delta t$, with $t_k=k\,\Delta t$. The runner may clamp $u_{i,t}$ for actuator and depth safety, and in official mode the policy reads only the official observation $o_{i,t}$, whose contract excludes privileged state (Section~\ref{sec:configuration}).
+The action of \eqref{eq:command} is the simpler, constrained interface; equivalently, a controller may bypass it and command the eight BlueROV2 thrusters directly (a \cmd{thrusters} action), a more expressive option, with the choice left to the user. Time is discretized at a fixed control timestep $\Delta t$, with $t_k=k\,\Delta t$. The runner may clamp $u_{i,t}$ for actuator and depth safety; in official mode the policy reads only the official observation $o_{i,t}$, whose contract excludes privileged state (Section~\ref{sec:configuration}).
 
 \subsection{Design Requirements}
 
