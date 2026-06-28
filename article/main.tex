@@ -32,6 +32,11 @@
   aboveskip=1.2em,
   belowskip=1.2em
 }
+% Add vertical space between a top listing caption and its colored box.
+\makeatletter
+\let\MRA@lstMakeCaption\lst@MakeCaption
+\def\lst@MakeCaption#1{\MRA@lstMakeCaption{#1}\if t#1\vskip5\p@\relax\fi}
+\makeatother
 
 \newcommand{\mra}{Marine Race Arena}
 \newcommand{\cmd}[1]{\texttt{#1}}
