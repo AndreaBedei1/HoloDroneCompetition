@@ -16,7 +16,7 @@
 
 % runtime row
 \node[block]  (runner)  at (6.6,3.5) {Race runner\\\scriptsize control loop};
-\node[narrow] (adapter) at (2.6,3.5) {Adapter\\\scriptsize HoloOcean};
+\node[narrow] (adapter) at (2.2,3.5) {Adapter\\\scriptsize HoloOcean};
 \node[narrow] (referee) at (10.2,3.5){Referee\\\scriptsize events, score};
 \node[block]  (logs)    at (10.2,1.5){Outputs\\\scriptsize summary, events};
 
@@ -30,7 +30,7 @@
 \draw[arrow] (builder) -- (runner);
 
 % runtime edges
-\draw[birarrow] (runner) -- node[above, pos=0.42, font=\scriptsize]{state / act / tick} (adapter);
+\draw[birarrow] (runner) -- node[above, pos=0.5, align=center, font=\scriptsize]{state\\act / tick} (adapter);
 \draw[arrow]    (runner) -- node[above, font=\scriptsize]{progress} (referee);
 \draw[arrow]    (referee) -- (logs);
 
@@ -47,6 +47,6 @@
 \node[anchor=north, font=\scriptsize\itshape] at (tb.south)
      {official-observation boundary: no ground-truth state};
 \end{tikzpicture}
-\caption{Runtime architecture of \mra{}. Declarative configuration (top) is loaded and validated into an arena; the race runner drives the control loop, exchanging state and actions with the simulator adapter and reporting progress to the independent referee, which emits structured outputs. The dashed region is the official-observation boundary: the controller observes only the filtered observation and returns a command, while ground-truth pose and gate geometry remain on the referee side. Single-rover and fleet runs share the same pipeline.}
+\caption{Runtime architecture. Declarative configuration builds the arena, the race runner drives the control loop and the independent referee scores it. Inside the dashed official-observation boundary the controller sees only the filtered observation and returns a command; ground-truth state stays on the referee side.}
 \label{fig:architecture}
 \end{figure*}

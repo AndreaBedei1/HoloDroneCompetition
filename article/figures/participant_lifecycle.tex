@@ -22,6 +22,6 @@
 \node[align=left, font=\scriptsize, right=2mm of wait, text width=30mm]
   {while waiting:\\ zero command;\\ no controller step;\\ no stuck timer};
 \end{tikzpicture}
-\caption{Participant lifecycle. A rover is released to \textsc{running} when the clock reaches its start delay $\tau_i$; before release it receives a zero command, its controller is not stepped and no stuck or gate-timeout timer accrues. Running rovers reach a terminal state by finishing the last gate, missing a gate (\textsc{dnf}) or exceeding a timeout/stuck condition. A single-rover run is the degenerate case $\tau_i=0$.}
+\caption{Participant lifecycle. A rover is released to \textsc{running} at its start delay $\tau_i$ (a single rover is the case $\tau_i=0$) and reaches a terminal state by finishing, missing a gate (\textsc{dnf}) or timing out.}
 \label{fig:lifecycle}
 \end{figure}
