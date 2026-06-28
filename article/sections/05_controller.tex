@@ -10,7 +10,8 @@ A controller implements three methods: \cmd{reset(race\_info)}, called once befo
 \begin{lstlisting}[language=Python, caption={Minimal custom controller.}, label={lst:controller}]
 class MyController:
     def reset(self, race_info):
-        self.target = race_info.get("initial_target_gate_id")
+        self.target = race_info.get(
+            "initial_target_gate_id")
 
     def step(self, observation):
         beacon = observation.get("beacon", {})
