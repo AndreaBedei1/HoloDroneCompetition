@@ -57,7 +57,7 @@ python -m marine_race_arena.scripts.run_marine_race \
 
 \subsection{Action Mapping}
 
-The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safety rule that suppresses heave that would drive the vehicle past $z_{\min}$ or $z_{\max}$, then maps it to thrusters via \eqref{eq:thruster_mix}. A controller may alternatively return raw thruster values; the high-level interface is the documented default.
+The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safety rule that suppresses heave that would drive the vehicle past $z_{\min}$ or $z_{\max}$, then maps it to thrusters via \eqref{eq:thruster_mix}. A controller may alternatively return raw thruster values; the high-level interface is the simpler default.
 
 \subsection{Reference Baseline: \texttt{rule\_gate\_baseline}}
 

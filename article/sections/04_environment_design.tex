@@ -12,7 +12,7 @@ A high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}}
 \label{eq:thruster_mix}
 \tau_{1\text{--}4}= s_\tau\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
 \end{equation}
-with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_\tau$, each component clamped to the thruster limit. A controller may instead return the eight thruster values directly; the high-level interface is the default because it is the one the official baselines and the documented contract use.
+with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_\tau$, each component clamped to the thruster limit. A controller may instead return the eight thruster values directly; the high-level interface is the default because it is simpler and vehicle-agnostic---a controller expresses intended body-frame motion while the framework handles the mixing and depth-safety---whereas direct thruster control is available when finer actuator authority is wanted.
 
 \subsection{Sensor Suite}
 
