@@ -304,6 +304,18 @@ article/               IEEE paper sources and compiled main.pdf
 docs/                  release notes
 ```
 
+**Key modules** (the components the paper describes at the architecture level):
+
+- `run.py` — single config-driven entry point; selects the scenario and dispatches to a runner.
+- `marine_race_arena/config/loader.py` — parses and validates a track JSON into a typed configuration.
+- `marine_race_arena/arena/arena_builder.py` — instantiates gates, beacons, the current field, obstacles and bounds.
+- `marine_race_arena/scripts/run_marine_race.py` — the race runner: the discrete-time control loop that ticks the adapter, builds the official observation and calls the controller.
+- `marine_race_arena/adapters/holoocean_adapter.py` — HoloOcean adapter (reset, actions, ticking, sensor extraction); `fallback_adapter.py` is the kinematic, engine-free implementation of the same interface.
+- `marine_race_arena/participants/controller_interface.py` and `controller_loader.py` — the controller contract (`reset`/`step`/`close`) and dynamic loading by alias, module path or file path.
+- `marine_race_arena/referee/referee.py` — the independent referee (gate validation, penalties, scoring, ranking, team summary, inter-vehicle detection); `logger.py` writes the structured events and summaries.
+- `marine_race_arena/arena/acoustic_comms.py` — the optional inter-rover acoustic communication channel.
+- `marine_race_arena/scripts/run_benchmark.py`, `run_staggered_multi_rover_smoke.py`, `run_release_v0_1_checks.py` — multi-seed sweeps, the fleet smoke test and the v0.1 release checks.
+
 ---
 
 ## 10. Tests and release checks
