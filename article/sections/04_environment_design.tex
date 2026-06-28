@@ -54,26 +54,30 @@ The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.
 
 \subsection{Declarative Track Configuration}
 
-A track is a self-contained JSON file. Its principal sections are \texttt{race} (name, benchmark task, timing mode, laps, duration), \texttt{world} (bounds and environment), \texttt{start}/\texttt{finish}, \texttt{track}/\texttt{gates} (ordered sequence, centers, passage directions, aperture sizes), \texttt{beacon}, \texttt{currents}/\texttt{current\_profiles}, \texttt{obstacle\_generation}/\texttt{obstacles}, \texttt{participants} (vehicle, spawn, sensors, controller, optional \texttt{start\_delay\_s}) and \texttt{referee} (gate validation, penalties, scoring). A named \texttt{benchmark\_task}, \texttt{clean\_gate}, \texttt{obstacle\_gate}, \texttt{current\_gate} or \texttt{multi\_rov}, selects a preset overlay. Listing~\ref{lst:trackjson} shows a representative excerpt.
+A track is a self-contained JSON file. Its principal sections are \cmd{race} (name, benchmark task, timing mode, laps and duration), \cmd{world} (bounds and environment), \cmd{start} and \cmd{finish}, \cmd{track} and \cmd{gates} (the ordered gate sequence with centers, passage directions and aperture sizes), \cmd{beacon}, \cmd{currents}, \cmd{obstacles}, \cmd{participants} (vehicle, spawn, sensors, controller and optional \cmd{start\_delay\_s}) and \cmd{referee} (gate validation, penalties and scoring). A named \cmd{benchmark\_task} (\cmd{clean\_gate}, \cmd{obstacle\_gate}, \cmd{current\_gate} or \cmd{multi\_rov}) selects a preset overlay. Listing~\ref{lst:trackjson} shows a representative excerpt.
 
 \begin{lstlisting}[caption={Representative excerpt of a track configuration.}, label={lst:trackjson}]
-"track": { "gate_inner_size_m": [1.5, 1.5],
-           "gate_sequence": ["G01", "G02", "..."] },
-"gates": [ { "id": "G01",
-             "center": [4.0, -2.0, -3.5],
-             "passage_direction": [1.0, 0.0, 0.0] } ],
-"beacon": { "mode": "active_when_target",
-            "range_m": 90.0, "noise_std": 0.2,
-            "update_rate_hz": 10.0 },
-"participants": [ { "id": "bluerov2_01",
-                    "vehicle": "BlueROV2",
-                    "controller": "rule_gate_baseline",
-                    "official_sensor_profile": true,
-                    "start_delay_s": 0.0 } ],
-"referee": { "penalties": { "minor_collision_s": 5.0,
-                            "missed_gate_dnf": true },
-             "gate_validation": {
-                "vehicle_clearance_margin_m": 0.1 } }
+"track": {
+  "gate_inner_size_m": [1.5, 1.5],
+  "gate_sequence": ["G01", "G02", "..."]
+},
+"gates": [
+  { "id": "G01", "center": [4.0, -2.0, -3.5],
+    "passage_direction": [1.0, 0.0, 0.0] }
+],
+"beacon": {
+  "mode": "active_when_target", "range_m": 90.0
+},
+"participants": [
+  { "id": "bluerov2_01", "vehicle": "BlueROV2",
+    "controller": "rule_gate_baseline",
+    "start_delay_s": 0.0 }
+],
+"referee": {
+  "penalties": { "minor_collision_s": 5.0 },
+  "gate_validation": {
+    "vehicle_clearance_margin_m": 0.1 }
+}
 \end{lstlisting}
 
 The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}; all use $1.5\,\text{m}\times1.5\,\text{m}$ apertures that are never enlarged for validation (requirement R4).
