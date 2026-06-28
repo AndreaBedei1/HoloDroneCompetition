@@ -41,16 +41,28 @@ collision penalties.
 
 ## 2. Installation
 
-The expected environment is a conda environment named `ocean` with HoloOcean
-installed:
+The framework runs in a Python 3.9 conda environment (named `ocean` throughout
+this README). From scratch:
 
 ```bash
+# 1. Create and activate the environment
+conda create -n ocean python=3.9 -y
 conda activate ocean
+
+# 2. Install the Python dependencies
+pip install -r requirements.txt
+
+# 3. Download the HoloOcean "Ocean" world package (one-time, large download)
+python -c "import holoocean; holoocean.install('Ocean')"
+
+# 4. Verify the engine is available
 python -c "import holoocean; print(holoocean.installed_packages())"   # expect ['Ocean']
 ```
 
 Run all commands from the repository root. The kinematic fallback adapter has no
-HoloOcean dependency, so unit tests and config plumbing run without the engine.
+HoloOcean dependency, so the unit tests and config plumbing run without the
+engine (set `adapter: fallback`); only real HoloOcean runs need step 3. Building
+the paper additionally needs a LaTeX toolchain (see Section 12).
 
 ---
 

@@ -1,0 +1,21 @@
+# Marine Race Arena - Python dependencies
+# Verified with Python 3.9 in a conda environment named "ocean".
+#
+# IMPORTANT: after `pip install -r requirements.txt`, HoloOcean still needs its
+# simulator world package ("Ocean") downloaded once:
+#     python -c "import holoocean; holoocean.install('Ocean')"
+# Verify with:
+#     python -c "import holoocean; print(holoocean.installed_packages())"   # -> ['Ocean']
+# See the README "Installation" section for the full setup.
+
+# --- Core runtime ---
+holoocean==2.3.0           # underwater simulator backend (BlueROV2, sensors, worlds)
+numpy==2.0.2
+
+# --- Optional feature dependencies (lazily imported) ---
+opencv-python==4.12.0.88   # front-camera preview (run.py debug.show_front_camera)
+pygame==2.6.1              # pygame manual controller
+Pillow==11.3.0             # gate-visual diagnostic tool
+
+# --- Tests ---
+pytest==8.4.2
