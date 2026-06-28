@@ -1,11 +1,11 @@
 \section{Fleet and Team Evaluation}
 \label{sec:fleet}
 
-Fleet mode evaluates several rovers as one cooperative team rather than as competitors against each other (requirement R7). All rovers share a single simulated world and a single referee, but each keeps an independent progress and scoring state, and enabling fleet mode does not alter single-rover behavior (R6).
+Fleet mode evaluates several rovers as one cooperative team rather than as competitors against each other (requirement R7). All rovers share a single simulated world and a single referee, but each keeps an independent progress and scoring state and enabling fleet mode does not alter single-rover behavior (R6).
 
 \subsection{Staggered Release and Spawn Geometry}
 
-Each participant $i$ is assigned a release delay $\tau_i=(i-1)\,g$ for a start gap $g$, so rovers enter the course at $0,g,2g,\dots$ A waiting rover is sent a zero command, its controller \cmd{step} is \emph{not} called, and neither stuck nor gate-timeout timers accumulate; at release the referee logs a \cmd{participant\_released} event and resets the rover's progress timers, so a delayed start is never misclassified as stuck or timed out. Spawn poses are laterally separated about the base spawn to reduce launch interference: the $k$-th rover is offset by
+Each participant $i$ is assigned a release delay $\tau_i=(i-1)\,\Delta\tau$ for a start gap $\Delta\tau$, so rovers enter the course at $0,\Delta\tau,2\Delta\tau,\dots$ A waiting rover is sent a zero command, its controller \cmd{step} is \emph{not} called and neither stuck nor gate-timeout timers accumulate; at release the referee logs a \cmd{participant\_released} event and resets the rover's progress timers, so a delayed start is never misclassified as stuck or timed out. Spawn poses are laterally separated about the base spawn to reduce launch interference: the $k$-th rover is offset by
 \begin{equation}
 \label{eq:spawn_offset}
 o_k = (-1)^{k}\Big\lceil \tfrac{k}{2}\Big\rceil\, s
@@ -14,12 +14,12 @@ along the right axis $(-\sin\psi_0,\cos\psi_0)$ of the base yaw $\psi_0$, giving
 
 \subsection{Inter-Vehicle Collision Diagnostics}
 
-Rover--rover proximity is detected on the referee side and is never exposed to controllers. For two running rovers $a,b$ the detector applies a separable cylinder test
+Rover-rover proximity is detected on the referee side and is never exposed to controllers. For two running rovers $a,b$ the detector applies a separable cylinder test
 \begin{equation}
 \label{eq:ivc}
 \sqrt{(x_a-x_b)^2+(y_a-y_b)^2}\le r_{xy}\;\wedge\;|z_a-z_b|\le r_z,
 \end{equation}
-with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 conservative defaults are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m, and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs proximity events without changing any score; and \cmd{penalize} additionally charges one team-level penalty per pair event. Because the geometric thresholds have not yet been calibrated against measured BlueROV2--BlueROV2 contact distances (Section~\ref{sec:discussion}), \cmd{diagnostic} is the recommended default.
+with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 conservative defaults are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs proximity events without changing any score; and \cmd{penalize} additionally charges one team-level penalty per pair event. Because the geometric thresholds have not yet been calibrated against measured contact distances between two BlueROV2 vehicles (Section~\ref{sec:discussion}), \cmd{diagnostic} is the recommended default.
 
 \subsection{Team-Level Score}
 

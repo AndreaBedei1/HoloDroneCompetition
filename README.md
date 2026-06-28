@@ -33,8 +33,8 @@ Claimed and reproducible in this release:
 - Staggered fleet/team evaluation with a single aggregated `team_summary`.
 - Inter-vehicle collision **diagnostics** with an optional penalty mode.
 
-Available but **not** claimed as solved v0.1 results: current compensation
-(`dvl_pi`), close-proximity fleet racing, and fully calibrated rover–rover
+Identified as open future work, **not** part of the v0.1 results: current
+compensation, close-proximity fleet racing, and fully calibrated rover-rover
 collision penalties.
 
 ---
@@ -101,7 +101,7 @@ Fields (all optional fall back to runner defaults):
     "seed": 0,
     "dt": 0.033,                   // control timestep (~30 Hz with HoloOcean)
     "duration_s": 560,             // max race duration
-    "motion_compensation": "none", // none | dvl_pi (experimental)
+    "motion_compensation": "none", // only "none" ships; current compensation is future work
     "gate_timeout_s": null
   },
   "track": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
@@ -194,8 +194,10 @@ depth). The `beacon` dict carries `valid`, `target_gate_id`, `bearing_deg`,
 `elevation_deg`, `range_m`, `signal_strength`, and `mode`. The `race` dict carries
 `status`, `lap`, `completed_gates`, `target_gate_id`, `target_sequence_index`, and
 `official_time_started`. In official mode, ground-truth pose/location/rotation
-sensors are filtered out, and the environment current vector must not be used as a
-control input.
+sensors are filtered out, and the true environment current vector
+(`environment_current_m_s`) is stripped from the observation entirely (it is
+available only as non-official diagnostic telemetry). A controller must infer
+current effects from onboard sensing (e.g. the DVL/velocity residual).
 
 Built-in controller aliases: `rule_gate_baseline`, `acoustic_baseline`,
 `acoustic_vision_baseline`, `vision_gate_baseline`, `student_template`,
@@ -307,8 +309,11 @@ conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_int
   (`xy=0.8 m`, `z=0.75 m`, `release=1.05 m`, `cooldown=1.0 s`) and not yet
   empirically calibrated; `diagnostic` mode is recommended, `penalize` is experimental.
 - Close-proximity fleet racing is not validated; the fleet demo uses a 90 s gap.
-- Current compensation is experimental: the baseline does not reject the
-  `medium`/`strong` current profiles, and `dvl_pi` is not an official robustness claim.
+- Current compensation is an open problem. Under disturbance currents the rule
+  baseline degrades: on Horseshoe Bay it still finishes the `medium` profile but
+  with gate contacts (12/12, 8 contacts, +40 s), and it does not finish the
+  `strong` profile (3/12). Designing a controller that rejects the current from
+  the legal observation is left to future work.
 - The fallback adapter is kinematic, not a physical simulator.
 - HoloOcean loading can be slow; the debug `oracle` controller is blocked in official mode.
 

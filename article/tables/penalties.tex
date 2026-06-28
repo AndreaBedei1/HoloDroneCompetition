@@ -1,6 +1,6 @@
 \begin{table}[t]
 \centering
-\caption{Referee events, their default penalty, and whether they terminate the run. All values are configurable in the \texttt{referee} block; the table lists the v0.1 defaults actually applied by the referee.}
+\caption{Referee events, their default penalty and whether they terminate the run. All values are configurable in the \texttt{referee} block; the table lists the v0.1 defaults actually applied by the referee.}
 \label{tab:penalties}
 \footnotesize
 \renewcommand{\arraystretch}{1.2}
@@ -12,9 +12,9 @@ Gate/bar or generic collision & $5.0$\,s each & no \\
 Obstacle collision            & $5.0$\,s each\textsuperscript{\dag} & no \\
 Out of bounds                 & $10.0$\,s each & no \\
 Stuck (soft)                  & $15.0$\,s once & no \\
-Missed gate                   & ---            & yes (DNF) \\
-Timeout (if enabled)          & ---            & yes \\
-Gate-timeout stuck (external) & ---            & yes \\
+Missed gate                   & n/a            & yes (DNF) \\
+Timeout (if enabled)          & n/a            & yes \\
+Gate-timeout stuck (external) & n/a            & yes \\
 Inter-vehicle (penalize mode) & $5.0$\,s/pair  & no (team-level) \\
 \bottomrule
 \end{tabular}

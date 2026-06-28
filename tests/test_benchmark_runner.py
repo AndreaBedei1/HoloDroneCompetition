@@ -139,7 +139,7 @@ def test_benchmark_metadata_records_motion_compensation() -> None:
         obstacle_density=None,
         obstacle_physics=None,
         current_profile="none",
-        motion_compensation="dvl_pi",
+        motion_compensation="none",
         gate_timeout_s=180.0,
         duration=120.0,
         dt=0.1,
@@ -149,7 +149,7 @@ def test_benchmark_metadata_records_motion_compensation() -> None:
 
     metadata = _build_run_metadata(args, seed=0, controller_role="automatic")
 
-    assert metadata["motion_compensation"] == "dvl_pi"
+    assert metadata["motion_compensation"] == "none"
     assert metadata["gate_timeout_s"] == 180.0
 
 

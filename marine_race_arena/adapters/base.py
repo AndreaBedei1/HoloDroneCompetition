@@ -239,6 +239,13 @@ class BaseRaceAdapter(abc.ABC):
         for name, value in raw_sensor_data.items():
             if official_mode and _is_ground_truth_sensor(name):
                 continue
+            # Official mode never exposes the true simulator current vector to a
+            # controller: it is privileged disturbance state. It remains available
+            # only as diagnostic/log telemetry in non-official runs. This strip is
+            # unconditional in official mode and cannot be re-enabled by an
+            # allow-list entry, keeping the no-cheat contract unambiguous.
+            if official_mode and _is_current_vector_field(name):
+                continue
             if allowed_names and name not in allowed_names and _canonical_sensor_name(name) not in allowed_names:
                 continue
             filtered[name] = _json_safe(value)
@@ -277,6 +284,26 @@ def _is_ground_truth_sensor(sensor_name: str) -> bool:
         "debug_ground_truth",
         "exact_pose",
         "exact_position",
+    }
+
+
+def _is_current_vector_field(sensor_name: str) -> bool:
+    """Fields that reveal the true simulator current vector (forbidden in official mode).
+
+    Coupling metadata (e.g. whether physical coupling is active) does not reveal
+    the current direction or magnitude and is intentionally not included here.
+    """
+    canonical = _canonical_sensor_name(sensor_name)
+    return canonical in {
+        "environmentcurrentms",  # environment_current_m_s
+        "environmentcurrent",
+        "currentvector",
+        "currentvelocity",
+        "currentvelocityms",
+        "oceancurrent",
+        "oceancurrentms",
+        "truecurrent",
+        "truecurrentms",
     }
 
 

@@ -1,21 +1,25 @@
 \begin{table*}[t]
 \centering
-\caption{HoloOcean validation of the \texttt{rule\_gate\_baseline} on the three official tracks. Single-rover runs use seed $0$, $\Delta t=0.033$\,s, official mode, and no obstacles, motion compensation, or active currents. The fleet smoke uses two rovers on Horseshoe Bay with a $90$\,s start gap, a $3.0$\,m lateral offset, and inter-vehicle detection in diagnostic mode.}
+\caption{HoloOcean validation. Clean single-rover rows report mean\,$\pm$\,standard deviation over five seeds ($\Delta t=0.033$\,s, official mode, no obstacles, no currents); the \texttt{acoustic\_baseline} row uses three seeds, whose $\pm0.1$\,s spread confirms near-determinism. The current and fleet rows are single seed-0 runs. Time is the official first-gate-to-last-gate time; the team row reports elapsed time (first release to last finish). Penalized time adds $5$\,s per collision. Gate apertures, referee margins and current profiles are unchanged throughout (requirement R4).}
 \label{tab:validation_results}
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
 \renewcommand{\arraystretch}{1.15}
-\begin{tabular}{llrrrrrr}
+\begin{tabular}{llrlrrl}
 \toprule
-Mode & Track / participant & Gates & Status & Official time (s) & Penalized time (s) & Collisions & OOB/stuck \\
+Setting & Controller / track & Seeds & Status & Gates & Time (s) & Collisions \\
 \midrule
-Single rover & Horseshoe Bay & 12/12 & FINISHED & 228.36 & 228.36 & 0 & 0/0 \\
-Single rover & Vertical Serpent & 17/17 & FINISHED & 315.55 & 315.55 & 0 & 0/0 \\
-Single rover & Mixed Endurance (clean profile) & 22/22 & FINISHED & 542.42 & 542.42 & 0 & 0/0 \\
+\multirow{4}{*}{Clean} & \texttt{rule\_gate\_baseline}, Horseshoe Bay & 5 & 5/5 FIN & 12/12 & $232.4\pm7.5$ & $0.6\pm0.5$ \\
+ & \texttt{rule\_gate\_baseline}, Vertical Serpent & 5 & 5/5 FIN & 17/17 & $259.7\pm27.8$ & $0.2\pm0.4$ \\
+ & \texttt{rule\_gate\_baseline}, Mixed Endurance & 5 & 5/5 FIN & 22/22 & $540.6\pm7.7$ & $0.8\pm0.8$ \\
+ & \texttt{acoustic\_baseline}, Horseshoe Bay & 3 & 3/3 FIN & 12/12 & $64.2\pm0.1$ & $0.0\pm0.0$ \\
 \midrule
-Fleet smoke & \texttt{bluerov2\_01}, Horseshoe Bay & 12/12 & FINISHED & 228.86 & 228.86 & 0 & 0/0 \\
-Fleet smoke & \texttt{bluerov2\_02}, Horseshoe Bay & 12/12 & FINISHED & 235.49 & 240.49 & 1 & 0/0 \\
-Fleet team & \texttt{fleet\_01} aggregate & 24/24 & FINISHED & 339.67 (elapsed) & 344.67 & 1 (total) & 0/0 \\
+\multirow{2}{*}{Currents} & \texttt{rule\_gate\_baseline}, Horseshoe, medium & 1 & FINISHED & 12/12 & $288.8$ & $8$ \\
+ & \texttt{rule\_gate\_baseline}, Horseshoe, strong & 1 & DNF & 3/12 & --- & $14$ \\
+\midrule
+\multirow{3}{*}{Fleet} & \texttt{bluerov2\_01}, Horseshoe Bay & 1 & FINISHED & 12/12 & $228.9$ & $0$ \\
+ & \texttt{bluerov2\_02}, Horseshoe Bay & 1 & FINISHED & 12/12 & $235.5$ & $1$ \\
+ & \texttt{fleet\_01} team aggregate & 1 & FINISHED & 24/24 & $339.7$ (elapsed) & $1$ \\
 \bottomrule
 \end{tabular}
 \end{table*}

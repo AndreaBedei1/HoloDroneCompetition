@@ -8,6 +8,19 @@ Date: TBD
 
 Marine Race Arena v0.1.0 is the first release candidate for a HoloOcean-based underwater drone racing benchmark using BlueROV2-style vehicles. The release focuses on clean official single-rover gate racing and a stable staggered fleet/team demonstration. It does not claim solved current compensation, close-proximity multi-rover racing, or fully calibrated rover-rover collision penalties.
 
+## Benchmark Integrity (official-mode contract)
+
+- Official mode never exposes the true simulator current vector
+  (`environment_current_m_s`) to a controller. It is stripped from the official
+  observation unconditionally and cannot be re-enabled by an allow-list entry; it
+  remains available only as non-official diagnostic telemetry. A controller must
+  infer current effects from onboard sensing (e.g. the DVL/velocity residual).
+- Current compensation remains open. Under disturbance currents the rule baseline
+  degrades: it finishes Horseshoe Bay at the `medium` profile with gate contacts
+  (12/12, 8 contacts, +40 s) and does not finish the `strong` profile (3/12).
+  Designing a controller that rejects the current from the legal observation is
+  left to future work.
+
 ## Included Features
 
 - Official single-rover clean-gate benchmark mode.

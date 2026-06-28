@@ -14,9 +14,9 @@ DVL          & 15\,Hz & Body-frame velocity (m/s); beam elevation $22.5^\circ$, 
 Front camera & 30\,Hz & RGB image, $640\times480$, $90^\circ$ field of view. \\
 Velocity     & 30\,Hz & World-frame linear velocity (m/s). \\
 Collision    & 30\,Hz & Boolean contact flag. \\
-Acoustic beacon & 10\,Hz & Range, bearing, and elevation to the target-gate beacon; range $50$--$130$\,m, noise std.\ $0$--$0.6$ depending on track. \\
+Acoustic beacon & 10\,Hz & Range, bearing and elevation to the target-gate beacon; range $50$ to $130$\,m, noise std.\ $0$ to $0.6$ depending on track. \\
 \midrule
-\multicolumn{3}{p{0.92\columnwidth}}{\emph{Derived fields:} heading $\psi$ (deg) and depth (m) from the pose used by the referee; the environment current vector is exposed as telemetry but is excluded from official no-cheat control.} \\
+\multicolumn{3}{p{0.92\columnwidth}}{\emph{Derived fields:} heading $\psi$ (deg) and depth (m) from the pose used by the referee; the true environment current vector is stripped from official observations entirely and is available only as non-official diagnostic telemetry.} \\
 \bottomrule
 \end{tabular}
 \end{table}

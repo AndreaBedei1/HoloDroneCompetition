@@ -266,7 +266,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--motion-compensation",
         choices=MOTION_COMPENSATION_MODES,
         default=MOTION_COMPENSATION_NONE,
-        help="Optional high-level command compensation layer. dvl_pi uses DVL/VelocitySensor horizontal velocity feedback.",
+        help="Optional high-level command compensation layer. Only 'none' ships; current compensation is future work.",
     )
     parser.add_argument(
         "--gate-timeout-s",

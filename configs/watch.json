@@ -1,0 +1,20 @@
+{
+  "run": {
+    "scenario": "single",
+    "adapter": "holoocean",
+    "headless": false,
+    "official": true,
+    "seed": 0,
+    "dt": 0.033,
+    "duration_s": 560,
+    "motion_compensation": "none"
+  },
+  "track": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
+  "controller": { "name": "rule_gate_baseline" },
+  "benchmark_task": "clean_gate",
+  "obstacles": { "mode": "none" },
+  "currents": { "profile": "none" },
+  "sensors": { "disable_front_camera": false },
+  "output": { "log_dir": "results/watch_run" },
+  "debug": { "show_front_camera": true, "print_beacon_targets": false }
+}
