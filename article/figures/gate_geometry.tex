@@ -1,40 +1,39 @@
 \begin{figure}[t]
 \centering
 \begin{tikzpicture}[
-  scale=1.08,
+  scale=1.1,
   font=\small,
   axis/.style={-{Latex[length=2mm]}, thick, mradark},
-  traj/.style={-{Latex[length=2.4mm]}, thick},
+  traj/.style={-{Latex[length=2.6mm]}, very thick},
   dot/.style={circle, fill=mradark, inner sep=1.3pt}
 ]
-% full aperture (solid) and the shrunk acceptance region (shaded, dashed)
-\draw[line width=1.0pt, fill=white] (-1.65,-1.12) rectangle (1.65,1.12);
-\fill[mralight] (-1.25,-0.8) rectangle (1.25,0.8);
-\draw[densely dashed] (-1.25,-0.8) rectangle (1.25,0.8);
-\node[font=\scriptsize] at (0,-1.36) {aperture $w_g\times h_g$};
-\node[font=\scriptsize, mradark] at (0.0,-0.62) {\itshape acceptance};
+% full aperture (solid outline) and the shrunk acceptance region (shaded, dashed)
+\draw[line width=1pt, fill=white] (-2,-1.3) rectangle (2,1.3);
+\fill[mralight] (-1.5,-0.9) rectangle (1.5,0.9);
+\draw[densely dashed] (-1.5,-0.9) rectangle (1.5,0.9);
+\node[font=\scriptsize] at (0,1.55) {aperture $w_g\times h_g$};
+\node[font=\scriptsize, mradark] at (-0.8,0.62) {\itshape acceptance};
 
-% margin m_g between the aperture edge and the acceptance edge
-\draw[{Latex[length=1.2mm]}-{Latex[length=1.2mm]}] (1.25,0.5) -- (1.65,0.5);
-\node[font=\scriptsize] at (1.45,0.72) {$m_g$};
+% safety margin m_g: the gap between the acceptance edge and the aperture edge
+\draw[{Latex[length=1.2mm]}-{Latex[length=1.2mm]}] (1.5,0.0) -- (2.0,0.0);
+\node[font=\scriptsize] at (1.75,0.24) {$m_g$};
 
-% gate frame at the center: r_g, s_g in-plane, n_g out of plane
+% gate frame at the center: r_g, s_g in-plane; n_g out of the page
 \node[dot] (c) at (0,0) {};
-\node[font=\scriptsize] at (-0.21,-0.26) {$c_g$};
-\draw[axis] (0,0) -- (0.85,0);  \node[font=\scriptsize] at (1.0,-0.16) {$\hat r_g$};
-\draw[axis] (0,0) -- (0,0.62);  \node[font=\scriptsize] at (-0.2,0.74) {$\hat s_g$};
-\draw (-0.62,0.42) circle (1.7pt); \fill (-0.62,0.42) circle (0.6pt);
-\node[font=\scriptsize] at (-0.88,0.42) {$n_g$};
+\node[font=\scriptsize] at (-0.24,-0.22) {$c_g$};
+\draw[axis] (0,0) -- (0.8,0);  \node[font=\scriptsize] at (0.66,0.18) {$\hat r_g$};
+\draw[axis] (0,0) -- (0,0.6);  \node[font=\scriptsize] at (-0.22,0.46) {$\hat s_g$};
+\draw (-0.75,-0.5) circle (1.8pt); \fill (-0.75,-0.5) circle (0.6pt);
+\node[font=\scriptsize] at (-1.0,-0.5) {$n_g$};
 
-% crossing segment p_{t-1} -> q -> p_t, q offset from the center
-\coordinate (pp) at (-1.0,-1.58);
-\coordinate (q)  at (0.55,0.42);
-\coordinate (pc) at (1.5,1.55);
-\draw[traj] (pp) -- (q);
-\draw[traj] (q) -- (pc);
-\node[dot] at (q) {}; \node[font=\scriptsize] at (0.72,0.4) {$q$};
-\node[dot] at (pp) {}; \node[font=\scriptsize] at (-1.0,-1.82) {$p_{t-1}$};
-\node[dot] at (pc) {}; \node[font=\scriptsize] at (1.5,1.78) {$p_t$};
+% crossing segment p_{t-1} -> p_t, piercing the plane at q (kept clear of the frame)
+\coordinate (pp) at (0.4,-1.62);
+\coordinate (pc) at (1.7,1.0);
+\coordinate (q)  at (1.0,-0.45);
+\draw[traj] (pp) -- (pc);
+\node[dot] at (q) {}; \node[font=\scriptsize] at (1.18,-0.56) {$q$};
+\node[dot] at (pp) {}; \node[font=\scriptsize] at (0.4,-1.83) {$p_{t-1}$};
+\node[dot] at (pc) {}; \node[font=\scriptsize] at (1.7,1.2) {$p_t$};
 \end{tikzpicture}
 \caption{Gate-crossing validation. A valid crossing pierces the gate plane in the normal direction (\eqref{eq:direction}) at a point $q$ (\eqref{eq:intersection}) inside the aperture shrunk on every side by the safety margin $m_g$ (\eqref{eq:aperture}); the frame $(\hat{r}_g,\hat{s}_g,n_g)$ follows the passage direction.}
 \label{fig:gate_geometry}
