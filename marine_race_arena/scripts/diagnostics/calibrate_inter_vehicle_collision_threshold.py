@@ -72,9 +72,31 @@ def main(argv: list[str] | None = None) -> int:
     if write_header:
         csv_path.write_text("", encoding="utf-8")
 
+    if not samples:
+        print("Calibration failed: no samples were generated.", file=sys.stderr)
+        return 1
+
     started = time.monotonic()
     rows: list[dict[str, Any]] = []
+    # Build one HoloOcean engine with both agents and reuse it for every sample
+    # (teleport between samples) instead of relaunching the binary per sample.
+    # Spawn the agents well apart so the initial reset is clean; an overlapping
+    # spawn makes the physics fling them apart and corrupts every reading.
+    safe_sample = _samples_from_specs(config, [(0.0, 3.0, 0.0, 0.0)])[0]
+    base_config, participants = _sample_config(config, safe_sample)
+    arena = ArenaBuilder(base_config, seed=args.seed).build()
+    adapter = select_adapter(
+        "holoocean",
+        config=base_config,
+        arena=arena,
+        allow_fallback=False,
+        headless=True,
+        record=False,
+        seed=args.seed,
+    )
     try:
+        adapter.spawn_participants(participants)
+        adapter.reset()
         with csv_path.open("a", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
             if write_header:
@@ -82,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             for sample in samples:
                 if int(sample["sample_id"]) in completed_ids:
                     continue
-                row = _run_sample(config, sample, seed=args.seed, settle_ticks=args.settle_ticks, dt=args.dt)
+                row = _measure_sample(adapter, participants, sample, settle_ticks=args.settle_ticks, dt=args.dt)
                 writer.writerow({field: _csv_value(row.get(field)) for field in CSV_FIELDS})
                 handle.flush()
                 rows.append(row)
@@ -96,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Calibration failed: {exc}", file=sys.stderr)
         print(f"Partial samples: {csv_path}", file=sys.stderr)
         return 1
+    finally:
+        adapter.close()
 
     all_rows = _load_rows(csv_path)
     summary = _summarize_rows(all_rows, wall_time_s=time.monotonic() - started)
@@ -141,67 +165,30 @@ def _generate_samples(
     quick: bool,
     max_samples: int | None,
 ) -> list[dict[str, Any]]:
+    # Sweep one offset axis at a time across the contact boundary, at a few
+    # relative yaws. With engine reuse this focused boundary sweep is enough to
+    # locate where two BlueROV2 hulls start to register contact.
+    near = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 1.0, 1.2]
+    yaws = [0.0, 45.0, 90.0]
+    specs: list[tuple[float, float, float, float]] = []
+    for distance in near:
+        for yaw in yaws:
+            specs.append((0.0, distance, 0.0, yaw))   # lateral separation
+            specs.append((distance, 0.0, 0.0, yaw))   # longitudinal separation
+    for distance in [0.25, 0.45, 0.65]:               # vertical with a small lateral offset
+        specs.append((0.0, 0.3, distance, 0.0))
     if quick:
         specs = [
-            (0.0, -0.75, 0.0, 0.0),
-            (0.0, 0.75, 0.0, 90.0),
-            (0.0, -1.25, 0.0, 0.0),
-            (0.0, 1.25, 0.0, 90.0),
-            (0.0, -1.75, 0.0, 180.0),
-            (0.0, 1.75, 0.0, 45.0),
-            (-0.75, 0.0, 0.0, 0.0),
-            (1.25, 0.0, 0.0, 90.0),
-            (-1.75, 0.0, 0.0, 180.0),
-            (0.75, 0.75, 0.0, 45.0),
-            (1.25, -1.25, 0.0, 135.0),
-            (0.0, 1.25, 0.75, 0.0),
+            (0.0, 0.25, 0.0, 0.0),
+            (0.0, 0.45, 0.0, 0.0),
+            (0.0, 0.65, 0.0, 0.0),
+            (0.0, 0.85, 0.0, 0.0),
+            (0.45, 0.0, 0.0, 0.0),
+            (0.65, 0.0, 0.0, 90.0),
         ]
-        return _samples_from_specs(config, specs[:max_samples] if max_samples else specs)
-    longitudinal_values = [-1.75, -1.25, -0.75, -0.35, 0.0, 0.35, 0.75, 1.25, 1.75]
-    lateral_values = [-1.75, -1.25, -0.75, -0.35, 0.0, 0.35, 0.75, 1.25, 1.75]
-    vertical_values = [-0.75, -0.35, 0.0, 0.35, 0.75]
-    yaw_values = [0.0, 45.0, 90.0, 135.0, 180.0]
-    samples: list[dict[str, Any]] = []
-    sample_id = 0
-    for longitudinal in longitudinal_values:
-        for lateral in lateral_values:
-            for vertical in vertical_values:
-                for yaw in yaw_values:
-                    if math.sqrt(longitudinal**2 + lateral**2 + vertical**2) < 0.15:
-                        continue
-                    position_a, position_b, yaw_a, yaw_b = _relative_pose(
-                        config,
-                        longitudinal_offset_m=longitudinal,
-                        lateral_offset_m=lateral,
-                        vertical_offset_m=vertical,
-                        relative_yaw_deg=yaw,
-                    )
-                    samples.append(
-                        {
-                            "sample_id": sample_id,
-                            "offset_type": _offset_type(longitudinal, lateral, vertical),
-                            "longitudinal_offset_m": longitudinal,
-                            "lateral_offset_m": lateral,
-                            "vertical_offset_m": vertical,
-                            "relative_yaw_deg": yaw,
-                            "position_a": position_a,
-                            "position_b": position_b,
-                            "yaw_a_deg": yaw_a,
-                            "yaw_b_deg": yaw_b,
-                        }
-                    )
-                    sample_id += 1
-    samples = sorted(
-        samples,
-        key=lambda item: (
-            _distance(item["position_a"], item["position_b"]),
-            abs(float(item["relative_yaw_deg"])),
-            int(item["sample_id"]),
-        ),
-    )
     if max_samples is not None:
-        samples = samples[: max(0, int(max_samples))]
-    return samples
+        specs = specs[: max(0, int(max_samples))]
+    return _samples_from_specs(config, specs)
 
 
 def _samples_from_specs(
@@ -234,79 +221,86 @@ def _samples_from_specs(
     return samples
 
 
-def _run_sample(
-    base_config: TrackConfig,
+def _measure_sample(
+    adapter: Any,
+    participants: Mapping[str, RaceParticipant],
     sample: Mapping[str, Any],
     *,
-    seed: int,
     settle_ticks: int,
     dt: float,
 ) -> dict[str, Any]:
-    config, participants = _sample_config(base_config, sample)
-    arena = ArenaBuilder(config, seed=seed).build()
-    adapter = select_adapter(
-        "holoocean",
-        config=config,
-        arena=arena,
-        allow_fallback=False,
-        headless=True,
-        record=False,
-        seed=seed,
-    )
-    try:
-        adapter.spawn_participants(participants)
-        adapter.reset()
-        for _ in range(max(1, int(settle_ticks))):
-            for participant in participants.values():
-                adapter.apply_command(participant.id, _zero_command(), participant.config.control_mode)
-            adapter.step(dt)
+    position_a = _vector3(sample["position_a"])
+    position_b = _vector3(sample["position_b"])
+    yaw_a = float(sample["yaw_a_deg"])
+    yaw_b = float(sample["yaw_b_deg"])
+    adapter.teleport_participant(AGENT_A, position_a, (0.0, 0.0, yaw_a))
+    adapter.teleport_participant(AGENT_B, position_b, (0.0, 0.0, yaw_b))
+    ctrl_a = participants[AGENT_A].config.control_mode
+    ctrl_b = participants[AGENT_B].config.control_mode
+
+    # The contact sensor fires only while the hulls overlap and then clears as
+    # the physics push the agents apart, so read it on every tick (not once at
+    # the end) and keep the largest distance at which contact was still seen.
+    contact_horizontals: list[float] = []
+    contact_verticals: list[float] = []
+    clear_horizontals: list[float] = []
+    collision_any = False
+    keys_a: list[str] = []
+    keys_b: list[str] = []
+    last_a = position_a
+    last_b = position_b
+    for _ in range(max(1, int(settle_ticks))):
+        adapter.apply_command(AGENT_A, _zero_command(), ctrl_a)
+        adapter.apply_command(AGENT_B, _zero_command(), ctrl_b)
+        adapter.step(dt)
         state_a = adapter.get_participant_state(AGENT_A)
         state_b = adapter.get_participant_state(AGENT_B)
         keys_a = _collision_sensor_keys(state_a.raw_sensors)
         keys_b = _collision_sensor_keys(state_b.raw_sensors)
-        if not keys_a or not keys_b:
-            raise RaceAdapterError(
-                "CollisionSensor data is missing for calibration agents. "
-                f"{AGENT_A} keys={sorted(state_a.raw_sensors.keys())}; "
-                f"{AGENT_B} keys={sorted(state_b.raw_sensors.keys())}."
-            )
-        requested_a = _vector3(sample["position_a"])
-        requested_b = _vector3(sample["position_b"])
-        spawn_error_a = _distance(requested_a, state_a.position)
-        spawn_error_b = _distance(requested_b, state_b.position)
-        if spawn_error_a > SPAWN_TOLERANCE_M or spawn_error_b > SPAWN_TOLERANCE_M:
-            return _row_from_sample(
-                sample,
-                status="SPAWN_MISMATCH",
-                position_a=state_a.position,
-                position_b=state_b.position,
-                collision_a=adapter.get_collision_state(AGENT_A),
-                collision_b=adapter.get_collision_state(AGENT_B),
-                sensor_keys_a=keys_a,
-                sensor_keys_b=keys_b,
-                error=(
-                    "HoloOcean did not spawn both calibration agents near the requested poses. "
-                    f"{AGENT_A} requested={requested_a} actual={state_a.position} error={spawn_error_a:.3f}m; "
-                    f"{AGENT_B} requested={requested_b} actual={state_b.position} error={spawn_error_b:.3f}m."
-                ),
-            )
-        collision_a = adapter.get_collision_state(AGENT_A)
-        collision_b = adapter.get_collision_state(AGENT_B)
-        position_a = state_a.position
-        position_b = state_b.position
-        return _row_from_sample(
-            sample,
-            status="OK",
-            position_a=position_a,
-            position_b=position_b,
-            collision_a=collision_a,
-            collision_b=collision_b,
-            sensor_keys_a=keys_a,
-            sensor_keys_b=keys_b,
-            error="",
-        )
-    finally:
-        adapter.close()
+        contact = adapter.get_collision_state(AGENT_A) or adapter.get_collision_state(AGENT_B)
+        horizontal = _horizontal_distance(state_a.position, state_b.position)
+        vertical = abs(state_a.position[2] - state_b.position[2])
+        if contact:
+            collision_any = True
+            contact_horizontals.append(horizontal)
+            contact_verticals.append(vertical)
+        else:
+            clear_horizontals.append(horizontal)
+        last_a = state_a.position
+        last_b = state_b.position
+
+    if not keys_a or not keys_b:
+        raise RaceAdapterError("CollisionSensor data is missing for the calibration agents.")
+
+    if collision_any:
+        horizontal_distance = max(contact_horizontals)
+        vertical_distance = max(contact_verticals) if contact_verticals else abs(last_a[2] - last_b[2])
+    else:
+        horizontal_distance = min(clear_horizontals) if clear_horizontals else _horizontal_distance(last_a, last_b)
+        vertical_distance = abs(last_a[2] - last_b[2])
+
+    return {
+        "sample_id": sample["sample_id"],
+        "status": "OK",
+        "offset_type": sample["offset_type"],
+        "longitudinal_offset_m": sample["longitudinal_offset_m"],
+        "lateral_offset_m": sample["lateral_offset_m"],
+        "vertical_offset_m": sample["vertical_offset_m"],
+        "relative_yaw_deg": sample["relative_yaw_deg"],
+        "horizontal_distance_m": horizontal_distance,
+        "vertical_distance_m": vertical_distance,
+        "distance_3d_m": math.sqrt(horizontal_distance**2 + vertical_distance**2),
+        "position_a": last_a,
+        "position_b": last_b,
+        "yaw_a_deg": sample["yaw_a_deg"],
+        "yaw_b_deg": sample["yaw_b_deg"],
+        "collision_a": collision_any,
+        "collision_b": collision_any,
+        "collision_any": collision_any,
+        "collision_sensor_keys_a": keys_a,
+        "collision_sensor_keys_b": keys_b,
+        "error": "",
+    }
 
 
 def _sample_config(

@@ -154,6 +154,30 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         self._last_actions[participant_id] = action
         self._act(participant_id, action)
 
+    def teleport_participant(
+        self,
+        participant_id: str,
+        position: Vector3,
+        rotation_rpy_deg: Vector3,
+    ) -> None:
+        """Reposition an already-spawned agent, reusing the running engine.
+
+        Used by the inter-vehicle collision calibration to sweep relative poses
+        without relaunching HoloOcean for every sample.
+        """
+        if self.env is None:
+            raise RaceAdapterError("HoloOcean environment is not initialized.")
+        agents = getattr(self.env, "agents", None)
+        agent = agents.get(participant_id) if isinstance(agents, dict) else None
+        if agent is None or not callable(getattr(agent, "teleport", None)):
+            raise RaceAdapterError(
+                f"HoloOcean agent '{participant_id}' does not support teleport."
+            )
+        agent.teleport(
+            location=[float(position[0]), float(position[1]), float(position[2])],
+            rotation=[float(rotation_rpy_deg[0]), float(rotation_rpy_deg[1]), float(rotation_rpy_deg[2])],
+        )
+
     def get_collision_state(self, participant_id: str) -> bool:
         sensors = self._agent_sensors(participant_id)
         for key, value in sensors.items():
