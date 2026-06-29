@@ -91,23 +91,31 @@ which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^
 \begin{center}
 \scriptsize
 \begin{tikzpicture}[
-  node distance=0.95cm and 0.72cm,
+  node distance=0.75cm,
   state/.style={draw, rounded corners=2pt, fill=mralight, align=center,
-    minimum width=1.8cm, minimum height=0.58cm, inner sep=2.5pt},
-  arrow/.style={-Latex, thick}
+    minimum width=2.6cm, minimum height=0.6cm, inner sep=2.5pt},
+  arrow/.style={-Latex, thick},
+  lbl/.style={font=\tiny, fill=white, inner sep=1.5pt}
 ]
-\node[state] (target) {Target\\selection};
-\node[state, right=of target] (align) {Align\\bearing};
-\node[state, below=of align] (approach) {Approach\\gate};
-\node[state, left=of approach] (visual) {Visual\\centering};
-\node[state, below=of visual] (exit) {Exit\\hold};
+\node[state] (target) {Target selection};
+\node[state, below=of target] (align) {Align bearing};
+\node[state, below=of align] (approach) {Approach gate};
+\node[state, below=of approach] (visual) {Visual centering};
+\node[state, below=of visual] (exit) {Exit hold};
 
-\draw[arrow] (target) -- node[above, font=\tiny] {beacon} (align);
-\draw[arrow] (align) -- node[right, font=\tiny] {$|\beta|$ small} (approach);
-\draw[arrow] (approach) -- node[above, font=\tiny] {camera gate} (visual);
-\draw[arrow] (visual) -- node[left, font=\tiny] {crossing} (exit);
-\draw[arrow] (exit.west) -- ++(-0.35,0) |- node[pos=0.25, left, font=\tiny] {next gate} (target.west);
-\draw[arrow] (visual.east) -- ++(0.45,0) |- node[pos=0.25, right, font=\tiny] {lost view} (align.east);
+% forward path, straight down the centre
+\draw[arrow] (target) -- node[lbl, right] {beacon} (align);
+\draw[arrow] (align) -- node[lbl, right] {$|\beta|$ small} (approach);
+\draw[arrow] (approach) -- node[lbl, right] {camera gate} (visual);
+\draw[arrow] (visual) -- node[lbl, right] {crossing} (exit);
+
+% lost-view feedback returns to alignment, routed on the right
+\draw[arrow] (visual.east) -- ++(0.7,0)
+  |- node[lbl, pos=0.5] {lost view} (align.east);
+
+% next-gate loop, routed on the left
+\draw[arrow] (exit.west) -- ++(-0.7,0)
+  |- node[lbl, pos=0.5] {next gate} (target.west);
 \end{tikzpicture}\\[0.35em]
 \refstepcounter{figure}\label{fig:rule_baseline_state}
 \parbox{0.95\columnwidth}{\footnotesize Fig.~\thefigure. Simplified state logic of the rule-based baseline: target selection, bearing alignment, gate approach, visual centering and exit hold before advancing to the next gate.}
