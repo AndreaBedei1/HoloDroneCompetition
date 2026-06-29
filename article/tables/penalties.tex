@@ -1,21 +1,21 @@
 \begin{table}[t]
 \centering
-\caption{Referee events, default penalties and which terminate the run. All values are configurable in the \texttt{referee} block (v0.1 defaults shown).}
+\caption{Referee events, default penalties and which terminate the run. All values are configurable in the \texttt{referee} block.}
 \label{tab:penalties}
 \footnotesize
 \renewcommand{\arraystretch}{1.2}
 \begin{tabular}{p{0.34\columnwidth}p{0.20\columnwidth}p{0.30\columnwidth}}
 \toprule
-Event & Penalty & Terminal? \\
+Event & Penalty & Terminal \\
 \midrule
 Gate, bar or generic collision & $5.0$\,s each & no \\
 Obstacle collision            & $5.0$\,s each\textsuperscript{\dag} & no \\
 Out of bounds                 & $10.0$\,s each & no \\
 Stuck (soft)                  & $15.0$\,s once & no \\
 Missed gate                   & n/a            & yes (DNF) \\
-Timeout (if enabled)          & n/a            & yes \\
-Gate-timeout stuck (external) & n/a            & yes \\
-Inter-vehicle (penalize mode) & $5.0$\,s per pair & no (team-level) \\
+Timeout                       & n/a            & yes \\
+Gate-timeout stuck            & n/a            & yes \\
+Inter-vehicle                 & $5.0$\,s per pair & no (team-level) \\
 \bottomrule
 \end{tabular}
 \par\vspace{0.6mm}

@@ -1,4 +1,4 @@
-\section{Controller Interface and Baselines}
+\section{Controller Interface and Rule Baseline}
 \label{sec:controller}
 
 A central usability goal of \mra{} is that a custom autonomy stack is integrated by implementing a small interface, without touching the runner, the referee or the adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the reference baseline whose results we report.
@@ -45,7 +45,7 @@ Field & Interpretation \\
 
 \subsection{Dynamic Loading}
 
-A controller is selected at run time in one of three ways: a built-in alias (e.g.\ \cmd{rule\_gate\_baseline}); a dotted module path with an explicit class; or a file path together with \cmd{--controller-class}, which is imported dynamically. This lets an external policy be evaluated without modifying the package:
+A controller is selected at run time in one of three ways: the official built-in rule baseline \cmd{rule\_gate\_baseline}; a dotted module path with an explicit class; or a file path together with \cmd{--controller-class}, which is imported dynamically. For inspection and data collection, the runner can also be launched with the manual \cmd{keyboard} or \cmd{pygame} controllers. This lets an external policy be evaluated without modifying the package:
 
 \begin{lstlisting}[language=bash]
 python -m marine_race_arena.scripts.run_marine_race \
@@ -60,31 +60,57 @@ python -m marine_race_arena.scripts.run_marine_race \
 
 The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safety rule that suppresses heave that would drive the vehicle past $z_{\min}$ or $z_{\max}$, then maps it to thrusters via \eqref{eq:thruster_mix}. A controller may alternatively return raw thruster values; the high-level interface is the simpler default.
 
-\subsection{Reference Baseline: \texttt{rule\_gate\_baseline}}
+\subsection{Baseline Based on Rules}
 
-The reference controller is deliberately interpretable rather than optimal. Its role is to be a deterministic policy that, using only official observations, completes the clean tracks and exposes failures under currents, obstacles or dense fleet interaction. Let $\beta$ and $\rho$ be the beacon bearing and range, $z$ the depth and $z^\star$ the target depth implied by the gate. The controller combines four mechanisms.
+The reference controller is deliberately interpretable rather than optimal. Its role is to be a deterministic policy that, using only official observations, completes the clean tracks and exposes failures under currents, obstacles or dense fleet interaction. Let $\beta$ and $\rho$ be the beacon bearing and range, $z$ the depth and $z^\star$ the target depth implied by the gate. The policy is organized into four explicit components.
 
-\emph{Align-before-surge.} Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
+\begin{itemize}
+\item \emph{Bearing alignment and surge gating.} The controller aligns the rover before allowing sustained forward motion. Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
 \begin{equation}
 \label{eq:rule_yaw}
 u^{\mathrm{yaw}} = \operatorname{clamp}\!\big(k_\psi\,\beta,\,-\bar{u}_{\mathrm{yaw}},\,\bar{u}_{\mathrm{yaw}}\big),\qquad \bar{u}_{\mathrm{yaw}}=0.16,
 \end{equation}
 and surge is gated by alignment: the vehicle turns in place when $|\beta|\ge34^\circ$, surges at a reduced rate for $24^\circ\le|\beta|<34^\circ$ and otherwise drives forward up to a conservative cap $\bar{u}_{\mathrm{surge}}=0.46$ that scales with range and with $\cos\beta$.
 
-\emph{Depth hold.} A PI law on depth error $e_z=z^\star-z$ produces a depth-keeping heave,
+\item \emph{Depth hold.} The controller keeps the rover close to the target gate depth. A PI law on depth error $e_z=z^\star-z$ produces a depth-keeping heave,
 \begin{equation}
 \label{eq:rule_depth}
-u^{\mathrm{heave}}_{\mathrm{depth}} = \operatorname{clamp}\!\Big(k_p\,e_z + k_i\!\!\int\! e_z\,\mathrm{d}t\Big),\quad (k_p,k_i)=(0.20,0.08),
+\begin{aligned}
+u^{\mathrm{heave}}_{\mathrm{depth}} &=
+\operatorname{clamp}\!\Big(k_p\,e_z + k_i\!\!\int\! e_z\,\mathrm{d}t\Big),\\
+(k_p,k_i) &= (0.20,0.08),
+\end{aligned}
 \end{equation}
 which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^{\mathrm{heave}}_{\mathrm{beacon}}+0.30\,u^{\mathrm{heave}}_{\mathrm{depth}}$.
 
-\emph{Visual servo.} When the front camera detects a gate, normalized image errors $(c_x,c_y)\in[-1,1]^2$ nudge sway and yaw by $-c_x$ and heave by $-c_y$ above thresholds $(0.13,0.30)$, refining the acoustic approach in the final meters.
+\item \emph{Visual centering.} This component refines the acoustic approach in the final meters. When the front camera detects a gate, normalized image errors $(c_x,c_y)\in[-1,1]^2$ nudge sway and yaw by $-c_x$ and heave by $-c_y$ above thresholds $(0.13,0.30)$.
 
-\emph{Exit hold and smoothing.} After each gate the controller holds an exit heading for a fixed number of steps to clear the structure and all commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$ and rate-limited per axis to avoid abrupt thrust changes.
+\item \emph{Exit hold and command smoothing.} This component stabilizes the command after a gate crossing. After each gate the controller holds an exit heading for a fixed number of steps to clear the structure and all commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$ and rate-limited per axis to avoid abrupt thrust changes.
+\end{itemize}
 
-\subsection{Additional Baselines}
+\begin{center}
+\scriptsize
+\begin{tikzpicture}[
+  node distance=0.95cm and 0.72cm,
+  state/.style={draw, rounded corners=2pt, fill=mralight, align=center,
+    minimum width=1.8cm, minimum height=0.58cm, inner sep=2.5pt},
+  arrow/.style={-Latex, thick}
+]
+\node[state] (target) {Target\\selection};
+\node[state, right=of target] (align) {Align\\bearing};
+\node[state, below=of align] (approach) {Approach\\gate};
+\node[state, left=of approach] (visual) {Visual\\centering};
+\node[state, below=of visual] (exit) {Exit\\hold};
 
-Table~\ref{tab:baselines} lists the other shipped controllers, spanning beacon-only, vision-assisted, manual and a debug-only oracle. The oracle reads privileged gate geometry to verify that a track is feasible; it is marked debug-only and is never used for official results, illustrating how the observation contract keeps such tools out of the benchmark.
+\draw[arrow] (target) -- node[above, font=\tiny] {beacon} (align);
+\draw[arrow] (align) -- node[right, font=\tiny] {$|\beta|$ small} (approach);
+\draw[arrow] (approach) -- node[above, font=\tiny] {camera gate} (visual);
+\draw[arrow] (visual) -- node[left, font=\tiny] {crossing} (exit);
+\draw[arrow] (exit.west) -- ++(-0.35,0) |- node[pos=0.25, left, font=\tiny] {next gate} (target.west);
+\draw[arrow] (visual.east) -- ++(0.45,0) |- node[pos=0.25, right, font=\tiny] {lost view} (align.east);
+\end{tikzpicture}\\[0.35em]
+\refstepcounter{figure}\label{fig:rule_baseline_state}
+\parbox{0.95\columnwidth}{\footnotesize Fig.~\thefigure. Simplified state logic of the rule-based baseline: target selection, bearing alignment, gate approach, visual centering and exit hold before advancing to the next gate.}
+\end{center}
 
-\input{tables/baselines}
 

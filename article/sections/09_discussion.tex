@@ -1,17 +1,7 @@
-\section{Discussion, Limitations and Future Work}
+\section{Future Work}
 \label{sec:discussion}
 
-\subsection{What v0.1 Claims}
-
-The release candidate demonstrates that a HoloOcean-backed underwater gate-racing benchmark can be configured declaratively, executed, scored by an independent referee and reproduced under a clean official observation contract. It provides three official tracks, a deterministic rule baseline, single-rover clean validation, staggered multi-rover execution, team-level scoring and inter-vehicle proximity diagnostics. These are infrastructure contributions: the artifact is the benchmark and its evaluation contract, not a claim of optimal underwater racing control.
-
-\subsection{What v0.1 Does Not Claim}
-
-Several components are intentionally outside the official v0.1 claims. Current compensation is not solved: as Section~\ref{sec:evaluation} shows, the baseline degrades under disturbance currents: it finishes under a medium current only with added gate contacts and fails to finish under a strong current. Designing a controller that rejects this drift is left to future work. Close-proximity fleet racing is not validated: the inter-vehicle detector uses conservative geometric thresholds (\eqref{eq:ivc}) whose calibration against measured contact distances between two BlueROV2 vehicles is incomplete (an earlier calibration sweep terminated before collecting contact samples), so diagnostic mode remains the recommended default and penalized mode is experimental. Consistent with requirement R4, these limitations are reported rather than masked by changing gates, margins or current profiles.
-
-\subsection{Future Work}
-
-We see five concrete next steps.
+We see six concrete next steps.
 
 \emph{(i) Inter-vehicle collision calibration.} Sweep two BlueROV2 agents over a grid of relative longitudinal, lateral, vertical and yaw offsets, record the engine contact sensor against the geometric separation and fit the thresholds $(r_{xy},r_z,r_{\mathrm{rel}})$ of \eqref{eq:ivc} to the measured contact envelope, replacing the current conservative defaults.
 
@@ -19,6 +9,8 @@ We see five concrete next steps.
 
 \emph{(iii) Cooperative fleet strategies.} Building on the optional inter-rover acoustic channel now provided (Section~\ref{sec:fleet}), move beyond staggered, non-interacting starts to deliberate coordination, formation keeping and leader-follower passing of gate sequences, under the realistic constraints of low-bandwidth, high-latency acoustic communication~\cite{stojanovic2009underwater} and uncertain relative localization, as analyzed in the AUV-formation literature~\cite{yang2021survey,yan2023formation}.
 
-\emph{(iv) Current-compensation track family.} Promote the analytic current field of \eqref{eq:current_sum} to \eqref{eq:vortex} into a graded benchmark family (medium and strong profiles) and develop controllers that reject it. A promising legal direction is a cascaded design whose inner loop servos the DVL-measured body velocity to the guidance setpoint, rejecting the current as a disturbance without ever reading the true current vector, beneath the outer beacon and vision gate guidance; we note, however, that the strong profile sets a flow approaching the vehicle's maximum forward speed, so it may remain an actuation limit rather than a control gap, with honest failure accounting reported at each level.
+\emph{(iv) Competitive multi-team and heterogeneous-rover evaluation.} Extend the current cooperative fleet setting to scenarios in which multiple rover teams, or different rover families with distinct dynamics and sensing suites, compete under the same referee and observation contract. This would require team-isolated scoring, ranking across teams, controlled interaction policies and normalization rules that make heterogeneous platforms comparable without hiding their physical differences.
 
-\emph{(v) Learning-based controllers.} The official observation contract is directly usable as a reinforcement-learning interface: the observation (beacon range, bearing and elevation; depth; IMU; DVL and velocity; and camera) is the state, the normalized command of \eqref{eq:command} is the action and a natural reward combines sequential gate progress with time and collision penalties mirroring \eqref{eq:penalized}. A model-free policy-gradient or actor-critic method could be trained at scale against the kinematic fallback adapter and fine-tuned in HoloOcean, in the spirit of champion-level drone racing trained against a simulated opponent~\cite{kaufmann2023swift} and of GPU-parallel robot-learning environments~\cite{makoviychuk2021isaacgym,brockman2016openaigym}, all without weakening the official observation contract.
+\emph{(v) Current-compensation track family.} Promote the analytic current field of \eqref{eq:current_sum} to \eqref{eq:vortex} into a graded benchmark family (medium and strong profiles) and develop controllers that reject it. A promising legal direction is a cascaded design whose inner loop servos the DVL-measured body velocity to the guidance setpoint, rejecting the current as a disturbance without ever reading the true current vector, beneath the outer beacon and vision gate guidance.
+
+\emph{(vi) Learning-based controllers.} The official observation contract is directly usable as a reinforcement-learning interface: the observation (beacon range, bearing and elevation; depth; IMU; DVL and velocity; and camera) is the state, the normalized command of \eqref{eq:command} is the action and a natural reward combines sequential gate progress with time and collision penalties mirroring \eqref{eq:penalized}. A model-free policy-gradient or actor-critic method could be trained at scale against the kinematic fallback adapter and fine-tuned in HoloOcean, in the spirit of champion-level drone racing trained against a simulated opponent~\cite{kaufmann2023swift} and of GPU-parallel robot-learning environments~\cite{makoviychuk2021isaacgym,brockman2016openaigym}, all without weakening the official observation contract.

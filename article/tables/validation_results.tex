@@ -1,6 +1,6 @@
 \begin{table*}[t]
 \centering
-\caption{HoloOcean validation. Clean rows are mean\,$\pm$\,standard deviation over five seeds (\texttt{acoustic\_baseline}: three); current and fleet rows are single seed-0 runs. Time is the official first-to-last-gate time (team: elapsed); penalized time adds $5$\,s per collision.}
+\caption{HoloOcean validation over five seeds. Gates and collisions are mean\,$\pm$\,standard deviation over all seeds; time is the official first-to-last-gate time over finished runs only (team: elapsed).}
 \label{tab:validation_results}
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
@@ -9,17 +9,16 @@
 \toprule
 Setting & Controller / track & Seeds & Status & Gates & Time (s) & Collisions \\
 \midrule
-\multirow{4}{*}{Clean} & \texttt{rule\_gate\_baseline}, Horseshoe Bay & 5 & 5/5 FIN & 12/12 & $232.4\pm7.5$ & $0.6\pm0.5$ \\
+\multirow{3}{*}{Clean} & \texttt{rule\_gate\_baseline}, Horseshoe Bay & 5 & 5/5 FIN & 12/12 & $232.4\pm7.5$ & $0.6\pm0.5$ \\
  & \texttt{rule\_gate\_baseline}, Vertical Serpent & 5 & 5/5 FIN & 17/17 & $259.7\pm27.8$ & $0.2\pm0.4$ \\
  & \texttt{rule\_gate\_baseline}, Mixed Endurance & 5 & 5/5 FIN & 22/22 & $540.6\pm7.7$ & $0.8\pm0.8$ \\
- & \texttt{acoustic\_baseline}, Horseshoe Bay & 3 & 3/3 FIN & 12/12 & $64.2\pm0.1$ & $0.0\pm0.0$ \\
 \midrule
-\multirow{2}{*}{Currents} & \texttt{rule\_gate\_baseline}, Horseshoe, medium & 1 & FINISHED & 12/12 & $288.8$ & $8$ \\
- & \texttt{rule\_gate\_baseline}, Horseshoe, strong & 1 & DNF & 3/12 & --- & $14$ \\
+\multirow{2}{*}{Currents} & \texttt{rule\_gate\_baseline}, Horseshoe, medium & 5 & 3/5 FIN & $10.8\pm1.5/12$ & $315.0\pm42.3$ & $82.6\pm74.1$ \\
+ & \texttt{rule\_gate\_baseline}, Horseshoe, strong & 5 & 0/5 FIN & $3.0\pm0.0/12$ & --- & $11.0\pm1.1$ \\
 \midrule
-\multirow{3}{*}{Fleet} & \texttt{bluerov2\_01}, Horseshoe Bay & 1 & FINISHED & 12/12 & $228.9$ & $0$ \\
- & \texttt{bluerov2\_02}, Horseshoe Bay & 1 & FINISHED & 12/12 & $235.5$ & $1$ \\
- & \texttt{fleet\_01} team aggregate & 1 & FINISHED & 24/24 & $339.7$ (elapsed) & $1$ \\
+\multirow{3}{*}{Fleet} & \texttt{bluerov2\_01}, Horseshoe Bay & 5 & 5/5 FIN & 12/12 & $230.7\pm5.4$ & $1.4\pm0.5$ \\
+ & \texttt{bluerov2\_02}, Horseshoe Bay & 5 & 5/5 FIN & 12/12 & $236.5\pm1.4$ & $1.2\pm0.4$ \\
+ & team aggregate & 5 & 5/5 FIN & 24/24 & $340.7\pm1.4$ (elapsed) & $2.6\pm0.8$ \\
 \bottomrule
 \end{tabular}
 \end{table*}

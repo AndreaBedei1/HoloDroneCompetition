@@ -226,10 +226,9 @@ link, and is off by default. Message content/handling is up to your controller;
 because payloads are authored by controllers, they carry only legally observable
 information (the channel never injects ground-truth state).
 
-Built-in controller aliases: `rule_gate_baseline`, `acoustic_baseline`,
-`acoustic_vision_baseline`, `vision_gate_baseline`, `student_template`,
-`keyboard`/`manual`, `pygame`, and the debug-only `oracle` (blocked in official
-mode).
+Official controller alias: `rule_gate_baseline`. For inspection and data
+collection, the runner also supports manual `keyboard`/`manual` and `pygame`
+controllers.
 
 ---
 
@@ -293,7 +292,7 @@ marine_race_arena/
   adapters/            HoloOcean and fallback simulator adapters
   arena/               gates, bounds, beacons, currents, obstacles
   config/              dataclasses, JSON loader, validation, benchmark tasks
-  controllers/         baselines, manual controllers, student template
+  controllers/         official rule baseline and manual controllers
   participants/        participant model, sensor filtering, controller loader
   referee/             gate validation, race state, scoring, logging, team summary
   scripts/             run_marine_race, run_benchmark, smoke, release checks
@@ -348,13 +347,13 @@ conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_int
   (`xy=0.8 m`, `z=0.75 m`, `release=1.05 m`, `cooldown=1.0 s`) and not yet
   empirically calibrated; `diagnostic` mode is recommended, `penalize` is experimental.
 - Close-proximity fleet racing is not validated; the fleet demo uses a 90 s gap.
-- Current compensation is an open problem. Under disturbance currents the rule
-  baseline degrades: on Horseshoe Bay it still finishes the `medium` profile but
-  with gate contacts (12/12, 8 contacts, +40 s), and it does not finish the
-  `strong` profile (3/12). Designing a controller that rejects the current from
-  the legal observation is left to future work.
+- Current compensation is an open problem. Over five HoloOcean seeds on
+  Horseshoe Bay, the rule baseline finishes the `medium` profile in only 3/5
+  seeds (10.8 +/- 1.5 gates, 82.6 +/- 74.1 contacts) and never finishes the
+  `strong` profile (3/12 gates, 11.0 +/- 1.1 contacts). Designing a controller
+  that rejects the current from the legal observation is left to future work.
 - The fallback adapter is kinematic, not a physical simulator.
-- HoloOcean loading can be slow; the debug `oracle` controller is blocked in official mode.
+- HoloOcean loading can be slow; use the manual `keyboard` or `pygame` controllers only for inspection and data collection.
 
 ---
 
