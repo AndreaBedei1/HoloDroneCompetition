@@ -34,8 +34,7 @@ Claimed and reproducible in this release:
 - Inter-vehicle collision **diagnostics** with an optional penalty mode.
 
 Identified as open future work, **not** part of the v0.1 results: current
-compensation, close-proximity fleet racing, and fully calibrated rover-rover
-collision penalties.
+compensation.
 
 ---
 
@@ -263,8 +262,7 @@ penalized time, unfinished rovers by progress.
 Fleet mode runs several rovers as a single cooperative team (not competitors); the goal is to coordinate and complete the course quickly, and there is one team only. Each rover keeps independent state; the official result is the
 `team_summary` (total gates, total penalties, and elapsed time from first release
 to last finish). Inter-vehicle proximity is detected on the referee side
-(`off`/`diagnostic`/`penalize`); `diagnostic` is the recommended default until the
-contact thresholds are empirically calibrated.
+(`off`/`diagnostic`/`penalize`); `diagnostic` is the default.
 
 ---
 
@@ -343,10 +341,6 @@ conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_int
 
 ## 11. Known limitations
 
-- Inter-vehicle collision thresholds are conservative defaults
-  (`xy=0.8 m`, `z=0.75 m`, `release=1.05 m`, `cooldown=1.0 s`) and not yet
-  empirically calibrated; `diagnostic` mode is recommended, `penalize` is experimental.
-- Close-proximity fleet racing is not validated; the fleet demo uses a 90 s gap.
 - Current compensation is an open problem. Over five HoloOcean seeds on
   Horseshoe Bay, the rule baseline finishes the `medium` profile in only 3/5
   seeds (10.8 +/- 1.5 gates, 82.6 +/- 74.1 contacts) and never finishes the

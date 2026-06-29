@@ -19,7 +19,7 @@ Rover-rover proximity is detected on the referee side and is never exposed to co
 \label{eq:ivc}
 \sqrt{(x_a-x_b)^2+(y_a-y_b)^2}\le r_{xy}\;\wedge\;|z_a-z_b|\le r_z,
 \end{equation}
-with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 conservative defaults are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs proximity events without changing any score; and \cmd{penalize} additionally charges one team-level penalty per pair event. Because the geometric thresholds have not yet been calibrated against measured contact distances between two BlueROV2 vehicles (Section~\ref{sec:discussion}), \cmd{diagnostic} is the recommended default.
+with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 thresholds are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs proximity events without changing any score; and \cmd{penalize} additionally charges one team-level penalty per pair event. Diagnostic mode is the default.
 
 \subsection{Inter-Rover Acoustic Communication}
 
