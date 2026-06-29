@@ -61,9 +61,9 @@ T_i^{\mathrm{pen}}=T_i^{\mathrm{official}}+P_i .
 Ranking places finished participants before unfinished ones and is defined by the ascending lexicographic key
 \begin{equation}
 \label{eq:ranking}
-\kappa_i=\big(\,\overline{f_i},\; T_i^{\mathrm{pen}},\; -G_i,\; n_i^{\mathrm{coll}},\; P_i,\; \mathrm{dist}_i\,\big),
+\kappa_i=\big(\,\overline{f_i},\; T_i^{\mathrm{pen}},\; -G_i^{\mathrm{done}},\; n_i^{\mathrm{coll}},\; P_i,\; \mathrm{dist}_i\,\big),
 \end{equation}
-where $\overline{f_i}=0$ for finished and $1$ otherwise, $G_i$ is the number of completed gates, $n_i^{\mathrm{coll}}$ the collision count and $\mathrm{dist}_i$ the distance to the next gate. Thus finished rovers sort by penalized time, while unfinished rovers sort by progress, then fewer collisions, then fewer penalties, then proximity to the next gate, so partial runs remain informative rather than being discarded.
+where $\overline{f_i}=0$ for finished and $1$ otherwise, $G_i^{\mathrm{done}}$ is the number of completed gates, $n_i^{\mathrm{coll}}$ the collision count and $\mathrm{dist}_i$ the distance to the next gate. Thus finished rovers sort by penalized time, while unfinished rovers sort by progress, then fewer collisions, then fewer penalties, then proximity to the next gate, so partial runs remain informative rather than being discarded.
 
 \subsection{Event Logging}
 

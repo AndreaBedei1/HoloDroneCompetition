@@ -1,7 +1,7 @@
 \section{Fleet and Team Evaluation}
 \label{sec:fleet}
 
-Fleet mode runs several rovers as a single cooperative team through the same circuit, so the benchmark can evaluate how well they coordinate and how quickly the team completes the course, rather than pitting them as competitors against each other (requirement R7). The benchmark models one team only: all rovers share a single simulated world and a single referee, each keeps an independent progress and scoring state and enabling fleet mode does not alter single-rover behavior (R6).
+Fleet mode runs several rovers as a single cooperative team through the same circuit, so the benchmark can measure how quickly the team completes the course, rather than pitting them as competitors against each other (requirement R7). The benchmark models one team only: all rovers share a single simulated world and a single referee, each keeps an independent progress and scoring state and enabling fleet mode does not alter single-rover behavior (R6).
 
 \subsection{Staggered Release and Spawn Geometry}
 
@@ -52,11 +52,11 @@ in which case the team elapsed time spans the first release to the last finish,
 \label{eq:team_time}
 T_{\mathrm{team}}=\max_{i} T_i^{\mathrm{finish}}-\min_{i} T_i^{\mathrm{release}},
 \end{equation}
-and the penalized team score aggregates all penalties,
+and the penalized team score aggregates every per-rover penalty together with the team-level inter-vehicle term,
 \begin{equation}
 \label{eq:team_pen}
-T_{\mathrm{team}}^{\mathrm{pen}}=T_{\mathrm{team}}+P_{\mathrm{gate}}+P_{\mathrm{obstacle}}+P_{\mathrm{ivc}},
+T_{\mathrm{team}}^{\mathrm{pen}}=T_{\mathrm{team}}+\sum_{i\in\mathcal{P}} P_i+P_{\mathrm{ivc}},
 \end{equation}
-where $P_{\mathrm{ivc}}$ counts each inter-vehicle event once per pair, not once per rover. Fig.~\ref{fig:fleet_scoring} illustrates the aggregation.
+where $P_i$ is the per-rover penalty total of \eqref{eq:penalized} and $P_{\mathrm{ivc}}$ counts each inter-vehicle event once per pair, not once per rover. Fig.~\ref{fig:fleet_scoring} illustrates the aggregation.
 
 \input{figures/fleet_scoring}

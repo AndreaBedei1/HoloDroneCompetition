@@ -13,7 +13,7 @@ We specify \mra{} as an \emph{evaluation problem} rather than a controller-desig
 where:
 \begin{itemize}
  \item $\mathcal{W}$ is the \emph{world}: an axis-aligned bounds box $\mathcal{B}=[x_{\min},x_{\max}]\times[y_{\min},y_{\max}]\times[z_{\min},z_{\max}]\subset\mathbb{R}^3$ (with $z$ positive-up, so the navigable volume satisfies $z<0$) and the HoloOcean environment in which it is rendered;
- \item $\mathcal{G}=(g_1,\dots,g_M)$ is the \emph{ordered} gate sequence; each gate is the tuple $g_k=(c_k,\,n_k,\,\hat{r}_k,\,\hat{s}_k,\,w_k,\,h_k)$ of center $c_k\in\mathbb{R}^3$, unit normal $n_k$ (the passage direction), in-plane right and up unit axes $\hat{r}_k,\hat{s}_k$ and inner aperture width $w_k$ and height $h_k$;
+ \item $\mathcal{G}=(g_1,\dots,g_M)$ is the \emph{ordered} gate sequence; each gate is the tuple $g_k=(c_k,\,n_k,\,w_k,\,h_k)$ of center $c_k\in\mathbb{R}^3$, passage-direction vector $n_k\in\mathbb{R}^3$ (nonzero, not necessarily unit length) and inner aperture width $w_k$ and height $h_k$;
  \item $\mathcal{S}$ is the start configuration: a spawn pose and an optional release delay $\tau_i\!\ge\!0$ per participant;
  \item $\mathcal{F}$ is the finish condition: completion of the last gate of the last lap (Section~\ref{sec:referee});
  \item $\mathcal{C}$ is the current field $\mathbf{v}_c:\mathbb{R}^3\times\mathbb{R}_{\ge0}\to\mathbb{R}^3$ (Section~\ref{sec:configuration});

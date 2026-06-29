@@ -22,7 +22,7 @@ Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines
 
 \subsection{Acoustic Beacon Model}
 
-Each gate carries one beacon, placed at $b_k=c_k+\delta_n n_k+\delta_r \hat{r}_k+\delta_s \hat{s}_k$ relative to the gate center (default offset $(0,0,0.35)$\,m along the gate-up axis). For a receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_k-p_r$ and $\rho=\lVert\boldsymbol{\delta}\rVert$. The beacon reports range, a yaw-relative bearing, an elevation and a signal strength:
+Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of \eqref{eq:gate_frame}, with $\hat{n}$ the passage normal and $\hat{s}_g$ the gate-up axis. Each gate carries one beacon, placed at $b_g=c_g+\delta_n \hat{n}+\delta_r \hat{r}_g+\delta_s \hat{s}_g$ relative to the gate center $c_g$ (default offset $(0,0,0.35)$\,m along $\hat{s}_g$). For a receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_g-p_r$ and $\rho=\lVert\boldsymbol{\delta}\rVert$. The beacon reports range, a yaw-relative bearing, an elevation and a signal strength:
 \begin{align}
 \label{eq:beacon}
 \rho &= \lVert\boldsymbol{\delta}\rVert, &

@@ -30,7 +30,7 @@ Claimed and reproducible in this release:
   adapter for unit tests and plumbing.
 - `rule_gate_baseline`, a deterministic acoustic-beacon + front-camera controller.
 - Custom controller loading by alias, module, or file path.
-- Staggered multi-rover evaluation of one cooperative team (coordination and course-completion speed), aggregated into a single `team_summary`.
+- Staggered multi-rover evaluation of one cooperative team (course-completion speed and team-level scoring), aggregated into a single `team_summary`.
 - Inter-vehicle collision **diagnostics** with an optional penalty mode.
 
 Identified as open future work, **not** part of the v0.1 results: current
@@ -259,7 +259,7 @@ and stuck conditions accrue time penalties without terminating. The single-rover
 score is `penalized_time = official_time + penalties`; finished rovers rank by
 penalized time, unfinished rovers by progress.
 
-Fleet mode runs several rovers as a single cooperative team (not competitors); the goal is to coordinate and complete the course quickly, and there is one team only. Each rover keeps independent state; the official result is the
+Fleet mode runs several rovers as a single cooperative team (not competitors); the goal is to complete the course quickly as one team, and there is one team only. Each rover keeps independent state; the official result is the
 `team_summary` (total gates, total penalties, and elapsed time from first release
 to last finish). Inter-vehicle proximity is detected on the referee side
 (`off`/`diagnostic`/`penalize`); `diagnostic` is the default.
