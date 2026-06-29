@@ -2,25 +2,25 @@
 \centering
 \begin{tikzpicture}[
   font=\small,
-  node distance=8mm and 12mm,
-  state/.style={draw, rounded corners, align=center, minimum width=24mm, minimum height=8mm, fill=mralight},
-  terminal/.style={draw, align=center, minimum width=20mm, minimum height=7mm, fill=white, font=\scriptsize},
-  arrow/.style={-{Latex[length=2mm]}, thick}
+  state/.style={draw, rounded corners, align=center, minimum width=30mm, minimum height=9.5mm, fill=mralight},
+  terminal/.style={draw, align=center, minimum width=22mm, minimum height=9.5mm, fill=white, font=\scriptsize},
+  arrow/.style={-{Latex[length=2mm]}, thick},
+  lbl/.style={font=\scriptsize, fill=white, inner sep=1.5pt}
 ]
-\node[state] (wait) {\textsc{not\_started}\\\scriptsize waiting};
-\node[state, below=12mm of wait] (run) {\textsc{running}\\\scriptsize referee active};
+\node[state] (wait) {\textsc{not\_started}\\[-1pt]\scriptsize waiting};
+\node[state, below=14mm of wait] (run) {\textsc{running}\\[-1pt]\scriptsize referee active};
 
-\node[terminal, below=11mm of run] (finish) {\textsc{finished}};
-\node[terminal, left=of finish] (dnf) {\textsc{dnf}\\\scriptsize missed gate};
-\node[terminal, right=of finish] (timeout) {\textsc{timeout} /\\\textsc{stuck}};
+\node[terminal, below=16mm of run] (finish) {\textsc{finished}};
+\node[terminal, left=9mm of finish] (dnf) {\textsc{dnf}\\[-1pt]missed gate};
+\node[terminal, right=9mm of finish] (tout) {\textsc{timeout}\\[-1pt]or \textsc{stuck}};
 
-\draw[arrow] (wait) -- node[right, font=\scriptsize]{release at $\tau_i$} (run);
-\draw[arrow] (run) -- node[left, font=\scriptsize]{last gate} (finish);
-\draw[arrow] (run) -- (dnf);
-\draw[arrow] (run) -- (timeout);
+\draw[arrow] (wait) -- node[lbl, right]{release at $\tau_i$} (run);
+\draw[arrow] (run) -- node[lbl]{last gate} (finish);
+\draw[arrow] (run.south) -- node[lbl, pos=0.62]{missed gate} (dnf.north);
+\draw[arrow] (run.south) -- node[lbl, pos=0.62]{timed out} (tout.north);
 
-\node[align=left, font=\scriptsize, right=2mm of wait, text width=30mm]
-  {while waiting:\\ zero command;\\ no controller step;\\ no stuck timer};
+\node[align=left, font=\scriptsize, right=7mm of wait, text width=30mm]
+  {\emph{While waiting:} zero command, the controller is not stepped and no stuck timer accrues.};
 \end{tikzpicture}
 \caption{Participant lifecycle. A rover is released to \textsc{running} at its start delay $\tau_i$ (a single rover is the case $\tau_i=0$) and reaches a terminal state by finishing, missing a gate (\textsc{dnf}) or timing out.}
 \label{fig:lifecycle}
