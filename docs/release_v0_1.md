@@ -33,12 +33,15 @@ Marine Race Arena v0.1.0 is the first release candidate for a HoloOcean-based un
 - Official 1.5 m x 1.5 m gate openings in official tracks.
 - Configurable race JSON covering race metadata, world bounds, gates, beacon, currents, obstacles, participants, sensors, referee, penalties, and scoring.
 - `rule_gate_baseline` controller for official clean-gate evaluation.
+- `smooth_gate_baseline`, a second legal gate controller (a conservative, smoothness-oriented beacon variant) for algorithm comparison.
 - Custom controller interface and loader for built-in aliases, Python modules, `module:Class`, fully qualified classes, and file-path controllers.
 - Staggered fleet/team evaluation mode.
 - Team-level `team_summary` aggregation for multi-rover fleet runs.
+- `leader_follower` / `leader_follower_acoustic`, a leader–follower team-coordination controller over the optional inter-rover acoustic channel: it wraps a gate-passing baseline and adds progress-aware yielding so a staggered team stays a spaced convoy. It uses only the official observation, per-rover race state and the comms inbox, and degrades to the wrapped baseline when comms is off.
 - Referee-side inter-vehicle collision diagnostics.
 - Optional `inter_vehicle_collision_mode=penalize`, kept experimental until calibration is complete.
 - Inter-vehicle collision calibration script.
+- `run_algorithm_comparison`, a deterministic, engine-free comparison harness (single-rover controllers; coordinated vs uncoordinated fleet).
 
 ## Validation Commands
 
@@ -99,6 +102,43 @@ Latest local single-rover official clean Horseshoe validation:
 - Obstacle collisions: 0
 - Out-of-bounds events: 0
 - Stuck events: 0
+
+## Algorithm Comparison Snapshot (kinematic adapter)
+
+These results are produced by `run_algorithm_comparison` on the deterministic
+kinematic fallback adapter (so they are exactly reproducible without HoloOcean),
+on Horseshoe Bay, official mode, with the official gate apertures, referee rules
+and inter-vehicle thresholds unchanged. They demonstrate the benchmark comparing
+algorithms and the leader–follower coordination; they are not HoloOcean physics
+results.
+
+Single-rover controllers (both finish 12/12, no out-of-bounds or stuck events):
+
+| Controller | Official time (s) | Mean per-step command change |
+| --- | ---: | ---: |
+| `acoustic_baseline` | 120.1 | 0.0159 |
+| `smooth_gate_baseline` | 198.0 | 0.0035 |
+
+The conservative controller finishes the same gates roughly 1.6x slower but about
+4.5x smoother, so the two controllers differ in both timing and behaviour.
+
+Staggered heterogeneous team (a slower `smooth_gate_baseline` leader with faster
+`acoustic_baseline` followers), 8 s start gap, 1.5 m lateral spacing,
+inter-vehicle mode `penalize`. Every rover finishes in every condition:
+
+| Team size | Condition | Inter-vehicle events | Team penalized (s) |
+| ---: | --- | ---: | ---: |
+| 3 | no coordination | 2 | 216.1 |
+| 3 | leader–follower | 0 | 251.1 |
+| 4 | no coordination | 3 | 221.9 |
+| 4 | leader–follower | 0 | 274.1 |
+| 5 | no coordination | 4 | 226.8 |
+| 5 | leader–follower | 0 | 295.5 |
+
+Without coordination the faster followers overtake the slower leader and trip the
+inter-vehicle proximity detector; leader–follower coordination removes those
+events entirely (matching a single-rover run) while the whole team still finishes,
+at the cost of a longer team time because the followers pace behind the leader.
 
 ## Fleet Team Summary
 

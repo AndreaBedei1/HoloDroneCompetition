@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\caption{Fleet coordination on the deterministic kinematic substrate (Horseshoe Bay, official mode, inter-vehicle penalize mode). A staggered heterogeneous team (a slower \texttt{smooth\_gate\_baseline} leader with faster \texttt{acoustic\_baseline} followers) is run without coordination and with leader-follower coordination. Every rover finishes in every condition.}
+\label{tab:coordination}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{rlrr}
+\toprule
+Team & Condition & Inter-vehicle $\downarrow$ & Team penalized (s) \\
+\midrule
+\multirow{2}{*}{3} & no coordination & 2 & 216.1 \\
+ & leader-follower & \textbf{0} & 251.1 \\
+\midrule
+\multirow{2}{*}{4} & no coordination & 3 & 221.9 \\
+ & leader-follower & \textbf{0} & 274.1 \\
+\midrule
+\multirow{2}{*}{5} & no coordination & 4 & 226.8 \\
+ & leader-follower & \textbf{0} & 295.5 \\
+\bottomrule
+\end{tabular}
+\end{table}

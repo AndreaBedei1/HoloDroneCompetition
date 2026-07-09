@@ -122,4 +122,9 @@ which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^
 \label{fig:rule_baseline_state}
 \end{figure}
 
+\subsection{A Second Controller for Comparison}
+\label{sec:smooth_baseline}
+
+A benchmark is only useful if it can separate controllers that differ in behavior, so alongside the camera-assisted rule baseline the framework provides two beacon-only controllers and compares them. The first, \cmd{acoustic\_baseline}, is a fast deterministic controller that servos on the acoustic beacon alone through explicit approach, transit and exit phases and uses no camera. The second, \cmd{smooth\_gate\_baseline}, is a conservative re-tune of that controller at a deliberately different operating point: relative to \cmd{acoustic\_baseline} it uses a lower surge cap, a gentler brake into the gate, softer yaw gains, a longer exit settle, and tighter command smoothing and per-axis rate limits, and it commits to the transit phase from slightly farther out but within a tighter bearing window. Both are legal official-observation controllers, and servoing on the beacon alone, rather than the rule baseline's beacon-plus-camera fusion, also lets them run when no camera is available. The intended effect is that \cmd{smooth\_gate\_baseline} completes the same gates more slowly but with markedly lower-jerk motion, giving a distinct point in the time-versus-smoothness space that the benchmark can distinguish (Section~\ref{sec:evaluation}). Neither is proposed as a better racer; they exist to show that different legal algorithms yield different, measurable times and behavior under the same contract.
+
 

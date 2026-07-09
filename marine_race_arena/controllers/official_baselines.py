@@ -824,6 +824,140 @@ class VisionGateBaselineController(BaseController):
         )
 
 
+SMOOTH_PHASE_APPROACH = "APPROACH_GATE"
+SMOOTH_PHASE_TRANSIT = "TRANSIT_GATE"
+SMOOTH_PHASE_EXIT = "EXIT_GATE"
+
+
+class SmoothGateBaselineController(BaseController):
+    """Conservative, smoothness-oriented variation of the rule gate baseline.
+
+    It keeps the same legal inputs (acoustic beacon plus the derived heading and
+    depth sensors) and the same approach/transit/exit phase structure as the
+    official rule baseline, but deliberately trades speed for smoothness: a lower
+    cruise surge, an earlier and gentler brake into the gate, a wider transit
+    capture window, softer yaw gains, a longer settle on exit, and tighter command
+    smoothing and rate limits. The intended effect is a slower official time with
+    lower-overshoot, lower-jerk motion, so the benchmark can compare two legal
+    controllers that differ in timing and behaviour rather than only in code.
+
+    Fusion also differs from the rule baseline: this controller servos on the
+    beacon alone. It ignores the front camera, which makes it robust when no
+    camera is available (for example under the kinematic fallback adapter) while
+    remaining a legal official-observation controller. It never reads ground
+    truth, referee internals, or hidden gate geometry.
+    """
+
+    debug_only = False
+    uses_ground_truth = False
+
+    # Conservative command envelope; cf. the faster acoustic beacon baseline.
+    cruise_surge = 0.40
+    transit_surge = 0.44
+    exit_surge = 0.40
+    brake_range_m = 3.0  # begin easing off surge within this range of the gate
+    transit_range_m = 3.0  # commit to the transit phase inside this range
+    transit_bearing_deg = 55.0
+    exit_steps = 12
+
+    def reset(self, race_info: dict[str, Any]) -> None:
+        max_command = _clamp(_safe_float(race_info.get("max_command"), 0.85), 0.1, 1.0)
+        self.max_surge = min(max_command, 0.42)
+        self.max_sway = min(max_command, 0.26)
+        self.max_heave = min(max_command, 0.34)
+        self.max_yaw = min(max_command, 0.13)
+        self._last_command = _zero_command()
+        self._last_completed_gates = 0
+        self._phase = SMOOTH_PHASE_APPROACH
+        self._exit_steps_remaining = 0
+
+    @property
+    def phase(self) -> str:
+        return self._phase
+
+    def step(self, observation: dict[str, Any]) -> dict[str, float]:
+        beacon = _mapping(observation.get("beacon"))
+        sensors = _mapping(observation.get("sensors"))
+        race = _mapping(observation.get("race"))
+        self._update_phase(beacon, race)
+        target = self._target_command(beacon, sensors)
+        smoothed = _smooth_command(self._last_command, target, alpha=0.35)
+        command = _limit_command_delta(
+            self._last_command,
+            smoothed,
+            limits={"surge": 0.06, "sway": 0.04, "heave": 0.04, "yaw": 0.02},
+        )
+        command["yaw"] = _clamp(command["yaw"], -self.max_yaw, self.max_yaw)
+        self._last_command = command
+        return dict(command)
+
+    def close(self) -> None:
+        pass
+
+    def _update_phase(self, beacon: Mapping[str, Any], race: Mapping[str, Any]) -> None:
+        completed_gates = max(0, int(_safe_float(race.get("completed_gates"), self._last_completed_gates)))
+        if completed_gates > self._last_completed_gates:
+            self._phase = SMOOTH_PHASE_EXIT
+            self._exit_steps_remaining = self.exit_steps
+            self._last_completed_gates = completed_gates
+            return
+
+        if self._phase == SMOOTH_PHASE_EXIT:
+            self._exit_steps_remaining -= 1
+            if self._exit_steps_remaining > 0:
+                return
+            self._phase = SMOOTH_PHASE_APPROACH
+
+        if not bool(beacon.get("valid")):
+            self._phase = SMOOTH_PHASE_APPROACH
+            return
+
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        bearing_abs = abs(_safe_float(beacon.get("bearing_deg"), 0.0))
+        if range_m <= self.transit_range_m and bearing_abs <= self.transit_bearing_deg:
+            self._phase = SMOOTH_PHASE_TRANSIT
+        elif range_m >= self.transit_range_m + 0.8:
+            self._phase = SMOOTH_PHASE_APPROACH
+
+    def _target_command(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+    ) -> dict[str, float]:
+        if not bool(beacon.get("valid")):
+            return {"surge": 0.10, "sway": 0.0, "heave": 0.0, "yaw": 0.06}
+
+        bearing_deg = _clamp(_safe_float(beacon.get("bearing_deg"), 0.0), -120.0, 120.0)
+        elevation_deg = _clamp(_safe_float(beacon.get("elevation_deg"), 0.0), -45.0, 45.0)
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        bearing_rad = math.radians(bearing_deg)
+        centerline_elevation_deg = _centerline_elevation_deg(elevation_deg, range_m)
+        heave = _heave_command(centerline_elevation_deg, sensors, self.max_heave)
+
+        if self._phase == SMOOTH_PHASE_EXIT:
+            yaw = _yaw_command_from_bearing(bearing_deg, max_yaw=0.10, gain_deg=140.0, deadband_deg=8.0)
+            sway = _clamp(0.06 * math.sin(bearing_rad), -0.10, 0.10)
+            return {"surge": self.exit_surge, "sway": sway, "heave": heave, "yaw": yaw}
+
+        if self._phase == SMOOTH_PHASE_TRANSIT:
+            yaw = _yaw_command_from_bearing(bearing_deg, max_yaw=0.10, gain_deg=110.0, deadband_deg=4.0)
+            sway = _clamp(0.20 * math.sin(bearing_rad), -self.max_sway, self.max_sway)
+            surge = _clamp(self.transit_surge, -self.max_surge, self.max_surge)
+            return {"surge": surge, "sway": sway, "heave": heave, "yaw": yaw}
+
+        # APPROACH: conservative speed with a strong alignment slowdown and an
+        # early, gentle brake as the gate gets close.
+        alignment = _clamp(math.cos(bearing_rad), 0.40, 1.0)
+        range_factor = _clamp(range_m / 9.0, 0.0, 1.0)
+        speed = self.cruise_surge * alignment * (0.60 + 0.40 * range_factor)
+        if range_m <= self.brake_range_m:
+            speed *= _clamp(range_m / self.brake_range_m, 0.50, 1.0)
+        surge = _clamp(speed, 0.05, self.max_surge)
+        yaw = _yaw_command_from_bearing(bearing_deg, max_yaw=self.max_yaw, gain_deg=95.0, deadband_deg=3.0)
+        sway = _clamp(0.16 * math.sin(bearing_rad), -self.max_sway, self.max_sway)
+        return {"surge": surge, "sway": sway, "heave": heave, "yaw": yaw}
+
+
 @dataclass(frozen=True)
 class VisionTarget:
     center_x: float

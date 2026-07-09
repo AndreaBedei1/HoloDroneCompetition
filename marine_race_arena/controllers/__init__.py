@@ -2,10 +2,15 @@
 
 from marine_race_arena.controllers.acoustic_gate_follower import AcousticGateFollowerController
 from marine_race_arena.controllers.keyboard_manual import KeyboardManualController
+from marine_race_arena.controllers.leader_follower import (
+    LeaderFollowerAcousticController,
+    LeaderFollowerController,
+)
 from marine_race_arena.controllers.official_baselines import (
     AcousticBaselineController,
     AcousticVisionBaselineController,
     RuleGateBaselineController,
+    SmoothGateBaselineController,
     VisionGateBaselineController,
 )
 from marine_race_arena.controllers.oracle_gate_follower import OracleGateFollowerController
@@ -17,8 +22,11 @@ __all__ = [
     "AcousticBaselineController",
     "AcousticVisionBaselineController",
     "RuleGateBaselineController",
+    "SmoothGateBaselineController",
     "VisionGateBaselineController",
     "KeyboardManualController",
+    "LeaderFollowerController",
+    "LeaderFollowerAcousticController",
     "OracleGateFollowerController",
     "PygameManualController",
     "StudentController",

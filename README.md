@@ -29,9 +29,12 @@ Claimed and reproducible in this release:
 - HoloOcean BlueROV2 integration plus a simulator-independent kinematic fallback
   adapter for unit tests and plumbing.
 - `rule_gate_baseline`, a deterministic acoustic-beacon + front-camera controller.
+- `smooth_gate_baseline`, a second legal controller (a conservative, smoothness-oriented beacon variant) so the benchmark can compare controllers with different timing and behaviour.
 - Custom controller loading by alias, module, or file path.
 - Staggered multi-rover evaluation of one cooperative team (course-completion speed and team-level scoring), aggregated into a single `team_summary`.
+- `leader_follower`, an optional leader–follower team-coordination controller that uses the inter-rover acoustic channel to keep a staggered team collision-free while completing the same gate sequence.
 - Inter-vehicle collision **diagnostics** with an optional penalty mode.
+- A reproducible, engine-free `run_algorithm_comparison` harness that compares the two single-rover controllers and the coordinated vs uncoordinated fleet on the deterministic kinematic adapter.
 
 Identified as open future work, **not** part of the v0.1 results: current
 compensation.
@@ -225,9 +228,20 @@ link, and is off by default. Message content/handling is up to your controller;
 because payloads are authored by controllers, they carry only legally observable
 information (the channel never injects ground-truth state).
 
-Official controller alias: `rule_gate_baseline`. For inspection and data
-collection, the runner also supports manual `keyboard`/`manual` and `pygame`
-controllers.
+The built-in `leader_follower` controller is a worked example of this channel. It
+wraps any gate-passing controller (a beacon-only variant is available as
+`leader_follower_acoustic`) and adds a thin coordination layer: every rover
+broadcasts a tiny progress heartbeat, each rover identifies the teammate that
+started just ahead of it in the release order, and a follower yields (holds
+station) until that predecessor is at least two gates ahead before it advances.
+The first rover has no predecessor and so acts as the leader. It uses only the
+official observation, the per-rover race state and the comms inbox; with the
+channel disabled it degrades to running the wrapped controller unchanged.
+
+Official controller aliases: `rule_gate_baseline` and the second, conservative
+`smooth_gate_baseline`; `leader_follower` / `leader_follower_acoustic` add
+team coordination around a wrapped baseline. For inspection and data collection,
+the runner also supports manual `keyboard`/`manual` and `pygame` controllers.
 
 ---
 
@@ -311,7 +325,8 @@ docs/                  release notes
 - `marine_race_arena/participants/controller_interface.py` and `controller_loader.py` — the controller contract (`reset`/`step`/`close`) and dynamic loading by alias, module path or file path.
 - `marine_race_arena/referee/referee.py` — the independent referee (gate validation, penalties, scoring, ranking, team summary, inter-vehicle detection); `logger.py` writes the structured events and summaries.
 - `marine_race_arena/arena/acoustic_comms.py` — the optional inter-rover acoustic communication channel.
-- `marine_race_arena/scripts/run_benchmark.py`, `run_staggered_multi_rover_smoke.py`, `run_release_v0_1_checks.py` — multi-seed sweeps, the fleet smoke test and the v0.1 release checks.
+- `marine_race_arena/controllers/official_baselines.py`, `leader_follower.py` — the deterministic gate controllers (`rule_gate_baseline`, `smooth_gate_baseline`) and the leader–follower team-coordination controller.
+- `marine_race_arena/scripts/run_benchmark.py`, `run_staggered_multi_rover_smoke.py`, `run_algorithm_comparison.py`, `run_release_v0_1_checks.py` — multi-seed sweeps, the fleet smoke test, the controller/coordination comparison harness and the v0.1 release checks.
 
 ---
 
@@ -321,6 +336,16 @@ docs/                  release notes
 python -m compileall -q marine_race_arena tests run.py
 conda run -n ocean python -m pytest -q
 conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover_smoke
+```
+
+The controller/coordination comparison is deterministic (seeded) and needs no
+engine (it runs on the kinematic fallback adapter). It compares the two
+single-rover controllers and the coordinated vs uncoordinated fleet, and writes a
+JSON and a Markdown report:
+
+```bash
+python -m marine_race_arena.scripts.run_algorithm_comparison
+# -> results/benchmarks/algorithm_comparison/comparison.{json,md}
 ```
 
 The release-check helper prints or runs the standard checks:
@@ -347,6 +372,7 @@ conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_int
   `strong` profile (3/12 gates, 11.0 +/- 1.1 contacts). Designing a controller
   that rejects the current from the legal observation is left to future work.
 - The fallback adapter is kinematic, not a physical simulator.
+- The leader–follower coordination and the two-controller comparison are demonstrated on the kinematic adapter (seeded, so the reported numbers reproduce exactly); the single-rover HoloOcean results use `rule_gate_baseline`. Validating coordination under full HoloOcean physics is future work.
 - HoloOcean loading can be slow; use the manual `keyboard` or `pygame` controllers only for inspection and data collection.
 
 ---

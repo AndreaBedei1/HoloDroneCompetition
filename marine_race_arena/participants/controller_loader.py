@@ -38,6 +38,18 @@ class ControllerLoader:
             "marine_race_arena.controllers.official_baselines",
             "RuleGateBaselineController",
         ),
+        "smooth_gate_baseline": (
+            "marine_race_arena.controllers.official_baselines",
+            "SmoothGateBaselineController",
+        ),
+        "leader_follower": (
+            "marine_race_arena.controllers.leader_follower",
+            "LeaderFollowerController",
+        ),
+        "leader_follower_acoustic": (
+            "marine_race_arena.controllers.leader_follower",
+            "LeaderFollowerAcousticController",
+        ),
         "vision_gate_baseline": (
             "marine_race_arena.controllers.official_baselines",
             "VisionGateBaselineController",
