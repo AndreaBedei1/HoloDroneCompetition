@@ -372,7 +372,7 @@ conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_int
   `strong` profile (3/12 gates, 11.0 +/- 1.1 contacts). Designing a controller
   that rejects the current from the legal observation is left to future work.
 - The fallback adapter is kinematic, not a physical simulator.
-- The leader–follower coordination and the two-controller comparison are demonstrated on the kinematic adapter (seeded, so the reported numbers reproduce exactly); the single-rover HoloOcean results use `rule_gate_baseline`. Validating coordination under full HoloOcean physics is future work.
+- The two-controller comparison and the 3/4/5-rover coordination sweep run on the seeded kinematic adapter (reproducible); the coordination is additionally validated in HoloOcean on the clean Horseshoe Bay track (3 rovers, no currents/obstacles, two start gaps, three seeds), where all six coordinated runs finish with zero inter-vehicle events and zero collisions while uncoordinated runs incur many collisions and sometimes fail to finish. Broader HoloOcean coordination validation (other tracks, currents, obstacles, larger fleets) is future work.
 - HoloOcean loading can be slow; use the manual `keyboard` or `pygame` controllers only for inspection and data collection.
 
 ---

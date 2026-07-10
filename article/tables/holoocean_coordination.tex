@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{HoloOcean diagnostic validation of coordination on the clean Horseshoe Bay track (three rovers, official mode, no currents or obstacles, diagnostic inter-vehicle mode, no parameter tuning). The team is a \texttt{smooth\_gate\_baseline} leader with \texttt{acoustic\_baseline} followers. Each row aggregates three seeds and ranges span them. Finished is the number of seeds (of three) in which every rover completed the course; IV counts inter-vehicle proximity events; collisions are gate/world contacts; no run recorded out-of-bounds or stuck events.}
+\label{tab:holoocean_coordination}
+\footnotesize
+\setlength{\tabcolsep}{4.5pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{rlccrr}
+\toprule
+Gap (s) & Condition & Finished & IV $\downarrow$ & Coll. $\downarrow$ & Penalized (s) $\downarrow$ \\
+\midrule
+\multirow{2}{*}{8.0} & no coordination & 1/3 & 2 & 21--531 & 222.8$^\dagger$ \\
+ & leader-follower & \textbf{3/3} & \textbf{0} & \textbf{0} & 130.7--131.3 \\
+\midrule
+\multirow{2}{*}{0.0} & no coordination & 3/3 & 1 & 28--60 & 244.4--404.3 \\
+ & leader-follower & \textbf{3/3} & \textbf{0} & \textbf{0} & 130.7--130.8 \\
+\bottomrule
+\end{tabular}
+\par\vspace{0.6mm}
+\footnotesize $^\dagger$ Over the one finished seed; the other two left the leader unfinished at $4/12$ gates.
+\end{table}

@@ -140,6 +140,34 @@ inter-vehicle proximity detector; leader–follower coordination removes those
 events entirely (matching a single-rover run) while the whole team still finishes,
 at the cost of a longer team time because the followers pace behind the leader.
 
+## HoloOcean Coordination Validation (diagnostic)
+
+A minimal HoloOcean validation (real `holoocean` adapter, fallback disabled,
+official mode, clean Horseshoe Bay, no currents or obstacles, 3 rovers, diagnostic
+inter-vehicle mode, no parameter tuning) confirms the coordination under real
+contact physics. Team: a `smooth_gate_baseline` leader with `acoustic_baseline`
+followers; start gaps 8.0 s and 0.0 s; seeds 0, 1, 2.
+
+Across all six leader–follower runs every rover finished (36/36 team gates) with
+zero inter-vehicle events, zero gate/world collisions, and no out-of-bounds or
+stuck events, at a penalized time of 130.7–131.3 s. Ranges below span the three
+seeds:
+
+| Gap (s) | Condition | Seeds finished | Inter-vehicle | Collisions | Penalized (s) |
+| ---: | --- | :--: | ---: | ---: | ---: |
+| 8.0 | no coordination | 1/3 | 2 | 21–531 | 222.8 (1 seed) |
+| 8.0 | leader–follower | 3/3 | 0 | 0 | 130.7–131.3 |
+| 0.0 | no coordination | 3/3 | 1 | 28–60 | 244.4–404.3 |
+| 0.0 | leader–follower | 3/3 | 0 | 0 | 130.7–130.8 |
+
+In two of the six uncoordinated runs (gap 8.0 s, seeds 0 and 2) the leader never
+finished, left at 4/12 gates with ~524 collisions. Under contact physics the
+crowding that the kinematic substrate flags as harmless proximity becomes costly
+collisions and outright failures, so here coordination is a net win on penalized
+time and finish reliability, not a throughput cost. This is a diagnostic
+validation only (one clean track, 3 rovers, two start gaps, three seeds); broader
+HoloOcean coordination validation is future work.
+
 ## Fleet Team Summary
 
 Fleet mode is not a race between independent teams. All generated rovers belong to one participant/team. Per-rover rows remain available for diagnostics, but the official fleet-level score is `team_summary`.
