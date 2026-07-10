@@ -2,11 +2,11 @@
 
 Marine Race Arena is a HoloOcean-based underwater gate-racing benchmark for
 BlueROV2-class vehicles. A race — world bounds, ordered gates, currents,
-obstacles, participants, sensors, and referee rules — is described declaratively,
+obstacles, participants, sensors and referee rules — is described declaratively,
 and a controller is plugged in by implementing three methods. The autonomy stack
 is kept strictly separate from the evaluation: a controller observes only a
 documented **official observation**, while an independent referee uses privileged
-state to validate gate crossings, collisions, timeouts, ranking, and team scoring.
+state to validate gate crossings, collisions, timeouts, ranking and team scoring.
 
 The whole simulation is launched from a **single configuration file**:
 
@@ -15,10 +15,8 @@ python run.py                 # uses ./config.json
 python run.py configs/fleet.json
 ```
 
-A companion paper describing the architecture, evaluation, and results lives in
+A companion paper describing the architecture, evaluation and results lives in
 [`article/`](article/) (`article/main.pdf`).
-
----
 
 ## 1. v0.1 scope
 
@@ -26,20 +24,19 @@ Claimed and reproducible in this release:
 
 - Official single-rover clean-gate benchmark on three official tracks
   (1.5 m × 1.5 m gate apertures).
-- HoloOcean BlueROV2 integration plus a simulator-independent kinematic fallback
-  adapter for unit tests and plumbing.
+- HoloOcean BlueROV2 integration plus a simulator-independent deterministic
+  kinematic adapter for fallback execution, unit tests and plumbing.
 - `rule_gate_baseline`, a deterministic acoustic-beacon + front-camera controller.
-- `smooth_gate_baseline`, a second legal controller (a conservative, smoothness-oriented beacon variant) so the benchmark can compare controllers with different timing and behaviour.
-- Custom controller loading by alias, module, or file path.
+- `smooth_gate_baseline`, a second legal controller (a conservative, smoothness-oriented beacon variant) so the benchmark can compare controllers with different timing and behavior.
+- Custom controller loading by alias, module or file path.
 - Staggered multi-rover evaluation of one cooperative team (course-completion speed and team-level scoring), aggregated into a single `team_summary`.
-- `leader_follower`, an optional leader–follower team-coordination controller that uses the inter-rover acoustic channel to keep a staggered team collision-free while completing the same gate sequence.
-- Inter-vehicle collision **diagnostics** with an optional penalty mode.
-- A reproducible, engine-free `run_algorithm_comparison` harness that compares the two single-rover controllers and the coordinated vs uncoordinated fleet on the deterministic kinematic adapter.
+- `leader_follower`, an optional leader–follower team-coordination controller that uses the inter-rover acoustic channel to keep a staggered team free of inter-vehicle proximity events while completing the same gate sequence.
+- Inter-vehicle proximity **diagnostics** with an optional penalty mode.
+- A reproducible, engine-free `run_algorithm_comparison` harness that compares the two single-rover controllers and fleet operation with and without coordination on the deterministic kinematic substrate.
+- HoloOcean diagnostic validation of coordination on clean Horseshoe Bay with three rovers, no currents or obstacles, two start gaps and three seeds.
 
-Identified as open future work, **not** part of the v0.1 results: current
-compensation.
-
----
+Current compensation remains open future work and is **not** part of the v0.1
+results.
 
 ## 2. Installation
 
@@ -61,12 +58,10 @@ python -c "import holoocean; holoocean.install('Ocean')"
 python -c "import holoocean; print(holoocean.installed_packages())"   # expect ['Ocean']
 ```
 
-Run all commands from the repository root. The kinematic fallback adapter has no
-HoloOcean dependency, so the unit tests and config plumbing run without the
-engine (set `adapter: fallback`); only real HoloOcean runs need step 3. Building
-the paper additionally needs a LaTeX toolchain (see Section 12).
-
----
+Run all commands from the repository root. The deterministic kinematic adapter
+has no HoloOcean dependency, so the unit tests and config plumbing run without
+the engine (set `adapter: fallback`). Only real HoloOcean runs need step 3.
+Building the paper additionally needs a LaTeX toolchain (see Section 12).
 
 ## 3. Quick start
 
@@ -82,11 +77,9 @@ python run.py configs/fleet.json
 python run.py configs/benchmark.json
 ```
 
-`run.py` reads one JSON config, selects a scenario, and dispatches to the
+`run.py` reads one JSON config, selects a scenario and dispatches to the
 appropriate runner. When the configured `adapter` is `holoocean`, a default
 `python run.py` launches the real simulator run.
-
----
 
 ## 4. Configuration file
 
@@ -161,11 +154,9 @@ Per-track physics and geometry remain in the track JSON under
 `marine_race_arena/tracks/`. The run-level configuration above only selects which
 track to run and how. Track JSON sections: `race`, `world`, `start`/`finish`,
 `track`/`gates`, `beacon`, `currents`/`current_profiles`,
-`obstacle_generation`/`obstacles`, `participants` (incl. `start_delay_s`), and
+`obstacle_generation`/`obstacles`, `participants` (incl. `start_delay_s`) and
 `referee` (gate validation, penalties, scoring). `create_best_tracks.py`
 regenerates the three official tracks and is kept for provenance.
-
----
 
 ## 5. Writing a controller
 
@@ -208,32 +199,32 @@ Load it from the config without touching the package:
 | `yaw` | yaw-rate command |
 
 **Observation** (`step` argument): a dict with `time_s`, `participant_id`,
-`sensors`, `beacon`, and `race`. The `sensors` dict follows the participant
+`sensors`, `beacon` and `race`. The `sensors` dict follows the participant
 profile (front camera, depth, IMU, DVL/velocity, collision, derived heading and
 depth). The `beacon` dict carries `valid`, `target_gate_id`, `bearing_deg`,
-`elevation_deg`, `range_m`, `signal_strength`, and `mode`. The `race` dict carries
-`status`, `lap`, `completed_gates`, `target_gate_id`, `target_sequence_index`, and
+`elevation_deg`, `range_m`, `signal_strength` and `mode`. The `race` dict carries
+`status`, `lap`, `completed_gates`, `target_gate_id`, `target_sequence_index` and
 `official_time_started`. In official mode, ground-truth pose/location/rotation
-sensors are filtered out, and the true environment current vector
+sensors are filtered out and the true environment current vector
 (`environment_current_m_s`) is stripped from the observation entirely (it is
 available only as non-official diagnostic telemetry). A controller must infer
 current effects from onboard sensing (e.g. the DVL/velocity residual).
 
 When the optional inter-rover acoustic channel is enabled (`fleet.comms`), a
 controller may broadcast by returning a small `"message"` payload alongside its
-command, and receives an `observation["comms"]["inbox"]` of teammates' messages.
+command and receives an `observation["comms"]["inbox"]` of teammates' messages.
 The channel models the underwater acoustic medium (range-dependent latency,
 limited range, packet loss, tiny payloads, half-duplex rate limit), not a perfect
-link, and is off by default. Message content/handling is up to your controller;
+link and is off by default. Message content/handling is up to your controller;
 because payloads are authored by controllers, they carry only legally observable
 information (the channel never injects ground-truth state).
 
 The built-in `leader_follower` controller is a worked example of this channel. It
 wraps any gate-passing controller (a beacon-only variant is available as
-`leader_follower_acoustic`) and adds a thin coordination layer: every rover
-broadcasts a tiny progress heartbeat, each rover identifies the teammate that
-started just ahead of it in the release order, and a follower yields (holds
-station) until that predecessor is at least two gates ahead before it advances.
+`leader_follower_acoustic`) and adds a thin coordination layer. Every rover
+broadcasts a small progress heartbeat and identifies the teammate that started
+just ahead of it in the release order. A follower yields (holds station) until
+that predecessor is at least two gates ahead.
 The first rover has no predecessor and so acts as the leader. It uses only the
 official observation, the per-rover race state and the comms inbox; with the
 channel disabled it degrades to running the wrapped controller unchanged.
@@ -242,8 +233,6 @@ Official controller aliases: `rule_gate_baseline` and the second, conservative
 `smooth_gate_baseline`; `leader_follower` / `leader_follower_acoustic` add
 team coordination around a wrapped baseline. For inspection and data collection,
 the runner also supports manual `keyboard`/`manual` and `pygame` controllers.
-
----
 
 ## 6. Official tracks
 
@@ -260,39 +249,35 @@ Run another track by editing `"track"` in the config (set `duration_s` to roughl
 `560` / `900` / `1300` for the three tracks). Mixed Endurance also defines
 `medium`/`strong` current profiles, but current robustness is experimental in v0.1.
 
----
-
 ## 7. Referee and scoring
 
 The referee uses privileged simulator state and is independent of the controller.
 A gate crossing is valid when the segment between consecutive positions crosses
 the gate plane in the direction of the normal and the intersection lies inside the
 aperture (shrunk by a safety margin). Gates must be passed in sequence; crossing a
-non-target gate is a missed-gate event (DNF by default). Collisions, out-of-bounds,
-and stuck conditions accrue time penalties without terminating. The single-rover
-score is `penalized_time = official_time + penalties`; finished rovers rank by
-penalized time, unfinished rovers by progress.
+non-target gate is a missed-gate event (DNF by default). Gate/world collisions,
+out-of-bounds and stuck conditions accrue time penalties without terminating. The
+single-rover score is `penalized_time = official_time + penalties`; finished
+rovers rank by penalized time, unfinished rovers by progress.
 
-Fleet mode runs several rovers as a single cooperative team (not competitors); the goal is to complete the course quickly as one team, and there is one team only. Each rover keeps independent state; the official result is the
-`team_summary` (total gates, total penalties, and elapsed time from first release
-to last finish). Inter-vehicle proximity is detected on the referee side
+Fleet mode runs several rovers as one cooperative team, not as competitors. The
+goal is to complete the course quickly as a team. Each rover keeps independent
+state; the official result is the `team_summary` (total gates, total penalties
+and elapsed time from first release to last finish). Inter-vehicle proximity
+events are detected on the referee side
 (`off`/`diagnostic`/`penalize`); `diagnostic` is the default.
-
----
 
 ## 8. Outputs
 
 Each run writes to the configured `log_dir`:
 
-- `*_summary.json` — per-rover summaries, ranking, and `team_summary` in fleet mode.
+- `*_summary.json` — per-rover summaries, ranking and `team_summary` in fleet mode.
 - `*.jsonl` — one structured event per line (`gate_passed`, `collision`,
   `out_of_bounds`, `stuck`, `race_finish`, `dnf`, `inter_vehicle_collision`, …).
 - Benchmark and smoke runners additionally write CSV/markdown aggregates.
 
-`results/`, `diagnostics/`, logs, and recordings are git-ignored; do not commit
+`results/`, `diagnostics/`, logs and recordings are git-ignored; do not commit
 generated artifacts.
-
----
 
 ## 9. Project layout
 
@@ -321,14 +306,12 @@ docs/                  release notes
 - `marine_race_arena/config/loader.py` — parses and validates a track JSON into a typed configuration.
 - `marine_race_arena/arena/arena_builder.py` — instantiates gates, beacons, the current field, obstacles and bounds.
 - `marine_race_arena/scripts/run_marine_race.py` — the race runner: the discrete-time control loop that ticks the adapter, builds the official observation and calls the controller.
-- `marine_race_arena/adapters/holoocean_adapter.py` — HoloOcean adapter (reset, actions, ticking, sensor extraction); `fallback_adapter.py` is the kinematic, engine-free implementation of the same interface.
+- `marine_race_arena/adapters/holoocean_adapter.py` — HoloOcean adapter (reset, actions, ticking, sensor extraction); `fallback_adapter.py` is the deterministic kinematic, engine-free implementation of the same interface.
 - `marine_race_arena/participants/controller_interface.py` and `controller_loader.py` — the controller contract (`reset`/`step`/`close`) and dynamic loading by alias, module path or file path.
-- `marine_race_arena/referee/referee.py` — the independent referee (gate validation, penalties, scoring, ranking, team summary, inter-vehicle detection); `logger.py` writes the structured events and summaries.
+- `marine_race_arena/referee/referee.py` — the independent referee (gate validation, penalties, scoring, ranking, team summary and inter-vehicle proximity detection); `logger.py` writes the structured events and summaries.
 - `marine_race_arena/arena/acoustic_comms.py` — the optional inter-rover acoustic communication channel.
 - `marine_race_arena/controllers/official_baselines.py`, `leader_follower.py` — the deterministic gate controllers (`rule_gate_baseline`, `smooth_gate_baseline`) and the leader–follower team-coordination controller.
 - `marine_race_arena/scripts/run_benchmark.py`, `run_staggered_multi_rover_smoke.py`, `run_algorithm_comparison.py`, `run_release_v0_1_checks.py` — multi-seed sweeps, the fleet smoke test, the controller/coordination comparison harness and the v0.1 release checks.
-
----
 
 ## 10. Tests and release checks
 
@@ -339,9 +322,9 @@ conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover
 ```
 
 The controller/coordination comparison is deterministic (seeded) and needs no
-engine (it runs on the kinematic fallback adapter). It compares the two
-single-rover controllers and the coordinated vs uncoordinated fleet, and writes a
-JSON and a Markdown report:
+engine because it runs on the deterministic kinematic substrate. It compares the
+two single-rover controllers and fleet operation with and without coordination.
+It writes a JSON and a Markdown report:
 
 ```bash
 python -m marine_race_arena.scripts.run_algorithm_comparison
@@ -355,32 +338,36 @@ python -m marine_race_arena.scripts.run_release_v0_1_checks        # print
 python -m marine_race_arena.scripts.run_release_v0_1_checks --run  # execute
 ```
 
-The inter-vehicle collision calibration tool now lives under the diagnostics
+The inter-vehicle proximity calibration tool now lives under the diagnostics
 subpackage:
 
 ```bash
 conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_inter_vehicle_collision_threshold --quick
 ```
 
----
-
 ## 11. Known limitations
 
 - Current compensation is an open problem. Over five HoloOcean seeds on
   Horseshoe Bay, the rule baseline finishes the `medium` profile in only 3/5
-  seeds (10.8 +/- 1.5 gates, 82.6 +/- 74.1 contacts) and never finishes the
-  `strong` profile (3/12 gates, 11.0 +/- 1.1 contacts). Designing a controller
-  that rejects the current from the legal observation is left to future work.
-- The fallback adapter is kinematic, not a physical simulator.
-- The two-controller comparison and the 3/4/5-rover coordination sweep run on the seeded kinematic adapter (reproducible); the coordination is additionally validated in HoloOcean on the clean Horseshoe Bay track (3 rovers, no currents/obstacles, two start gaps, three seeds), where all six coordinated runs finish with zero inter-vehicle events and zero collisions while uncoordinated runs incur many collisions and sometimes fail to finish. Broader HoloOcean coordination validation (other tracks, currents, obstacles, larger fleets) is future work.
+  seeds (10.8 ± 1.5 gates, 82.6 ± 74.1 gate/world collisions) and never finishes
+  the `strong` profile (3/12 gates, 11.0 ± 1.1 gate/world collisions). Designing
+  a controller that rejects the current from the legal observation is left to
+  future work.
+- The deterministic kinematic adapter is not a physical simulator.
+- The two-controller comparison and the 3/4/5-rover coordination sweep run on
+  the deterministic kinematic substrate. HoloOcean diagnostic validation covers
+  only clean Horseshoe Bay with three rovers, no currents or obstacles, two start
+  gaps and three seeds. All six coordinated runs finish with no inter-vehicle
+  proximity events or gate/world collisions. Runs without coordination incur many
+  gate/world collisions and sometimes fail to finish. Extending HoloOcean
+  diagnostic validation to other tracks, currents, obstacles and larger fleets
+  remains future work.
 - HoloOcean loading can be slow; use the manual `keyboard` or `pygame` controllers only for inspection and data collection.
-
----
 
 ## 12. Paper
 
 The architecture, evaluation protocol, gate-validation and scoring formalism,
-fleet aggregation, and results are described in the paper under
+fleet aggregation and results are described in the paper under
 [`article/`](article/). Build it with:
 
 ```bash

@@ -5,7 +5,7 @@ This section describes the simulation backend, the vehicle and its sensors, the 
 
 \subsection{Simulator and Vehicle}
 
-The reference adapter uses HoloOcean~\cite{potokar2022holoocean}, an Unreal-Engine underwater simulator, with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second; the benchmark runs a control loop at timestep $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz. The adapter is intentionally replaceable: a pure-kinematic fallback adapter implements the same interface for unit and plumbing tests, integrating a damped point-vehicle model (maximum linear speed $1.25$\,m/s, maximum yaw rate $65^\circ$/s) and adding the current as a world-frame velocity, so that referee, scoring and fleet logic can be tested deterministically without the engine.
+The reference adapter uses HoloOcean~\cite{potokar2022holoocean}, an Unreal-Engine underwater simulator, with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz. The adapter is replaceable. Its fallback option is a deterministic kinematic adapter that implements the same interface for unit and plumbing tests. It integrates a damped point-vehicle model (maximum linear speed $1.25$\,m/s, maximum yaw rate $65^\circ$/s) and adds the current as a world-frame velocity. This lets the referee, scoring and fleet logic be tested deterministically without the engine.
 
 A high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$ is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters receive
 \begin{equation}
@@ -50,7 +50,7 @@ with $d=\lVert p-c_j\rVert$ and $\sigma=\max(R_j/2,10^{-6})$ and zero outside $R
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. The current physically perturbs the vehicle when the HoloOcean build exposes ocean-current coupling; otherwise the field is exposed as telemetry only and the fallback adapter always couples it kinematically.
+The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. The current physically perturbs the vehicle when the HoloOcean build exposes ocean-current coupling; otherwise the field is exposed as telemetry only and the deterministic kinematic adapter always couples it.
 
 \subsection{Declarative Track Configuration}
 
