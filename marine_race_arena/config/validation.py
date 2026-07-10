@@ -71,6 +71,7 @@ BUILT_IN_CONTROLLERS = {
     "acoustic_baseline",
     "acoustic_vision_baseline",
     "rule_gate_baseline",
+    "rule_gate_center_then_commit",
     "vision_gate_baseline",
     "keyboard",
     "manual",

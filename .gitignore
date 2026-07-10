@@ -29,6 +29,9 @@ article/*.log
 article/*.synctex.gz
 article/_pdf_pages/
 
+# Local generated deliverables (do not publish).
+output/
+
 # Environment variable files
 .env
 .env.*

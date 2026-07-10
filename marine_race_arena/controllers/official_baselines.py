@@ -323,6 +323,137 @@ class RuleGateBaselineController(BaseController):
         return (target_id, target_index)
 
 
+class RuleGateCenterThenCommitController(RuleGateBaselineController):
+    """Rule baseline with a distinct center-then-commit gate passage.
+
+    The approach uses the same official beacon, camera and depth observations,
+    command caps and smoothing as :class:`RuleGateBaselineController`. Once the
+    gate remains centered for several frames at close range, the controller
+    stops chasing image-center changes and commits through the aperture using
+    depth hold and a small acoustic-heading correction.
+    """
+
+    commit_range_m = 3.0
+    commit_center_x_threshold = 0.10
+    commit_center_y_threshold = 0.24
+    commit_bearing_threshold_deg = 18.0
+    commit_confidence_threshold = 0.45
+    commit_required_frames = 4
+    commit_timeout_steps = 300
+
+    def reset(self, race_info: dict[str, Any]) -> None:
+        super().reset(race_info)
+        self._centered_frames = 0
+        self._commit_steps_remaining = 0
+        self._committed_target_key: tuple[Any, Any] | None = None
+        self._current_target_key: tuple[Any, Any] | None = None
+        self._commit_depth_m: float | None = None
+        self._commit_area_fraction = 0.0
+
+    @property
+    def commit_active(self) -> bool:
+        return self._commit_steps_remaining > 0
+
+    def step(self, observation: dict[str, Any]) -> dict[str, float]:
+        beacon = _mapping(observation.get("beacon"))
+        race = _mapping(observation.get("race"))
+        self._current_target_key = self._target_key(beacon, race)
+        completed_gates = max(0, int(_safe_float(race.get("completed_gates"), self._last_completed_gates)))
+        if completed_gates > self._last_completed_gates:
+            self._clear_commit()
+        elif self.commit_active and self._current_target_key != self._committed_target_key:
+            self._clear_commit()
+
+        command = super().step(observation)
+        if self.commit_active:
+            self._commit_steps_remaining -= 1
+            if self._commit_steps_remaining <= 0:
+                self._clear_commit()
+        return command
+
+    def _beacon_fallback(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+        has_visual_target: bool,
+    ) -> dict[str, float]:
+        if self.commit_active:
+            return self._commit_command(beacon, sensors, visual_target=None)
+        return super()._beacon_fallback(beacon, sensors, has_visual_target)
+
+    def _visual_gate_command(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+        target: "VisionTarget",
+        fallback: Mapping[str, float],
+    ) -> dict[str, float]:
+        if self.commit_active:
+            return self._commit_command(beacon, sensors, visual_target=target)
+
+        visual_command = super()._visual_gate_command(beacon, sensors, target, fallback)
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        bearing_deg = abs(_safe_float(beacon.get("bearing_deg"), 0.0))
+        centered = (
+            range_m <= self.commit_range_m
+            and bearing_deg <= self.commit_bearing_threshold_deg
+            and abs(target.center_x) <= self.commit_center_x_threshold
+            and abs(target.center_y) <= self.commit_center_y_threshold
+            and target.confidence >= self.commit_confidence_threshold
+        )
+        self._centered_frames = self._centered_frames + 1 if centered else 0
+        if self._centered_frames < self.commit_required_frames:
+            return visual_command
+
+        self._commit_steps_remaining = self.commit_timeout_steps
+        self._committed_target_key = self._current_target_key
+        self._commit_depth_m = self._current_depth_m(sensors)
+        self._commit_area_fraction = target.area_fraction
+        LOGGER.info(
+            "Center-then-commit locked target %s at range %.2f m.",
+            self._committed_target_key,
+            range_m,
+        )
+        return self._commit_command(beacon, sensors, visual_target=target)
+
+    def _commit_command(
+        self,
+        beacon: Mapping[str, Any],
+        sensors: Mapping[str, Any],
+        visual_target: "VisionTarget | None",
+    ) -> dict[str, float]:
+        range_m = max(0.0, _safe_float(beacon.get("range_m"), 0.0))
+        if visual_target is not None:
+            self._commit_area_fraction = visual_target.area_fraction
+        surge = 0.24 + 0.08 * _clamp(self._commit_area_fraction / 0.12, 0.0, 1.0)
+        if range_m <= 2.5:
+            surge = min(surge, 0.22)
+        elif range_m <= 5.0:
+            surge = min(surge, 0.28)
+
+        yaw = 0.0
+        if bool(beacon.get("valid")):
+            yaw = self._yaw_command_for_bearing(
+                _safe_float(beacon.get("bearing_deg"), 0.0),
+                max_yaw=min(self.max_yaw, 0.04),
+                gain_deg=260.0,
+                deadband_deg=8.0,
+            )
+        return {
+            "surge": _clamp(surge, 0.0, self.max_surge),
+            "sway": 0.0,
+            "heave": self._depth_hold_heave(sensors, target_depth_m=self._commit_depth_m),
+            "yaw": yaw,
+        }
+
+    def _clear_commit(self) -> None:
+        self._centered_frames = 0
+        self._commit_steps_remaining = 0
+        self._committed_target_key = None
+        self._commit_depth_m = None
+        self._commit_area_fraction = 0.0
+
+
 class AcousticBaselineController(BaseController):
     """Deterministic beacon-only baseline using official observation fields."""
 

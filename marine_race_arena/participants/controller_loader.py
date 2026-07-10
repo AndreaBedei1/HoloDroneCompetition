@@ -38,6 +38,10 @@ class ControllerLoader:
             "marine_race_arena.controllers.official_baselines",
             "RuleGateBaselineController",
         ),
+        "rule_gate_center_then_commit": (
+            "marine_race_arena.controllers.official_baselines",
+            "RuleGateCenterThenCommitController",
+        ),
         "smooth_gate_baseline": (
             "marine_race_arena.controllers.official_baselines",
             "SmoothGateBaselineController",

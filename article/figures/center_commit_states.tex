@@ -1,0 +1,22 @@
+\begin{figure}[t]
+\centering
+\scriptsize
+\begin{tikzpicture}[
+  node distance=0.62cm,
+  state/.style={draw, rounded corners=2pt, fill=mralight, align=center,
+    minimum width=2.35cm, minimum height=0.55cm, inner sep=2.5pt},
+  arrow/.style={-Latex, thick},
+  lbl/.style={font=\tiny, fill=white, inner sep=1.2pt}
+]
+\node[state] (center) {Visual centering};
+\node[state, below=of center] (commit) {Commit passage};
+\node[state, below=of commit] (exit) {Exit hold};
+
+\draw[arrow] (center) -- node[lbl, right] {four centered frames} (commit);
+\draw[arrow] (commit) -- node[lbl, right] {valid crossing} (exit);
+\draw[arrow] (commit.west) -- ++(-0.75,0)
+  |- node[lbl, pos=0.48] {300-step timeout} (center.west);
+\end{tikzpicture}
+\caption{Center-then-commit gate passage and timeout recovery.}
+\label{fig:center_commit_states}
+\end{figure}

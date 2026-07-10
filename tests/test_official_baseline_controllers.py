@@ -13,6 +13,7 @@ from marine_race_arena.controllers.official_baselines import (
     PHASE_EXIT_GATE,
     PHASE_TRANSIT_GATE,
     RuleGateBaselineController,
+    RuleGateCenterThenCommitController,
     VISION_PHASE_ACOUSTIC_APPROACH,
     VISION_PHASE_EXIT_GATE,
     VISION_PHASE_TURN_TO_BEACON,
@@ -35,6 +36,7 @@ TRACK_DIR = Path(__file__).resolve().parents[1] / "marine_race_arena" / "tracks"
         ("acoustic_baseline", AcousticBaselineController),
         ("acoustic_vision_baseline", AcousticVisionBaselineController),
         ("rule_gate_baseline", RuleGateBaselineController),
+        ("rule_gate_center_then_commit", RuleGateCenterThenCommitController),
         ("vision_gate_baseline", VisionGateBaselineController),
     ],
 )
@@ -51,7 +53,13 @@ def test_official_baseline_aliases_load_and_are_not_ground_truth(
 
 @pytest.mark.parametrize(
     "alias",
-    ["acoustic_baseline", "acoustic_vision_baseline", "rule_gate_baseline", "vision_gate_baseline"],
+    [
+        "acoustic_baseline",
+        "acoustic_vision_baseline",
+        "rule_gate_baseline",
+        "rule_gate_center_then_commit",
+        "vision_gate_baseline",
+    ],
 )
 def test_official_mode_accepts_reproducible_baselines(alias: str) -> None:
     config = load_track_config(TRACK_DIR / "marine_race_horseshoe_bay.json")
@@ -74,6 +82,7 @@ def test_official_mode_accepts_reproducible_baselines(alias: str) -> None:
         AcousticBaselineController(),
         AcousticVisionBaselineController(),
         RuleGateBaselineController(),
+        RuleGateCenterThenCommitController(),
         VisionGateBaselineController(),
     ],
 )
@@ -93,6 +102,7 @@ def test_official_baselines_return_valid_commands_for_synthetic_observation(cont
         AcousticBaselineController(),
         AcousticVisionBaselineController(),
         RuleGateBaselineController(),
+        RuleGateCenterThenCommitController(),
         VisionGateBaselineController(),
     ],
 )
@@ -299,6 +309,38 @@ def test_rule_gate_baseline_exit_holds_crossing_depth() -> None:
 
     assert command["surge"] > 0.0
     assert command["heave"] <= 0.02
+
+
+def test_rule_gate_center_then_commit_changes_only_gate_passage_strategy() -> None:
+    baseline = RuleGateBaselineController()
+    commit = RuleGateCenterThenCommitController()
+    baseline.reset({"max_command": 0.95})
+    commit.reset({"max_command": 0.95})
+    assert (commit.max_surge, commit.max_sway, commit.max_heave, commit.max_yaw) == (
+        baseline.max_surge,
+        baseline.max_sway,
+        baseline.max_heave,
+        baseline.max_yaw,
+    )
+
+    observation = _synthetic_observation()
+    observation["beacon"]["bearing_deg"] = 0.0
+    observation["beacon"]["elevation_deg"] = 0.0
+    observation["beacon"]["range_m"] = 2.4
+    observation["sensors"]["FrontCamera"] = _camera_with_colored_gate_blob(x_start=40, x_stop=60)
+
+    for _ in range(commit.commit_required_frames):
+        command = commit.step(_guarded_observation(observation))
+
+    assert commit.commit_active is True
+    assert command["surge"] > 0.0
+
+    observation["sensors"].pop("FrontCamera")
+    command = commit.step(_guarded_observation(observation))
+
+    assert commit.commit_active is True
+    assert command["surge"] > 0.0
+    assert command["sway"] == pytest.approx(0.0)
 
 
 def test_vision_baseline_falls_back_without_camera() -> None:

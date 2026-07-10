@@ -4,7 +4,7 @@
 \label{tab:sensors}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabular}{p{0.20\columnwidth}p{0.13\columnwidth}p{0.55\columnwidth}}
+\begin{tabular}{p{0.18\columnwidth}p{0.12\columnwidth}p{0.53\columnwidth}}
 \toprule
 Sensor & Rate & Output and configuration \\
 \midrule
@@ -15,7 +15,7 @@ Front camera & 30\,Hz & RGB image, $640\times480$, $90^\circ$ field of view. \\
 Velocity     & 30\,Hz & World-frame linear velocity (m/s). \\
 Collision    & 30\,Hz & Boolean contact flag. \\
 \midrule
-\multicolumn{3}{p{0.92\columnwidth}}{\emph{Derived fields:} heading $\psi$ (deg) and depth (m) from the pose used by the referee; the true environment current vector is stripped from official observations entirely and is available only as non-official diagnostic telemetry.} \\
+\multicolumn{3}{p{0.87\columnwidth}}{\emph{Derived fields:} heading $\psi$ (deg) and depth (m) from the pose used by the referee. Environmental-current telemetry is excluded from official observations and retained only for non-official diagnostics.} \\
 \bottomrule
 \end{tabular}
 \end{table}

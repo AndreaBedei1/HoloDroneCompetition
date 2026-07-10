@@ -5,7 +5,7 @@ This section describes the simulation backend, the vehicle and its sensors, the 
 
 \subsection{Simulator and Vehicle}
 
-The reference adapter uses HoloOcean~\cite{potokar2022holoocean}, an Unreal-Engine underwater simulator, with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz. The adapter is replaceable. Its fallback option is a deterministic kinematic adapter that implements the same interface for unit and plumbing tests. It integrates a damped point-vehicle model (maximum linear speed $1.25$\,m/s, maximum yaw rate $65^\circ$/s) and adds the current as a world-frame velocity. This lets the referee, scoring and fleet logic be tested deterministically without the engine.
+The reference adapter uses HoloOcean~\cite{potokar2022holoocean}, an Unreal-Engine underwater simulator, with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz. The adapter is replaceable. An engine-free implementation supports unit and plumbing tests but is not used for the reported evaluation.
 
 A high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$ is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters receive
 \begin{equation}
@@ -25,9 +25,9 @@ Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines
 Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of \eqref{eq:gate_frame}, with $\hat{n}$ the passage normal and $\hat{s}_g$ the gate-up axis. Each gate carries one beacon, placed at $b_g=c_g+\delta_n \hat{n}+\delta_r \hat{r}_g+\delta_s \hat{s}_g$ relative to the gate center $c_g$ (default offset $(0,0,0.35)$\,m along $\hat{s}_g$). For a receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_g-p_r$ and $\rho=\lVert\boldsymbol{\delta}\rVert$. The beacon reports range, a yaw-relative bearing, an elevation and a signal strength:
 \begin{align}
 \label{eq:beacon}
-\rho &= \lVert\boldsymbol{\delta}\rVert, &
+\rho &= \lVert\boldsymbol{\delta}\rVert,\\
 \beta &= \operatorname{wrap}\!\big(\operatorname{atan2}(\delta_y,\delta_x)-\psi\big),\\
-\varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big), &
+\varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big),\\
 \mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\rho}{\rho_{\max}}\Big),\nonumber
 \end{align}
 where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A reading is invalid beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$ and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.6\}$ and dropout probabilities up to $0.04$. Only the beacon of the current target gate is active in the default \emph{active-when-target} mode, so the beacon provides a target cue but not a map of the whole course.
@@ -50,7 +50,7 @@ with $d=\lVert p-c_j\rVert$ and $\sigma=\max(R_j/2,10^{-6})$ and zero outside $R
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. The current physically perturbs the vehicle when the HoloOcean build exposes ocean-current coupling; otherwise the field is exposed as telemetry only and the deterministic kinematic adapter always couples it.
+The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. The current physically perturbs the vehicle when the HoloOcean build exposes ocean-current coupling; otherwise the field is exposed as telemetry only.
 
 \subsection{Declarative Track Configuration}
 
@@ -87,7 +87,7 @@ The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. The true environment current vector is privileged disturbance state: it is stripped from official observations unconditionally (this strip cannot be re-enabled by an allow-list entry) and remains available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL or velocity-sensor residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose messages are authored by other controllers and therefore contain only information those controllers may legally observe.
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. Controllers do not receive the configured environment current vector. The runner removes it from official observations even if an allow-list entry requests it; the vector is available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL or velocity-sensor residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose messages are authored by other controllers and therefore contain only information those controllers may legally observe.
 
 \begin{table}[t]
 \centering
@@ -100,7 +100,7 @@ The controller \texttt{step} function receives a dictionary with the fields in T
 Field & Meaning \\
 \midrule
 \cmd{time\_s} & Race time in seconds. \\
-\cmd{participant\_id} & Identifier of the vehicle receiving the observation. \\
+\path{participant_id} & Identifier of the vehicle receiving the observation. \\
 \cmd{sensors} & Filtered onboard sensor dictionary (camera, depth, IMU, DVL, velocity, collision and the derived heading and depth). \\
 \cmd{beacon} & Acoustic message: validity, target gate id, bearing, elevation, range, signal strength and mode. \\
 \cmd{race} & Participant-visible progress: status, lap, completed gates, target gate id, target sequence index and official-timing status. \\

@@ -18,6 +18,6 @@
 \draw[arrow] (run.south west) -- node[lbl, pos=0.42]{missed gate} (dnf.north);
 \draw[arrow] (run.south east) -- node[lbl, pos=0.42]{timed out} (tout.north);
 \end{tikzpicture}
-\caption{Participant lifecycle. A rover is released to \textsc{running} at its start delay $\tau_i$ (a single rover is the case $\tau_i=0$); while waiting it receives a zero command and is not stepped. A running rover reaches a terminal state by finishing, missing a gate (\textsc{dnf}) or timing out.}
+\caption{Participant lifecycle from delayed release to a terminal state.}
 \label{fig:lifecycle}
 \end{figure}

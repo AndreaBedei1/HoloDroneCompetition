@@ -10,6 +10,7 @@ from marine_race_arena.controllers.official_baselines import (
     AcousticBaselineController,
     AcousticVisionBaselineController,
     RuleGateBaselineController,
+    RuleGateCenterThenCommitController,
     SmoothGateBaselineController,
     VisionGateBaselineController,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "AcousticBaselineController",
     "AcousticVisionBaselineController",
     "RuleGateBaselineController",
+    "RuleGateCenterThenCommitController",
     "SmoothGateBaselineController",
     "VisionGateBaselineController",
     "KeyboardManualController",

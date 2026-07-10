@@ -45,7 +45,7 @@ Field & Interpretation \\
 
 \subsection{Dynamic Loading}
 
-A controller is selected at run time in one of three ways: the official built-in rule baseline \cmd{rule\_gate\_baseline}; a dotted module path with an explicit class; or a file path together with \cmd{--controller-class}, which is imported dynamically. For inspection and data collection, the runner can also be launched with the manual \cmd{keyboard} or \cmd{pygame} controllers. This lets an external policy be evaluated without modifying the package:
+A controller is selected at run time in one of three ways: a built-in alias such as \cmd{rule\_gate\_baseline} or \cmd{rule\_gate\_center\_then\_commit}; a dotted module path with an explicit class; or a file path together with \cmd{--controller-class}, which is imported dynamically. For inspection and data collection, the runner can also be launched with the manual \cmd{keyboard} or \cmd{pygame} controllers. This lets an external policy be evaluated without modifying the package:
 
 \begin{lstlisting}[language=bash]
 python -m marine_race_arena.scripts.run_marine_race \
@@ -118,13 +118,25 @@ which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^
 \draw[arrow] (exit.west) -- ++(-0.7,0)
   |- node[lbl, pos=0.5] {next gate} (target.west);
 \end{tikzpicture}
-\caption{Simplified state logic of the rule-based baseline: target selection, bearing alignment, gate approach, visual centering and exit hold before advancing to the next gate.}
+\caption{Rule-based controller states from target selection to gate exit.}
 \label{fig:rule_baseline_state}
 \end{figure}
 
-\subsection{A Second Controller for Comparison}
-\label{sec:smooth_baseline}
+\subsection{A Center-Then-Commit Rule Controller}
+\label{sec:center_commit_baseline}
 
-A benchmark must separate controllers that behave differently. Alongside the camera-assisted rule baseline, the framework therefore provides two beacon-only controllers. The first, \cmd{acoustic\_baseline}, is a fast deterministic controller that uses explicit approach, transit and exit phases. It servos only on the acoustic beacon and uses no camera. The second, \cmd{smooth\_gate\_baseline}, is a conservative retuning at a different operating point. It uses a lower surge cap, gentler braking, softer yaw gains, a longer exit settle and tighter smoothing and rate limits. It also enters the transit phase from slightly farther out but within a tighter bearing window. Both controllers satisfy the official observation contract and can run without a camera. \cmd{smooth\_gate\_baseline} is intended to complete the same gates more slowly with markedly lower-jerk motion, giving the benchmark a distinct point in the time-smoothness space (Section~\ref{sec:evaluation}). Neither is proposed as the better racer; they demonstrate that legal algorithms can produce different measurable times and behavior under the same contract.
+The second controller changes the gate-passage strategy rather than the command envelope. It uses the same beacon, front camera, depth feedback, command caps, smoothing and centered-gate surge schedule as \cmd{rule\_gate\_baseline}. The standard controller continues to correct sway, heave and yaw from the image center until crossing. The new controller instead enters a commit phase after a stable visual lock. Let $q_t$ be the camera-target confidence and let $(c_{x,t},c_{y,t})$ be the normalized image errors. A centered frame satisfies
+\begin{equation}
+\label{eq:commit_condition}
+\begin{aligned}
+\chi_t = \mathbb{1}\Big[&\rho_t \le 3.0\,\mathrm{m},\ |\beta_t| \le 18^\circ,\\
+                         &q_t \ge 0.45,\ |c_{x,t}| \le 0.10,\\
+                         &|c_{y,t}| \le 0.24\Big],\\
+\mathrm{commit}_t &\Longleftrightarrow \sum_{k=0}^{3}\chi_{t-k}=4.
+\end{aligned}
+\end{equation}
+At the transition, the controller stores the measured depth. During commit it sets sway to zero, holds that depth and retains the centered-gate surge schedule. Image-center changes are ignored and acoustic bearing provides only a limited heading correction, $|u^{\mathrm{yaw}}|\le0.04$. A valid crossing moves the controller to exit hold. If no crossing occurs within $300$ steps, it returns to visual centering as shown in Fig.~\ref{fig:center_commit_states}. Section~\ref{sec:eval_comparison} compares the two strategies under matched HoloOcean conditions.
+
+\input{figures/center_commit_states}
 
 

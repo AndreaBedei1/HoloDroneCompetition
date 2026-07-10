@@ -24,15 +24,17 @@ Claimed and reproducible in this release:
 
 - Official single-rover clean-gate benchmark on three official tracks
   (1.5 m × 1.5 m gate apertures).
-- HoloOcean BlueROV2 integration plus a simulator-independent deterministic
-  kinematic adapter for fallback execution, unit tests and plumbing.
+- HoloOcean BlueROV2 integration. The fallback adapter remains available only
+  for unit tests and runner plumbing, not for reported benchmark results.
 - `rule_gate_baseline`, a deterministic acoustic-beacon + front-camera controller.
-- `smooth_gate_baseline`, a second legal controller (a conservative, smoothness-oriented beacon variant) so the benchmark can compare controllers with different timing and behavior.
+- `rule_gate_center_then_commit`, a camera-assisted controller that centers the
+  gate before committing through it without further image-center corrections.
 - Custom controller loading by alias, module or file path.
 - Staggered multi-rover evaluation of one cooperative team (course-completion speed and team-level scoring), aggregated into a single `team_summary`.
 - `leader_follower`, an optional leader–follower team-coordination controller that uses the inter-rover acoustic channel to keep a staggered team free of inter-vehicle proximity events while completing the same gate sequence.
 - Inter-vehicle proximity **diagnostics** with an optional penalty mode.
-- A reproducible, engine-free `run_algorithm_comparison` harness that compares the two single-rover controllers and fleet operation with and without coordination on the deterministic kinematic substrate.
+- A five-seed HoloOcean comparison of the two camera-assisted rule controllers
+  on clean Horseshoe Bay with one rover per run.
 - HoloOcean diagnostic validation of coordination on clean Horseshoe Bay with three rovers, no currents or obstacles, two start gaps and three seeds.
 
 Current compensation remains open future work and is **not** part of the v0.1
@@ -58,8 +60,8 @@ python -c "import holoocean; holoocean.install('Ocean')"
 python -c "import holoocean; print(holoocean.installed_packages())"   # expect ['Ocean']
 ```
 
-Run all commands from the repository root. The deterministic kinematic adapter
-has no HoloOcean dependency, so the unit tests and config plumbing run without
+Run all commands from the repository root. The fallback test adapter has no
+HoloOcean dependency, so the unit tests and config plumbing run without
 the engine (set `adapter: fallback`). Only real HoloOcean runs need step 3.
 Building the paper additionally needs a LaTeX toolchain (see Section 12).
 
@@ -205,9 +207,9 @@ depth). The `beacon` dict carries `valid`, `target_gate_id`, `bearing_deg`,
 `elevation_deg`, `range_m`, `signal_strength` and `mode`. The `race` dict carries
 `status`, `lap`, `completed_gates`, `target_gate_id`, `target_sequence_index` and
 `official_time_started`. In official mode, ground-truth pose/location/rotation
-sensors are filtered out and the true environment current vector
-(`environment_current_m_s`) is stripped from the observation entirely (it is
-available only as non-official diagnostic telemetry). A controller must infer
+sensors are filtered out and environmental-current telemetry
+(`environment_current_m_s`) is stripped from the observation entirely. It is
+available only for non-official diagnostics. A controller must infer
 current effects from onboard sensing (e.g. the DVL/velocity residual).
 
 When the optional inter-rover acoustic channel is enabled (`fleet.comms`), a
@@ -229,10 +231,14 @@ The first rover has no predecessor and so acts as the leader. It uses only the
 official observation, the per-rover race state and the comms inbox; with the
 channel disabled it degrades to running the wrapped controller unchanged.
 
-Official controller aliases: `rule_gate_baseline` and the second, conservative
-`smooth_gate_baseline`; `leader_follower` / `leader_follower_acoustic` add
-team coordination around a wrapped baseline. For inspection and data collection,
-the runner also supports manual `keyboard`/`manual` and `pygame` controllers.
+The HoloOcean single-rover comparison uses the camera-assisted aliases
+`rule_gate_baseline` and `rule_gate_center_then_commit`. They share the same
+observations, command caps, smoothing and surge schedule. The first applies
+continuous visual correction; the second centers the gate and then commits
+through the aperture using depth hold and limited acoustic-heading correction.
+`leader_follower` / `leader_follower_acoustic` add team coordination around a
+wrapped baseline. For inspection and data collection, the runner also supports
+manual `keyboard`/`manual` and `pygame` controllers.
 
 ## 6. Official tracks
 
@@ -306,12 +312,12 @@ docs/                  release notes
 - `marine_race_arena/config/loader.py` — parses and validates a track JSON into a typed configuration.
 - `marine_race_arena/arena/arena_builder.py` — instantiates gates, beacons, the current field, obstacles and bounds.
 - `marine_race_arena/scripts/run_marine_race.py` — the race runner: the discrete-time control loop that ticks the adapter, builds the official observation and calls the controller.
-- `marine_race_arena/adapters/holoocean_adapter.py` — HoloOcean adapter (reset, actions, ticking, sensor extraction); `fallback_adapter.py` is the deterministic kinematic, engine-free implementation of the same interface.
+- `marine_race_arena/adapters/holoocean_adapter.py` — HoloOcean adapter (reset, actions, ticking, sensor extraction); `fallback_adapter.py` is the engine-free test implementation of the same interface.
 - `marine_race_arena/participants/controller_interface.py` and `controller_loader.py` — the controller contract (`reset`/`step`/`close`) and dynamic loading by alias, module path or file path.
 - `marine_race_arena/referee/referee.py` — the independent referee (gate validation, penalties, scoring, ranking, team summary and inter-vehicle proximity detection); `logger.py` writes the structured events and summaries.
 - `marine_race_arena/arena/acoustic_comms.py` — the optional inter-rover acoustic communication channel.
-- `marine_race_arena/controllers/official_baselines.py`, `leader_follower.py` — the deterministic gate controllers (`rule_gate_baseline`, `smooth_gate_baseline`) and the leader–follower team-coordination controller.
-- `marine_race_arena/scripts/run_benchmark.py`, `run_staggered_multi_rover_smoke.py`, `run_algorithm_comparison.py`, `run_release_v0_1_checks.py` — multi-seed sweeps, the fleet smoke test, the controller/coordination comparison harness and the v0.1 release checks.
+- `marine_race_arena/controllers/official_baselines.py`, `leader_follower.py` — the camera-assisted rule controllers (`rule_gate_baseline`, `rule_gate_center_then_commit`) and the leader–follower team-coordination controller.
+- `marine_race_arena/scripts/run_benchmark.py`, `run_staggered_multi_rover_smoke.py`, `run_release_v0_1_checks.py` — HoloOcean multi-seed sweeps, the fleet smoke test and the v0.1 release checks.
 
 ## 10. Tests and release checks
 
@@ -321,15 +327,26 @@ conda run -n ocean python -m pytest -q
 conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover_smoke
 ```
 
-The controller/coordination comparison is deterministic (seeded) and needs no
-engine because it runs on the deterministic kinematic substrate. It compares the
-two single-rover controllers and fleet operation with and without coordination.
-It writes a JSON and a Markdown report:
+The two rule controllers are compared with matched HoloOcean single-rover sweeps:
 
 ```bash
-python -m marine_race_arena.scripts.run_algorithm_comparison
-# -> results/benchmarks/algorithm_comparison/comparison.{json,md}
+conda run -n ocean python -m marine_race_arena.scripts.run_benchmark --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller rule_gate_baseline --adapter holoocean --seeds 0 1 2 3 4 --duration 560 --dt 0.033 --obstacles none --current-profile none --output-dir results/benchmarks/holoocean_rule_controller_comparison/rule_gate_baseline --official
+conda run -n ocean python -m marine_race_arena.scripts.run_benchmark --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller rule_gate_center_then_commit --adapter holoocean --seeds 0 1 2 3 4 --duration 560 --dt 0.033 --obstacles none --current-profile none --output-dir results/benchmarks/holoocean_rule_controller_comparison/rule_gate_center_then_commit --official
 ```
+
+Both controllers finish all five runs and all 12 gates per run. Aggregate results
+from the matched sweeps are:
+
+| Controller | Finished | Official time (s) | Penalized time (s) | Gate/world collisions |
+| --- | ---: | ---: | ---: | ---: |
+| `rule_gate_baseline` | 5/5 | 231.2 ± 5.5 | 234.2 ± 4.5 | 0.6 ± 0.5 |
+| `rule_gate_center_then_commit` | 5/5 | 184.9 ± 0.3 | 184.9 ± 0.3 | 0.0 ± 0.0 |
+
+Center-then-commit lowers mean official time by 46.4 s (20.0%) and records no
+gate/world collisions. Neither sweep records an out-of-bounds or stuck event.
+Per-seed summaries remain
+under `results/benchmarks/holoocean_rule_controller_comparison/` and are ignored
+by Git.
 
 The release-check helper prints or runs the standard checks:
 
@@ -353,13 +370,13 @@ conda run -n ocean python -m marine_race_arena.scripts.diagnostics.calibrate_int
   the `strong` profile (3/12 gates, 11.0 ± 1.1 gate/world collisions). Designing
   a controller that rejects the current from the legal observation is left to
   future work.
-- The deterministic kinematic adapter is not a physical simulator.
-- The two-controller comparison and the 3/4/5-rover coordination sweep run on
-  the deterministic kinematic substrate. HoloOcean diagnostic validation covers
-  only clean Horseshoe Bay with three rovers, no currents or obstacles, two start
-  gaps and three seeds. All six coordinated runs finish with no inter-vehicle
-  proximity events or gate/world collisions. Runs without coordination incur many
-  gate/world collisions and sometimes fail to finish. Extending HoloOcean
+- The fallback adapter is not a physical simulator and is not used as evidence
+  for reported controller performance.
+- HoloOcean diagnostic validation covers only clean Horseshoe Bay with three
+  rovers, no currents or obstacles, two start gaps and three seeds. All six
+  coordinated runs finish with no inter-vehicle proximity events or gate/world
+  collisions. Runs without coordination incur many gate/world collisions and
+  sometimes fail to finish. Extending HoloOcean
   diagnostic validation to other tracks, currents, obstacles and larger fleets
   remains future work.
 - HoloOcean loading can be slow; use the manual `keyboard` or `pygame` controllers only for inspection and data collection.
