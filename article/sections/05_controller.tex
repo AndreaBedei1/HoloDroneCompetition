@@ -1,7 +1,7 @@
 \section{Controller Interface and Rule Baseline}
 \label{sec:controller}
 
-A central usability goal of \mra{} is that a custom autonomy stack is integrated by implementing a small interface, without touching the runner, the referee or the adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the reference baseline whose results we report.
+A central usability goal of \mra{} is that a custom autonomy stack is integrated by implementing a small interface, without touching the runner, the referee or the adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the two camera-assisted rule controllers used in the reported single-rover comparison.
 
 \subsection{Controller Interface}
 
@@ -58,11 +58,11 @@ python -m marine_race_arena.scripts.run_marine_race \
 
 \subsection{Action Mapping}
 
-The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safety rule that suppresses heave that would drive the vehicle past $z_{\min}$ or $z_{\max}$, then maps it to thrusters via \eqref{eq:thruster_mix}. A controller may alternatively return raw thruster values; the high-level interface is the simpler default.
+The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safety rule that suppresses heave that would drive the vehicle past $z_{\min}$ or $z_{\max}$. The selected adapter then maps this portable body-frame command to its vehicle; the reference HoloOcean adapter uses \eqref{eq:thruster_mix}. That adapter may alternatively receive raw eight-thruster values, while the high-level interface remains the vehicle-independent default.
 
 \subsection{Baseline Based on Rules}
 
-The reference controller is deliberately interpretable rather than optimal. Its role is to be a deterministic policy that, using only official observations, completes the clean tracks and exposes failures under currents, obstacles or dense fleet interaction. Let $\beta$ and $\rho$ be the beacon bearing and range, $z$ the depth and $z^\star$ the target depth implied by the gate. The policy is organized into the four explicit components summarized in Fig.~\ref{fig:rule_baseline_state}.
+The reference controller is deliberately interpretable rather than optimal. Its role is to be a deterministic policy that, using only official observations, completes the clean tracks and exposes failures under currents, obstacles or dense fleet interaction. Let $\beta$ and $\rho$ be the beacon bearing and range, $d$ the measured depth and $d^\star$ the nominal hold depth. The policy is organized into the four explicit components summarized in Fig.~\ref{fig:rule_baseline_state}.
 
 \begin{itemize}
 \item \emph{Bearing alignment and surge gating.} The controller aligns the rover before allowing sustained forward motion. Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
@@ -70,22 +70,19 @@ The reference controller is deliberately interpretable rather than optimal. Its 
 \label{eq:rule_yaw}
 u^{\mathrm{yaw}} = \operatorname{clamp}\!\big(k_\psi\,\beta,\,-\bar{u}_{\mathrm{yaw}},\,\bar{u}_{\mathrm{yaw}}\big),\qquad \bar{u}_{\mathrm{yaw}}=0.16,
 \end{equation}
-and surge is gated by alignment: the vehicle turns in place when $|\beta|\ge34^\circ$, surges at a reduced rate for $24^\circ\le|\beta|<34^\circ$ and otherwise drives forward up to a conservative cap $\bar{u}_{\mathrm{surge}}=0.46$ that scales with range and with $\cos\beta$.
+and surge is gated by alignment. Sustained forward motion is admitted only when $|\beta|<24^\circ$; for larger errors the controller turns without forward drive, or applies a small reverse brake when it is within $3$\,m of the gate. When aligned, surge is capped at $\bar{u}_{\mathrm{surge}}=0.46$ and scales linearly with range and bearing alignment.
 
-\item \emph{Depth hold.} The controller keeps the rover close to the target gate depth. A PI law on depth error $e_z=z^\star-z$ produces a depth-keeping heave,
+\item \emph{Depth hold.} The controller records the initial measured depth $d^\star$ and uses it as a nominal hold depth while beacon elevation guides the approach to each gate. With measured depth $d$ and vertical velocity $v_z$, the implemented depth-hold term is
 \begin{equation}
 \label{eq:rule_depth}
-\begin{aligned}
-u^{\mathrm{heave}}_{\mathrm{depth}} &=
-\operatorname{clamp}\!\Big(k_p\,e_z + k_i\!\!\int\! e_z\,\mathrm{d}t\Big),\\
-(k_p,k_i) &= (0.20,0.08),
-\end{aligned}
+u^{\mathrm{heave}}_{\mathrm{depth}} =
+\operatorname{clamp}\!\big(0.20(d-d^\star)-0.08v_z,\,-0.16,\,0.16\big),
 \end{equation}
-which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^{\mathrm{heave}}_{\mathrm{beacon}}+0.30\,u^{\mathrm{heave}}_{\mathrm{depth}}$.
+which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^{\mathrm{heave}}_{\mathrm{beacon}}+0.30\,u^{\mathrm{heave}}_{\mathrm{depth}}$. When a gate is visible, the vertical image error contributes an additional correction.
 
-\item \emph{Visual centering.} This component refines the acoustic approach in the final meters. When the front camera detects a gate, normalized image errors $(c_x,c_y)\in[-1,1]^2$ nudge sway and yaw by $-c_x$ and heave by $-c_y$ above thresholds $(0.13,0.30)$.
+\item \emph{Visual centering.} This component refines the acoustic approach in the final meters. When the front camera detects a gate, normalized image errors $(c_x,c_y)\in[-1,1]^2$ generate proportional sway, yaw and heave corrections. Forward passage remains gated by the acoustic bearing and by centered-image thresholds $(|c_x|,|c_y|)\le(0.13,0.30)$.
 
-\item \emph{Exit hold and command smoothing.} This component stabilizes the command after a gate crossing. After each gate the controller holds an exit heading for a fixed number of steps to clear the structure and all commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$ and rate-limited per axis to avoid abrupt thrust changes.
+\item \emph{Exit hold and command smoothing.} This component stabilizes the command after a gate crossing. For $35$ steps the controller clears the structure with forward surge, holds the measured crossing depth and permits only a limited beacon-heading correction. All commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$, and rate-limited per axis to avoid abrupt thrust changes.
 \end{itemize}
 
 \begin{figure}[t]

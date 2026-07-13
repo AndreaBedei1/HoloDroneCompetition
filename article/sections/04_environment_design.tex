@@ -5,9 +5,9 @@ This section describes the simulation backend, the vehicle and its sensors, the 
 
 \subsection{Simulator and Vehicle}
 
-The reference adapter uses HoloOcean~\cite{potokar2022holoocean}, an Unreal-Engine underwater simulator, with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz. The adapter is replaceable. An engine-free implementation supports unit and plumbing tests but is not used for the reported evaluation.
+The benchmark architecture is not tied to a particular vehicle: adapters provide simulator state, filtered sensing and action mapping to the common race and referee layers. The reference adapter, and every HoloOcean experiment reported here, uses HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz.
 
-A high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$ is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters receive
+In the reference HoloOcean adapter, a high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$ is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters receive
 \begin{equation}
 \label{eq:thruster_mix}
 \tau_{1\text{--}4}= s_\tau\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
@@ -80,7 +80,7 @@ A track is a self-contained JSON file. Its principal sections are \cmd{race} (na
 }
 \end{lstlisting}
 
-The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}; all use $1.5\,\text{m}\times1.5\,\text{m}$ apertures that are never enlarged for validation (requirement R4).
+The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}; all use $1.5\,\text{m}\times1.5\,\text{m}$ apertures (requirement R4).
 
 \input{tables/official_tracks}
 

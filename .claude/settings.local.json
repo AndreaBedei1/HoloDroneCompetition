@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git check-ignore *)",
+      "WebFetch(domain:proceedings.mlr.press)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('marine_race_arena/tracks/marine_race_horseshoe_bay.json'\\)\\); print\\(json.dumps\\({k:d.get\\(k\\) for k in ['race','referee','finish']}, indent=2\\)\\); print\\('---GATE_SEQUENCE---'\\); print\\(d['track']['gate_sequence']\\); print\\('---FIRST_GATE---'\\); print\\(json.dumps\\(d['gates'][0], indent=2\\)\\)\")",
+      "Bash(latexmk --version)",
+      "Bash(pdflatex --version)",
+      "Bash(bibtex --version)",
+      "Bash(pdftoppm -v)",
+      "Bash(magick --version)",
+      "Bash(python -c \"import json; d=json.load\\(open\\('marine_race_arena/tracks/marine_race_horseshoe_bay.json'\\)\\); print\\('laps', d['race'].get\\('laps'\\)\\); print\\('gate_sequence_len', len\\(d['track']['gate_sequence']\\)\\); print\\('gate_sequence', d['track']['gate_sequence']\\); print\\('penalties', d['referee'].get\\('penalties'\\)\\); print\\('gate_validation', d['referee'].get\\('gate_validation'\\)\\); print\\('participants_n', len\\(d['participants']\\)\\); print\\('p0_spawn', d['participants'][0].get\\('spawn'\\)\\); print\\('start', d.get\\('start'\\)\\)\")",
+      "WebFetch(domain:www.mdpi.com)",
+      "Bash(latexmk -C)",
+      "Bash(latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex)",
+      "Bash(echo \"exit=$?\")",
+      "WebFetch(domain:www.semanticscholar.org)",
+      "WebFetch(domain:ieeexplore.ieee.org)"
+    ]
+  }
+}

@@ -1,19 +1,19 @@
-"""Reproducible algorithm-comparison harness for Marine Race Arena.
+"""Legacy fallback diagnostic harness for Marine Race Arena.
 
-This script backs two claims in the paper and release notes with numbers that
-anyone can reproduce without the HoloOcean engine. It runs everything on the
-engine-free kinematic fallback adapter, which is fully deterministic, and it
-never changes track geometry, gate sizes, referee rules, scoring, current
-profiles, or the official observation filter. The referee's inter-vehicle
-proximity thresholds are left at their official defaults (0.8 m horizontal,
-0.75 m vertical).
+This script predates the reported HoloOcean controller comparison and is retained
+for deterministic fallback and coordination diagnostics. It is not the source of
+the paper's current single-rover comparison, which uses the camera-assisted
+``rule_gate_baseline`` and ``rule_gate_center_then_commit`` controllers in
+HoloOcean. This harness runs on the engine-free kinematic fallback adapter and
+never changes track geometry, gate sizes, referee rules, scoring, current profiles
+or the official observation filter. The referee's inter-vehicle proximity
+thresholds remain at their official defaults (0.8 m horizontal, 0.75 m vertical).
 
 Two comparisons are produced:
 
-1. Single-rover gate controllers -- the fast ``acoustic_baseline`` beacon
-   controller versus the new, conservative ``smooth_gate_baseline``. This shows
-   the benchmark separating two legal controllers by official time and by command
-   smoothness rather than only by code.
+1. A legacy fallback-only single-rover diagnostic comparing the beacon-only
+   ``acoustic_baseline`` and ``smooth_gate_baseline`` controllers. These results
+   are not reported as the current HoloOcean controller comparison.
 
 2. Fleet coordination -- a staggered heterogeneous team (a slower leader with
    faster followers) run first with every rover racing independently and then with
@@ -262,7 +262,7 @@ def _round(value: Any) -> Any:
 
 
 def run_single_rover_comparison(track_path: str, duration_s: float) -> Dict[str, Any]:
-    """Compare the fast acoustic baseline against the new conservative controller."""
+    """Run the legacy beacon-only fallback diagnostic, not the paper comparison."""
     results: Dict[str, Any] = {}
     for name, factory in (
         ("acoustic_baseline", AcousticBaselineController),
@@ -374,11 +374,16 @@ def _controller_for(controllers: List[BaseController], participant_id: Any) -> O
 
 def _markdown(track_path: str, single: Dict[str, Any], fleet: Dict[str, Any], ablation: Dict[str, Any]) -> str:
     lines: List[str] = []
-    lines.append("# Marine Race Arena -- algorithm comparison")
+    lines.append("# Marine Race Arena fallback diagnostics")
     lines.append("")
     lines.append(f"Track: `{track_path}` | adapter: `fallback` (deterministic) | official mode.")
     lines.append("")
-    lines.append("## 1. Single-rover gate controllers")
+    lines.append("## 1. Legacy beacon-only single-rover diagnostic")
+    lines.append("")
+    lines.append(
+        "This fallback-only diagnostic is not the reported HoloOcean comparison of "
+        "`rule_gate_baseline` and `rule_gate_center_then_commit`."
+    )
     lines.append("")
     lines.append("| Controller | Status | Gates | Official time (s) | Penalized (s) | OOB | Stuck | Mean cmd change |")
     lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |")

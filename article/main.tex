@@ -45,14 +45,14 @@
 
 \title{\mra: A Configurable HoloOcean Benchmark for Underwater Gate Racing and Team-Level Fleet Evaluation}
 
-\author{\IEEEauthorblockN{Lorenzo Bacchiani, Andrea Bedei, Roberto Girau and Giovanni Pau}
+\author{\IEEEauthorblockN{Andrea Bedei, Lorenzo Bacchiani, Giovanni Pau and Roberto Girau}
 \IEEEauthorblockA{Department of Computer Science and Engineering, University of Bologna, Italy}
 }
 
 \maketitle
 
 \begin{abstract}
-Autonomous underwater racing lacks a reproducible benchmark that separates controller performance from privileged simulator state. We present \mra{}, a HoloOcean benchmark for autonomous underwater gate racing. The framework enforces a strict evaluation contract: controllers act only on documented onboard observations, while an independent referee uses privileged state to validate gate crossings, penalties, timeouts and scores. The architecture supports single-rover trials and cooperative multi-rover teams with independent progress tracking and team-level evaluation. A deterministic rule-based controller completed all three official clean tracks in every evaluated seed under the official observation contract. For fleet evaluation, a leader-follower controller coordinates staggered rovers through an optional acoustic channel using only legal observations and controller-authored messages. HoloOcean diagnostic validation on the clean Horseshoe Bay track confirmed the coordination under contact dynamics: all coordinated runs finished without inter-vehicle proximity events or gate/world collisions, whereas uncoordinated teams incurred repeated collisions and sometimes failed to finish. The benchmark supports reproducible evaluation of individual and cooperative control in underwater gate racing.
+Autonomous underwater racing lacks a common framework for defining race scenarios, integrating controllers and comparing results consistently. We present \mra{}, a configurable benchmark whose race model, controller contract and independent referee are separated from simulator-specific and vehicle-specific behavior through a replaceable adapter. Users can create tracks and configure gates, currents, obstacles, sensor profiles and scoring without modifying the core infrastructure. The benchmark first supports single-vehicle racing, then extends the same evaluation contract to staggered cooperative fleets with team scoring, inter-vehicle proximity monitoring and optional acoustic communication. Controllers receive only documented onboard observations, while privileged simulator state is isolated within the referee for validation, scoring and structured logging. The reference implementation provides three official clean tracks of different lengths, baseline controllers and a deterministic fallback adapter for tests. Reported HoloOcean experiments use a BlueROV2-class vehicle and include a matched comparison of two camera-assisted rule controllers: continuous visual servoing and center-then-commit passage. They establish clean-track feasibility and expose performance degradation under configured currents. \mra{} therefore provides an extensible, reproducible foundation for individual and cooperative underwater racing research.
 \end{abstract}
 
 \begin{IEEEkeywords}

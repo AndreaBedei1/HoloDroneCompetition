@@ -1,12 +1,16 @@
 # Marine Race Arena
 
-Marine Race Arena is a HoloOcean-based underwater gate-racing benchmark for
-BlueROV2-class vehicles. A race — world bounds, ordered gates, currents,
-obstacles, participants, sensors and referee rules — is described declaratively,
-and a controller is plugged in by implementing three methods. The autonomy stack
-is kept strictly separate from the evaluation: a controller observes only a
-documented **official observation**, while an independent referee uses privileged
-state to validate gate crossings, collisions, timeouts, ranking and team scoring.
+Marine Race Arena is a configurable benchmark layer for autonomous underwater
+gate racing. Its race model, controller contract and referee are independent of a
+particular vehicle; replaceable adapters isolate simulator-specific sensing and
+actuation. The reference adapter uses HoloOcean with a BlueROV2-class vehicle,
+which is also the vehicle used for every reported experiment. A race, including
+world bounds, ordered gates, currents, obstacles, participants, sensors and
+referee rules, is described declaratively, and a controller is plugged in by
+implementing three methods. The autonomy stack is kept strictly separate from
+the evaluation: a controller observes only a documented **official observation**,
+while an independent referee uses privileged state to validate gate crossings,
+collisions, timeouts, ranking and team scoring.
 
 The whole simulation is launched from a **single configuration file**:
 
@@ -236,6 +240,9 @@ The HoloOcean single-rover comparison uses the camera-assisted aliases
 observations, command caps, smoothing and surge schedule. The first applies
 continuous visual correction; the second centers the gate and then commits
 through the aperture using depth hold and limited acoustic-heading correction.
+The beacon-only `acoustic_baseline` and `smooth_gate_baseline` aliases belong to
+older fallback and coordination diagnostics and are not the current reported
+single-rover comparison.
 `leader_follower` / `leader_follower_acoustic` add team coordination around a
 wrapped baseline. For inspection and data collection, the runner also supports
 manual `keyboard`/`manual` and `pygame` controllers.
@@ -327,7 +334,8 @@ conda run -n ocean python -m pytest -q
 conda run -n ocean python -m marine_race_arena.scripts.run_staggered_multi_rover_smoke
 ```
 
-The two rule controllers are compared with matched HoloOcean single-rover sweeps:
+The two camera-assisted rule controllers are compared with matched HoloOcean
+single-rover sweeps using the reference BlueROV2-class vehicle:
 
 ```bash
 conda run -n ocean python -m marine_race_arena.scripts.run_benchmark --benchmark-task clean_gate --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller rule_gate_baseline --adapter holoocean --seeds 0 1 2 3 4 --duration 560 --dt 0.033 --obstacles none --current-profile none --output-dir results/benchmarks/holoocean_rule_controller_comparison/rule_gate_baseline --official

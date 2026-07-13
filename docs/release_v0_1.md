@@ -6,7 +6,7 @@ Date: TBD
 
 ## Summary
 
-Marine Race Arena v0.1.0 is the first release candidate for a HoloOcean-based underwater drone racing benchmark using BlueROV2-style vehicles. The release focuses on clean official single-rover gate racing and a stable staggered fleet/team demonstration. It does not claim solved current compensation, close-proximity multi-rover racing, or fully calibrated rover-rover collision penalties.
+Marine Race Arena v0.1.0 is the first release candidate for an autonomous underwater gate-racing benchmark with replaceable simulator and vehicle adapters. The reference adapter and all reported experiments use HoloOcean with a BlueROV2-class vehicle. The release focuses first on clean official single-rover gate racing and then on a stable staggered cooperative fleet/team demonstration. It does not claim solved current compensation, close-proximity multi-rover racing, or fully calibrated rover-rover collision penalties.
 
 ## Benchmark Integrity (official-mode contract)
 
@@ -90,6 +90,9 @@ Horseshoe Bay with the HoloOcean adapter, fallback disabled, no currents or
 obstacles and seeds 0--4. Both controllers finished all 12 gates in every seed
 with no out-of-bounds or stuck events.
 
+This is the current reported single-rover comparison. The beacon-only
+`acoustic_baseline` and `smooth_gate_baseline` are not part of it.
+
 | Controller | Finished | Official time (s) | Penalized time (s) | Gate/world collisions |
 | --- | ---: | ---: | ---: | ---: |
 | `rule_gate_baseline` | 5/5 | 231.2 ± 5.5 | 234.2 ± 4.5 | 0.6 ± 0.5 |
@@ -106,6 +109,10 @@ official mode, clean Horseshoe Bay, no currents or obstacles, 3 rovers, diagnost
 inter-vehicle mode, no parameter tuning) confirms the coordination under real
 contact physics. Team: a `smooth_gate_baseline` leader with `acoustic_baseline`
 followers; start gaps 8.0 s and 0.0 s; seeds 0, 1, 2.
+
+These older beacon-only controllers are used here only to create a heterogeneous
+coordination stress test; this diagnostic is separate from the camera-assisted
+single-rover comparison above.
 
 Across all six leader–follower runs every rover finished (36/36 team gates) with
 zero inter-vehicle events, zero gate/world collisions, and no out-of-bounds or
@@ -172,7 +179,7 @@ An inter-vehicle event counts once at team level, not once per rover. Per-rover 
 
 Use this placeholder until a formal paper citation exists:
 
-> Marine Race Arena v0.1.0 is a HoloOcean-based BlueROV2 underwater gate-racing benchmark with configurable tracks, official clean-gate evaluation, referee scoring, and staggered fleet/team diagnostics.
+> Marine Race Arena v0.1.0 is a configurable underwater gate-racing benchmark with a replaceable adapter architecture, a HoloOcean BlueROV2 reference implementation, official clean-gate evaluation, referee scoring, and staggered fleet/team diagnostics.
 
 ## Release Checklist
 

@@ -12,7 +12,7 @@ We specify \mra{} as an \emph{evaluation problem} rather than a controller-desig
 \end{equation}
 where:
 \begin{itemize}
- \item $\mathcal{W}$ is the \emph{world}: an axis-aligned bounds box $\mathcal{B}=[x_{\min},x_{\max}]\times[y_{\min},y_{\max}]\times[z_{\min},z_{\max}]\subset\mathbb{R}^3$ (with $z$ positive-up, so the navigable volume satisfies $z<0$) and the HoloOcean environment in which it is rendered;
+ \item $\mathcal{W}$ is the \emph{world}: an axis-aligned bounds box $\mathcal{B}=[x_{\min},x_{\max}]\times[y_{\min},y_{\max}]\times[z_{\min},z_{\max}]\subset\mathbb{R}^3$ (with $z$ positive-up, so the navigable volume satisfies $z<0$) and the simulation environment selected through the adapter;
  \item $\mathcal{G}=(g_1,\dots,g_M)$ is the \emph{ordered} gate sequence; each gate is the tuple $g_k=(c_k,\,n_k,\,w_k,\,h_k)$ of center $c_k\in\mathbb{R}^3$, passage-direction vector $n_k\in\mathbb{R}^3$ (nonzero, not necessarily unit length) and inner aperture width $w_k$ and height $h_k$;
  \item $\mathcal{S}$ is the start configuration: a spawn pose and an optional release delay $\tau_i\!\ge\!0$ per participant;
  \item $\mathcal{F}$ is the finish condition: completion of the last gate of the last lap (Section~\ref{sec:referee});
@@ -35,7 +35,7 @@ mapping the official observation $o_{i,t}$ (Section~\ref{sec:configuration}) to 
 \label{eq:command}
 u_{i,t}=\big[u^{\mathrm{surge}},\,u^{\mathrm{sway}},\,u^{\mathrm{heave}},\,u^{\mathrm{yaw}}\big]^{\!\top}\in[-1,1]^4 .
 \end{equation}
-The action of \eqref{eq:command} is the simpler, constrained interface; equivalently, a controller may bypass it and command the eight BlueROV2 thrusters directly (a \cmd{thrusters} action), a more expressive option, with the choice left to the user. Time is discretized at a fixed control timestep $\Delta t$, with $t_k=k\,\Delta t$. The runner may clamp $u_{i,t}$ for actuator and depth safety; in official mode the policy reads only the official observation $o_{i,t}$, whose contract excludes privileged state (Section~\ref{sec:configuration}).
+The action of \eqref{eq:command} is the portable, constrained interface that an adapter maps to the selected vehicle. The reference HoloOcean adapter also accepts a direct eight-thruster \cmd{thrusters} action for its BlueROV2-class agent. Time is discretized at a fixed control timestep $\Delta t$, with $t_k=k\,\Delta t$. The runner may clamp $u_{i,t}$ for actuator and depth safety; in official mode the policy reads only the official observation $o_{i,t}$, whose contract excludes privileged state (Section~\ref{sec:configuration}).
 
 \subsection{Design Requirements}
 
