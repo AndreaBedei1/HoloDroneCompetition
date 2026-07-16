@@ -21,7 +21,7 @@
 \node[block]  (logs)    at (10.2,1.5){Outputs\\\scriptsize summary, events};
 
 % control-loop row (official side)
-\node[block]  (obs)        at (6.6,1.5) {Official observation\\\scriptsize sensors, beacon, race};
+\node[block]  (obs)        at (6.6,1.5) {Official observation\\\scriptsize local time, sensors, beacons, comms};
 \node[ctrl]   (controller) at (2.7,1.5) {Controller\\\scriptsize user or baseline};
 
 % configuration edges
@@ -31,7 +31,7 @@
 
 % runtime edges
 \draw[birarrow] (runner) -- node[above, pos=0.5, align=center, font=\scriptsize]{state\\act / tick} (adapter);
-\draw[arrow]    (runner) -- node[above, font=\scriptsize]{progress} (referee);
+\draw[arrow]    (runner) -- node[above, font=\scriptsize]{privileged state} (referee);
 \draw[arrow]    (referee) -- (logs);
 
 % control loop: runner -> obs -> controller -> runner
@@ -45,7 +45,7 @@
         fit=(controller)(obs), inner sep=4mm] (tb) {};
 \end{scope}
 \node[anchor=north, font=\scriptsize\itshape] at (tb.south)
-     {official-observation boundary: no ground-truth state};
+     {official-observation boundary: no referee feedback or ground truth};
 \end{tikzpicture}
 \caption{Runtime architecture and official-observation boundary between the controller and referee.}
 \label{fig:architecture}

@@ -22,18 +22,6 @@ class ControllerLoader:
             "marine_race_arena.controllers.oracle_gate_follower",
             "OracleGateFollowerController",
         ),
-        "acoustic": (
-            "marine_race_arena.controllers.acoustic_gate_follower",
-            "AcousticGateFollowerController",
-        ),
-        "acoustic_baseline": (
-            "marine_race_arena.controllers.official_baselines",
-            "AcousticBaselineController",
-        ),
-        "acoustic_vision_baseline": (
-            "marine_race_arena.controllers.official_baselines",
-            "AcousticVisionBaselineController",
-        ),
         "rule_gate_baseline": (
             "marine_race_arena.controllers.official_baselines",
             "RuleGateBaselineController",
@@ -42,21 +30,9 @@ class ControllerLoader:
             "marine_race_arena.controllers.official_baselines",
             "RuleGateCenterThenCommitController",
         ),
-        "smooth_gate_baseline": (
-            "marine_race_arena.controllers.official_baselines",
-            "SmoothGateBaselineController",
-        ),
         "leader_follower": (
             "marine_race_arena.controllers.leader_follower",
             "LeaderFollowerController",
-        ),
-        "leader_follower_acoustic": (
-            "marine_race_arena.controllers.leader_follower",
-            "LeaderFollowerAcousticController",
-        ),
-        "vision_gate_baseline": (
-            "marine_race_arena.controllers.official_baselines",
-            "VisionGateBaselineController",
         ),
         "keyboard": (
             "marine_race_arena.controllers.keyboard_manual",

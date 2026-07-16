@@ -3,12 +3,17 @@
 This controller intentionally uses ground truth and is not competition-valid.
 It is a simple feasibility tool: it translates the BlueROV2 through each gate
 without commanding yaw rotation.
+
+Under the onboard-only architecture the oracle receives no referee feedback
+either: ``debug_ground_truth`` carries its own pose and the full ordered gate
+geometry, and the oracle tracks its own progression by detecting its gate-plane
+crossings from that ground truth. It runs only in non-official debug mode.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from marine_race_arena.participants.controller_interface import BaseController
 
@@ -22,16 +27,16 @@ class OracleGateFollowerController(BaseController):
     debug_only = True
     uses_ground_truth = True
 
-    def reset(self, race_info: Dict[str, Any]) -> None:
-        self.max_speed = min(float(race_info.get("max_command", 0.95)), 0.65)
-        bounds = race_info.get("bounds", {})
-        self.z_min = float(bounds.get("z_min", -8.0))
-        self.z_max = float(bounds.get("z_max", -1.0))
+    def reset(self, mission_info: Dict[str, Any]) -> None:
+        self.max_speed = 0.65
+        self.laps = max(1, int(mission_info.get("laps", 1)))
         self.exit_distance_m = 2.6
         self.approach_distance_m = 1.2
         self.approach_transition_tolerance_m = 0.08
-        self._last_gate_id: Optional[str] = None
-        self._last_gate_geometry: Optional[Dict[str, Any]] = None
+        self._gate_index = 0
+        self._lap = 1
+        self._finished = False
+        self._previous_position: Optional[Vector3] = None
         self._exit_hold: Optional[Dict[str, Any]] = None
         self.debug_state: Dict[str, Any] = {}
 
@@ -39,24 +44,22 @@ class OracleGateFollowerController(BaseController):
         debug = observation.get("debug_ground_truth")
         if not debug:
             return _zero_command()
+        gates = _parse_gates(debug.get("gates"))
+        if not gates or self._finished:
+            return _zero_command()
 
         own_position = _vector3(debug["own_position"])
         own_yaw_deg = float(tuple(debug.get("own_rotation_rpy_deg", (0.0, 0.0, 0.0)))[2])
-        target_gate_id = str(observation.get("race", {}).get("target_gate_id", ""))
-        gate_geometry = {
-            "gate_id": target_gate_id,
-            "center": _vector3(debug["target_gate_center"]),
-            "normal": _normalize(_vector3(debug.get("target_gate_normal", (1.0, 0.0, 0.0)))),
-            "right": _normalize(_vector3(debug.get("target_gate_right_axis", (0.0, 1.0, 0.0)))),
-            "up": _normalize(_vector3(debug.get("target_gate_up_axis", (0.0, 0.0, 1.0)))),
-        }
+        bounds = debug.get("bounds", {})
+        z_min = float(bounds.get("z_min", -8.0))
+        z_max = float(bounds.get("z_max", -1.0))
 
-        if (
-            self._last_gate_id is not None
-            and target_gate_id != self._last_gate_id
-            and self._last_gate_geometry is not None
-        ):
-            self._exit_hold = dict(self._last_gate_geometry)
+        self._advance_on_crossing(gates, own_position)
+        if self._finished:
+            self._previous_position = own_position
+            return _zero_command()
+
+        gate_geometry = gates[self._gate_index]
 
         active_geometry = gate_geometry
         phase = "TRANSLATE"
@@ -92,30 +95,70 @@ class OracleGateFollowerController(BaseController):
         desired_world = _limit_vector(error, self.max_speed)
         command = _world_velocity_to_body_command(desired_world, own_yaw_deg)
         command["heave"] = _clamp(command["heave"], -0.45, 0.45)
-        if own_position[2] < self.z_min + 0.4:
+        if own_position[2] < z_min + 0.4:
             command["heave"] = max(command["heave"], 0.25)
-        if own_position[2] > self.z_max - 0.4:
+        if own_position[2] > z_max - 0.4:
             command["heave"] = min(command["heave"], -0.25)
         command["yaw"] = 0.0
 
         self.debug_state = {
             "phase": phase,
-            "target_gate_id": target_gate_id,
-            "active_gate_id": active_geometry["gate_id"],
+            "gate_index": self._gate_index,
+            "lap": self._lap,
             "signed_gate_distance": signed_distance,
             "lateral_error": lateral_error,
             "yaw_command": 0.0,
         }
-        self._last_gate_id = target_gate_id
-        self._last_gate_geometry = gate_geometry
+        self._previous_position = own_position
         return command
 
     def close(self) -> None:
         pass
 
+    def _advance_on_crossing(self, gates: List[Dict[str, Any]], own_position: Vector3) -> None:
+        """Advance the oracle's own gate index when it crosses the current plane."""
+        if self._previous_position is None:
+            return
+        gate = gates[self._gate_index]
+        d0 = _dot(_subtract(self._previous_position, gate["center"]), gate["normal"])
+        d1 = _dot(_subtract(own_position, gate["center"]), gate["normal"])
+        if not (d0 <= 0.0 < d1):
+            return
+        self._exit_hold = dict(gate)
+        if self._gate_index == len(gates) - 1:
+            if self._lap >= self.laps:
+                self._finished = True
+                return
+            self._lap += 1
+            self._gate_index = 0
+        else:
+            self._gate_index += 1
+
     def _exit_hold_complete(self, own_position: Vector3, geometry: Dict[str, Any]) -> bool:
         signed_distance = _dot(_subtract(own_position, geometry["center"]), geometry["normal"])
         return signed_distance >= self.exit_distance_m - 0.15
+
+
+def _parse_gates(raw: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    gates: List[Dict[str, Any]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            gates.append(
+                {
+                    "gate_id": str(entry.get("gate_id", "")),
+                    "center": _vector3(entry["center"]),
+                    "normal": _normalize(_vector3(entry.get("normal", (1.0, 0.0, 0.0)))),
+                    "right": _normalize(_vector3(entry.get("right_axis", (0.0, 1.0, 0.0)))),
+                    "up": _normalize(_vector3(entry.get("up_axis", (0.0, 0.0, 1.0)))),
+                }
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+    return gates
 
 
 def _zero_command() -> Dict[str, float]:

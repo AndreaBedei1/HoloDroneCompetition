@@ -53,7 +53,12 @@ class ArenaBuilder:
             gate_map=gate_map,
             visual_gates=visual_gates,
             obstacles=obstacles,
-            beacon_manager=BeaconManager.from_gates(gates, self.config.gates, seed=self.seed),
+            beacon_manager=BeaconManager.from_gates(
+                gates,
+                self.config.gates,
+                seed=self.seed,
+                ordered_gate_ids=self.config.track.gate_sequence,
+            ),
             current_manager=CurrentFieldManager(self.config.currents),
             environment_name=environment_name,
         )

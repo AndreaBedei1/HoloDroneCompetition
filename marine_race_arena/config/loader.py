@@ -80,15 +80,8 @@ DEFAULT_OFFICIAL_SENSOR_PROFILE: Dict[str, Any] = {
         "DepthSensor",
         "IMUSensor",
         "DVLSensor",
-        "VelocitySensor",
         "CollisionSensor",
         "FrontCamera",
-        "depth_m",
-        "heading_yaw_deg",
-        "environment_current_m_s",
-        "current_physical_coupling_active",
-        "current_coupling_method",
-        "control_mode",
     ],
     "holoocean_sensors": [
         {"sensor_type": "DepthSensor", "socket": "DepthSocket", "Hz": 30, "configuration": {"Sigma": 0.0}},
@@ -416,39 +409,57 @@ def _parse_beacon(raw: Any, default_id: Optional[str]) -> BeaconConfig:
     return BeaconConfig(
         enabled=bool(raw.get("enabled", True)),
         id=str(raw.get("id")) if raw.get("id") is not None else default_id,
-        mode=str(raw.get("mode", "active_when_target")),
         position_offset=_vector3(raw.get("position_offset", [0.0, 0.0, 0.35]), "beacon.position_offset"),
         range_m=float(raw.get("range_m", 50.0)),
         noise_std=float(raw.get("noise_std", 0.0)),
         dropout_probability=float(raw.get("dropout_probability", 0.0)),
         update_rate_hz=float(raw.get("update_rate_hz", 10.0)),
-        message=dict(raw.get("message", {})),
     )
+
+
+def sequential_beacon_id(sequence_index: int) -> str:
+    """Official beacon ID for the gate at 0-based ``sequence_index`` (B01...BN)."""
+    return f"B{sequence_index + 1:02d}"
 
 
 def _parse_gate(raw: Any, track: TrackSettings, global_beacon: BeaconConfig) -> GateConfig:
     if not isinstance(raw, Mapping):
         raise TrackConfigLoadError("Each gate entry must be an object.")
     gate_id = str(_required(raw, "id"))
+    sequence = track.gate_sequence
+    sequence_index = sequence.index(gate_id) if gate_id in sequence else None
     beacon_raw = raw.get("beacon")
     if beacon_raw is None:
-        beacon = BeaconConfig(
-            enabled=global_beacon.enabled,
-            id=f"B_{gate_id}" if global_beacon.enabled else None,
-            mode=global_beacon.mode,
-            position_offset=global_beacon.position_offset,
-            range_m=global_beacon.range_m,
-            noise_std=global_beacon.noise_std,
-            dropout_probability=global_beacon.dropout_probability,
-            update_rate_hz=global_beacon.update_rate_hz,
-            message=dict(global_beacon.message),
-        )
+        merged: Dict[str, Any] = {
+            "enabled": global_beacon.enabled,
+            "position_offset": list(global_beacon.position_offset),
+            "range_m": global_beacon.range_m,
+            "noise_std": global_beacon.noise_std,
+            "dropout_probability": global_beacon.dropout_probability,
+            "update_rate_hz": global_beacon.update_rate_hz,
+        }
     else:
-        merged = dict(global_beacon.__dict__)
-        merged.update(dict(beacon_raw))
-        if merged.get("id") is None and merged.get("enabled", True):
-            merged["id"] = f"B_{gate_id}"
-        beacon = _parse_beacon(merged, default_id=f"B_{gate_id}")
+        if not isinstance(beacon_raw, Mapping):
+            raise TrackConfigLoadError(f"gates.{gate_id}.beacon must be an object when provided.")
+        merged = {
+            "enabled": global_beacon.enabled,
+            "position_offset": list(global_beacon.position_offset),
+            "range_m": global_beacon.range_m,
+            "noise_std": global_beacon.noise_std,
+            "dropout_probability": global_beacon.dropout_probability,
+            "update_rate_hz": global_beacon.update_rate_hz,
+        }
+        merged.update({key: value for key, value in beacon_raw.items()})
+    beacon_enabled = bool(merged.get("enabled", True))
+    if sequence_index is None:
+        # A gate outside the ordered sequence normally carries no beacon.  An
+        # explicit beacon declaration is nevertheless preserved so validation
+        # can reject the malformed one-to-one mapping instead of silently
+        # normalizing it away.
+        beacon = None if beacon_raw is None else _parse_beacon(merged, default_id=None)
+    else:
+        default_id = sequential_beacon_id(sequence_index) if beacon_enabled else None
+        beacon = _parse_beacon(merged, default_id=default_id)
 
     return GateConfig(
         id=gate_id,

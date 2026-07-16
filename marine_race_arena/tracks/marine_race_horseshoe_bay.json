@@ -76,7 +76,6 @@
   },
   "beacon": {
     "enabled": true,
-    "mode": "active_when_target",
     "position_offset": [
       0.0,
       0.0,
@@ -85,11 +84,7 @@
     "range_m": 90.0,
     "noise_std": 0.2,
     "dropout_probability": 0.0,
-    "update_rate_hz": 10.0,
-    "message": {
-      "track": "horseshoe_bay",
-      "channel_plan": "target_only"
-    }
+    "update_rate_hz": 10.0
   },
   "gates": [
     {
@@ -370,15 +365,8 @@
           "DepthSensor",
           "IMUSensor",
           "DVLSensor",
-          "VelocitySensor",
           "CollisionSensor",
-          "FrontCamera",
-          "depth_m",
-          "heading_yaw_deg",
-          "environment_current_m_s",
-          "current_physical_coupling_active",
-          "current_coupling_method",
-          "control_mode"
+          "FrontCamera"
         ],
         "holoocean_sensors": [
           {

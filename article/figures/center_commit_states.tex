@@ -13,10 +13,10 @@
 \node[state, below=of commit] (exit) {Exit hold};
 
 \draw[arrow] (center) -- node[lbl, right] {four centered frames} (commit);
-\draw[arrow] (commit) -- node[lbl, right] {valid crossing} (exit);
+\draw[arrow] (commit) -- node[lbl, right] {onboard exit evidence} (exit);
 \draw[arrow] (commit.west) -- ++(-0.75,0)
-  |- node[lbl, pos=0.48] {300-step timeout} (center.west);
+  |- node[lbl, pos=0.48] {local timeout, no advance} (center.west);
 \end{tikzpicture}
-\caption{Center-then-commit gate passage and timeout recovery.}
+\caption{Center-then-commit passage with controller-local confirmation and recovery.}
 \label{fig:center_commit_states}
 \end{figure}

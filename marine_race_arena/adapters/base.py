@@ -232,19 +232,23 @@ class BaseRaceAdapter(abc.ABC):
         sensor_profile: Any,
         official_mode: bool,
     ) -> Dict[str, Any]:
-        """Filter simulator sensor data before a participant controller sees it."""
+        """Filter simulator sensor data before a participant controller sees it.
 
+        Ground-truth pose/velocity sensors and privileged environment state
+        (current vectors, coupling metadata, simulator/control metadata) are
+        stripped unconditionally, in every mode: controllers only ever see
+        simulated onboard sensors. Pose and velocity sensors may exist
+        internally for the adapter and referee, but their values never enter a
+        controller observation. Debug controllers receive ground truth only
+        through the explicit ``debug_ground_truth`` channel in non-official
+        runs.
+        """
+
+        del official_mode  # privileged fields are stripped in every mode
         allowed_names = _configured_sensor_names(sensor_profile)
         filtered: Dict[str, Any] = {}
         for name, value in raw_sensor_data.items():
-            if official_mode and _is_ground_truth_sensor(name):
-                continue
-            # Official mode never exposes the true simulator current vector to a
-            # controller: it is privileged disturbance state. It remains available
-            # only as diagnostic/log telemetry in non-official runs. This strip is
-            # unconditional in official mode and cannot be re-enabled by an
-            # allow-list entry, keeping the no-cheat contract unambiguous.
-            if official_mode and _is_current_vector_field(name):
+            if _is_privileged_sensor(name):
                 continue
             if allowed_names and name not in allowed_names and _canonical_sensor_name(name) not in allowed_names:
                 continue
@@ -273,29 +277,32 @@ def _configured_sensor_names(sensor_profile: Any) -> set[str]:
     return names
 
 
-def _is_ground_truth_sensor(sensor_name: str) -> bool:
+def _is_privileged_sensor(sensor_name: str) -> bool:
+    """Sensor keys that must never reach a controller.
+
+    Covers ground-truth pose/rotation/dynamics, world-frame velocity,
+    ground-truth-derived heading and depth, the true environment current
+    vector, current-coupling metadata, and simulator/control metadata. The
+    strip is unconditional and cannot be re-enabled by an allow-list entry.
+    """
     canonical = _canonical_sensor_name(sensor_name)
     return canonical in {
+        # Ground-truth pose and dynamics.
         "posesensor",
         "locationsensor",
         "rotationsensor",
         "dynamicssensor",
-        "ground_truth",
-        "debug_ground_truth",
-        "exact_pose",
-        "exact_position",
-    }
-
-
-def _is_current_vector_field(sensor_name: str) -> bool:
-    """Fields that reveal the true simulator current vector (forbidden in official mode).
-
-    Coupling metadata (e.g. whether physical coupling is active) does not reveal
-    the current direction or magnitude and is intentionally not included here.
-    """
-    canonical = _canonical_sensor_name(sensor_name)
-    return canonical in {
-        "environmentcurrentms",  # environment_current_m_s
+        "gpssensor",
+        "groundtruth",
+        "debuggroundtruth",
+        "exactpose",
+        "exactposition",
+        # World-frame velocity and ground-truth-derived scalars.
+        "velocitysensor",
+        "headingyawdeg",
+        "depthm",
+        # Environment current state and coupling metadata.
+        "environmentcurrentms",
         "environmentcurrent",
         "currentvector",
         "currentvelocity",
@@ -304,6 +311,10 @@ def _is_current_vector_field(sensor_name: str) -> bool:
         "oceancurrentms",
         "truecurrent",
         "truecurrentms",
+        "currentphysicalcouplingactive",
+        "currentcouplingmethod",
+        # Simulator/control metadata.
+        "controlmode",
     }
 
 

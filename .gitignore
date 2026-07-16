@@ -41,7 +41,7 @@ output/
 results/
 logs/
 runs/
-diagnostics/
+/diagnostics/
 recordings/
 videos/
 HoloOceanLogs/

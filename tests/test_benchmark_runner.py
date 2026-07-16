@@ -7,8 +7,12 @@ import pytest
 
 from marine_race_arena.scripts.run_benchmark import (
     BenchmarkRunResult,
+    _build_arg_parser,
     aggregate_run_results,
     _build_run_metadata,
+    _current_result_acceptable,
+    _obstacle_result_acceptable,
+    _race_args,
     write_aggregate_outputs,
 )
 
@@ -144,13 +148,115 @@ def test_benchmark_metadata_records_motion_compensation() -> None:
         duration=120.0,
         dt=0.1,
         official=False,
-        print_beacon_targets=False,
+        print_beacons=False,
     )
 
     metadata = _build_run_metadata(args, seed=0, controller_role="automatic")
 
     assert metadata["motion_compensation"] == "none"
     assert metadata["gate_timeout_s"] == 180.0
+    assert len(metadata["source_tree_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("metadata", "acceptable"),
+    [
+        ({"current_profile_requested": "none"}, True),
+        (
+            {
+                "current_profile_requested": "medium",
+                "actual_adapter": "holoocean",
+                "fallback_used": False,
+                "physical_current_coupling_active": True,
+            },
+            True,
+        ),
+        (
+            {
+                "current_profile_requested": "strong",
+                "actual_adapter": "holoocean",
+                "fallback_used": False,
+                "physical_current_coupling_active": False,
+            },
+            False,
+        ),
+    ],
+)
+def test_current_result_acceptance_requires_physical_holoocean_coupling(
+    metadata: dict[str, object], acceptable: bool
+) -> None:
+    assert _current_result_acceptable(metadata) is acceptable
+
+
+@pytest.mark.parametrize(
+    ("metadata", "acceptable"),
+    [
+        ({"obstacles_requested": "none"}, True),
+        (
+            {
+                "obstacles_requested": "random",
+                "actual_adapter": "holoocean",
+                "fallback_used": False,
+                "physical_obstacles_requested": 6,
+                "physical_obstacles_spawned": 6,
+                "physical_obstacle_spawn_complete": True,
+            },
+            True,
+        ),
+        (
+            {
+                "obstacles_requested": "random",
+                "actual_adapter": "holoocean",
+                "fallback_used": False,
+                "physical_obstacles_requested": 6,
+                "physical_obstacles_spawned": 5,
+                "physical_obstacle_spawn_complete": False,
+            },
+            False,
+        ),
+    ],
+)
+def test_obstacle_result_acceptance_requires_complete_physical_spawn(
+    metadata: dict[str, object], acceptable: bool
+) -> None:
+    assert _obstacle_result_acceptable(metadata) is acceptable
+
+
+def test_benchmark_forwards_staggered_fleet_validation_options(tmp_path: Path) -> None:
+    args = _build_arg_parser().parse_args(
+        [
+            "--benchmark-task",
+            "clean_gate",
+            "--track",
+            "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
+            "--controller",
+            "rule_gate_baseline",
+            "--adapter",
+            "holoocean",
+            "--staggered-start",
+            "--num-rovers",
+            "2",
+            "--start-gap-s",
+            "90",
+            "--staggered-lateral-offset-m",
+            "3",
+            "--log-participant-states",
+            "--inter-vehicle-collision-mode",
+            "diagnostic",
+            "--inter-vehicle-collision-release-threshold-m",
+            "1.05",
+            "--team-id",
+            "fleet_01",
+        ]
+    )
+
+    race_args = _race_args(args, seed=3, run_dir=tmp_path)
+
+    assert race_args[race_args.index("--num-rovers") + 1] == "2"
+    assert race_args[race_args.index("--start-gap-s") + 1] == "90.0"
+    assert race_args[race_args.index("--staggered-lateral-offset-m") + 1] == "3.0"
+    assert race_args[race_args.index("--inter-vehicle-collision-mode") + 1] == "diagnostic"
+    assert "--log-participant-states" in race_args
 
 
 def _write_summary(path: Path, payload: dict) -> Path:

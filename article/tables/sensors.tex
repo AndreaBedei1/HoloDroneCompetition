@@ -12,10 +12,9 @@ Depth        & 30\,Hz & Scalar depth (m); noise $\sigma=0$. \\
 IMU          & 30\,Hz & Linear acceleration and angular rate, with bias terms. \\
 DVL          & 15\,Hz & Body-frame velocity (m/s); beam elevation $22.5^\circ$, max range $50$\,m. \\
 Front camera & 30\,Hz & RGB image, $640\times480$, $90^\circ$ field of view. \\
-Velocity     & 30\,Hz & World-frame linear velocity (m/s). \\
-Collision    & 30\,Hz & Boolean contact flag. \\
+Collision    & optional & Boolean onboard contact flag when configured. \\
 \midrule
-\multicolumn{3}{p{0.87\columnwidth}}{\emph{Derived fields:} heading $\psi$ (deg) and depth (m) from the pose used by the referee. Environmental-current telemetry is excluded from official observations and retained only for non-official diagnostics.} \\
+\multicolumn{3}{p{0.87\columnwidth}}{World-frame velocity, pose-derived heading/depth and environmental-current telemetry are not controller-visible in official mode. Pose and velocity sensors may exist internally for simulation and referee evaluation only.} \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -35,11 +35,11 @@ mapping the official observation $o_{i,t}$ (Section~\ref{sec:configuration}) to 
 \label{eq:command}
 u_{i,t}=\big[u^{\mathrm{surge}},\,u^{\mathrm{sway}},\,u^{\mathrm{heave}},\,u^{\mathrm{yaw}}\big]^{\!\top}\in[-1,1]^4 .
 \end{equation}
-The action of \eqref{eq:command} is the portable, constrained interface that an adapter maps to the selected vehicle. The reference HoloOcean adapter also accepts a direct eight-thruster \cmd{thrusters} action for its BlueROV2-class agent. Time is discretized at a fixed control timestep $\Delta t$, with $t_k=k\,\Delta t$. The runner may clamp $u_{i,t}$ for actuator and depth safety; in official mode the policy reads only the official observation $o_{i,t}$, whose contract excludes privileged state (Section~\ref{sec:configuration}).
+The action of \eqref{eq:command} is the portable, constrained interface that an adapter maps to the selected vehicle. In fleet mode the policy may return $(u_{i,t},m_{i,t})$, where $m_{i,t}$ is an optional controller-authored communication payload and only $u_{i,t}$ is a physical action. The reference HoloOcean adapter also accepts a direct eight-thruster \cmd{thrusters} action for its BlueROV2-class agent. Time is discretized at a fixed control timestep $\Delta t$, with $t_k=k\,\Delta t$. The adapter clamps $u_{i,t}$ to actuator limits and applies depth-bound safety before mapping it to the vehicle; in official mode the policy reads only the official observation $o_{i,t}$, whose contract excludes privileged state (Section~\ref{sec:configuration}).
 
 \subsection{Design Requirements}
 
-The release-candidate design follows the seven requirements in Table~\ref{tab:requirements}. They encode the central commitment of the benchmark, that scoring is independent of and not improvable by, the participant and the secondary commitment that enabling fleet mode must not silently change single-rover behavior.
+The release-candidate design follows the seven requirements in Table~\ref{tab:requirements}. They encode the central commitment that scoring logic is independent of the participant and cannot be manipulated through privileged feedback, together with the secondary commitment that enabling fleet mode must not silently change single-rover behavior.
 
 \begin{table}[t]
 \centering
@@ -52,7 +52,7 @@ The release-candidate design follows the seven requirements in Table~\ref{tab:re
 ID & Requirement \\
 \midrule
 R1 & Race configuration is declarative and reproducible from a single set of track JSON files. \\
-R2 & Official controller observations exclude ground-truth pose and simulator-only state. \\
+R2 & Official controller observations exclude ground-truth pose, simulator-only state and referee-derived course progress. \\
 R3 & Referee logic is independent of the participant controller and cannot be influenced by it. \\
 R4 & Gate dimensions, referee margins and track geometry are not changed to hide failures. \\
 R5 & Every run emits structured event logs and machine-readable summaries. \\
@@ -66,4 +66,4 @@ R7 & Fleet mode aggregates a team score while preserving per-rover diagnostics. 
 
 \input{figures/architecture_diagram}
 
-Fig.~\ref{fig:architecture} shows the runtime architecture and the modules that realize it. The configuration loader parses and validates the track JSON into a typed configuration; the arena builder instantiates gates, beacons, the current field, obstacles and bounds. The race runner drives the discrete-time loop. On the simulation side, the adapter handles reset, actions, ticking and sensor extraction. An engine-free adapter implements the same interface for unit and plumbing tests but is not used for reported results. On the control side, the runner assembles the official observation and passes it to the controller, which returns a command. On the scoring side, the referee consumes privileged simulator state, validates progress and emits structured events and summaries. The dashed boundary in Fig.~\ref{fig:architecture} marks the information contract: nodes inside it see only the official observation, while ground-truth state is confined to the referee. This separation keeps participant controllers from influencing scoring logic or accessing privileged evaluation state.
+Fig.~\ref{fig:architecture} shows the runtime architecture and the modules that realize it. The configuration loader parses and validates the track JSON into a typed configuration; the arena builder instantiates gates, independent beacons, the current field, obstacles and bounds. The race runner drives the discrete-time loop. On the simulation side, the adapter handles reset, actions, ticking and sensor extraction. An engine-free adapter implements the same interface for unit and plumbing tests but is not used for reported results. On the control side, the runner assembles the official observation from participant-local time, filtered onboard sensors and physically received packets, then passes it to the controller, which returns a command. On the scoring side, the referee consumes privileged simulator state, validates progress and emits structured events and summaries. The observation builder has no referee argument and no referee result flows back across the dashed boundary in Fig.~\ref{fig:architecture}; privileged state may support arena synthesis, adapter physics and evaluation, but remains outside the controller boundary. A controller may therefore disagree with the referee. The official trajectory is scored, while the disagreement is logged and audited offline rather than corrected by the runner.

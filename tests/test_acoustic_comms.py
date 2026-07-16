@@ -19,6 +19,14 @@ def test_disabled_channel_is_a_noop() -> None:
 
     assert channel.deliver("b", 100.0) == []
     assert channel.sent == 0
+    assert channel.summary()["delivery_latency_s"] == {
+        "count": 0,
+        "min": None,
+        "mean": None,
+        "p50": None,
+        "p95": None,
+        "max": None,
+    }
 
 
 def test_message_delivered_only_after_acoustic_latency() -> None:
@@ -32,6 +40,66 @@ def test_message_delivered_only_after_acoustic_latency() -> None:
     delivered = channel.deliver("b", 3.0)
     assert len(delivered) == 1
     assert delivered[0]["payload"] == {"target": "g03"}
+    assert delivered[0]["received_at_s"] == 3.0
+
+
+def test_delayed_polling_preserves_physical_arrival_time() -> None:
+    channel = AcousticCommsChannel(
+        CommsConfig(
+            enabled=True,
+            sound_speed_m_s=10.0,
+            processing_delay_s=0.0,
+            max_range_m=1000.0,
+            min_send_interval_s=0.0,
+        )
+    )
+    _send(channel, "a", {"local_beacon_index": 1}, 2.0, (0.0, 0.0, 0.0), {"b": (30.0, 0.0, 0.0)})
+
+    delivered = channel.deliver("b", 20.0)
+    assert len(delivered) == 1
+    assert delivered[0]["sent_at_s"] == 2.0
+    assert delivered[0]["received_at_s"] == 5.0
+    assert channel.summary()["delivery_latency_s"] == {
+        "count": 1,
+        "min": 3.0,
+        "mean": 3.0,
+        "p50": 3.0,
+        "p95": 3.0,
+        "max": 3.0,
+    }
+
+
+def test_delivery_latency_summary_uses_scheduled_arrival_times() -> None:
+    channel = AcousticCommsChannel(
+        CommsConfig(
+            enabled=True,
+            sound_speed_m_s=10.0,
+            processing_delay_s=0.0,
+            max_range_m=1000.0,
+            min_send_interval_s=0.0,
+        )
+    )
+    for index, distance_m in enumerate((10.0, 20.0, 30.0, 40.0, 50.0)):
+        _send(
+            channel,
+            "a",
+            {"n": index},
+            float(index),
+            (0.0, 0.0, 0.0),
+            {"b": (distance_m, 0.0, 0.0)},
+        )
+
+    # Poll long after every physical arrival. Polling delay must not inflate the
+    # measured 1, 2, 3, 4 and 5 second propagation latencies.
+    assert len(channel.deliver("b", 100.0)) == 5
+    assert channel.summary()["delivery_latency_s"] == {
+        "count": 5,
+        "min": 1.0,
+        "mean": 3.0,
+        "p50": 3.0,
+        "p95": 4.8,
+        "max": 5.0,
+    }
 
 
 def test_out_of_range_message_is_dropped() -> None:

@@ -56,14 +56,18 @@ def test_official_sensor_filter_removes_current_vector() -> None:
     }
     official = adapter.filter_sensor_data(raw, profile, official_mode=True)
     assert "environment_current_m_s" not in official
+    assert "current_physical_coupling_active" not in official
+    assert "VelocitySensor" not in official
     # Legal onboard sensors are preserved.
     assert "DVLSensor" in official
-    assert "VelocitySensor" in official
     assert "DepthSensor" in official
 
-    # In non-official (diagnostic) runs the field remains available.
+    # Privileged simulator fields are removed at the adapter boundary in every
+    # mode; debug controllers get ground truth only through the explicit debug
+    # channel built below.
     unofficial = adapter.filter_sensor_data(raw, profile, official_mode=False)
-    assert "environment_current_m_s" in unofficial
+    assert "environment_current_m_s" not in unofficial
+    assert "VelocitySensor" not in unofficial
 
 
 def test_current_vector_stripped_even_without_allow_list() -> None:
@@ -76,7 +80,39 @@ def test_current_vector_stripped_even_without_allow_list() -> None:
 
 def test_debug_ground_truth_only_added_when_not_official() -> None:
     debug = {"own_position": (0.0, 0.0, -4.0)}
-    unofficial = build_observation("p1", 0.0, {}, {}, {}, official_mode=False, debug_ground_truth=debug)
-    official = build_observation("p1", 0.0, {}, {}, {}, official_mode=True, debug_ground_truth=debug)
+    packet = {
+        "beacon_id": "B01",
+        "bearing_deg": 0.0,
+        "elevation_deg": 0.0,
+        "range_m": 4.0,
+        "signal_strength": 0.8,
+        "received_at_s": 0.0,
+    }
+    sensors = {
+        "DepthSensor": [-4.0],
+        "DVLSensor": [0.0, 0.0, 0.0],
+        "PoseSensor": [[1.0, 0.0, 0.0, 0.0]],
+    }
+    unofficial = build_observation(
+        local_time_s=0.0,
+        sensor_data=sensors,
+        beacon_packets=[packet],
+        official_mode=False,
+        debug_ground_truth=debug,
+    )
+    official = build_observation(
+        local_time_s=0.0,
+        sensor_data=sensors,
+        beacon_packets=[packet],
+        official_mode=True,
+        debug_ground_truth=debug,
+    )
+
     assert "debug_ground_truth" in unofficial
     assert "debug_ground_truth" not in official
+    assert set(official) == {"local_time_s", "sensors", "beacons"}
+    assert official["sensors"] == {
+        "DepthSensor": [-4.0],
+        "DVLSensor": [0.0, 0.0, 0.0],
+    }
+    assert official["beacons"] == [packet]

@@ -1,4 +1,21 @@
-"""Acoustic beacon models for gate guidance."""
+"""Independent acoustic beacon transmitters.
+
+Every gate carries one beacon with a sequential ID (``B01`` ... ``BN``) that
+matches the official gate ordering. Beacons transmit periodically at their
+configured update rate regardless of any participant's race progress: the
+referee never activates a beacon and never selects which beacon a controller
+should listen to. A receiver either physically hears a transmission (in range,
+not dropped) and gets a noisy relative measurement packet, or it hears nothing
+at all.
+
+A delivered packet carries only physically observable fields:
+
+    beacon_id, bearing_deg, elevation_deg, range_m, signal_strength,
+    received_at_s
+
+It never carries target/progress information, exact positions, dropout or
+range-rejection reasons, noise levels, or gate geometry.
+"""
 
 from __future__ import annotations
 
@@ -10,20 +27,28 @@ from typing import Any, Dict, Optional
 from marine_race_arena.arena.gate import Gate
 from marine_race_arena.config.schema import BeaconConfig, Vector3
 
+#: Exactly the keys an official beacon packet may contain.
+BEACON_PACKET_FIELDS = (
+    "beacon_id",
+    "bearing_deg",
+    "elevation_deg",
+    "range_m",
+    "signal_strength",
+    "received_at_s",
+)
+
 
 @dataclass(frozen=True)
 class Beacon:
+    """A single independent beacon transmitter mounted on one gate."""
+
     id: str
     gate_id: str
-    mode: str
     position: Vector3
     range_m: float
     noise_std: float
     dropout_probability: float
     update_rate_hz: float
-    message: Dict[str, Any]
-    gate_center: Vector3
-    gate_normal: Vector3
     enabled: bool = True
 
     @classmethod
@@ -41,87 +66,71 @@ class Beacon:
         return cls(
             id=config.id,
             gate_id=gate.id,
-            mode=config.mode,
             position=position,
             range_m=config.range_m,
             noise_std=config.noise_std,
             dropout_probability=config.dropout_probability,
             update_rate_hz=config.update_rate_hz,
-            message=dict(config.message),
-            gate_center=gate.center,
-            gate_normal=gate.normal_vector,
             enabled=True,
         )
 
-    def observe(
+    def transmission_index(self, time_s: float) -> int:
+        """Index of the most recent periodic transmission at or before ``time_s``.
+
+        Transmissions happen at t = k / update_rate_hz for k = 0, 1, 2, ...
+        Returns -1 before the first transmission.
+        """
+        if self.update_rate_hz <= 0.0:
+            return -1
+        if time_s < -1e-9:
+            return -1
+        return int(math.floor(time_s * self.update_rate_hz + 1e-9))
+
+    def receive(
         self,
+        *,
         receiver_position: Vector3,
         receiver_yaw_deg: float,
-        target_sequence_index: int,
-        observation_mode: str,
-        official_mode: bool,
+        received_at_s: float,
         rng: random.Random,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
+        """Physically receive one transmission, or return ``None``.
+
+        ``None`` means no packet was delivered (disabled, out of physical
+        range, or a dropout). The caller must not distinguish these cases;
+        diagnostic reasons are the transmitter's business, not the receiver's.
+        """
         if not self.enabled:
-            return self._invalid(target_sequence_index, "disabled")
+            return None
 
         delta = _subtract(self.position, receiver_position)
         distance = _norm(delta)
         if distance > self.range_m:
-            observation = self._invalid(target_sequence_index, "out_of_range")
-            observation["range_m"] = distance
-            observation["signal_strength"] = 0.0
-            return observation
+            return None
         if self.dropout_probability > 0.0 and rng.random() < self.dropout_probability:
-            return self._invalid(target_sequence_index, "dropout")
+            return None
 
         horizontal_distance = math.hypot(delta[0], delta[1])
         global_bearing = math.degrees(math.atan2(delta[1], delta[0]))
         relative_bearing = _wrap_degrees(global_bearing - receiver_yaw_deg)
         elevation = math.degrees(math.atan2(delta[2], horizontal_distance))
-        range_m = distance
+        range_measurement = distance
 
-        noise_level = 0.0
-        if observation_mode == "acoustic_noisy" and self.noise_std > 0.0:
-            noise_level = self.noise_std
+        if self.noise_std > 0.0:
             relative_bearing += rng.gauss(0.0, self.noise_std)
             elevation += rng.gauss(0.0, self.noise_std)
-            range_m = max(0.0, range_m + rng.gauss(0.0, self.noise_std))
+            range_measurement = max(0.0, range_measurement + rng.gauss(0.0, self.noise_std))
 
-        observation: Dict[str, Any] = {
-            "valid": True,
-            "reason": "ok",
-            "active_beacon_id": self.id,
-            "target_gate_id": self.gate_id,
-            "sequence_index": target_sequence_index,
+        # Signal strength is derived from the noisy range so the packet never
+        # carries a second, cleaner distance estimate as a side channel.
+        signal_strength = max(0.0, 1.0 - range_measurement / self.range_m)
+        return {
+            "beacon_id": self.id,
             "bearing_deg": _wrap_degrees(relative_bearing),
             "elevation_deg": elevation,
-            "range_m": range_m,
-            "signal_strength": max(0.0, 1.0 - distance / self.range_m),
-            "noise_level": noise_level,
-            "mode": observation_mode,
-            "message": dict(self.message),
-        }
-        if observation_mode == "oracle" and not official_mode:
-            observation["exact_gate_center"] = self.gate_center
-            observation["exact_gate_normal"] = self.gate_normal
-            observation["exact_beacon_position"] = self.position
-        return observation
-
-    def _invalid(self, target_sequence_index: int, reason: str) -> Dict[str, Any]:
-        return {
-            "valid": False,
-            "reason": reason,
-            "active_beacon_id": self.id,
-            "target_gate_id": self.gate_id,
-            "sequence_index": target_sequence_index,
-            "bearing_deg": None,
-            "elevation_deg": None,
-            "range_m": None,
-            "signal_strength": 0.0,
-            "noise_level": self.noise_std,
-            "mode": self.mode,
-            "message": dict(self.message),
+            "range_m": range_measurement,
+            "signal_strength": signal_strength,
+            "received_at_s": received_at_s,
         }
 
 
@@ -143,4 +152,3 @@ def _norm(vector: Vector3) -> float:
 
 def _wrap_degrees(angle: float) -> float:
     return (angle + 180.0) % 360.0 - 180.0
-

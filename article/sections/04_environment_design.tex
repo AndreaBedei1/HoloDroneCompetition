@@ -1,7 +1,7 @@
 \section{Vehicle, Simulator and Sensing}
 \label{sec:configuration}
 
-This section describes the simulation backend, the vehicle and its sensors, the acoustic and current models, the declarative track configuration and the official observation contract that the referee enforces.
+This section describes the simulation backend, the vehicle and its sensors, the acoustic and current models, the declarative track configuration and the official observation contract enforced independently of the referee.
 
 \subsection{Simulator and Vehicle}
 
@@ -16,21 +16,21 @@ with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_\tau$, each component c
 
 \subsection{Sensor Suite}
 
-Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines a forward RGB camera, a depth sensor, an IMU, a DVL, a world-velocity sensor and a contact sensor. Ground-truth pose, location, rotation and dynamics sensors exist in the simulator and are used internally by the referee, but are removed from the controller-visible observation in official mode (Section~\ref{sec:obs_contract}).
+Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines a forward RGB camera, a depth sensor, an IMU and a DVL; an onboard contact flag is also permitted when configured. World-frame velocity and ground-truth pose, location, rotation and dynamics sensors exist internally for simulation and referee evaluation, but are rejected at the adapter boundary and cannot appear in the official controller observation (Section~\ref{sec:obs_contract}).
 
 \input{tables/sensors}
 
 \subsection{Acoustic Beacon Model}
 
-Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of \eqref{eq:gate_frame}, with $\hat{n}$ the passage normal and $\hat{s}_g$ the gate-up axis. Each gate carries one beacon, placed at $b_g=c_g+\delta_n \hat{n}+\delta_r \hat{r}_g+\delta_s \hat{s}_g$ relative to the gate center $c_g$ (default offset $(0,0,0.35)$\,m along $\hat{s}_g$). For a receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_g-p_r$ and $\rho=\lVert\boldsymbol{\delta}\rVert$. The beacon reports range, a yaw-relative bearing, an elevation and a signal strength:
+Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of \eqref{eq:gate_frame}, with $\hat{n}$ the passage normal and $\hat{s}_g$ the gate-up axis. Each gate carries one beacon, placed at $b_g=c_g+\delta_n \hat{n}+\delta_r \hat{r}_g+\delta_s \hat{s}_g$ relative to the gate center $c_g$ (default offset $(0,0,0.35)$\,m along $\hat{s}_g$). For a receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_g-p_r$, let $\rho=\lVert\boldsymbol{\delta}\rVert$ be the geometric range and let $\tilde{\rho}$ be its noisy delivered measurement. The beacon reports $\tilde{\rho}$, a yaw-relative bearing, an elevation and a signal strength:
 \begin{align}
 \label{eq:beacon}
-\rho &= \lVert\boldsymbol{\delta}\rVert,\\
+\rho &= \lVert\boldsymbol{\delta}\rVert,\qquad \tilde{\rho}=\max(0,\rho+\eta_\rho),\\
 \beta &= \operatorname{wrap}\!\big(\operatorname{atan2}(\delta_y,\delta_x)-\psi\big),\\
 \varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big),\\
-\mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\rho}{\rho_{\max}}\Big),\nonumber
+\mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\tilde{\rho}}{\rho_{\max}}\Big),\nonumber
 \end{align}
-where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A reading is invalid beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$ and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.6\}$ and dropout probabilities up to $0.04$. Only the beacon of the current target gate is active in the default \emph{active-when-target} mode, so the beacon provides a target cue but not a map of the whole course.
+where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A transmission is not received beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$ and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.45,0.6\}$ and dropout probabilities up to $0.04$. Every ordered gate has one independent periodic transmitter with a unique contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All transmit regardless of referee state; at each update a rover receives every in-range, non-dropped packet. The framework neither activates a target transmitter nor labels a packet as the correct target. Packet randomness is seeded by the run seed, transmitter, receiver and transmission index, making reception independent of participant count and call order.
 
 \subsection{Current Field Model}
 
@@ -50,11 +50,11 @@ with $d=\lVert p-c_j\rVert$ and $\sigma=\max(R_j/2,10^{-6})$ and zero outside $R
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. The current physically perturbs the vehicle when the HoloOcean build exposes ocean-current coupling; otherwise the field is exposed as telemetry only.
+The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. Both named profiles are defined relative to the gate layout and are available on each official circuit. The HoloOcean adapter evaluates the field at every rover before each control step---one physics tick in the reported setup---and applies it through \cmd{env.set\_ocean\_currents}. Reported current experiments are rejected unless the run metadata confirms this physical coupling on the real HoloOcean adapter with no fallback.
 
 \subsection{Declarative Track Configuration}
 
-A track is a self-contained JSON file. Its principal sections are \cmd{race} (name, benchmark task, timing mode, laps and duration), \cmd{world} (bounds and environment), \cmd{start} and \cmd{finish}, \cmd{track} and \cmd{gates} (the ordered gate sequence with centers, passage directions and aperture sizes), \cmd{beacon}, \cmd{currents}, \cmd{obstacles}, \cmd{participants} (vehicle, spawn, sensors, controller and optional \cmd{start\_delay\_s}) and \cmd{referee} (gate validation, penalties and scoring). A named \cmd{benchmark\_task} (\cmd{clean\_gate}, \cmd{obstacle\_gate}, \cmd{current\_gate} or \cmd{multi\_rov}) selects a preset overlay. Listing~\ref{lst:trackjson} shows a representative excerpt.
+A track is a self-contained JSON file. Its principal sections are \cmd{race} (name, timing mode, laps and duration), \cmd{benchmark\_task}, \cmd{world} (bounds and environment), \cmd{start} and \cmd{finish}, \cmd{track} and \cmd{gates} (the ordered gate sequence with centers, passage directions and aperture sizes), \cmd{beacon}, \cmd{currents}/\cmd{current\_profiles}, \cmd{obstacle\_generation}/\cmd{obstacles}, \cmd{participants} (vehicle, spawn, sensors, controller and optional \cmd{start\_delay\_s}) and \cmd{referee} (gate validation, penalties and scoring). The named \cmd{benchmark\_task} (\cmd{clean\_gate}, \cmd{obstacle\_gate}, \cmd{current\_gate} or \cmd{multi\_rov}) selects a validation contract. Listing~\ref{lst:trackjson} shows a representative excerpt.
 
 \begin{lstlisting}[caption={Representative excerpt of a track configuration.}, label={lst:trackjson}]
 "track": {
@@ -62,11 +62,14 @@ A track is a self-contained JSON file. Its principal sections are \cmd{race} (na
   "gate_sequence": ["G01", "G02", "..."]
 },
 "gates": [
-  { "id": "G01", "center": [4.0, -2.0, -3.5],
+  { "id": "G01", "position": [4.0, -2.0, -3.5],
+    "rotation_rpy_deg": [0.0, 0.0, 0.0],
     "passage_direction": [1.0, 0.0, 0.0] }
 ],
 "beacon": {
-  "mode": "active_when_target", "range_m": 90.0
+  "range_m": 90.0, "noise_std": 0.2,
+  "dropout_probability": 0.0,
+  "update_rate_hz": 10.0
 },
 "participants": [
   { "id": "bluerov2_01", "vehicle": "BlueROV2",
@@ -84,10 +87,14 @@ The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}
 
 \input{tables/official_tracks}
 
+The \cmd{obstacle\_gate} task accepts explicit fixed obstacles or deterministic random boxes generated between consecutive gates with a configured density and minimum clearance. The HoloOcean adapter records the requested and physically spawned counts, and an obstacle construction check is accepted only when they match. This verifies that obstacles can be instantiated on a circuit; it is deliberately separate from any claim that a reference controller avoids them.
+
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. In official mode the runner removes pose, location, rotation, dynamics, exact-position, debug ground-truth and exact-gate-geometry fields, then keeps only the configured allow-list of sensor names; numeric arrays are made JSON-safe while image arrays are preserved. Controllers do not receive the configured environment current vector. The runner removes it from official observations even if an allow-list entry requests it; the vector is available only as diagnostic telemetry in non-official runs. A controller must therefore infer current effects from its onboard sensing (e.g.\ the DVL or velocity-sensor residual), not read the current directly. The intended information contract is acoustic target guidance, onboard sensing and race progress, not global state. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose messages are authored by other controllers and therefore contain only information those controllers may legally observe.
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. The builder is structurally independent of the referee: its signature contains the track configuration, arena, adapter and participant state, but no referee object. It constructs participant-local elapsed time, asks the adapter only for allow-listed onboard sensors and asks the beacon field which periodic transmissions were physically received. Pose, location, rotation, dynamics, world-frame velocity, pose-derived heading or depth, environment-current vectors, exact gate geometry and all referee progress fields are forbidden. Numeric arrays are made JSON-safe while image arrays are preserved. A controller must infer disturbance effects from its onboard sensors, particularly body-frame DVL measurements, rather than read the current directly. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose payloads are authored from another controller's own legal information.
+
+Each beacon packet contains exactly \cmd{beacon\_id}, \cmd{bearing\_deg}, \cmd{elevation\_deg}, \cmd{range\_m}, \cmd{signal\_strength} and the receiver-local \cmd{received\_at\_s}. No validity reason, gate id, expected-target flag, position or noise parameter is exposed. Silence is simply absence of a packet; the controller cannot distinguish range loss, dropout and an interval with no new transmission.
 
 \begin{table}[t]
 \centering
@@ -99,12 +106,10 @@ The controller \texttt{step} function receives a dictionary with the fields in T
 \toprule
 Field & Meaning \\
 \midrule
-\cmd{time\_s} & Race time in seconds. \\
-\path{participant_id} & Identifier of the vehicle receiving the observation. \\
-\cmd{sensors} & Filtered onboard sensor dictionary (camera, depth, IMU, DVL, velocity, collision and the derived heading and depth). \\
-\cmd{beacon} & Acoustic message: validity, target gate id, bearing, elevation, range, signal strength and mode. \\
-\cmd{race} & Participant-visible progress: status, lap, completed gates, target gate id, target sequence index and official-timing status. \\
-\cmd{comms} & Present only when the optional inter-rover acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and send and receive timestamps (Section~\ref{sec:fleet}). \\
+\cmd{local\_time\_s} & Elapsed time since this rover's release; it is not official race time. \\
+\cmd{sensors} & Filtered onboard dictionary containing only configured camera, depth, IMU, DVL and optional collision measurements. \\
+\cmd{beacons} & List of physically received packets from independent transmitters; it may be empty or contain several ids. \\
+\cmd{comms} & Present only when the optional inter-rover acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and a receiver-local reception timestamp (Section~\ref{sec:fleet}). \\
 \bottomrule
 \end{tabular}
 \end{table}

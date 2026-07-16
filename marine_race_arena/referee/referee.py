@@ -186,18 +186,6 @@ class Referee:
         state = self.states[participant_id]
         return self.gate_sequence[state.expected_gate_index]
 
-    def race_progress(self, participant_id: str) -> Dict[str, object]:
-        state = self.states[participant_id]
-        return {
-            "status": state.status.value,
-            "lap": state.current_lap,
-            "laps": self.config.race.laps,
-            "completed_gates": state.valid_gate_crossings,
-            "target_gate_id": self.expected_gate_id(participant_id),
-            "target_sequence_index": state.expected_gate_index,
-            "official_time_started": state.official_start_time is not None,
-        }
-
     def detect_inter_vehicle_collisions(
         self,
         time_s: float,

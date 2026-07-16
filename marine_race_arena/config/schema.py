@@ -73,15 +73,22 @@ class FinishConfig:
 
 @dataclass(frozen=True)
 class BeaconConfig:
+    """One independent periodic beacon transmitter attached to a gate.
+
+    Beacon IDs are sequential (``B01`` ... ``BN``) and follow the official
+    gate ordering; the loader assigns them positionally and validation
+    rejects missing, duplicate or reordered IDs. Beacons are always-on
+    periodic transmitters: there is no referee-driven activation mode and no
+    payload message.
+    """
+
     enabled: bool = True
     id: Optional[str] = None
-    mode: str = "active_when_target"
     position_offset: Vector3 = (0.0, 0.0, 0.35)
     range_m: float = 50.0
     noise_std: float = 0.0
     dropout_probability: float = 0.0
     update_rate_hz: float = 10.0
-    message: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -28,9 +28,6 @@ DEFAULT_INTER_VEHICLE_MODE = "diagnostic"
 DEFAULT_INTER_VEHICLE_XY_THRESHOLD_M = 0.8
 DEFAULT_INTER_VEHICLE_Z_THRESHOLD_M = 0.75
 DEFAULT_INTER_VEHICLE_COOLDOWN_S = 1.0
-DIAGNOSTIC_NUM_ROVERS = 3
-DIAGNOSTIC_START_GAP_S = 20.0
-DIAGNOSTIC_LATERAL_OFFSET_M = 1.5
 TABLE_FIELDS = [
     "participant_id",
     "start_delay_s",
@@ -67,7 +64,7 @@ class SmokeRun:
 def main(argv: list[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
-    _apply_mode_defaults(args)
+    args.mode_name = "two_rover_smoke"
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -118,25 +115,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_INTER_VEHICLE_COOLDOWN_S,
     )
-    parser.add_argument(
-        "--diagnostic-3-rover",
-        action="store_true",
-        help=(
-            "Run the older 3-rover proximity diagnostic "
-            f"({DIAGNOSTIC_START_GAP_S:g}s gap, {DIAGNOSTIC_LATERAL_OFFSET_M:g}m offset)."
-        ),
-    )
     return parser
-
-
-def _apply_mode_defaults(args: argparse.Namespace) -> None:
-    if not args.diagnostic_3_rover:
-        args.mode_name = "stable_2_rover_demo"
-        return
-    args.mode_name = "diagnostic_3_rover_proximity"
-    args.num_rovers = DIAGNOSTIC_NUM_ROVERS
-    args.start_gap_s = DIAGNOSTIC_START_GAP_S
-    args.staggered_lateral_offset_m = DIAGNOSTIC_LATERAL_OFFSET_M
 
 
 def _run_adapter_smoke(adapter: str, args: argparse.Namespace, run_dir: Path) -> SmokeRun:

@@ -36,6 +36,9 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         self._active_environment_name: Optional[str] = None
         self.physical_current_coupling_active = False
         self.current_coupling_method = "not_checked"
+        self.physical_obstacles_requested = 0
+        self.physical_obstacles_spawned = 0
+        self.physical_obstacle_spawn_complete = True
 
     def initialize(self) -> None:
         try:
@@ -91,6 +94,9 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         if self.visual_spawner is None:
             self.visual_spawner = HoloOceanVisualSpawner(self.env)
         obstacle_list = list(obstacles)
+        self.physical_obstacles_requested = len(obstacle_list)
+        self.physical_obstacles_spawned = 0
+        self.physical_obstacle_spawn_complete = not obstacle_list
         spawned_count = 0
         sim_physics = (
             self.config.obstacle_generation.obstacle_physics.strip().lower()
@@ -116,6 +122,8 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
                 sim_physics=sim_physics,
             ):
                 spawned_count += 1
+        self.physical_obstacles_spawned = spawned_count
+        self.physical_obstacle_spawn_complete = spawned_count == len(obstacle_list)
         if obstacle_list and spawned_count < len(obstacle_list):
             LOGGER.warning(
                 "Only %d of %d configured obstacles were physically spawned; approximate collision checks remain active.",
@@ -133,14 +141,11 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
     def get_allowed_sensor_data(self, participant_id: str, sensor_profile: Any) -> Dict[str, Any]:
         state = self.get_participant_state(participant_id)
         raw_sensors = _normalize_front_camera_alias(dict(state.raw_sensors))
-        current_velocity = self.arena.current_manager.get_current_at(state.position, self._time_s)
-        raw_sensors.setdefault("heading_yaw_deg", state.rotation_rpy_deg[2])
-        raw_sensors.setdefault("depth_m", -state.position[2])
-        raw_sensors["environment_current_m_s"] = current_velocity
-        raw_sensors["current_physical_coupling_active"] = self.physical_current_coupling_active
-        raw_sensors["current_coupling_method"] = self.current_coupling_method
         participant = self._participants[participant_id]
-        raw_sensors["control_mode"] = participant.config.control_mode
+        # Only real simulated onboard sensors reach the controller. Ground-truth
+        # heading/depth/current/coupling/control metadata are never injected;
+        # PoseSensor and VelocitySensor exist internally for the referee and are
+        # stripped by the privileged-sensor filter.
         return self.filter_sensor_data(
             raw_sensors,
             sensor_profile,
@@ -214,12 +219,21 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         self._refresh_states_from_raw()
 
     def close(self) -> None:
-        if self.env is None:
+        env = self.env
+        self.env = None
+        self.visual_spawner = None
+        if env is None:
             return
-        close = getattr(self.env, "close", None)
+        close = getattr(env, "close", None)
         if callable(close):
             close()
-        self.env = None
+            return
+        exit_environment = getattr(env, "__exit__", None)
+        if callable(exit_environment):
+            # HoloOcean 2.3.0 exposes lifecycle cleanup through its context
+            # manager, not close().  __exit__ unlinks shared memory and waits
+            # for this environment's exact Holodeck child process to stop.
+            exit_environment(None, None, None)
 
     @property
     def active_environment_name(self) -> Optional[str]:

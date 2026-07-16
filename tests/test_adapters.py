@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from marine_race_arena.adapters import AdapterSelectionError, FallbackRaceAdapter, RaceAdapterUnavailable, select_adapter
+from marine_race_arena.adapters.holoocean_adapter import HoloOceanRaceAdapter
 from marine_race_arena.arena.arena_builder import ArenaBuilder
 from marine_race_arena.config.loader import load_track_config
 from marine_race_arena.participants.participant import RaceParticipant
@@ -111,3 +112,25 @@ def test_official_filter_removes_ground_truth_pose() -> None:
     assert "IMUSensor" in filtered
     assert "PoseSensor" not in filtered
     assert "LocationSensor" not in filtered
+
+
+def test_holoocean_close_uses_context_manager_and_drops_environment_references() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class ExitOnlyEnvironment:
+        def __init__(self) -> None:
+            self.exit_calls: list[tuple[object, object, object]] = []
+
+        def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+            self.exit_calls.append((exc_type, exc, traceback))
+
+    env = ExitOnlyEnvironment()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = env
+    adapter.visual_spawner = object()  # type: ignore[assignment]
+
+    adapter.close()
+
+    assert env.exit_calls == [(None, None, None)]
+    assert adapter.env is None
+    assert adapter.visual_spawner is None

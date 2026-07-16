@@ -51,6 +51,7 @@ class AcousticCommsChannel:
         self.dropped_oversized = 0
         self.dropped_out_of_range = 0
         self.dropped_packet_loss = 0
+        self._delivery_latencies_s: List[float] = []
 
     def send(
         self,
@@ -107,7 +108,13 @@ class AcousticCommsChannel:
         for deliver_time_s, rid, message in self._pending:
             if rid == receiver_id and deliver_time_s <= current_time_s + 1e-9:
                 arrived = dict(message)
-                arrived["received_at_s"] = float(current_time_s)
+                # Preserve the physical arrival time.  Stamping a queued
+                # packet with the later polling time would make old backlog
+                # look fresh and defeat controller-side stale-message checks.
+                arrived["received_at_s"] = float(deliver_time_s)
+                self._delivery_latencies_s.append(
+                    float(deliver_time_s) - float(arrived["sent_at_s"])
+                )
                 ready.append((deliver_time_s, arrived))
             else:
                 remaining.append((deliver_time_s, rid, message))
@@ -117,6 +124,16 @@ class AcousticCommsChannel:
         return [message for _, message in ready]
 
     def summary(self) -> Dict[str, Any]:
+        latencies = sorted(self._delivery_latencies_s)
+        latency_count = len(latencies)
+        latency_summary = {
+            "count": latency_count,
+            "min": latencies[0] if latencies else None,
+            "mean": (sum(latencies) / latency_count) if latencies else None,
+            "p50": _percentile(latencies, 0.50),
+            "p95": _percentile(latencies, 0.95),
+            "max": latencies[-1] if latencies else None,
+        }
         return {
             "enabled": self.config.enabled,
             "sound_speed_m_s": self.config.sound_speed_m_s,
@@ -131,8 +148,24 @@ class AcousticCommsChannel:
             "dropped_oversized": self.dropped_oversized,
             "dropped_out_of_range": self.dropped_out_of_range,
             "dropped_packet_loss": self.dropped_packet_loss,
+            "delivery_latency_s": latency_summary,
         }
 
 
 def _distance(a: Vector3, b: Vector3) -> float:
     return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
+
+
+def _percentile(sorted_values: List[float], quantile: float) -> Optional[float]:
+    """Return a linearly interpolated percentile for pre-sorted values."""
+    if not sorted_values:
+        return None
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    position = (len(sorted_values) - 1) * quantile
+    lower = int(math.floor(position))
+    upper = int(math.ceil(position))
+    if lower == upper:
+        return sorted_values[lower]
+    fraction = position - lower
+    return sorted_values[lower] + fraction * (sorted_values[upper] - sorted_values[lower])

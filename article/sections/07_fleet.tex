@@ -1,11 +1,11 @@
 \section{Fleet and Team Evaluation}
 \label{sec:fleet}
 
-Fleet mode runs several rovers as a single cooperative team through the same circuit, so the benchmark can measure how quickly the team completes the course, rather than pitting them as competitors against each other (requirement R7). The benchmark models one team only: all rovers share a single simulated world and a single referee, each keeps an independent progress and scoring state and enabling fleet mode does not alter single-rover behavior (R6).
+Fleet mode runs several rovers as a single cooperative team through the same circuit, so the benchmark can measure how quickly the team completes the course, rather than pitting them as competitors against each other (requirement R7). The benchmark models one team only: all rovers share a single simulated world, each controller keeps an independent local course estimate and the referee separately keeps one scoring state per rover. Enabling fleet mode does not alter single-rover behavior (R6).
 
 \subsection{Staggered Release and Spawn Geometry}
 
-Each participant $i$ is assigned a release delay $\tau_i=(i-1)\,\Delta\tau$ for a start gap $\Delta\tau$, so rovers enter the course at $0,\Delta\tau,2\Delta\tau,\dots$ A waiting rover is sent a zero command, its controller \cmd{step} is \emph{not} called and neither stuck nor gate-timeout timers accumulate; at release the referee logs a \cmd{participant\_released} event and resets the rover's progress timers, so a delayed start is never misclassified as stuck or timed out. Spawn poses are laterally separated about the base spawn to reduce launch interference: the $k$-th rover is offset by
+Each participant $i$ is assigned a release delay $\tau_i=(i-1)\,\Delta\tau$ for a start gap $\Delta\tau$, so rovers enter the course at $0,\Delta\tau,2\Delta\tau,\dots$ A waiting rover is sent a zero command, its controller \cmd{step} is \emph{not} called and neither stuck nor gate-timeout timers accumulate; at release the referee logs a \cmd{participant\_released} event and resets the rover's progress timers, so a delayed start is never misclassified as stuck or timed out. Spawn poses are laterally separated about the base spawn to reduce launch interference: using zero-based $k=0,\ldots,N-1$, the $k$-th rover is offset by
 \begin{equation}
 \label{eq:spawn_offset}
 o_k = (-1)^{k}\Big\lceil \tfrac{k}{2}\Big\rceil\, s
@@ -19,7 +19,7 @@ Inter-vehicle proximity events are detected on the referee side and are never ex
 \label{eq:ivc}
 \sqrt{(x_a-x_b)^2+(y_a-y_b)^2}\le r_{xy}\;\wedge\;|z_a-z_b|\le r_z,
 \end{equation}
-with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 thresholds are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection; \cmd{diagnostic} logs inter-vehicle proximity events without changing any score; \cmd{penalize} also charges one team-level penalty per pair event. Diagnostic mode is the default.
+with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 thresholds are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection and is the command-line default; \cmd{diagnostic} logs inter-vehicle proximity events without changing any score; \cmd{penalize} also charges one team-level penalty per pair event. The fleet experiments use diagnostic mode explicitly.
 
 \subsection{Inter-Rover Acoustic Communication}
 
@@ -30,23 +30,23 @@ To stay faithful to the medium rather than model a perfect radio link, the chann
 \label{eq:comms_latency}
 \tau_{ij}=\frac{d_{ij}}{c}+\tau_{\mathrm{proc}},
 \end{equation}
-where $d_{ij}$ is the inter-rover distance, $c$ the speed of sound and $\tau_{\mathrm{proc}}$ a fixed processing delay; each delivery is additionally dropped with probability $p_{\mathrm{loss}}$, payloads are capped to a small size to model the low bandwidth and a rover may not transmit faster than a minimum interval (a half-duplex rate limit). Packet loss is drawn from a seeded generator, so a run stays reproducible.
+where $d_{ij}$ is the inter-rover distance, $c$ the speed of sound and $\tau_{\mathrm{proc}}$ a fixed processing delay; each delivery is additionally dropped with probability $p_{\mathrm{loss}}$, payloads are capped to a small size to model the low bandwidth and a rover may not transmit faster than a configured per-sender interval. Packet loss is drawn from a seeded generator, so a run stays reproducible.
 
 The channel preserves the official observation contract. A payload is authored by the sending controller, which sees only its official observation, so it can carry only information that controller may legally observe; the framework uses the true rover positions solely to compute the channel physics ($d_{ij}$, $\tau_{ij}$, range and loss) and never injects pose, geometry or other privileged state into a delivered message. Inter-rover communication is therefore the substrate for the leader-follower coordination of Section~\ref{sec:coordination}.
 
 \subsection{Leader-Follower Coordination}
 \label{sec:coordination}
 
-A staggered team of identical controllers stays separated in time, but a heterogeneous team does not: a faster follower released behind a slower leader catches it and they bunch up at the gates, where every rover converges on the same aperture center. We therefore provide a coordination controller that keeps the team a spaced convoy using only legal information and wraps any legal gate-passing controller rather than replacing it, so coordination and gate navigation stay separable.
+A staggered team of identical controllers stays separated in time, but a heterogeneous team does not: a faster follower released behind a slower leader catches it and they bunch up at the gates, where every rover converges on the same aperture center. We therefore provide a coordination controller that keeps the team a spaced convoy using only legal information and wraps a gate-passing controller that exposes a \cmd{LocalCourseTracker}, rather than replacing it, so coordination and gate navigation stay separable. Both official camera-assisted controllers satisfy this interface.
 
-The controller is a thin, fully distributed layer over the acoustic channel of \eqref{eq:comms_latency}. Within the channel's half-duplex rate limit, each rover periodically broadcasts a small heartbeat carrying its completed-gate count $g_i$, target-gate index and status. It builds a team roster from the sender ids in its inbox. Rover $j$ identifies its \emph{predecessor} $\mathrm{pred}(j)$ as the audible teammate that started just ahead of it, that is the largest index $i<j$ heard within a short freshness window; the frontmost rover has no predecessor and races freely, so the first rover acts as the leader. A follower yields while its predecessor is fewer than $\Delta g$ completed gates ahead,
+The controller is a thin, fully distributed layer over the acoustic channel of \eqref{eq:comms_latency}. Each rover is assigned a predecessor from the static release order in its legal mission information; the frontmost rover has no predecessor and races freely. Within the channel's transmit-rate limit, every rover periodically broadcasts exactly the three fields \cmd{local\_beacon\_index}, \cmd{local\_lap} and \cmd{local\_status}, read from its own base controller's \cmd{LocalCourseTracker}. The receiver treats these fields as estimates, retains the most recently received predecessor report and ignores it after a $2.5$\,s freshness window. Let $\hat g_i$ denote cumulative locally estimated progress reconstructed from the reported lap and beacon index. A follower yields while its predecessor is fewer than $\Delta g$ locally estimated gates ahead,
 \begin{equation}
 \label{eq:yield}
-\text{yield}_j \iff g_{\mathrm{pred}(j)}-g_j<\Delta g ,
+\text{yield}_j \iff \hat g_{\mathrm{pred}(j)}-\hat g_j<\Delta g ,
 \end{equation}
-and otherwise runs its wrapped base controller unchanged. While yielding it holds horizontal position with a small active hover, so it neither advances toward the vehicle ahead nor freezes dead in the water. A predecessor that has left the course or gone silent beyond the freshness window stops blocking. With the channel disabled, the controller has no roster and reduces to the base controller.
+and otherwise it runs its wrapped base controller unchanged. While yielding, the wrapper still updates the base tracker from onboard observations but commands zero motion. This deliberate wait can therefore trigger the independent stuck penalty and remains visible in the result. A predecessor locally reported as finished, a missing report or a report older than the freshness window stops blocking. With the channel disabled no report is delivered and the wrapper reduces to the uncoordinated base behavior.
 
-The design turns a legal progress signal into physical separation. Because the gates are ordered and spatially separated along the course, holding a two-gate progress lead ($\Delta g=2$, the default) keeps at least one full gate of physical spacing between consecutive rovers, which is far larger than the referee proximity thresholds of \eqref{eq:ivc}. A one-gate lead is insufficient, because a follower can reach a gate at the moment its predecessor has only just cleared it; we confirm this failure of $\Delta g=1$ empirically in Section~\ref{sec:evaluation}. The policy reads only the official observation, per-rover race state and controller-authored messages and delegates all motion to a legal base controller, so it stays inside the official observation contract (R6).
+The design turns controller-local progress estimates into physical separation. Because the gates are ordered and spatially separated, a two-gate estimated lead ($\Delta g=2$, the default) asks the follower to retain at least one intervening gate. We also evaluate $\Delta g=1$ as an ablation in Section~\ref{sec:evaluation}. The policy reads only the official observation, its own tracker, the static predecessor assignment and controller-authored messages; referee progress can disagree with either local estimate but never changes a coordination decision.
 
 \subsection{Team-Level Score}
 

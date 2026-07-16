@@ -22,7 +22,7 @@ class BaseController:
     debug_only = False
     uses_ground_truth = False
 
-    def reset(self, race_info: Dict[str, Any]) -> None:
+    def reset(self, mission_info: Dict[str, Any]) -> None:
         pass
 
     def step(self, observation: Dict[str, Any]) -> Dict[str, Any]:

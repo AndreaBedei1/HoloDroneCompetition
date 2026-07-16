@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
+import os
+import platform
+import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -94,17 +99,64 @@ def main(argv: list[str] | None = None) -> int:
         metadata = _build_run_metadata(args, seed, controller_role)
         metadata["run_index"] = run_index
         metadata["run_dir"] = str(run_dir)
+        race_args = _race_args(args, seed, run_dir)
+        metadata["race_argv"] = list(race_args)
+        metadata["reproduction_command"] = _reproduction_command(race_args)
         metadata_path = run_dir / "benchmark_metadata.json"
         _write_json(metadata_path, metadata)
 
-        race_args = _race_args(args, seed, run_dir)
         print(f"Starting benchmark run {run_index}/{len(args.seeds)} seed={seed} log_dir={run_dir}")
+        started = time.monotonic()
+        metadata["started_at"] = _now_iso()
         return_code = _run_single_race(race_args, metadata)
+        metadata["completed_at"] = _now_iso()
+        metadata["wall_duration_s"] = round(time.monotonic() - started, 3)
         summary_path = _newest_file(run_dir, "*_summary.json")
         event_path = _newest_file(run_dir, "*.jsonl")
         metadata["return_code"] = return_code
         metadata["summary_path"] = str(summary_path) if summary_path is not None else None
         metadata["event_path"] = str(event_path) if event_path is not None else None
+        summary = _read_json(summary_path)
+        metadata["actual_adapter"] = summary.get("adapter")
+        metadata["fallback_used"] = summary.get("fallback_used")
+        metadata["physical_current_coupling_active"] = summary.get(
+            "physical_current_coupling_active"
+        )
+        metadata["current_coupling_method"] = summary.get("current_coupling_method")
+        metadata["physical_obstacles_requested"] = summary.get(
+            "physical_obstacles_requested"
+        )
+        metadata["physical_obstacles_spawned"] = summary.get(
+            "physical_obstacles_spawned"
+        )
+        metadata["physical_obstacle_spawn_complete"] = summary.get(
+            "physical_obstacle_spawn_complete"
+        )
+        metadata["controller_observation_contract"] = summary.get(
+            "controller_observation_contract"
+        )
+        metadata["current_result_acceptable"] = _current_result_acceptable(metadata)
+        metadata["obstacle_result_acceptable"] = _obstacle_result_acceptable(metadata)
+        if return_code == 0 and not metadata["current_result_acceptable"]:
+            return_code = 1
+            metadata["return_code"] = return_code
+            metadata["scientific_validation_error"] = (
+                "Configured current run did not use real HoloOcean physical current coupling."
+            )
+            print(
+                "Rejecting current run: real HoloOcean physical current coupling was not active.",
+                file=sys.stderr,
+            )
+        if return_code == 0 and not metadata["obstacle_result_acceptable"]:
+            return_code = 1
+            metadata["return_code"] = return_code
+            metadata["scientific_validation_error"] = (
+                "Configured obstacle run did not physically spawn every requested HoloOcean obstacle."
+            )
+            print(
+                "Rejecting obstacle run: not every configured obstacle was physically spawned in HoloOcean.",
+                file=sys.stderr,
+            )
         _write_json(metadata_path, metadata)
         run_results.append(
             BenchmarkRunResult(
@@ -144,7 +196,24 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default="results/benchmarks")
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--official", action="store_true")
-    parser.add_argument("--print-beacon-targets", action="store_true")
+    parser.add_argument("--print-beacons", action="store_true")
+    parser.add_argument("--staggered-start", action="store_true")
+    parser.add_argument("--num-rovers", type=int, default=1)
+    parser.add_argument("--start-gap-s", type=float, default=20.0)
+    parser.add_argument("--staggered-lateral-offset-m", type=float, default=1.5)
+    parser.add_argument("--log-participant-states", action="store_true")
+    parser.add_argument(
+        "--inter-vehicle-collision-mode",
+        choices=("off", "diagnostic", "penalize"),
+        default="off",
+    )
+    parser.add_argument("--inter-vehicle-collision-xy-threshold-m", type=float, default=0.8)
+    parser.add_argument("--inter-vehicle-collision-z-threshold-m", type=float, default=0.75)
+    parser.add_argument(
+        "--inter-vehicle-collision-release-threshold-m", type=float, default=None
+    )
+    parser.add_argument("--inter-vehicle-collision-cooldown-s", type=float, default=1.0)
+    parser.add_argument("--team-id", default="fleet_01")
     return parser
 
 
@@ -185,8 +254,39 @@ def _race_args(args: argparse.Namespace, seed: int, run_dir: Path) -> list[str]:
         race_args.append("--allow-fallback")
     if args.official:
         race_args.append("--official")
-    if args.print_beacon_targets:
-        race_args.append("--print-beacon-targets")
+    if args.print_beacons:
+        race_args.append("--print-beacons")
+    if args.staggered_start:
+        race_args.extend(
+            [
+                "--staggered-start",
+                "--num-rovers",
+                str(args.num_rovers),
+                "--start-gap-s",
+                str(args.start_gap_s),
+                "--staggered-lateral-offset-m",
+                str(args.staggered_lateral_offset_m),
+                "--inter-vehicle-collision-mode",
+                str(args.inter_vehicle_collision_mode),
+                "--inter-vehicle-collision-xy-threshold-m",
+                str(args.inter_vehicle_collision_xy_threshold_m),
+                "--inter-vehicle-collision-z-threshold-m",
+                str(args.inter_vehicle_collision_z_threshold_m),
+                "--inter-vehicle-collision-cooldown-s",
+                str(args.inter_vehicle_collision_cooldown_s),
+                "--team-id",
+                str(args.team_id),
+            ]
+        )
+        if args.inter_vehicle_collision_release_threshold_m is not None:
+            race_args.extend(
+                [
+                    "--inter-vehicle-collision-release-threshold-m",
+                    str(args.inter_vehicle_collision_release_threshold_m),
+                ]
+            )
+        if args.log_participant_states:
+            race_args.append("--log-participant-states")
     return race_args
 
 
@@ -220,8 +320,43 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
         "duration_s": args.duration,
         "dt": args.dt,
         "official": bool(args.official),
-        "print_beacon_targets": bool(args.print_beacon_targets),
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "print_beacons": bool(args.print_beacons),
+        "staggered_start": bool(getattr(args, "staggered_start", False)),
+        "num_rovers": int(getattr(args, "num_rovers", 1)),
+        "start_gap_s": float(getattr(args, "start_gap_s", 20.0)),
+        "staggered_lateral_offset_m": float(
+            getattr(args, "staggered_lateral_offset_m", 1.5)
+        ),
+        "log_participant_states": bool(getattr(args, "log_participant_states", False)),
+        "inter_vehicle_collision_mode": getattr(
+            args, "inter_vehicle_collision_mode", "off"
+        ),
+        "inter_vehicle_collision_xy_threshold_m": getattr(
+            args, "inter_vehicle_collision_xy_threshold_m", 0.8
+        ),
+        "inter_vehicle_collision_z_threshold_m": getattr(
+            args, "inter_vehicle_collision_z_threshold_m", 0.75
+        ),
+        "inter_vehicle_collision_release_threshold_m": (
+            getattr(args, "inter_vehicle_collision_release_threshold_m", None)
+        ),
+        "inter_vehicle_collision_cooldown_s": getattr(
+            args, "inter_vehicle_collision_cooldown_s", 1.0
+        ),
+        "team_id": getattr(args, "team_id", "fleet_01"),
+        "created_at": _now_iso(),
+        "fallback_disabled": args.adapter == "holoocean" and not bool(args.allow_fallback),
+        "git_commit_sha": _git_value("rev-parse", "HEAD"),
+        "git_worktree_dirty": bool(_git_value("status", "--porcelain")),
+        "python_executable": sys.executable,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "conda_default_env": os.environ.get("CONDA_DEFAULT_ENV"),
+        "conda_prefix": os.environ.get("CONDA_PREFIX"),
+        "holoocean_version": _holoocean_environment().get("version"),
+        "holoocean_installed_packages": _holoocean_environment().get("installed_packages"),
+        "track_sha256": _file_sha256(Path(args.track)),
+        "source_tree_sha256": _source_tree_sha256(),
     }
     try:
         config = load_track_config(
@@ -252,6 +387,99 @@ def _build_run_metadata(args: argparse.Namespace, seed: int, controller_role: st
     metadata["validation_errors"] = list(validation.errors)
     metadata["validation_warnings"] = list(validation.warnings)
     return metadata
+
+
+def _current_result_acceptable(metadata: Mapping[str, Any]) -> bool:
+    requested = str(metadata.get("current_profile_requested") or "none").lower()
+    if requested == "none":
+        return True
+    return (
+        metadata.get("actual_adapter") == "holoocean"
+        and metadata.get("fallback_used") is False
+        and metadata.get("physical_current_coupling_active") is True
+    )
+
+
+def _obstacle_result_acceptable(metadata: Mapping[str, Any]) -> bool:
+    requested_mode = str(metadata.get("obstacles_requested") or "none").lower()
+    if requested_mode == "none":
+        return True
+    requested_count = _integer_or_none(metadata.get("physical_obstacles_requested"))
+    spawned_count = _integer_or_none(metadata.get("physical_obstacles_spawned"))
+    return (
+        metadata.get("actual_adapter") == "holoocean"
+        and metadata.get("fallback_used") is False
+        and metadata.get("physical_obstacle_spawn_complete") is True
+        and requested_count is not None
+        and requested_count > 0
+        and spawned_count == requested_count
+    )
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _git_value(*args: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return completed.stdout.strip()
+
+
+def _holoocean_environment() -> dict[str, Any]:
+    try:
+        import holoocean  # type: ignore
+    except Exception:
+        return {"version": None, "installed_packages": []}
+    try:
+        packages = list(holoocean.installed_packages())
+    except Exception:
+        packages = []
+    return {
+        "version": getattr(holoocean, "__version__", None),
+        "installed_packages": packages,
+    }
+
+
+def _file_sha256(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _source_tree_sha256() -> str:
+    """Fingerprint controller/runtime Python and track JSON used by a run."""
+    digest = hashlib.sha256()
+    root = Path(__file__).resolve().parents[2]
+    source_root = root / "marine_race_arena"
+    paths = sorted(
+        path
+        for path in source_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".py", ".json"}
+    )
+    for path in paths:
+        digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _reproduction_command(race_args: Sequence[str]) -> str:
+    env_name = os.environ.get("CONDA_DEFAULT_ENV")
+    prefix = ["conda", "run", "-n", env_name, "python"] if env_name else [sys.executable]
+    return subprocess.list2cmdline(
+        [*prefix, "-m", "marine_race_arena.scripts.run_marine_race", *race_args]
+    )
 
 
 def aggregate_run_results(run_results: Sequence[BenchmarkRunResult]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -461,6 +689,16 @@ def _optional_float(value: Any) -> float | None:
     if not math.isfinite(converted):
         return None
     return converted
+
+
+def _integer_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        converted = int(value)
+    except (TypeError, ValueError):
+        return None
+    return converted if converted == value else None
 
 
 def _float_or_zero(value: Any, default: float = 0.0) -> float:

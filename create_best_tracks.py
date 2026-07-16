@@ -23,15 +23,8 @@ def official_vision_sensor_profile() -> dict[str, Any]:
             "DepthSensor",
             "IMUSensor",
             "DVLSensor",
-            "VelocitySensor",
             "CollisionSensor",
             "FrontCamera",
-            "depth_m",
-            "heading_yaw_deg",
-            "environment_current_m_s",
-            "current_physical_coupling_active",
-            "current_coupling_method",
-            "control_mode",
         ],
         "holoocean_sensors": [
             {
@@ -309,16 +302,11 @@ def make_track(
         },
         "beacon": {
             "enabled": True,
-            "mode": "active_when_target",
             "position_offset": [0.0, 0.0, 0.35],
             "range_m": 90.0 if len(points) < 16 else 130.0,
             "noise_std": beacon_noise,
             "dropout_probability": beacon_dropout,
             "update_rate_hz": 10.0,
-            "message": {
-                "track": track_label,
-                "channel_plan": "target_only",
-            },
         },
         "gates": gates,
         "currents": currents,

@@ -14,7 +14,11 @@
   "world": {
     "package": "Ocean",
     "map": "OpenWater-Hovering",
-    "arena_origin": [0.0, 0.0, 0.0],
+    "arena_origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
     "preferred_environment": "OpenWater-Hovering",
     "fallback_environment": "PierHarbor-Hovering",
     "bounds": {
@@ -29,38 +33,63 @@
   "track": {
     "declared_length_m": 4.0,
     "length_tolerance_m": 0.5,
-    "gate_inner_size_m": [2.0, 2.0],
+    "gate_inner_size_m": [
+      2.0,
+      2.0
+    ],
     "gate_bar_thickness_m": 0.18,
     "gate_depth_m": 0.22,
-    "gate_sequence": ["G01"]
+    "gate_sequence": [
+      "G01"
+    ]
   },
   "start": {
-    "position": [-4.0, 0.0, -4.0],
-    "rotation_rpy_deg": [0.0, 0.0, 0.0]
+    "position": [
+      -4.0,
+      0.0,
+      -4.0
+    ],
+    "rotation_rpy_deg": [
+      0.0,
+      0.0,
+      0.0
+    ]
   },
   "finish": {
     "gate_id": "G01"
   },
   "beacon": {
     "enabled": true,
-    "mode": "active_when_target",
-    "position_offset": [0.0, 0.0, 0.35],
+    "position_offset": [
+      0.0,
+      0.0,
+      0.35
+    ],
     "range_m": 30.0,
     "noise_std": 0.0,
     "dropout_probability": 0.0,
-    "update_rate_hz": 30.0,
-    "message": {
-      "track": "single_gate_test"
-    }
+    "update_rate_hz": 30.0
   },
   "gates": [
     {
       "id": "G01",
       "type": "single",
-      "position": [0.0, 0.0, -4.0],
-      "rotation_rpy_deg": [0.0, 0.0, 0.0],
+      "position": [
+        0.0,
+        0.0,
+        -4.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        0.0
+      ],
       "color": "#00ff88",
-      "passage_direction": [1.0, 0.0, 0.0]
+      "passage_direction": [
+        1.0,
+        0.0,
+        0.0
+      ]
     }
   ],
   "currents": [],
@@ -72,8 +101,16 @@
       "controller": "rule_gate_baseline",
       "controller_class": null,
       "spawn": {
-        "position": [-4.0, 0.0, -4.0],
-        "rotation_rpy_deg": [0.0, 0.0, 0.0]
+        "position": [
+          -4.0,
+          0.0,
+          -4.0
+        ],
+        "rotation_rpy_deg": [
+          0.0,
+          0.0,
+          0.0
+        ]
       },
       "sensors": {
         "profile": "official_vision_acoustic",
@@ -81,15 +118,8 @@
           "DepthSensor",
           "IMUSensor",
           "DVLSensor",
-          "VelocitySensor",
           "CollisionSensor",
-          "FrontCamera",
-          "depth_m",
-          "heading_yaw_deg",
-          "environment_current_m_s",
-          "current_physical_coupling_active",
-          "current_coupling_method",
-          "control_mode"
+          "FrontCamera"
         ],
         "holoocean_sensors": [
           {
@@ -122,7 +152,11 @@
             "sensor_type": "RGBCamera",
             "sensor_name": "FrontCamera",
             "socket": "CameraSocket",
-            "rotation": [0.0, 0.0, 0.0],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
             "Hz": 30,
             "configuration": {
               "CaptureWidth": 640,

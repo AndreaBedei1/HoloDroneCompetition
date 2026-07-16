@@ -30,7 +30,6 @@ from marine_race_arena.arena.obstacle import (
     OBSTACLE_DENSITIES,
     OBSTACLE_MODES,
     OBSTACLE_PHYSICS_MODES,
-    effective_obstacle_mode,
 )
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_MODES
 from marine_race_arena.config.loader import (
@@ -124,8 +123,8 @@ def main(argv: list[str] | None = None) -> int:
             seed=args.seed,
         )
     camera_viewer = FrontCameraViewer(enabled=args.show_front_camera)
-    beacon_target_printer = BeaconTargetPrinter(
-        enabled=args.print_beacon_targets or _env_flag("MARINE_RACE_PRINT_BEACON_TARGETS")
+    received_beacon_printer = ReceivedBeaconPrinter(
+        enabled=args.print_beacons or _env_flag("MARINE_RACE_PRINT_BEACONS")
     )
 
     try:
@@ -139,15 +138,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     referee.register_participants(participants.keys())
-    race_info = _race_info(config, adapter.name, motion_compensation)
     motion_compensators = {
         participant_id: make_motion_compensator(motion_compensation)
         for participant_id in participants
     }
     for participant in participants.values():
-        participant.controller.reset(
-            race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)}
-        )
+        participant.controller.reset(_mission_info(config, participant.id))
         motion_compensators[participant.id].reset()
 
     try:
@@ -159,13 +155,36 @@ def main(argv: list[str] | None = None) -> int:
             participants=participants,
             dt=args.dt,
             camera_viewer=camera_viewer,
-            beacon_target_printer=beacon_target_printer,
+            received_beacon_printer=received_beacon_printer,
             motion_compensators=motion_compensators,
             gate_timeout_s=args.gate_timeout_s,
             log_participant_states=args.log_participant_states,
             comms_channel=comms_channel,
         )
         summary["motion_compensation"] = motion_compensation
+        summary["adapter"] = adapter.name
+        summary["fallback_used"] = adapter.name == "fallback"
+        summary["physical_current_coupling_active"] = bool(
+            getattr(adapter, "physical_current_coupling_active", False)
+        )
+        summary["current_coupling_method"] = str(
+            getattr(adapter, "current_coupling_method", "not_available")
+        )
+        summary["physical_obstacles_requested"] = int(
+            getattr(adapter, "physical_obstacles_requested", len(arena.obstacles))
+        )
+        summary["physical_obstacles_spawned"] = int(
+            getattr(adapter, "physical_obstacles_spawned", len(arena.obstacles))
+        )
+        summary["physical_obstacle_spawn_complete"] = bool(
+            getattr(adapter, "physical_obstacle_spawn_complete", True)
+        )
+        summary["controller_observation_contract"] = "onboard_only_v1"
+        summary["controller_local_progress"] = _controller_local_summary(participants)
+        summary["beacon_reception_diagnostics"] = {
+            participant_id: dict(counters)
+            for participant_id, counters in arena.beacon_manager.diagnostics.items()
+        }
         if len(participants) > 1 or args.inter_vehicle_collision_mode != "off":
             summary["inter_vehicle_collision_mode"] = args.inter_vehicle_collision_mode
         if comms_channel is not None:
@@ -197,8 +216,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Built-in controller alias: pygame, pygame_keyboard, keyboard, manual, "
-            "oracle, acoustic, acoustic_baseline, acoustic_vision_baseline, "
-            "rule_gate_baseline, vision_gate_baseline, student_template. Overrides track config."
+            "oracle, rule_gate_baseline, rule_gate_center_then_commit, "
+            "leader_follower, student_template. Overrides track config."
         ),
     )
     parser.add_argument(
@@ -276,9 +295,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--print-beacon-targets",
+        "--print-beacons",
         action="store_true",
-        help="Print de-duplicated beacon/race target diagnostics while the race loop runs.",
+        help="Print de-duplicated received beacon packet diagnostics while the race loop runs.",
     )
     parser.add_argument(
         "--motion-compensation",
@@ -602,33 +621,47 @@ def _print_multi_agent_diagnostics(
             )
 
 
-def _race_info(config: TrackConfig, adapter_name: str, motion_compensation: str = MOTION_COMPENSATION_NONE) -> Dict[str, Any]:
-    return {
-        "race_name": config.race.name,
-        "format": config.race.format,
+def _mission_info(config: TrackConfig, participant_id: str) -> Dict[str, Any]:
+    """Minimal static mission information given to a controller at reset.
+
+    Contains only what defines the participant's assigned mission: its own
+    identity, the first beacon, the beacon count, the lap count and the
+    command envelope. For cooperative fleets it additionally carries the
+    statically assigned release order and predecessor identity. It carries no
+    referee state, timing mode, environment/current/obstacle metadata, world
+    bounds, adapter name or benchmark mode.
+    """
+    info: Dict[str, Any] = {
+        "participant_id": participant_id,
+        "initial_beacon_id": "B01",
+        "total_beacons": len(config.track.gate_sequence),
         "laps": config.race.laps,
-        "gates_per_lap": len(config.track.gate_sequence),
-        "timing_mode": config.race.timing_mode,
-        "official_mode": config.race.official_mode,
-        "benchmark_task": config.benchmark_task.mode,
-        "obstacle_mode": effective_obstacle_mode(config),
-        "obstacle_density": config.obstacle_generation.density,
-        "obstacle_physics": config.obstacle_generation.obstacle_physics,
-        "current_profile": _current_profile_label(config),
-        "active_current_count": len(config.currents),
-        "motion_compensation": motion_compensation,
-        "max_duration_s": config.race.max_duration_s,
-        "adapter": adapter_name,
-        "max_command": 0.95,
-        "bounds": {
-            "x_min": config.world.bounds.x_min,
-            "x_max": config.world.bounds.x_max,
-            "y_min": config.world.bounds.y_min,
-            "y_max": config.world.bounds.y_max,
-            "z_min": config.world.bounds.z_min,
-            "z_max": config.world.bounds.z_max,
+        "command_limits": {
+            "surge": [-0.95, 0.95],
+            "sway": [-0.95, 0.95],
+            "heave": [-0.95, 0.95],
+            "yaw": [-0.95, 0.95],
         },
     }
+    if len(config.participants) > 1:
+        ordered = _participant_release_order(config)
+        try:
+            position = ordered.index(participant_id)
+        except ValueError:
+            position = None
+        info["fleet"] = {
+            "participant_order": ordered,
+            "release_index": position,
+            "predecessor_id": ordered[position - 1] if position not in (None, 0) else None,
+        }
+    return info
+
+
+def _participant_release_order(config: TrackConfig) -> list[str]:
+    """Statically assigned release order (start delay, then configured order)."""
+    indexed = list(enumerate(config.participants))
+    indexed.sort(key=lambda item: (float(getattr(item[1], "start_delay_s", 0.0) or 0.0), item[0]))
+    return [participant.id for _, participant in indexed]
 
 
 def _current_profile_label(config: TrackConfig) -> str:
@@ -690,6 +723,256 @@ def _log_motion_compensation(
     )
 
 
+_LOCAL_STATE_LOG_INTERVAL_S = 1.0
+_LOCAL_STATE_ADVANCE_COUNTS: Dict[int, int] = {}
+_LOCAL_STATE_COORDINATION_STATES: Dict[int, tuple[Any, Any, Any]] = {}
+_LOCAL_STATE_PHASES: Dict[int, Any] = {}
+_BEACON_DIAGNOSTIC_LOG_INTERVAL_S = 1.0
+_COMMAND_LOG_INTERVAL_S = 1.0
+_LOCAL_FINISH_TAIL_S = 8.0
+
+
+def _controller_tracker(controller: Any) -> Any:
+    """The controller's LocalCourseTracker, if it exposes one (possibly wrapped)."""
+    tracker = getattr(controller, "tracker", None)
+    if tracker is not None:
+        return tracker
+    base = getattr(controller, "base", None)
+    if base is not None:
+        return getattr(base, "tracker", None)
+    return None
+
+
+def _controller_coordination_diagnostics(controller: Any) -> Dict[str, Any]:
+    """Return controller-local coordination diagnostics, when available."""
+    diagnostics = getattr(controller, "coordination_diagnostics", None)
+    value = diagnostics() if callable(diagnostics) else diagnostics
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _controller_diagnostic_snapshot(controller: Any) -> Dict[str, Any]:
+    """Combine local course and coordination estimates for offline logging."""
+    snapshot: Dict[str, Any] = {}
+    tracker = _controller_tracker(controller)
+    if tracker is not None and callable(getattr(tracker, "diagnostics", None)):
+        snapshot.update(dict(tracker.diagnostics()))
+    coordination = _controller_coordination_diagnostics(controller)
+    if coordination:
+        snapshot["coordination"] = coordination
+    return snapshot
+
+
+def _needs_local_finish_tail(
+    state: Any,
+    controller: Any,
+    time_s: float,
+    *,
+    grace_s: float = _LOCAL_FINISH_TAIL_S,
+) -> bool:
+    """Whether a referee-finished rover still needs onboard confirmation time.
+
+    This scheduler decision never enters the controller observation. Referee
+    scoring is already frozen; the bounded physical tail only lets the local
+    tracker observe the range rise, rear-beacon packets and persistent
+    post-gate disappearance that occur after the referee detects the final
+    plane crossing.
+    """
+
+    if getattr(state, "status", None) != ParticipantStatus.FINISHED:
+        return False
+    finish_time_s = getattr(state, "official_finish_time", None)
+    if finish_time_s is None:
+        return False
+    tracker = _controller_tracker(controller)
+    if tracker is None or bool(getattr(tracker, "finished", False)):
+        return False
+    return float(time_s) <= float(finish_time_s) + max(0.0, float(grace_s)) + 1e-9
+
+
+def _log_controller_local_state(
+    *,
+    referee: Referee,
+    controller: Any,
+    participant_id: str,
+    time_s: float,
+    last_log_times: Dict[str, float],
+) -> None:
+    """Log the controller's own progression estimate for offline analysis.
+
+    Strictly one-way: the runner reads the tracker's diagnostics for the event
+    log so local progression can be compared against referee truth afterwards.
+    Nothing is ever written back into the controller or its observation.
+    """
+    logger = referee.logger
+    if logger is None:
+        return
+    diagnostics = _controller_diagnostic_snapshot(controller)
+    if not diagnostics:
+        return
+    advancements = int(diagnostics.get("advancements", 0) or 0)
+    key = id(controller)
+    advanced = advancements != _LOCAL_STATE_ADVANCE_COUNTS.get(key)
+    phase = diagnostics.get("phase")
+    phase_changed = phase != _LOCAL_STATE_PHASES.get(key)
+    coordination = diagnostics.get("coordination")
+    coordination_signature = None
+    if isinstance(coordination, Mapping):
+        coordination_signature = (
+            coordination.get("is_holding"),
+            coordination.get("hold_reason"),
+            coordination.get("decision_reason"),
+        )
+    coordination_changed = (
+        coordination_signature is not None
+        and coordination_signature != _LOCAL_STATE_COORDINATION_STATES.get(key)
+    )
+    last_time = last_log_times.get(participant_id)
+    if (
+        not advanced
+        and not phase_changed
+        and not coordination_changed
+        and last_time is not None
+        and time_s - last_time < _LOCAL_STATE_LOG_INTERVAL_S
+    ):
+        return
+    _LOCAL_STATE_ADVANCE_COUNTS[key] = advancements
+    _LOCAL_STATE_PHASES[key] = phase
+    if coordination_signature is not None:
+        _LOCAL_STATE_COORDINATION_STATES[key] = coordination_signature
+    last_log_times[participant_id] = time_s
+    payload = {
+        f"local_{name}" if not name.startswith("local_") else name: value
+        for name, value in diagnostics.items()
+        if name != "coordination"
+    }
+    if isinstance(coordination, Mapping):
+        payload.update(
+            {f"coordination_{name}": value for name, value in coordination.items()}
+        )
+    logger.log_event(
+        "controller_local_state",
+        time_s,
+        participant_id,
+        **payload,
+    )
+
+
+def _controller_local_summary(
+    participants: Mapping[str, RaceParticipant],
+) -> Dict[str, Dict[str, Any]]:
+    """Final controller-local estimates, kept separate from referee truth."""
+    result: Dict[str, Dict[str, Any]] = {}
+    for participant_id, participant in participants.items():
+        diagnostics = _controller_diagnostic_snapshot(participant.controller)
+        if diagnostics:
+            result[participant_id] = diagnostics
+    return result
+
+
+def _log_comms_deliveries(
+    *,
+    referee: Referee,
+    receiver_id: str,
+    inbox: Any,
+) -> None:
+    """Log acoustic arrival timing offline without copying controller payloads."""
+    logger = referee.logger
+    if logger is None or not isinstance(inbox, list):
+        return
+    for message in inbox:
+        if not isinstance(message, Mapping):
+            continue
+        sent_at_s = _safe_float(message.get("sent_at_s"), float("nan"))
+        received_at_s = _safe_float(message.get("received_at_s"), float("nan"))
+        if not math.isfinite(sent_at_s) or not math.isfinite(received_at_s):
+            continue
+        logger.log_event(
+            "comms_delivery",
+            received_at_s,
+            receiver_id,
+            sender_id=str(message.get("from", "")),
+            sent_at_s=sent_at_s,
+            received_at_s=received_at_s,
+            latency_s=max(0.0, received_at_s - sent_at_s),
+        )
+
+
+def _log_beacon_reception(
+    *,
+    referee: Referee,
+    arena: Arena,
+    participant_id: str,
+    time_s: float,
+    observation: Mapping[str, Any],
+    last_log_times: Dict[str, float],
+) -> None:
+    """Write receiver-side beacon diagnostics without feeding them back.
+
+    The event contains only delivered packet measurements plus cumulative
+    transmitter/receiver counters.  It is an offline diagnostic stream and is
+    never placed in the official observation.
+    """
+    logger = referee.logger
+    if logger is None:
+        return
+    last_time = last_log_times.get(participant_id)
+    if last_time is not None and time_s - last_time < _BEACON_DIAGNOSTIC_LOG_INTERVAL_S:
+        return
+    packets = observation.get("beacons")
+    packet_list = packets if isinstance(packets, list) else []
+    last_log_times[participant_id] = time_s
+    logger.log_event(
+        "beacon_reception_diagnostics",
+        time_s,
+        participant_id,
+        local_time_s=_safe_float(observation.get("local_time_s"), 0.0),
+        received_count=len(packet_list),
+        received_beacon_ids=[
+            str(packet.get("beacon_id"))
+            for packet in packet_list
+            if isinstance(packet, Mapping) and packet.get("beacon_id") is not None
+        ],
+        packets=[dict(packet) for packet in packet_list if isinstance(packet, Mapping)],
+        cumulative=dict(arena.beacon_manager.diagnostics.get(participant_id, {})),
+    )
+
+
+def _log_controller_command(
+    *,
+    referee: Referee,
+    participant_id: str,
+    time_s: float,
+    local_time_s: float,
+    command: Mapping[str, Any],
+    last_log_times: Dict[str, float],
+) -> None:
+    """Log the controller output for offline actuator diagnostics."""
+    logger = referee.logger
+    if logger is None:
+        return
+    last_time = last_log_times.get(participant_id)
+    message = command.get("message")
+    has_message = isinstance(message, Mapping)
+    if (
+        not has_message
+        and last_time is not None
+        and time_s - last_time < _COMMAND_LOG_INTERVAL_S
+    ):
+        return
+    last_log_times[participant_id] = time_s
+    logger.log_event(
+        "controller_command",
+        time_s,
+        participant_id,
+        local_time_s=local_time_s,
+        command={
+            axis: _safe_float(command.get(axis), 0.0)
+            for axis in ("surge", "sway", "heave", "yaw")
+        },
+        message=dict(message) if has_message else None,
+    )
+
+
 def _log_participant_states(
     *,
     referee: Referee,
@@ -728,7 +1011,7 @@ def _run_race_loop(
     participants: Mapping[str, RaceParticipant],
     dt: float,
     camera_viewer: "FrontCameraViewer | None" = None,
-    beacon_target_printer: "BeaconTargetPrinter | None" = None,
+    received_beacon_printer: "ReceivedBeaconPrinter | None" = None,
     motion_compensators: Mapping[str, Any] | None = None,
     gate_timeout_s: float | None = None,
     log_participant_states: bool = False,
@@ -746,7 +1029,16 @@ def _run_race_loop(
         for participant_id, participant in participants.items()
     }
     referee.start_race(race_start_time, start_delays=start_delays)
+    # Runner-side release clocks used for the participant-local observation
+    # time base; scheduling is static configuration, not referee feedback.
+    release_times = {
+        participant_id: race_start_time + start_delays.get(participant_id, 0.0)
+        for participant_id in participants
+    }
     motion_compensation_log_times: Dict[str, float] = {}
+    local_state_log_times: Dict[str, float] = {}
+    beacon_reception_log_times: Dict[str, float] = {}
+    controller_command_log_times: Dict[str, float] = {}
     gate_timeout_s = _positive_float_or_none(gate_timeout_s)
     last_gate_counts = {
         participant_id: referee.states[participant_id].valid_gate_crossings
@@ -757,19 +1049,27 @@ def _run_race_loop(
         for participant_id in participants
     }
     multi_agent_tick_checked = False
-    while adapter.get_current_time() <= config.race.max_duration_s:
+    race_deadline_s = float(config.race.max_duration_s)
+    tail_hard_deadline_s = race_deadline_s + _LOCAL_FINISH_TAIL_S
+    failed_finish_tails: set[str] = set()
+    while adapter.get_current_time() <= tail_hard_deadline_s:
         all_terminal = True
         manual_stop_requested = False
         previous_states: Dict[str, AdapterParticipantState] = {}
         controller_errors: Dict[str, str] = {}
         outgoing_messages: Dict[str, Any] = {}
         current_time_s = adapter.get_current_time()
+        race_window_open = current_time_s <= race_deadline_s + 1e-9
         for participant in participants.values():
             state = referee.states[participant.id]
             if state.status == ParticipantStatus.NOT_STARTED:
-                release_time_s = race_start_time + start_delays.get(participant.id, 0.0)
+                if not race_window_open:
+                    adapter.apply_command(participant.id, _zero_command(), participant.config.control_mode)
+                    continue
+                release_time_s = release_times[participant.id]
                 if current_time_s + 1e-9 >= release_time_s:
                     referee.release_participant(participant.id, current_time_s)
+                    release_times[participant.id] = current_time_s
                     last_gate_counts[participant.id] = referee.states[participant.id].valid_gate_crossings
                     last_gate_progress_times[participant.id] = current_time_s
                     state = referee.states[participant.id]
@@ -777,25 +1077,50 @@ def _run_race_loop(
                     all_terminal = False
                     adapter.apply_command(participant.id, _zero_command(), participant.config.control_mode)
                     continue
-            if state.is_terminal:
+            local_finish_tail = (
+                participant.id not in failed_finish_tails
+                and _needs_local_finish_tail(state, participant.controller, current_time_s)
+            )
+            if state.is_terminal and not local_finish_tail:
+                # Never leave the final pre-terminal command latched in the
+                # simulator while another rover is still racing.
+                adapter.apply_command(participant.id, _zero_command(), participant.config.control_mode)
+                continue
+            if not race_window_open and not local_finish_tail:
+                adapter.apply_command(participant.id, _zero_command(), participant.config.control_mode)
                 continue
             all_terminal = False
             previous_state = adapter.get_participant_state(participant.id)
             previous_states[participant.id] = previous_state
+            comms_inbox = (
+                comms_channel.deliver(participant.id, current_time_s)
+                if comms_channel is not None
+                else None
+            )
+            _log_comms_deliveries(
+                referee=referee,
+                receiver_id=participant.id,
+                inbox=comms_inbox,
+            )
             observation = _build_controller_observation(
                 config=config,
                 arena=arena,
-                referee=referee,
                 adapter=adapter,
                 participant=participant,
                 participant_state=previous_state,
+                release_time_s=release_times[participant.id],
+                comms_inbox=comms_inbox,
             )
-            if comms_channel is not None:
-                observation["comms"] = {
-                    "inbox": comms_channel.deliver(participant.id, current_time_s)
-                }
-            if beacon_target_printer is not None:
-                beacon_target_printer.update(observation, participant.id)
+            _log_beacon_reception(
+                referee=referee,
+                arena=arena,
+                participant_id=participant.id,
+                time_s=current_time_s,
+                observation=observation,
+                last_log_times=beacon_reception_log_times,
+            )
+            if received_beacon_printer is not None:
+                received_beacon_printer.update(observation, participant.id)
             if camera_viewer is not None:
                 camera_viewer.update(observation, participant.id)
             try:
@@ -805,7 +1130,25 @@ def _run_race_loop(
                 break
             except Exception as exc:  # pragma: no cover - exercised by external controllers
                 controller_errors[participant.id] = f"{type(exc).__name__}: {exc}"
+                if local_finish_tail:
+                    failed_finish_tails.add(participant.id)
                 command = {}
+            if isinstance(command, Mapping):
+                _log_controller_command(
+                    referee=referee,
+                    participant_id=participant.id,
+                    time_s=current_time_s,
+                    local_time_s=_safe_float(observation.get("local_time_s"), 0.0),
+                    command=command,
+                    last_log_times=controller_command_log_times,
+                )
+            _log_controller_local_state(
+                referee=referee,
+                controller=participant.controller,
+                participant_id=participant.id,
+                time_s=current_time_s,
+                last_log_times=local_state_log_times,
+            )
             if comms_channel is not None and isinstance(command, dict) and command.get("message") is not None:
                 outgoing_messages[participant.id] = command.get("message")
                 command = {key: value for key, value in command.items() if key != "message"}
@@ -887,7 +1230,7 @@ def _run_race_loop(
                 and time_s - last_gate_progress_times.get(participant_id, time_s) >= gate_timeout_s
             ):
                 referee.gate_timeout_stuck(participant_id, time_s, gate_timeout_s)
-        if len(participants) > 1:
+        if len(participants) > 1 and time_s <= race_deadline_s + 1e-9:
             participant_positions = {
                 participant_id: adapter.get_participant_state(participant_id).position
                 for participant_id in participants
@@ -1127,8 +1470,13 @@ class FrontCameraViewer:
         return frame[:, :, [2, 1, 0, 3]][:, :, :3]
 
 
-class BeaconTargetPrinter:
-    """De-duplicated beacon/race target diagnostics for manual debugging."""
+class ReceivedBeaconPrinter:
+    """De-duplicated received-packet diagnostics for manual debugging.
+
+    Prints what the controller physically received (the ``beacons`` packet
+    list); it has no access to referee targets because the observation no
+    longer carries any.
+    """
 
     def __init__(
         self,
@@ -1145,19 +1493,10 @@ class BeaconTargetPrinter:
     def update(self, observation: Mapping[str, Any], participant_id: str) -> bool:
         if not self.enabled:
             return False
-        time_s = _safe_float(observation.get("time_s"), 0.0)
-        beacon = observation.get("beacon")
-        race = observation.get("race")
-        beacon_map = beacon if isinstance(beacon, Mapping) else {}
-        race_map = race if isinstance(race, Mapping) else {}
-        available = bool(beacon_map.get("valid")) and bool(
-            beacon_map.get("target_gate_id") or race_map.get("target_gate_id")
-        )
-        target = str(race_map.get("target_gate_id") or beacon_map.get("target_gate_id") or "")
-        index = race_map.get("target_sequence_index", beacon_map.get("sequence_index"))
-        status = race_map.get("status")
-        completed = race_map.get("completed_gates")
-        signature = (available, target if available else None, index if available else None, status, completed)
+        time_s = _safe_float(observation.get("local_time_s"), 0.0)
+        beacons = observation.get("beacons")
+        packets = [packet for packet in beacons or [] if isinstance(packet, Mapping)]
+        signature = tuple(sorted(str(packet.get("beacon_id")) for packet in packets))
         previous_signature = self._last_signature_by_participant.get(participant_id)
         previous_time = self._last_print_time_by_participant.get(participant_id)
         periodic_due = (
@@ -1168,17 +1507,18 @@ class BeaconTargetPrinter:
         if signature == previous_signature and not periodic_due:
             return False
 
-        if available:
+        if packets:
+            strongest = max(packets, key=lambda packet: _safe_float(packet.get("signal_strength"), 0.0))
             line = (
-                f"[BEACON] t={time_s:.1f}s participant={participant_id} "
-                f"status={_display_value(status)} target={target} index={_display_value(index)} "
-                f"range={_display_number(beacon_map.get('range_m'))} "
-                f"bearing={_display_number(beacon_map.get('bearing_deg'))} "
-                f"elevation={_display_number(beacon_map.get('elevation_deg'))} "
-                f"completed={_display_value(completed)}"
+                f"[BEACONS] local_t={time_s:.1f}s participant={participant_id} "
+                f"received={len(packets)} ids={','.join(signature)} "
+                f"strongest={_display_value(strongest.get('beacon_id'))} "
+                f"range={_display_number(strongest.get('range_m'))} "
+                f"bearing={_display_number(strongest.get('bearing_deg'))} "
+                f"elevation={_display_number(strongest.get('elevation_deg'))}"
             )
         else:
-            line = f"[BEACON] t={time_s:.1f}s participant={participant_id} target unavailable"
+            line = f"[BEACONS] local_t={time_s:.1f}s participant={participant_id} no packets received"
         print(line, file=self.stream)
         self._last_signature_by_participant[participant_id] = signature
         self._last_print_time_by_participant[participant_id] = time_s
@@ -1188,21 +1528,27 @@ class BeaconTargetPrinter:
 def _build_controller_observation(
     config: TrackConfig,
     arena: Arena,
-    referee: Referee,
     adapter: BaseRaceAdapter,
     participant: RaceParticipant,
     participant_state: AdapterParticipantState,
+    release_time_s: float,
+    comms_inbox: "list[Dict[str, Any]] | None" = None,
 ) -> Dict[str, Any]:
-    target_gate_id = referee.expected_gate_id(participant.id)
-    target_gate = arena.gate_map[target_gate_id]
-    progress = referee.race_progress(participant.id)
-    beacon_observation = arena.beacon_manager.observe(
+    """Build the official controller observation from onboard information only.
+
+    The builder never receives (or reads) the referee: beacons are the packets
+    physically received from the independent transmitters, the clock is the
+    participant's own elapsed time since its release, and sensors are the
+    adapter's allowed onboard sensor set.
+    """
+    time_s = adapter.get_current_time()
+    local_time_s = max(0.0, time_s - release_time_s)
+    beacon_packets = arena.beacon_manager.receive(
+        receiver_id=participant.id,
         receiver_position=participant_state.position,
         receiver_yaw_deg=participant_state.rotation_rpy_deg[2],
-        target_gate_id=target_gate_id,
-        target_sequence_index=int(progress["target_sequence_index"]),
-        observation_mode=_observation_mode(config, participant),
-        official_mode=config.race.official_mode,
+        time_s=time_s,
+        received_at_s=local_time_s,
     )
     sensor_data = adapter.get_allowed_sensor_data(participant.id, participant.config.sensors)
     debug_ground_truth = None
@@ -1210,33 +1556,58 @@ def _build_controller_observation(
         debug_ground_truth = {
             "own_position": participant_state.position,
             "own_rotation_rpy_deg": participant_state.rotation_rpy_deg,
-            "target_gate_center": target_gate.center,
-            "target_gate_normal": target_gate.normal_vector,
-            "target_gate_right_axis": target_gate.right_axis,
-            "target_gate_up_axis": target_gate.up_axis,
-            "target_gate_inner_width_m": target_gate.inner_width_m,
-            "target_gate_inner_height_m": target_gate.inner_height_m,
-            "bounds": _race_info(config, adapter.name)["bounds"],
+            "gates": [
+                {
+                    "gate_id": gate.id,
+                    "center": gate.center,
+                    "normal": gate.normal_vector,
+                    "right_axis": gate.right_axis,
+                    "up_axis": gate.up_axis,
+                    "inner_width_m": gate.inner_width_m,
+                    "inner_height_m": gate.inner_height_m,
+                }
+                for gate in (arena.gate_map[gate_id] for gate_id in config.track.gate_sequence)
+            ],
+            "bounds": {
+                "x_min": config.world.bounds.x_min,
+                "x_max": config.world.bounds.x_max,
+                "y_min": config.world.bounds.y_min,
+                "y_max": config.world.bounds.y_max,
+                "z_min": config.world.bounds.z_min,
+                "z_max": config.world.bounds.z_max,
+            },
         }
+    inbox = None
+    if comms_inbox is not None:
+        inbox = [_localized_inbox_message(message, release_time_s) for message in comms_inbox]
     return build_observation(
-        participant_id=participant.id,
-        time_s=adapter.get_current_time(),
+        local_time_s=local_time_s,
         sensor_data=sensor_data,
-        beacon_observation=beacon_observation,
-        race_progress=progress,
+        beacon_packets=beacon_packets,
         official_mode=config.race.official_mode,
+        comms_inbox=inbox,
         debug_ground_truth=debug_ground_truth,
     )
 
 
-def _observation_mode(config: TrackConfig, participant: RaceParticipant) -> str:
-    if bool(getattr(participant.controller, "uses_ground_truth", False)) and not config.race.official_mode:
-        return "oracle"
-    if config.race.official_mode or participant.config.official_sensor_profile:
-        return "acoustic_noisy"
-    if config.beacon.noise_std > 0.0 or config.beacon.dropout_probability > 0.0:
-        return "acoustic_noisy"
-    return "acoustic_ideal"
+def _localized_inbox_message(message: Mapping[str, Any], release_time_s: float) -> Dict[str, Any]:
+    """Re-stamp a delivered message onto the receiver's local clock.
+
+    The channel works on the simulator clock; the controller only ever sees
+    its own local time, so the delivery timestamp is converted and the
+    sender's transmit timestamp (a global-clock value) is dropped.
+    """
+    received_global = message.get("received_at_s")
+    local = None
+    try:
+        local = max(0.0, float(received_global) - release_time_s)
+    except (TypeError, ValueError):
+        local = 0.0
+    return {
+        "from": message.get("from"),
+        "payload": message.get("payload"),
+        "received_at_s": local,
+    }
 
 
 def _vector3(value: Any) -> Vector3:

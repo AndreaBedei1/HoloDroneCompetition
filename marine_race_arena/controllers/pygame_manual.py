@@ -11,14 +11,26 @@ from typing import Any, Dict, Iterable, Optional, Set
 from marine_race_arena.participants.controller_interface import BaseController, ManualStopRequested
 
 
+def _max_command_magnitude(mission_info: Dict[str, Any]) -> float:
+    limits = mission_info.get("command_limits")
+    if isinstance(limits, dict):
+        bounds = limits.get("surge")
+        if isinstance(bounds, (list, tuple)) and len(bounds) == 2:
+            try:
+                return min(abs(float(bounds[0])), abs(float(bounds[1])))
+            except (TypeError, ValueError):
+                pass
+    return 0.95
+
+
 class PygameManualController(BaseController):
     """Manual WASD, Q/E yaw, and arrow-key controller backed by Pygame."""
 
     debug_only = False
     uses_ground_truth = False
 
-    def reset(self, race_info: Dict[str, Any]) -> None:
-        max_command = float(race_info.get("max_command", 0.95))
+    def reset(self, mission_info: Dict[str, Any]) -> None:
+        max_command = _max_command_magnitude(mission_info)
         self.linear_command = min(max_command, 0.65)
         self.vertical_command = min(max_command, 0.50)
         self.yaw_command = min(max_command, 0.45)

@@ -111,7 +111,7 @@ class _CountingController:
     def __init__(self) -> None:
         self.step_calls = 0
 
-    def reset(self, race_info: dict[str, Any]) -> None:
+    def reset(self, mission_info: dict[str, Any]) -> None:
         pass
 
     def step(self, observation: dict[str, Any]) -> dict[str, float]:

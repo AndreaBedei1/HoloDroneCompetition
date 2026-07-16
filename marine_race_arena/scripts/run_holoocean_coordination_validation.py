@@ -1,17 +1,34 @@
-"""Minimal HoloOcean validation for heterogeneous leader-follower coordination.
+"""HoloOcean validation for leader-follower coordination (onboard-only contract).
 
-This script intentionally leaves the paper-oriented deterministic comparison
-untouched. It reuses the production race loop with the real HoloOcean adapter,
-fallback disabled, official observations, no currents and no obstacles.
+Runs a staggered team on the real HoloOcean adapter, fallback disabled,
+official observations, no currents and no obstacles. Every rover navigates and
+tracks its progression with its own LocalCourseTracker; coordination heartbeats
+carry only locally estimated progress. The referee scores independently.
+
+The team is deliberately heterogeneous in speed so followers catch the vehicle
+ahead when uncoordinated: the leader runs the slower continuous-servo
+``rule_gate_baseline`` and the followers run the faster
+``rule_gate_center_then_commit``. Both are official onboard-only controllers.
+
+Ablations supported for the coordinated condition:
+
+* ``--min-gate-gap`` overrides the yield margin (default 2);
+* ``--comms-packet-loss-prob`` injects seeded acoustic packet loss.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
+import os
+import platform
+import subprocess
 import sys
+import time
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
@@ -25,17 +42,16 @@ from marine_race_arena.config.loader import TrackConfigLoadError, load_track_con
 from marine_race_arena.config.schema import TrackConfig
 from marine_race_arena.controllers.leader_follower import LeaderFollowerController
 from marine_race_arena.controllers.official_baselines import (
-    AcousticBaselineController,
-    SmoothGateBaselineController,
+    RuleGateBaselineController,
+    RuleGateCenterThenCommitController,
 )
 from marine_race_arena.participants.controller_interface import BaseController
 from marine_race_arena.participants.participant import RaceParticipant
 from marine_race_arena.referee.logger import RaceLogger
 from marine_race_arena.referee.referee import Referee
-from marine_race_arena.scripts.run_algorithm_comparison import _TracingController
 from marine_race_arena.scripts.run_marine_race import (
+    _mission_info,
     _offset_spawn_position,
-    _race_info,
     _run_race_loop,
     _staggered_lateral_offsets,
     _vector3,
@@ -51,15 +67,98 @@ DEFAULT_LATERAL_OFFSET_M = 1.5
 DEFAULT_TEAM_ID = "holoocean_coordination"
 CONDITIONS = ("no_coordination", "leader_follower")
 INTER_VEHICLE_MODES = ("diagnostic", "penalize")
+LEADER_ALIAS = "rule_gate_baseline"
+FOLLOWER_ALIAS = "rule_gate_center_then_commit"
+CONTROLLER_OBSERVATION_CONTRACT = "onboard_only_v1"
 
 
-def _make_team(size: int, *, coordinated: bool) -> List[BaseController]:
-    bases: List[BaseController] = [SmoothGateBaselineController()] + [
-        AcousticBaselineController() for _ in range(size - 1)
+def _runtime_contract(adapter_name: str) -> Dict[str, Any]:
+    """Machine-readable execution invariants for every coordination artifact."""
+    return {
+        "adapter": adapter_name,
+        "fallback_used": adapter_name == "fallback",
+        "fallback_allowed": False,
+        "controller_observation_contract": CONTROLLER_OBSERVATION_CONTRACT,
+    }
+
+
+class _TracingController(BaseController):
+    """Wrap a controller to count steps and accumulate command smoothness.
+
+    ``mean_command_change`` is the average per-step change in the surge and yaw
+    commands, a simple proxy for how smooth (low-jerk) the controller's motion
+    is. The wrapper forwards the wrapped controller's honesty flags and its
+    ``tracker`` so local diagnostics logging still works.
+    """
+
+    def __init__(self, inner: BaseController) -> None:
+        self.inner = inner
+        self.uses_ground_truth = bool(getattr(inner, "uses_ground_truth", False))
+        self.debug_only = bool(getattr(inner, "debug_only", False))
+        self._prev: Optional[Dict[str, float]] = None
+        self.steps = 0
+        self.command_change_sum = 0.0
+
+    @property
+    def tracker(self):
+        tracker = getattr(self.inner, "tracker", None)
+        if tracker is not None:
+            return tracker
+        base = getattr(self.inner, "base", None)
+        return getattr(base, "tracker", None) if base is not None else None
+
+    def reset(self, mission_info: Dict[str, Any]) -> None:
+        self.inner.reset(mission_info)
+        self._prev = None
+        self.steps = 0
+        self.command_change_sum = 0.0
+
+    def step(self, observation: Dict[str, Any]) -> Dict[str, float]:
+        command = self.inner.step(observation)
+        self.steps += 1
+        if self._prev is not None:
+            self.command_change_sum += abs(
+                float(command.get("surge", 0.0)) - self._prev["surge"]
+            ) + abs(float(command.get("yaw", 0.0)) - self._prev["yaw"])
+        self._prev = {"surge": float(command.get("surge", 0.0)), "yaw": float(command.get("yaw", 0.0))}
+        return command
+
+    def close(self) -> None:
+        self.inner.close()
+
+    def coordination_diagnostics(self) -> Dict[str, Any]:
+        diagnostics: Dict[str, Any] = {
+            "controller_steps": self.steps,
+            "mean_command_change": self.mean_command_change,
+        }
+        inner_diagnostics = getattr(self.inner, "coordination_diagnostics", None)
+        value = inner_diagnostics() if callable(inner_diagnostics) else inner_diagnostics
+        if isinstance(value, Mapping):
+            diagnostics.update(dict(value))
+        return diagnostics
+
+    @property
+    def mean_command_change(self) -> float:
+        return self.command_change_sum / max(1, self.steps - 1)
+
+
+def _make_team(
+    size: int,
+    *,
+    coordinated: bool,
+    min_gate_gap: Optional[int] = None,
+) -> List[BaseController]:
+    bases: List[BaseController] = [RuleGateBaselineController()] + [
+        RuleGateCenterThenCommitController() for _ in range(size - 1)
     ]
     if not coordinated:
         return [_TracingController(base) for base in bases]
-    return [_TracingController(LeaderFollowerController(base_controller=base)) for base in bases]
+    return [
+        _TracingController(
+            LeaderFollowerController(base_controller=base, min_gate_gap=min_gate_gap)
+        )
+        for base in bases
+    ]
 
 
 def simulate_holoocean_fleet(
@@ -74,6 +173,7 @@ def simulate_holoocean_fleet(
     start_gap_s: float,
     lateral_offset_m: float,
     comms_enabled: bool,
+    comms_packet_loss_prob: float,
     team_id: str,
     headless: bool,
     log_participant_states: bool,
@@ -107,7 +207,10 @@ def simulate_holoocean_fleet(
         team_id=team_id,
     )
     comms_channel = (
-        AcousticCommsChannel(CommsConfig(enabled=True), seed=seed)
+        AcousticCommsChannel(
+            CommsConfig(enabled=True, packet_loss_prob=comms_packet_loss_prob),
+            seed=seed,
+        )
         if comms_enabled
         else None
     )
@@ -128,11 +231,8 @@ def simulate_holoocean_fleet(
         adapter.spawn_obstacles(arena.obstacles)
 
         referee.register_participants(participants.keys())
-        race_info = _race_info(config, adapter.name, "none")
         for participant in participants.values():
-            participant.controller.reset(
-                race_info | {"initial_target_gate_id": referee.expected_gate_id(participant.id)}
-            )
+            participant.controller.reset(_mission_info(config, participant.id))
 
         summary = _run_race_loop(
             config=config,
@@ -145,14 +245,15 @@ def simulate_holoocean_fleet(
             log_participant_states=log_participant_states,
             comms_channel=comms_channel,
         )
-        summary["adapter"] = adapter.name
+        summary.update(_runtime_contract(adapter.name))
         summary["motion_compensation"] = "none"
         summary["inter_vehicle_collision_mode"] = inter_vehicle_collision_mode
         if comms_channel is not None:
             summary["comms"] = comms_channel.summary()
+        summary["local_progress"] = _local_progress_snapshot(participants)
         summary["validation_setup"] = {
             "track": track_path,
-            "adapter": "holoocean",
+            **_runtime_contract(adapter.name),
             "official": True,
             "benchmark_task": "clean_gate",
             "current_profile": "none",
@@ -164,6 +265,7 @@ def simulate_holoocean_fleet(
             "start_gap_s": start_gap_s,
             "lateral_offset_m": lateral_offset_m,
             "comms_enabled": comms_enabled,
+            "comms_packet_loss_prob": comms_packet_loss_prob,
             "team_id": team_id,
         }
         logger.log_event("race_summary", adapter.get_current_time(), summary=summary)
@@ -193,49 +295,121 @@ def simulate_holoocean_fleet(
         logger.close()
 
 
+def _local_progress_snapshot(participants: Mapping[str, RaceParticipant]) -> Dict[str, Any]:
+    """Final controller-local tracker states (diagnostics; separate from referee truth)."""
+    snapshot: Dict[str, Any] = {}
+    for participant_id, participant in participants.items():
+        tracker = getattr(participant.controller, "tracker", None)
+        if tracker is None:
+            continue
+        diagnostics = dict(tracker.diagnostics())
+        coordination_diagnostics = getattr(
+            participant.controller, "coordination_diagnostics", None
+        )
+        if callable(coordination_diagnostics):
+            coordination = coordination_diagnostics()
+            if isinstance(coordination, Mapping):
+                diagnostics["coordination"] = dict(coordination)
+        snapshot[participant_id] = diagnostics
+    return snapshot
+
+
 def run_validation(args: argparse.Namespace) -> Dict[str, Any]:
     output_dir = Path(args.output_dir)
+    if output_dir.exists() and any(output_dir.iterdir()):
+        raise ValueError(
+            f"Refusing to mix coordination artifacts in non-empty output directory: {output_dir}"
+        )
     output_dir.mkdir(parents=True, exist_ok=True)
     runs: Dict[str, Any] = {}
     for mode in args.inter_vehicle_modes:
         runs[mode] = {}
         for seed in args.seeds:
             runs[mode][str(seed)] = {}
-            for condition in CONDITIONS:
+            for condition in args.conditions:
                 coordinated = condition == "leader_follower"
-                controllers = _make_team(args.team_size, coordinated=coordinated)
+                controllers = _make_team(
+                    args.team_size,
+                    coordinated=coordinated,
+                    min_gate_gap=args.min_gate_gap if coordinated else None,
+                )
                 run_dir = output_dir / mode / f"seed_{seed}" / condition
                 run_dir.mkdir(parents=True, exist_ok=True)
                 print(
                     f"Running {condition} mode={mode} seed={seed} "
-                    f"team={args.team_size} start_gap={args.start_gap_s:g}s",
+                    f"team={args.team_size} start_gap={args.start_gap_s:g}s "
+                    f"min_gate_gap={args.min_gate_gap} loss={args.comms_packet_loss_prob:g}",
                     flush=True,
                 )
-                result = simulate_holoocean_fleet(
-                    track_path=args.track,
-                    controllers=controllers,
+                metadata = _build_run_metadata(
+                    args=args,
                     seed=int(seed),
-                    inter_vehicle_collision_mode=mode,
-                    output_dir=run_dir,
-                    duration_s=args.duration_s,
-                    dt=args.dt,
-                    start_gap_s=args.start_gap_s,
-                    lateral_offset_m=args.lateral_offset_m,
-                    comms_enabled=coordinated,
-                    team_id=f"{args.team_id}_{mode}_{condition}_seed{seed}",
-                    headless=args.headless,
-                    log_participant_states=args.log_participant_states,
+                    condition=condition,
+                    mode=mode,
+                    run_dir=run_dir,
+                    controllers=_controller_labels(args.team_size, coordinated=coordinated),
                 )
+                metadata_path = run_dir / "experiment_metadata.json"
+                metadata["started_at"] = _now_iso()
+                _write_json(metadata_path, metadata)
+                started = time.monotonic()
+                try:
+                    result = simulate_holoocean_fleet(
+                        track_path=args.track,
+                        controllers=controllers,
+                        seed=int(seed),
+                        inter_vehicle_collision_mode=mode,
+                        output_dir=run_dir,
+                        duration_s=args.duration_s,
+                        dt=args.dt,
+                        start_gap_s=args.start_gap_s,
+                        lateral_offset_m=args.lateral_offset_m,
+                        comms_enabled=coordinated,
+                        comms_packet_loss_prob=(
+                            args.comms_packet_loss_prob if coordinated else 0.0
+                        ),
+                        team_id=f"{args.team_id}_{mode}_{condition}_seed{seed}",
+                        headless=args.headless,
+                        log_participant_states=args.log_participant_states,
+                    )
+                except Exception as exc:  # preserve failed runs in the manifest
+                    result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+                metadata["completed_at"] = _now_iso()
+                metadata["wall_duration_s"] = round(time.monotonic() - started, 3)
+                metadata["run_ok"] = bool(result.get("ok"))
+                metadata["error"] = result.get("error")
+                summary = result.get("summary")
+                if isinstance(summary, Mapping):
+                    metadata["actual_adapter"] = summary.get("adapter")
+                    metadata["fallback_used"] = summary.get("fallback_used")
+                    metadata["controller_observation_contract"] = summary.get(
+                        "controller_observation_contract"
+                    )
+                    enriched_summary = dict(summary)
+                    enriched_summary["experiment_metadata"] = dict(metadata)
+                    result["summary"] = enriched_summary
+                    summary_path = result.get("summary_path")
+                    if summary_path:
+                        _write_json(Path(summary_path), enriched_summary)
+                _write_json(metadata_path, metadata)
+                result["metadata_path"] = str(metadata_path)
+                result["metadata"] = dict(metadata)
                 result["condition"] = condition
                 result["seed"] = int(seed)
                 result["inter_vehicle_collision_mode"] = mode
                 result["comms_enabled"] = coordinated
                 result["controllers"] = _controller_labels(args.team_size, coordinated=coordinated)
                 result["metrics"] = _metrics_from_summary(result.get("summary"))
+                metrics = result["metrics"] or {}
+                result["scientific_outcome"] = {
+                    "all_rovers_finished": metrics.get("all_rovers_finished"),
+                    "progress_consistent": metrics.get("progress_consistent"),
+                    "clean_finish": metrics.get("clean_finish"),
+                }
                 runs[mode][str(seed)][condition] = result
     report = {
         "track": args.track,
-        "adapter": "holoocean",
+        **_runtime_contract("holoocean"),
         "official": True,
         "benchmark_task": "clean_gate",
         "current_profile": "none",
@@ -245,10 +419,32 @@ def run_validation(args: argparse.Namespace) -> Dict[str, Any]:
         "lateral_offset_m": args.lateral_offset_m,
         "dt": args.dt,
         "duration_s": args.duration_s,
-        "leader": "smooth_gate_baseline",
-        "followers": "acoustic_baseline",
-        "leader_follower_min_gate_gap": 2,
+        "leader": LEADER_ALIAS,
+        "followers": FOLLOWER_ALIAS,
+        "leader_follower_min_gate_gap": args.min_gate_gap,
+        "comms_packet_loss_prob": args.comms_packet_loss_prob,
+        "generated_at": _now_iso(),
+        "invocation_argv": list(getattr(args, "invocation_argv", [])),
+        "source_tree_sha256": _source_tree_sha256(),
         "runs": runs,
+    }
+    audit_errors = _artifact_contract_errors(runs)
+    report["all_runs_executed"] = all(
+        bool(result.get("ok"))
+        for modes in runs.values()
+        for conditions in modes.values()
+        for result in conditions.values()
+    )
+    report["all_progress_consistent"] = all(
+        bool((result.get("metrics") or {}).get("progress_consistent"))
+        for modes in runs.values()
+        for conditions in modes.values()
+        for result in conditions.values()
+        if result.get("ok")
+    )
+    report["artifact_contract_audit"] = {
+        "ok": not audit_errors,
+        "errors": audit_errors,
     }
     (output_dir / "validation.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     markdown = _markdown(report)
@@ -307,7 +503,7 @@ def _participants_from_controllers(
 
 
 def _controller_labels(size: int, *, coordinated: bool) -> List[str]:
-    bases = ["smooth_gate_baseline"] + ["acoustic_baseline" for _ in range(size - 1)]
+    bases = [LEADER_ALIAS] + [FOLLOWER_ALIAS for _ in range(size - 1)]
     if coordinated:
         return [f"leader_follower({base})" for base in bases]
     return bases
@@ -323,14 +519,17 @@ def _metrics_from_summary(summary: Any) -> Optional[Dict[str, Any]]:
     expected_gates_per_rover = None
     if isinstance(expected_total_gates, int) and rover_count > 0:
         expected_gates_per_rover = expected_total_gates // rover_count
+    local_progress = summary.get("local_progress") or {}
     rows = []
     if isinstance(participants, list):
         for participant in participants:
             if not isinstance(participant, Mapping):
                 continue
+            participant_id = participant.get("participant_id")
+            local = local_progress.get(participant_id) if isinstance(local_progress, Mapping) else None
             rows.append(
                 {
-                    "participant_id": participant.get("participant_id"),
+                    "participant_id": participant_id,
                     "status": participant.get("status"),
                     "completed_gates": participant.get("completed_gates"),
                     "expected_gates": participant.get("expected_gates", expected_gates_per_rover),
@@ -341,11 +540,31 @@ def _metrics_from_summary(summary: Any) -> Optional[Dict[str, Any]]:
                     "inter_vehicle_events": participant.get("involved_inter_vehicle_collisions"),
                     "out_of_bounds_events": participant.get("out_of_bounds_events"),
                     "stuck_events": participant.get("stuck_events"),
+                    "penalties_s": _round(participant.get("penalties_s")),
+                    "local_completed": (local or {}).get("local_completed"),
+                    "local_status": (local or {}).get("status"),
+                    "coordination": (local or {}).get("coordination"),
                 }
             )
     comms = summary.get("comms") if isinstance(summary.get("comms"), Mapping) else None
+    progress_consistent = bool(rows) and all(
+        row.get("local_completed") == row.get("completed_gates")
+        and ((row.get("local_status") == "FINISHED") == (row.get("status") == "FINISHED"))
+        for row in rows
+    )
+    clean_finish = bool(team.get("all_rovers_finished")) and progress_consistent and all(
+        int(row.get("gate_world_collisions") or 0) == 0
+        and int(row.get("obstacle_collisions") or 0) == 0
+        and int(row.get("inter_vehicle_events") or 0) == 0
+        and int(row.get("out_of_bounds_events") or 0) == 0
+        and int(row.get("stuck_events") or 0) == 0
+        and float(row.get("penalties_s") or 0.0) == 0.0
+        for row in rows
+    )
     return {
         "all_rovers_finished": team.get("all_rovers_finished"),
+        "progress_consistent": progress_consistent,
+        "clean_finish": clean_finish,
         "team_completed_gates": team.get("total_completed_gates"),
         "team_expected_gates": team.get("expected_total_gates"),
         "team_elapsed_time_s": _round(team.get("team_elapsed_time_s")),
@@ -370,12 +589,13 @@ def _comms_metrics(comms: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any
         "dropped_oversized": comms.get("dropped_oversized"),
         "dropped_out_of_range": comms.get("dropped_out_of_range"),
         "dropped_packet_loss": comms.get("dropped_packet_loss"),
+        "delivery_latency_s": comms.get("delivery_latency_s"),
     }
 
 
 def _markdown(report: Mapping[str, Any]) -> str:
     lines = [
-        "# HoloOcean leader-follower coordination validation",
+        "# HoloOcean leader-follower coordination validation (onboard-only contract)",
         "",
         (
             f"Track: `{report['track']}` | adapter: `holoocean` | official mode | "
@@ -384,8 +604,10 @@ def _markdown(report: Mapping[str, Any]) -> str:
         (
             f"Team: {report['team_size']} rovers, start gap {report['start_gap_s']} s, "
             f"lateral offset {report['lateral_offset_m']} m. "
-            "Leader `smooth_gate_baseline`, followers `acoustic_baseline`; "
-            "`leader_follower` uses default `min_gate_gap=2` and comms enabled."
+            f"Leader `{report['leader']}`, followers `{report['followers']}`; "
+            f"`leader_follower` uses min_gate_gap={report['leader_follower_min_gate_gap']} "
+            f"and packet loss {report['comms_packet_loss_prob']}. "
+            "All progression is controller-local; heartbeats carry only local estimates."
         ),
         "",
     ]
@@ -400,7 +622,9 @@ def _markdown(report: Mapping[str, Any]) -> str:
         )
         for seed, conditions in seeds.items():
             for condition in CONDITIONS:
-                result = conditions.get(condition) or {}
+                result = conditions.get(condition)
+                if result is None:
+                    continue
                 metrics = result.get("metrics") or {}
                 if not result.get("ok"):
                     lines.append(
@@ -435,9 +659,9 @@ def _markdown(report: Mapping[str, Any]) -> str:
                 )
         lines.extend(["", "### Per-rover detail", ""])
         lines.append(
-            "| Seed | Condition | Rover | Status | Gates | Official time (s) | Gate/world collisions | Inter-vehicle events | OOB | Stuck |"
+            "| Seed | Condition | Rover | Status | Gates | Local gates | Official time (s) | Gate/world collisions | Inter-vehicle events | OOB | Stuck |"
         )
-        lines.append("| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |")
+        lines.append("| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
         for seed, conditions in seeds.items():
             for condition in CONDITIONS:
                 metrics = (conditions.get(condition) or {}).get("metrics") or {}
@@ -445,6 +669,7 @@ def _markdown(report: Mapping[str, Any]) -> str:
                     lines.append(
                         f"| {seed} | {condition.replace('_', ' ')} | {row.get('participant_id')} | "
                         f"{row.get('status')} | {row.get('completed_gates')}/{row.get('expected_gates')} | "
+                        f"{row.get('local_completed')} | "
                         f"{row.get('official_time_s')} | {row.get('gate_world_collisions')} | "
                         f"{row.get('inter_vehicle_events')} | {row.get('out_of_bounds_events')} | "
                         f"{row.get('stuck_events')} |"
@@ -459,6 +684,245 @@ def _round(value: Any) -> Any:
     return value
 
 
+def _build_run_metadata(
+    *,
+    args: argparse.Namespace,
+    seed: int,
+    condition: str,
+    mode: str,
+    run_dir: Path,
+    controllers: List[str],
+) -> Dict[str, Any]:
+    environment = _holoocean_environment()
+    reproduction_argv = _reproduction_argv(
+        args=args,
+        seed=seed,
+        condition=condition,
+        mode=mode,
+        output_dir=run_dir / "reproduction",
+    )
+    return {
+        "schema_version": 1,
+        "experiment": "holoocean_coordination_validation",
+        "created_at": _now_iso(),
+        "track": args.track,
+        "track_sha256": _file_sha256(Path(args.track)),
+        "source_tree_sha256": _source_tree_sha256(),
+        "seed": seed,
+        "condition": condition,
+        "inter_vehicle_collision_mode": mode,
+        "controllers": list(controllers),
+        "team_size": args.team_size,
+        "start_gap_s": args.start_gap_s,
+        "lateral_offset_m": args.lateral_offset_m,
+        "min_gate_gap": args.min_gate_gap,
+        "comms_packet_loss_prob": (
+            args.comms_packet_loss_prob if condition == "leader_follower" else 0.0
+        ),
+        "duration_s": args.duration_s,
+        "dt": args.dt,
+        "official": True,
+        "current_profile": "none",
+        "obstacles": "none",
+        **_runtime_contract("holoocean"),
+        "git_commit_sha": _git_value("rev-parse", "HEAD"),
+        "git_worktree_dirty": bool(_git_value("status", "--porcelain")),
+        "python_executable": sys.executable,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "conda_default_env": os.environ.get("CONDA_DEFAULT_ENV"),
+        "conda_prefix": os.environ.get("CONDA_PREFIX"),
+        "holoocean_version": environment["version"],
+        "holoocean_installed_packages": environment["installed_packages"],
+        "invocation_argv": list(getattr(args, "invocation_argv", [])),
+        "reproduction_argv": reproduction_argv,
+        "reproduction_command": _shell_command(reproduction_argv),
+        "run_dir": str(run_dir),
+    }
+
+
+def _reproduction_argv(
+    *,
+    args: argparse.Namespace,
+    seed: int,
+    condition: str,
+    mode: str,
+    output_dir: Path,
+) -> List[str]:
+    argv = [
+        "-m",
+        "marine_race_arena.scripts.run_holoocean_coordination_validation",
+        "--track",
+        str(args.track),
+        "--team-size",
+        str(args.team_size),
+        "--start-gap-s",
+        str(args.start_gap_s),
+        "--lateral-offset-m",
+        str(args.lateral_offset_m),
+        "--seeds",
+        str(seed),
+        "--inter-vehicle-modes",
+        mode,
+        "--conditions",
+        condition,
+        "--min-gate-gap",
+        str(args.min_gate_gap),
+        "--comms-packet-loss-prob",
+        str(args.comms_packet_loss_prob),
+        "--duration-s",
+        str(args.duration_s),
+        "--dt",
+        str(args.dt),
+        "--team-id",
+        str(args.team_id),
+        "--headless" if args.headless else "--no-headless",
+        "--output-dir",
+        str(output_dir),
+    ]
+    if args.log_participant_states:
+        argv.append("--log-participant-states")
+    return argv
+
+
+def _shell_command(python_argv: List[str]) -> str:
+    env_name = os.environ.get("CONDA_DEFAULT_ENV")
+    prefix = ["conda", "run", "-n", env_name, "python"] if env_name else [sys.executable]
+    return subprocess.list2cmdline([*prefix, *python_argv])
+
+
+def _artifact_contract_errors(runs: Mapping[str, Any]) -> List[str]:
+    errors: List[str] = []
+    for mode, seeds in runs.items():
+        for seed, conditions in seeds.items():
+            for condition, result in conditions.items():
+                label = f"{mode}/seed_{seed}/{condition}"
+                if not isinstance(result, Mapping) or not result.get("ok"):
+                    errors.append(f"{label}: run failed: {(result or {}).get('error')}")
+                    continue
+                summary = result.get("summary")
+                if not isinstance(summary, Mapping):
+                    errors.append(f"{label}: missing summary")
+                    continue
+                expected = _runtime_contract("holoocean")
+                for key, value in expected.items():
+                    if summary.get(key) != value:
+                        errors.append(
+                            f"{label}: {key}={summary.get(key)!r}, expected {value!r}"
+                        )
+                local_progress = summary.get("local_progress")
+                if not isinstance(local_progress, Mapping):
+                    errors.append(f"{label}: missing controller-local progress")
+                participants = summary.get("participants")
+                if isinstance(local_progress, Mapping) and isinstance(participants, list):
+                    official_by_id = {
+                        str(row.get("participant_id")): row
+                        for row in participants
+                        if isinstance(row, Mapping) and row.get("participant_id") is not None
+                    }
+                    if set(official_by_id) != set(local_progress):
+                        errors.append(
+                            f"{label}: participant ids differ between referee and local progress"
+                        )
+                    for participant_id in sorted(set(official_by_id) & set(local_progress)):
+                        official = official_by_id[participant_id]
+                        local = local_progress[participant_id]
+                        if not isinstance(local, Mapping):
+                            errors.append(f"{label}/{participant_id}: invalid local progress")
+                            continue
+                        official_count = official.get("completed_gates")
+                        local_count = local.get("local_completed")
+                        if local_count != official_count:
+                            errors.append(
+                                f"{label}/{participant_id}: local_completed={local_count!r}, "
+                                f"referee_completed={official_count!r}"
+                            )
+                        if local.get("advancements") != local_count:
+                            errors.append(
+                                f"{label}/{participant_id}: advancements={local.get('advancements')!r}, "
+                                f"local_completed={local_count!r}"
+                            )
+                        local_finished = local.get("status") == "FINISHED"
+                        official_finished = official.get("status") == "FINISHED"
+                        if local_finished != official_finished:
+                            errors.append(
+                                f"{label}/{participant_id}: local/referee FINISHED status differs"
+                            )
+                if condition == "leader_follower":
+                    comms = summary.get("comms")
+                    if not isinstance(comms, Mapping):
+                        errors.append(f"{label}: missing comms summary")
+                    else:
+                        latency = comms.get("delivery_latency_s")
+                        if not isinstance(latency, Mapping):
+                            errors.append(f"{label}: missing delivery latency diagnostics")
+                        elif latency.get("count") != comms.get("messages_delivered"):
+                            errors.append(f"{label}: latency/delivery counts differ")
+    return errors
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _git_value(*args: str) -> Optional[str]:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return completed.stdout.strip()
+
+
+def _holoocean_environment() -> Dict[str, Any]:
+    try:
+        import holoocean  # type: ignore
+    except Exception:
+        return {"version": None, "installed_packages": []}
+    try:
+        packages = list(holoocean.installed_packages())
+    except Exception:
+        packages = []
+    return {
+        "version": getattr(holoocean, "__version__", None),
+        "installed_packages": packages,
+    }
+
+
+def _file_sha256(path: Path) -> Optional[str]:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _source_tree_sha256() -> str:
+    digest = hashlib.sha256()
+    root = Path(__file__).resolve().parents[2]
+    source_root = root / "marine_race_arena"
+    paths = sorted(
+        path
+        for path in source_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".py", ".json"}
+    )
+    for path in paths:
+        digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _write_json(path: Path, value: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def _parse_modes(values: Iterable[str]) -> List[str]:
     modes = []
     for value in values:
@@ -469,6 +933,18 @@ def _parse_modes(values: Iterable[str]) -> List[str]:
             )
         modes.append(normalized)
     return modes
+
+
+def _parse_conditions(values: Iterable[str]) -> List[str]:
+    conditions = []
+    for value in values:
+        normalized = value.strip().lower()
+        if normalized not in CONDITIONS:
+            raise argparse.ArgumentTypeError(
+                f"condition must be one of {', '.join(CONDITIONS)}"
+            )
+        conditions.append(normalized)
+    return conditions
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -488,6 +964,24 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=["diagnostic"],
         help="One or more modes: diagnostic penalize.",
     )
+    parser.add_argument(
+        "--conditions",
+        nargs="+",
+        default=list(CONDITIONS),
+        help="Subset of conditions to run: no_coordination leader_follower.",
+    )
+    parser.add_argument(
+        "--min-gate-gap",
+        type=int,
+        default=2,
+        help="Leader-follower yield margin in locally estimated gates (ablation).",
+    )
+    parser.add_argument(
+        "--comms-packet-loss-prob",
+        type=float,
+        default=0.0,
+        help="Seeded per-link acoustic packet loss for the coordinated condition (ablation).",
+    )
     parser.add_argument("--headless", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--log-participant-states", action="store_true")
     return parser
@@ -498,8 +992,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
     args.inter_vehicle_modes = _parse_modes(args.inter_vehicle_modes)
-    run_validation(args)
-    return 0
+    args.conditions = _parse_conditions(args.conditions)
+    args.invocation_argv = list(argv if argv is not None else sys.argv[1:])
+    try:
+        report = run_validation(args)
+    except ValueError as exc:
+        print(f"Coordination validation setup failed: {exc}", file=sys.stderr)
+        return 1
+    return 0 if report["all_runs_executed"] and report["artifact_contract_audit"]["ok"] else 1
 
 
 if __name__ == "__main__":

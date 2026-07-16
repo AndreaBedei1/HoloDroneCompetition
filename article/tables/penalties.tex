@@ -3,6 +3,7 @@
 \caption{Default referee events, penalties and terminal conditions.}
 \label{tab:penalties}
 \footnotesize
+\setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.2}
 \begin{tabular}{p{0.34\columnwidth}p{0.20\columnwidth}p{0.30\columnwidth}}
 \toprule
@@ -11,13 +12,13 @@ Event & Penalty & Terminal \\
 Gate, bar or generic collision & $5.0$\,s each & no \\
 Obstacle collision            & $5.0$\,s each\textsuperscript{\dag} & no \\
 Out of bounds                 & $10.0$\,s each & no \\
-Stuck (soft)                  & $15.0$\,s once & no \\
+Stuck (soft)                  & $15.0$\,s per episode & no \\
 Missed gate                   & n/a            & yes (DNF) \\
 Timeout                       & n/a            & yes \\
 Gate-timeout stuck            & n/a            & yes \\
-Inter-vehicle proximity event & $5.0$\,s per pair & no (team-level) \\
+Inter-vehicle proximity event & $0$ (off/diag.); $5.0$\,s per pair (penalize) & no (team-level) \\
 \bottomrule
 \end{tabular}
 \par\vspace{0.6mm}
-\footnotesize \textsuperscript{\dag}Per-obstacle value if specified, else the collision default. A per-event cooldown ($1.0$\,s) prevents a single sustained contact from being charged repeatedly.
+\footnotesize \textsuperscript{\dag}Per-obstacle value if specified, else the collision default. Collision, obstacle, out-of-bounds and inter-vehicle proximity charges use independent configured cooldowns (default $1.0$\,s); stuck uses one latch per episode and terminal events have no cooldown.
 \end{table}

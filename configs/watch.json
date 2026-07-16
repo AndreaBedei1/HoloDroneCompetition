@@ -16,5 +16,5 @@
   "currents": { "profile": "none" },
   "sensors": { "disable_front_camera": false },
   "output": { "log_dir": "results/watch_run" },
-  "debug": { "show_front_camera": true, "print_beacon_targets": false }
+  "debug": { "show_front_camera": true, "print_beacons": false }
 }

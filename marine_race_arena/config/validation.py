@@ -62,17 +62,13 @@ class ValidationResult:
 ALLOWED_RACE_FORMATS = {"ai_grand_challenge", "time_trial", "multi_rover", "drag_race"}
 ALLOWED_TIMING_MODES = {"green_to_finish", "first_gate_to_last_gate"}
 ALLOWED_GATE_TYPES = {"single", "double", "vertical_double", "split_s_upper", "split_s_lower"}
-ALLOWED_BEACON_MODES = {"always_on", "active_when_target", "sequential_channel"}
 ALLOWED_CURRENT_TYPES = {"constant", "localized_jet", "sinusoidal", "vortex"}
 ALLOWED_CONTROL_MODES = {"high_level", "thrusters"}
 BUILT_IN_CONTROLLERS = {
     "oracle",
-    "acoustic",
-    "acoustic_baseline",
-    "acoustic_vision_baseline",
     "rule_gate_baseline",
     "rule_gate_center_then_commit",
-    "vision_gate_baseline",
+    "leader_follower",
     "keyboard",
     "manual",
     "manual_keyboard",
@@ -261,22 +257,40 @@ def _validate_split_s_pair(
 
 
 def _validate_beacons(config: TrackConfig, result: ValidationResult) -> None:
-    if config.beacon.mode not in ALLOWED_BEACON_MODES:
-        result.error(f"beacon.mode '{config.beacon.mode}' is not supported.")
-    seen = set()
-    for gate in config.gates:
+    """Enforce the one-to-one sequential beacon contract (B01 ... BN).
+
+    Every ordered gate must carry exactly one enabled beacon; beacon IDs must
+    be unique, contiguous from B01 to BN, and follow the official gate
+    ordering. Gates outside the ordered sequence must not carry a beacon.
+    """
+
+    gate_by_id = {gate.id: gate for gate in config.gates}
+    sequence = list(config.track.gate_sequence)
+    seen: Dict[str, str] = {}
+
+    for index, gate_id in enumerate(sequence):
+        gate = gate_by_id.get(gate_id)
+        if gate is None:
+            continue  # unknown-gate error is reported by the track validation
+        expected_id = f"B{index + 1:02d}"
         beacon = gate.beacon
-        if beacon is None or not beacon.enabled:
-            result.warn(f"Gate '{gate.id}' has no enabled acoustic beacon.")
+        if beacon is None or not beacon.enabled or not beacon.id:
+            result.error(
+                f"Ordered gate '{gate_id}' (sequence position {index + 1}) has no enabled "
+                f"beacon; every ordered gate must carry exactly one beacon ('{expected_id}')."
+            )
             continue
-        if beacon.mode not in ALLOWED_BEACON_MODES:
-            result.error(f"Gate '{gate.id}' beacon mode '{beacon.mode}' is not supported.")
-        if not beacon.id:
-            result.error(f"Gate '{gate.id}' has an enabled beacon without an id.")
-            continue
+        if beacon.id != expected_id:
+            result.error(
+                f"Gate '{gate_id}' beacon id '{beacon.id}' does not match the required "
+                f"sequential id '{expected_id}': beacon ids must be unique, contiguous "
+                "B01..BN and follow the official gate ordering."
+            )
         if beacon.id in seen:
-            result.error(f"Duplicated beacon id '{beacon.id}'.")
-        seen.add(beacon.id)
+            result.error(
+                f"Duplicated beacon id '{beacon.id}' on gates '{seen[beacon.id]}' and '{gate_id}'."
+            )
+        seen[beacon.id] = gate_id
         if beacon.range_m <= 0:
             result.error(f"Beacon '{beacon.id}' range_m must be positive.")
         if beacon.noise_std < 0:
@@ -285,6 +299,17 @@ def _validate_beacons(config: TrackConfig, result: ValidationResult) -> None:
             result.error(f"Beacon '{beacon.id}' dropout_probability must be in [0, 1].")
         if beacon.update_rate_hz <= 0:
             result.error(f"Beacon '{beacon.id}' update_rate_hz must be positive.")
+
+    sequence_set = set(sequence)
+    for gate in config.gates:
+        if gate.id in sequence_set:
+            continue
+        if gate.beacon is not None and gate.beacon.enabled:
+            beacon_label = gate.beacon.id or "<missing id>"
+            result.error(
+                f"Gate '{gate.id}' is not in track.gate_sequence but carries beacon "
+                f"'{beacon_label}'; every beacon must belong to exactly one ordered gate."
+            )
 
 
 def _validate_currents(config: TrackConfig, result: ValidationResult) -> None:
