@@ -2,8 +2,7 @@
 \centering
 \caption{Onboard sensor suite of the BlueROV2.}
 \label{tab:sensors}
-\footnotesize
-\renewcommand{\arraystretch}{1.15}
+\mratablestyle
 \begin{tabular}{p{0.18\columnwidth}p{0.12\columnwidth}p{0.53\columnwidth}}
 \toprule
 Sensor & Rate & Output and configuration \\
@@ -14,7 +13,7 @@ DVL          & 15\,Hz & Body-frame velocity (m/s); beam elevation $22.5^\circ$, 
 Front camera & 30\,Hz & RGB image, $640\times480$, $90^\circ$ field of view. \\
 Collision    & optional & Boolean onboard contact flag when configured. \\
 \midrule
-\multicolumn{3}{p{0.87\columnwidth}}{World-frame velocity, pose-derived heading/depth and environmental-current telemetry are not controller-visible in official mode. Pose and velocity sensors may exist internally for simulation and referee evaluation only.} \\
+\multicolumn{3}{p{0.87\columnwidth}}{World-frame velocity, pose-derived heading, pose-derived depth and environmental-current telemetry are not controller-visible in official mode. Pose and velocity sensors may exist internally for simulation and referee evaluation only.} \\
 \bottomrule
 \end{tabular}
 \end{table}

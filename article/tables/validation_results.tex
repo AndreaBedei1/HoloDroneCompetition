@@ -2,34 +2,29 @@
 \centering
 \caption{Final HoloOcean clean-track, current and homogeneous two-rover fleet results over five seeds per case.}
 \label{tab:validation_results}
-\scriptsize
-\setlength{\tabcolsep}{2.8pt}
-\renewcommand{\arraystretch}{1.12}
-\begin{tabular}{llccrrrrc}
+\mratablestyle
+\begin{tabular}{llrlrrr}
 \toprule
-Case & Ctrl & FIN & Gates & Raw (s) & Penal. (s) & GW & IV & OOB/S \\
+Setting & Controller and track & Seeds & Status & Gates & Time (s) & Collisions \\
 \midrule
-\multirow{2}{*}{Vertical clean}
- & Cont. & 5/5 & 17.0 & $236.947\pm5.745$ & $236.947\pm5.745$ & 0.0 & 0.0 & 0/0 \\
- & CTC   & 4/5 & 14.8 & $241.139\pm1.567$ & $241.139\pm1.567$ & 0.0 & 0.0 & 0/0 \\
+\multirow{6}{*}{Clean}
+ & Continuous servo, Horseshoe Bay & 5 & 5/5 FIN & 12.0/12 & $194.5\pm4.3$ & 0.0 \\
+ & Center-then-commit, Horseshoe Bay & 5 & 5/5 FIN & 12.0/12 & $197.7\pm6.3$ & 0.0 \\
+ & Continuous servo, Vertical Serpent & 5 & 5/5 FIN & 17.0/17 & $236.9\pm5.7$ & 0.0 \\
+ & Center-then-commit, Vertical Serpent & 5 & 4/5 FIN & 14.8/17 & $241.1\pm1.6$ & 0.0 \\
+ & Continuous servo, Mixed Endurance & 5 & 2/5 FIN & 17.0/22 & $394.7\pm2.8$ & 0.0 \\
+ & Center-then-commit, Mixed Endurance & 5 & 5/5 FIN & 22.0/22 & $410.7\pm7.9$ & 0.0 \\
 \midrule
-\multirow{2}{*}{Mixed clean}
- & Cont. & 2/5 & 17.0 & $394.746\pm2.772$ & $394.746\pm2.772$ & 0.0 & 0.0 & 0/0 \\
- & CTC   & 5/5 & 22.0 & $410.659\pm7.850$ & $410.659\pm7.850$ & 0.0 & 0.0 & 0/0 \\
-\midrule
-\multirow{2}{*}{Horseshoe medium}
- & Cont. & 2/5 & 8.4 & $337.887\pm13.563$ & $692.887\pm53.563$ & 43.4 & 0.0 & 0/0 \\
- & CTC   & 3/5 & 8.8 & $217.261\pm1.229$ & $223.928\pm1.504$ & 25.2 & 0.0 & 0/0 \\
-\midrule
-\multirow{2}{*}{Horseshoe strong}
- & Cont. & 0/5 & 3.0 & \textemdash & \textemdash & 0.0 & 0.0 & 0/0 \\
- & CTC   & 0/5 & 3.2 & \textemdash & \textemdash & 0.8 & 0.0 & 0/0 \\
+\multirow{4}{*}{Currents}
+ & Continuous servo, Horseshoe medium & 5 & 2/5 FIN & 8.4/12 & $337.9\pm13.6$ & 43.4 \\
+ & Center-then-commit, Horseshoe medium & 5 & 3/5 FIN & 8.8/12 & $217.3\pm1.2$ & 25.2 \\
+ & Continuous servo, Horseshoe strong & 5 & 0/5 FIN & 3.0/12 & \textemdash & 0.0 \\
+ & Center-then-commit, Horseshoe strong & 5 & 0/5 FIN & 3.2/12 & \textemdash & 0.8 \\
 \midrule
 \multirow{2}{*}{Fleet, gap 90 s}
- & Cont. & 5/5 & 24.0 & $303.092\pm2.874$ & $303.092\pm2.874$ & 0.0 & 0.0 & 0/0 \\
- & CTC   & 5/5 & 24.0 & $307.976\pm5.227$ & $307.976\pm5.227$ & 0.0 & 0.0 & 0/0 \\
+ & Continuous servo, team aggregate & 5 & 5/5 FIN & 24.0/24 & $303.1\pm2.9$ & 0.0 \\
+ & Center-then-commit, team aggregate & 5 & 5/5 FIN & 24.0/24 & $308.0\pm5.2$ & 0.0 \\
 \bottomrule
 \end{tabular}
-\par\vspace{0.6mm}
-\scriptsize Cont. denotes continuous servo and CTC center-then-commit. Times are mean$\pm$population standard deviation over finished runs only; Raw is official single-rover time and team elapsed time for fleet rows. Gates, gate/world collisions (GW) and inter-vehicle proximity events (IV) are means per run over all five seeds; fleet values are team-level. OOB/S reports out-of-bounds/stuck events.
+\mratablenote Times are mean$\pm$population standard deviation over finished runs. Gates and collisions are five-seed means; fleet values are team-level and collisions combine gate and world events. Medium-current penalized times are $692.9\pm53.6$\,s for continuous servo and $223.9\pm1.5$\,s for center-then-commit.
 \end{table*}

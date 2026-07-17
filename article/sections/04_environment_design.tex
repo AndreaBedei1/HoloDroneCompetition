@@ -5,12 +5,12 @@ This section describes the simulation backend, the vehicle and its sensors, the 
 
 \subsection{Simulator and Vehicle}
 
-The benchmark architecture is not tied to a particular vehicle: adapters provide simulator state, filtered sensing and action mapping to the common race and referee layers. The reference adapter, and every HoloOcean experiment reported here, uses HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz.
+The benchmark architecture is not tied to a particular vehicle: adapters provide simulator state, filtered sensing and action mapping to the common race and referee layers. The reference adapter used in every HoloOcean experiment reported here uses HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode (HoloOcean \texttt{control\_scheme}~$0$). The simulator advances at $30$ physics ticks per second. The benchmark uses a control timestep of $\Delta t=0.033$\,s, so each control step corresponds to one physics tick and the effective control rate is $\approx\!30$\,Hz.
 
 In the reference HoloOcean adapter, a high-level command $u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$ is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters receive
 \begin{equation}
 \label{eq:thruster_mix}
-\tau_{1\text{--}4}= s_\tau\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
+\tau_{1\text{-}4}= s_\tau\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
 \end{equation}
 with yaw-mixing gain $\kappa=0.35$ and thruster scale $s_\tau$, each component clamped to the thruster limit. A controller may instead return the eight thruster values directly; the high-level interface is the default because it is simpler and vehicle-agnostic (a controller expresses intended body-frame motion while the framework handles the mixing and depth-safety), whereas direct thruster control is available when finer actuator authority is wanted.
 
@@ -30,7 +30,7 @@ Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of \eqref{eq:
 \varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big),\\
 \mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\tilde{\rho}}{\rho_{\max}}\Big),\nonumber
 \end{align}
-where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A transmission is not received beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$ and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.45,0.6\}$ and dropout probabilities up to $0.04$. Every ordered gate has one independent periodic transmitter with a unique contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All transmit regardless of referee state; at each update a rover receives every in-range, non-dropped packet. The framework neither activates a target transmitter nor labels a packet as the correct target. Packet randomness is seeded by the run seed, transmitter, receiver and transmission index, making reception independent of participant count and call order.
+where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A transmission is not received beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$ and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.45,0.6\}$ and dropout probabilities up to $0.04$. Every ordered gate has one independent periodic transmitter with a unique contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All transmit regardless of referee state; at each update a rover receives every in-range, non-dropped packet. Packet randomness is seeded by the run seed, transmitter, receiver and transmission index, making reception independent of participant count and call order.
 
 \subsection{Current Field Model}
 
@@ -50,11 +50,11 @@ with $d=\lVert p-c_j\rVert$ and $\sigma=\max(R_j/2,10^{-6})$ and zero outside $R
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. Both named profiles are defined relative to the gate layout and are available on each official circuit. The HoloOcean adapter evaluates the field at every rover before each control step---one physics tick in the reported setup---and applies it through \cmd{env.set\_ocean\_currents}. Reported current experiments are rejected unless the run metadata confirms this physical coupling on the real HoloOcean adapter with no fallback.
+The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. Both named profiles are defined relative to the gate layout and are available on each official circuit. The HoloOcean adapter evaluates the field at every rover before each control step, corresponding to one physics tick in the reported setup.
 
 \subsection{Declarative Track Configuration}
 
-A track is a self-contained JSON file. Its principal sections are \cmd{race} (name, timing mode, laps and duration), \cmd{benchmark\_task}, \cmd{world} (bounds and environment), \cmd{start} and \cmd{finish}, \cmd{track} and \cmd{gates} (the ordered gate sequence with centers, passage directions and aperture sizes), \cmd{beacon}, \cmd{currents}/\cmd{current\_profiles}, \cmd{obstacle\_generation}/\cmd{obstacles}, \cmd{participants} (vehicle, spawn, sensors, controller and optional \cmd{start\_delay\_s}) and \cmd{referee} (gate validation, penalties and scoring). The named \cmd{benchmark\_task} (\cmd{clean\_gate}, \cmd{obstacle\_gate}, \cmd{current\_gate} or \cmd{multi\_rov}) selects a validation contract. Listing~\ref{lst:trackjson} shows a representative excerpt.
+A track is a self-contained JSON file. Its principal sections are \cmd{race} (name, timing mode, laps and duration), \cmd{benchmark\_task}, \cmd{world} (bounds and environment), \cmd{start} and \cmd{finish}, \cmd{track} and \cmd{gates} (the ordered gate sequence with centers, passage directions and aperture sizes), \cmd{beacon}, \cmd{currents} and \cmd{current\_profiles}, \cmd{obstacle\_generation} and \cmd{obstacles}, \cmd{participants} (vehicle, spawn, sensors, controller and optional \cmd{start\_delay\_s}) and \cmd{referee} (gate validation, penalties and scoring). The named \cmd{benchmark\_task} (\cmd{clean\_gate}, \cmd{obstacle\_gate}, \cmd{current\_gate} or \cmd{multi\_rov}) selects a validation contract. Listing~\ref{lst:trackjson} shows a representative excerpt.
 
 \begin{lstlisting}[caption={Representative excerpt of a track configuration.}, label={lst:trackjson}]
 "track": {
@@ -87,21 +87,20 @@ The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}
 
 \input{tables/official_tracks}
 
-The \cmd{obstacle\_gate} task accepts explicit fixed obstacles or deterministic random boxes generated between consecutive gates with a configured density and minimum clearance. The HoloOcean adapter records the requested and physically spawned counts, and an obstacle construction check is accepted only when they match. This verifies that obstacles can be instantiated on a circuit; it is deliberately separate from any claim that a reference controller avoids them.
+The \cmd{obstacle\_gate} task accepts explicit fixed obstacles or deterministic random boxes generated between consecutive gates with a configured density and minimum clearance. The HoloOcean adapter records the requested and physically spawned counts. An obstacle construction check is accepted only when they match. This verifies that obstacles can be instantiated on a circuit; it is deliberately separate from any claim that a reference controller avoids them.
 
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. The builder is structurally independent of the referee: its signature contains the track configuration, arena, adapter and participant state, but no referee object. It constructs participant-local elapsed time, asks the adapter only for allow-listed onboard sensors and asks the beacon field which periodic transmissions were physically received. Pose, location, rotation, dynamics, world-frame velocity, pose-derived heading or depth, environment-current vectors, exact gate geometry and all referee progress fields are forbidden. Numeric arrays are made JSON-safe while image arrays are preserved. A controller must infer disturbance effects from its onboard sensors, particularly body-frame DVL measurements, rather than read the current directly. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose payloads are authored from another controller's own legal information.
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. The builder is structurally independent of the referee: its signature contains the track configuration, arena, adapter and participant state, but no referee object. It constructs participant-local elapsed time, asks the adapter only for allow-listed onboard sensors and asks the beacon field which periodic transmissions were physically received. Numeric arrays are made JSON-safe while image arrays are preserved. A controller must infer disturbance effects from its onboard sensors, particularly body-frame DVL measurements, rather than read the current directly. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose payloads are authored from another controller's own legal information.
 
-Each beacon packet contains exactly \cmd{beacon\_id}, \cmd{bearing\_deg}, \cmd{elevation\_deg}, \cmd{range\_m}, \cmd{signal\_strength} and the receiver-local \cmd{received\_at\_s}. No validity reason, gate id, expected-target flag, position or noise parameter is exposed. Silence is simply absence of a packet; the controller cannot distinguish range loss, dropout and an interval with no new transmission.
+Each beacon packet contains exactly \cmd{beacon\_id}, \cmd{bearing\_deg}, \cmd{elevation\_deg}, \cmd{range\_m}, \cmd{signal\_strength} and the receiver-local \cmd{received\_at\_s}.
 
 \begin{table}[t]
 \centering
 \caption{Top-level fields of the official observation.}
 \label{tab:observation}
-\footnotesize
-\renewcommand{\arraystretch}{1.15}
+\mratablestyle
 \begin{tabular}{p{0.26\columnwidth}p{0.62\columnwidth}}
 \toprule
 Field & Meaning \\

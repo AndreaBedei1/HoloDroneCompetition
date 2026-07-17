@@ -19,7 +19,7 @@ Inter-vehicle proximity events are detected on the referee side and are never ex
 \label{eq:ivc}
 \sqrt{(x_a-x_b)^2+(y_a-y_b)^2}\le r_{xy}\;\wedge\;|z_a-z_b|\le r_z,
 \end{equation}
-with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity. The v0.1 thresholds are $r_{xy}=0.8$\,m, $r_z=0.75$\,m, $r_{\mathrm{rel}}=1.05$\,m and a $1.0$\,s cooldown. Three modes are provided: \cmd{off} disables detection and is the command-line default; \cmd{diagnostic} logs inter-vehicle proximity events without changing any score; \cmd{penalize} also charges one team-level penalty per pair event. The fleet experiments use diagnostic mode explicitly.
+with hysteresis (a pair is released only when the horizontal distance exceeds a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$) and a refractory cooldown to debounce sustained proximity.
 
 \subsection{Inter-Rover Acoustic Communication}
 
@@ -32,7 +32,7 @@ To stay faithful to the medium rather than model a perfect radio link, the chann
 \end{equation}
 where $d_{ij}$ is the inter-rover distance, $c$ the speed of sound and $\tau_{\mathrm{proc}}$ a fixed processing delay; each delivery is additionally dropped with probability $p_{\mathrm{loss}}$, payloads are capped to a small size to model the low bandwidth and a rover may not transmit faster than a configured per-sender interval. Packet loss is drawn from a seeded generator, so a run stays reproducible.
 
-The channel preserves the official observation contract. A payload is authored by the sending controller, which sees only its official observation, so it can carry only information that controller may legally observe; the framework uses the true rover positions solely to compute the channel physics ($d_{ij}$, $\tau_{ij}$, range and loss) and never injects pose, geometry or other privileged state into a delivered message. Inter-rover communication is therefore the substrate for the leader-follower coordination of Section~\ref{sec:coordination}.
+Inter-rover communication is the substrate for the leader-follower coordination of Section~\ref{sec:coordination}.
 
 \subsection{Leader-Follower Coordination}
 \label{sec:coordination}

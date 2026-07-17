@@ -1,25 +1,22 @@
 \begin{table*}[t]
 \centering
-\caption{Final HoloOcean three-rover coordination results on clean Horseshoe Bay over three seeds per condition. The leader uses continuous servo, both followers use center-then-commit and inter-vehicle mode is diagnostic.}
+\caption{Three-rover coordination on clean Horseshoe Bay over three seeds per condition.}
 \label{tab:holoocean_coordination}
-\scriptsize
-\setlength{\tabcolsep}{3.2pt}
-\renewcommand{\arraystretch}{1.12}
-\begin{tabular}{clccrrrrc}
+\mratablestyle
+\begin{tabular*}{0.742\textwidth}{@{\extracolsep{\fill}}clccrrrrc@{}}
 \toprule
-Gap (s) & Policy & FIN & Gates & Team raw (s) & Team penal. (s) & GW & IV & OOB/S \\
+Gap (s) & Policy & FIN & Gates & Team raw (s) & Team penal. (s) & GW & IV & OOB and S \\
 \midrule
 \multirow{3}{*}{0.0}
- & No coord. & 3/3 & 36.0 & $219.692\pm2.027$ & $266.359\pm52.372$ & 9.333 & 2.333 & 0.0/0.0 \\
- & LF(2)     & 3/3 & 36.0 & $288.310\pm1.076$ & $303.310\pm1.076$  & 0.0   & 0.0   & 0.0/1.0 \\
- & LF(1)     & 3/3 & 36.0 & $262.339\pm6.287$ & $262.339\pm6.287$  & 0.0   & 0.0   & 0.0/0.0 \\
+ & No coord. & 3/3 & 36.0 & $219.7\pm2.0$ & $266.4\pm52.4$ & 9.333 & 2.333 & 0.0; 0.0 \\
+ & LF(2)     & 3/3 & 36.0 & $288.3\pm1.1$ & $303.3\pm1.1$  & 0.0   & 0.0   & 0.0; 1.0 \\
+ & LF(1)     & 3/3 & 36.0 & $262.3\pm6.3$ & $262.3\pm6.3$  & 0.0   & 0.0   & 0.0; 0.0 \\
 \midrule
 \multirow{3}{*}{8.0}
- & No coord. & 2/3 & 34.333 & $254.034\pm17.358$ & $564.034\pm327.358$ & 127.333 & 2.0 & 0.0/0.0 \\
- & LF(2)     & 3/3 & 36.0   & $285.725\pm3.129$  & $285.725\pm3.129$   & 0.0     & 0.0 & 0.0/0.0 \\
- & LF(1)     & 3/3 & 36.0   & $266.024\pm6.765$  & $266.024\pm6.765$   & 0.0     & 0.0 & 0.0/0.0 \\
+ & No coord. & 2/3 & 34.333 & $254.0\pm17.4$ & $564.0\pm327.4$ & 127.333 & 2.0 & 0.0; 0.0 \\
+ & LF(2)     & 3/3 & 36.0   & $285.7\pm3.1$  & $285.7\pm3.1$   & 0.0     & 0.0 & 0.0; 0.0 \\
+ & LF(1)     & 3/3 & 36.0   & $266.0\pm6.8$  & $266.0\pm6.8$   & 0.0     & 0.0 & 0.0; 0.0 \\
 \bottomrule
-\end{tabular}
-\par\vspace{0.6mm}
-\scriptsize FIN counts team runs in which all rovers finished. Times are team-level mean$\pm$population standard deviation over finished runs only. Gate/world collisions (GW), inter-vehicle proximity events (IV), and out-of-bounds/stuck events (OOB/S) are means per run over all three seeds. LF(2) is the primary two-gate-margin policy; LF(1) is the one-gate-margin ablation.
+\end{tabular*}
+\mratablenote FIN counts full-team finishes. Times are team-level mean$\pm$population standard deviation over finished runs; event columns are three-seed means. GW is gate and world collisions, IV is inter-vehicle proximity and OOB and S are out-of-bounds and stuck events. LF(2) and LF(1) use two- and one-gate margins.
 \end{table*}

@@ -17,8 +17,8 @@
 % runtime row
 \node[block]  (runner)  at (6.6,3.5) {Race runner\\\scriptsize control loop};
 \node[narrow] (adapter) at (2.2,3.5) {Adapter\\\scriptsize HoloOcean};
-\node[narrow] (referee) at (10.2,3.5){Referee\\\scriptsize events, score};
-\node[block]  (logs)    at (10.2,1.5){Outputs\\\scriptsize summary, events};
+\node[narrow] (referee) at (11.4,3.5){Referee\\\scriptsize events, score};
+\node[block]  (logs)    at (11.4,1.5){Outputs\\\scriptsize summary, events};
 
 % control-loop row (official side)
 \node[block]  (obs)        at (6.6,1.5) {Official observation\\\scriptsize local time, sensors, beacons, comms};
@@ -30,7 +30,7 @@
 \draw[arrow] (builder) -- (runner);
 
 % runtime edges
-\draw[birarrow] (runner) -- node[above, pos=0.5, align=center, font=\scriptsize]{state\\act / tick} (adapter);
+\draw[birarrow] (runner) -- node[above, pos=0.5, align=center, font=\scriptsize]{state\\action and tick} (adapter);
 \draw[arrow]    (runner) -- node[above, font=\scriptsize]{privileged state} (referee);
 \draw[arrow]    (referee) -- (logs);
 
@@ -45,7 +45,7 @@
         fit=(controller)(obs), inner sep=4mm] (tb) {};
 \end{scope}
 \node[anchor=north, font=\scriptsize\itshape] at (tb.south)
-     {official-observation boundary: no referee feedback or ground truth};
+     {official-observation boundary};
 \end{tikzpicture}
 \caption{Runtime architecture and official-observation boundary between the controller and referee.}
 \label{fig:architecture}

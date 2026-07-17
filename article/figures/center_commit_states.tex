@@ -15,7 +15,7 @@
 \draw[arrow] (center) -- node[lbl, right] {four centered frames} (commit);
 \draw[arrow] (commit) -- node[lbl, right] {onboard exit evidence} (exit);
 \draw[arrow] (commit.west) -- ++(-0.75,0)
-  |- node[lbl, pos=0.48] {local timeout, no advance} (center.west);
+  |- node[lbl, pos=0.48] {local timeout} (center.west);
 \end{tikzpicture}
 \caption{Center-then-commit passage with controller-local confirmation and recovery.}
 \label{fig:center_commit_states}

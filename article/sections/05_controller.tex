@@ -41,8 +41,7 @@ The high-level command fields are listed in Table~\ref{tab:commands}; values are
 \centering
 \caption{High-level controller command fields of \eqref{eq:command}.}
 \label{tab:commands}
-\footnotesize
-\renewcommand{\arraystretch}{1.15}
+\mratablestyle
 \begin{tabular}{p{0.16\columnwidth}p{0.72\columnwidth}}
 \toprule
 Field & Interpretation \\
@@ -83,11 +82,11 @@ Both official rule controllers own a \cmd{LocalCourseTracker}; the runner suppli
 \end{equation*}
 ending in \textsc{Finished} after the final locally confirmed beacon. It filters the received list for its own expected id; packets from other transmitters are not labeled or selected by the framework. Temporary visual loss, a missing packet, an isolated range jump, a range rise without a prior close approach and a commit without forward DVL displacement cannot advance the state.
 
-Entry into \textsc{Commit} normally requires four consecutive camera frames with a gate detection of confidence at least $0.42$, normalized center error $|c_x|\le0.13$, $|c_y|\le0.32$ and either area fraction at least $0.03$ or confidence at least $0.60$, together with expected-beacon range $\rho\le3.2$\,m and bearing $|\beta|\le8^\circ$. A two-frame close-range branch handles a consistently detected but cropped aperture only for $\rho\le1.6$\,m and the same bearing bound. Exit confirmation then requires all of the following onboard evidence: at least $1.2$\,m of forward displacement integrated from DVL; four close packets establishing a filtered minimum no larger than $1.30$\,m; a subsequent $0.9$\,m range rise (or a persistent $0.35$\,m rear-sector turnaround after prolonged rear evidence); six camera-on frames in which the previously locked gate has disappeared; and two fresh packets with $|\beta|\ge100^\circ$. Only then does the tracker increment exactly once. After each non-final local advancement it holds an exit-clearance phase for $2.5$\,s; after the final advancement it enters \textsc{Finished} directly and commands zero. A failed commit or verification timeout returns to acquisition without changing the expected id. Controller-local snapshots and independent referee crossings are logged separately for offline comparison and never fed back into control.
+The tracker enters and completes a passage only when persistent camera, acoustic and DVL evidence agrees with the expected beacon. Incomplete or inconsistent evidence returns it to local acquisition without advancing. The two reference controllers and their local-progression logic were designed and validated for the gate geometry, beacon placement, sensing configuration and vehicle dynamics of the three official circuits used in this study. After each non-final local advancement the tracker holds an exit-clearance phase; after the final advancement it enters \textsc{Finished} directly and commands zero. Controller-local snapshots and independent referee crossings are logged separately for offline comparison and never fed back into control.
 
 \subsection{Baseline Based on Rules}
 
-The reference controller is deliberately interpretable rather than optimal. Its role is to provide a deterministic policy that is exercised across the clean tracks and exposes its failures under difficult geometry, currents or dense fleet interaction. Obstacle construction is validated separately and no obstacle-avoidance capability is claimed. Let $\beta$ and $\rho$ be the beacon bearing and range, $d$ the measured depth and $d^\star$ the nominal hold depth. The policy is organized into the four explicit components summarized in Fig.~\ref{fig:rule_baseline_state}.
+The reference controller is deliberately interpretable rather than optimal. Its role is to provide a deterministic policy that is exercised across the clean tracks. Obstacle construction is validated separately and no obstacle-avoidance capability is claimed. Let $\beta$ and $\rho$ be the beacon bearing and range, $d$ the measured depth and $d^\star$ the nominal hold depth. The policy is organized into the four explicit components summarized in Fig.~\ref{fig:rule_baseline_state}.
 
 \begin{itemize}
 \item \emph{Bearing alignment and surge gating.} The controller aligns the rover before allowing sustained forward motion. Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
@@ -95,7 +94,7 @@ The reference controller is deliberately interpretable rather than optimal. Its 
 \label{eq:rule_yaw}
 u^{\mathrm{yaw}} = \operatorname{clamp}\!\big(k_\psi\,\beta,\,-\bar{u}_{\mathrm{yaw}},\,\bar{u}_{\mathrm{yaw}}\big),\qquad \bar{u}_{\mathrm{yaw}}=0.16,
 \end{equation}
-and surge is gated by alignment. Sustained forward motion is admitted only when $|\beta|<24^\circ$; for larger errors the controller turns without forward drive, or applies a small reverse brake when it is within $3$\,m of the gate. When aligned, surge is capped at $\bar{u}_{\mathrm{surge}}=0.46$ and scales linearly with range and bearing alignment.
+and surge is gated by alignment. Sustained forward motion is admitted only when $|\beta|<24^\circ$; for larger errors the controller turns without forward drive or applies a small reverse brake when it is within $3$\,m of the gate. When aligned, surge is capped at $\bar{u}_{\mathrm{surge}}=0.46$ and scales linearly with range and bearing alignment.
 
 \item \emph{Depth hold.} The controller records the initial measured depth $d^\star$ and uses it as a nominal hold depth while beacon elevation guides the approach to each gate. With measured depth $d$ and vertical velocity $v_z$, the implemented depth-hold term is
 \begin{equation}
@@ -107,7 +106,7 @@ which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^
 
 \item \emph{Visual centering.} This component refines the acoustic approach in the final meters. When the front camera detects a gate, normalized image errors $(c_x,c_y)\in[-1,1]^2$ generate proportional sway, yaw and heave corrections. Forward passage remains gated by the acoustic bearing and by centered-image thresholds $(|c_x|,|c_y|)\le(0.13,0.30)$.
 
-\item \emph{Exit clearance and command smoothing.} After a non-final local passage confirmation, the controller clears the structure for $2.5$\,s with forward surge, holds the onboard measured passage depth and permits only a limited expected-beacon heading correction. Each confirmed gate establishes the depth reference for the next segment, which is required by the Vertical Serpent course. All commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$, and rate-limited per axis to avoid abrupt thrust changes.
+\item \emph{Exit clearance and command smoothing.} After a non-final local passage confirmation, the controller clears the structure for $2.5$\,s with forward surge, holds the onboard measured passage depth and permits only a limited expected-beacon heading correction. Each confirmed gate establishes the depth reference for the next segment. All commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$ and rate-limited per axis to avoid abrupt thrust changes.
 \end{itemize}
 
 \begin{figure}[t]
@@ -157,7 +156,7 @@ The second controller changes the gate-passage command rather than the observati
 \mathrm{commit}_t &\Longleftrightarrow \sum_{k=0}^{3}\chi_{t-k}=4.
 \end{aligned}
 \end{equation}
-The same tracker decides when both controllers have passed; neither observes a valid-crossing event. A commit with no sufficient motion times out after $14$\,s, and incomplete exit evidence times out after $16$\,s, in both cases returning to local acquisition without incrementing progress. Section~\ref{sec:eval_comparison} compares the two passage commands under matched HoloOcean conditions.
+The same tracker decides when both controllers have passed; neither observes a valid-crossing event. A commit with no sufficient motion times out after $14$\,s and incomplete exit evidence times out after $16$\,s, in both cases returning to local acquisition without incrementing progress. Section~\ref{sec:eval_comparison} compares the two passage commands under matched HoloOcean conditions.
 
 \input{figures/center_commit_states}
 
