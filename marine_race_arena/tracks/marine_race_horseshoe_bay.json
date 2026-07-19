@@ -82,7 +82,8 @@
       0.35
     ],
     "range_m": 90.0,
-    "noise_std": 0.2,
+    "angular_noise_std_deg": 0.2,
+    "range_noise_std_m": 0.2,
     "dropout_probability": 0.0,
     "update_rate_hz": 10.0
   },

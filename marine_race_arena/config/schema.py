@@ -80,13 +80,20 @@ class BeaconConfig:
     rejects missing, duplicate or reordered IDs. Beacons are always-on
     periodic transmitters: there is no referee-driven activation mode and no
     payload message.
+
+    Measurement noise is specified with two dimensioned parameters:
+    ``angular_noise_std_deg`` (degrees, applied independently to the reported
+    bearing and elevation) and ``range_noise_std_m`` (metres, applied once to
+    the reported range). The legacy scalar ``noise_std`` is deprecated; the
+    loader still accepts it and maps it to both channels with the same value.
     """
 
     enabled: bool = True
     id: Optional[str] = None
     position_offset: Vector3 = (0.0, 0.0, 0.35)
     range_m: float = 50.0
-    noise_std: float = 0.0
+    angular_noise_std_deg: float = 0.0
+    range_noise_std_m: float = 0.0
     dropout_probability: float = 0.0
     update_rate_hz: float = 10.0
 

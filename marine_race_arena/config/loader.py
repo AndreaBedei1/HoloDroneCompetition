@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -401,17 +402,50 @@ def _parse_finish(raw: Mapping[str, Any]) -> FinishConfig:
     return FinishConfig(gate_id=str(_required(raw, "gate_id")))
 
 
+def _beacon_noise_fields(raw: Mapping[str, Any], context: str) -> tuple[float, float]:
+    """Resolve (angular_noise_std_deg, range_noise_std_m) from a beacon mapping.
+
+    Accepts the current two-field form and the deprecated scalar ``noise_std``.
+    The legacy scalar maps deterministically to both channels with the same
+    value. Mixing the legacy field with either new field is rejected so there
+    is never ambiguous precedence.
+    """
+    has_legacy = "noise_std" in raw
+    has_new = "angular_noise_std_deg" in raw or "range_noise_std_m" in raw
+    if has_legacy and has_new:
+        raise TrackConfigLoadError(
+            f"{context}: specify either the deprecated 'noise_std' or the new "
+            "'angular_noise_std_deg'/'range_noise_std_m', not both."
+        )
+    if has_legacy:
+        legacy = float(raw.get("noise_std", 0.0))
+        warnings.warn(
+            f"{context}: 'noise_std' is deprecated; use 'angular_noise_std_deg' "
+            "(deg) and 'range_noise_std_m' (m). The legacy scalar maps to both "
+            f"channels with the same value ({legacy}).",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return legacy, legacy
+    return (
+        float(raw.get("angular_noise_std_deg", 0.0)),
+        float(raw.get("range_noise_std_m", 0.0)),
+    )
+
+
 def _parse_beacon(raw: Any, default_id: Optional[str]) -> BeaconConfig:
     if raw is None:
         raw = {}
     if not isinstance(raw, Mapping):
         raise TrackConfigLoadError("beacon must be an object when provided.")
+    angular_noise_std_deg, range_noise_std_m = _beacon_noise_fields(raw, "beacon")
     return BeaconConfig(
         enabled=bool(raw.get("enabled", True)),
         id=str(raw.get("id")) if raw.get("id") is not None else default_id,
         position_offset=_vector3(raw.get("position_offset", [0.0, 0.0, 0.35]), "beacon.position_offset"),
         range_m=float(raw.get("range_m", 50.0)),
-        noise_std=float(raw.get("noise_std", 0.0)),
+        angular_noise_std_deg=angular_noise_std_deg,
+        range_noise_std_m=range_noise_std_m,
         dropout_probability=float(raw.get("dropout_probability", 0.0)),
         update_rate_hz=float(raw.get("update_rate_hz", 10.0)),
     )
@@ -429,27 +463,34 @@ def _parse_gate(raw: Any, track: TrackSettings, global_beacon: BeaconConfig) -> 
     sequence = track.gate_sequence
     sequence_index = sequence.index(gate_id) if gate_id in sequence else None
     beacon_raw = raw.get("beacon")
-    if beacon_raw is None:
-        merged: Dict[str, Any] = {
+
+    def _global_beacon_dict() -> Dict[str, Any]:
+        return {
             "enabled": global_beacon.enabled,
             "position_offset": list(global_beacon.position_offset),
             "range_m": global_beacon.range_m,
-            "noise_std": global_beacon.noise_std,
+            "angular_noise_std_deg": global_beacon.angular_noise_std_deg,
+            "range_noise_std_m": global_beacon.range_noise_std_m,
             "dropout_probability": global_beacon.dropout_probability,
             "update_rate_hz": global_beacon.update_rate_hz,
         }
+
+    if beacon_raw is None:
+        merged: Dict[str, Any] = _global_beacon_dict()
     else:
         if not isinstance(beacon_raw, Mapping):
             raise TrackConfigLoadError(f"gates.{gate_id}.beacon must be an object when provided.")
-        merged = {
-            "enabled": global_beacon.enabled,
-            "position_offset": list(global_beacon.position_offset),
-            "range_m": global_beacon.range_m,
-            "noise_std": global_beacon.noise_std,
-            "dropout_probability": global_beacon.dropout_probability,
-            "update_rate_hz": global_beacon.update_rate_hz,
-        }
-        merged.update({key: value for key, value in beacon_raw.items()})
+        merged = _global_beacon_dict()
+        override = dict(beacon_raw)
+        # Normalize a legacy per-gate override to the two-field form before it
+        # is merged onto the inherited global (which already uses the new
+        # fields), so inheritance never looks like a legacy/new mix.
+        if "noise_std" in override:
+            angular, range_noise = _beacon_noise_fields(override, f"gates.{gate_id}.beacon")
+            override.pop("noise_std", None)
+            override["angular_noise_std_deg"] = angular
+            override["range_noise_std_m"] = range_noise
+        merged.update({key: value for key, value in override.items()})
     beacon_enabled = bool(merged.get("enabled", True))
     if sequence_index is None:
         # A gate outside the ordered sequence normally carries no beacon.  An

@@ -686,10 +686,14 @@ def _stats(values: Iterable[Any]) -> dict[str, Any]:
         }
     ordered = sorted(numbers)
     p95_index = max(0, math.ceil(0.95 * len(ordered)) - 1)
+    # Sample standard deviation (ddof=1); undefined for a single value, so it is
+    # reported as None rather than 0 and the manuscript omits a +/- there.
+    sample_std = round(statistics.stdev(numbers), 6) if len(numbers) >= 2 else None
     return {
         "count": len(numbers),
         "mean": round(statistics.fmean(numbers), 6),
-        "std": round(statistics.pstdev(numbers), 6),
+        "std": sample_std,
+        "std_kind": "sample_ddof1",
         "median": round(statistics.median(numbers), 6),
         "p95": round(ordered[p95_index], 6),
         "min": round(min(numbers), 6),

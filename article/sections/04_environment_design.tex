@@ -25,12 +25,12 @@ Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines
 Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of \eqref{eq:gate_frame}, with $\hat{n}$ the passage normal and $\hat{s}_g$ the gate-up axis. Each gate carries one beacon, placed at $b_g=c_g+\delta_n \hat{n}+\delta_r \hat{r}_g+\delta_s \hat{s}_g$ relative to the gate center $c_g$ (default offset $(0,0,0.35)$\,m along $\hat{s}_g$). For a receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_g-p_r$, let $\rho=\lVert\boldsymbol{\delta}\rVert$ be the geometric range and let $\tilde{\rho}$ be its noisy delivered measurement. The beacon reports $\tilde{\rho}$, a yaw-relative bearing, an elevation and a signal strength:
 \begin{align}
 \label{eq:beacon}
-\rho &= \lVert\boldsymbol{\delta}\rVert,\qquad \tilde{\rho}=\max(0,\rho+\eta_\rho),\\
-\beta &= \operatorname{wrap}\!\big(\operatorname{atan2}(\delta_y,\delta_x)-\psi\big),\\
-\varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big),\\
+\rho &= \lVert\boldsymbol{\delta}\rVert,\qquad \tilde{\rho}=\max(0,\,\rho+\eta_\rho),\quad \eta_\rho\sim\mathcal{N}(0,\sigma_\rho^2),\\
+\beta &= \operatorname{wrap}\!\big(\operatorname{atan2}(\delta_y,\delta_x)-\psi\big)+\eta_\beta,\\
+\varepsilon &= \operatorname{atan2}\!\big(\delta_z,\,\textstyle\sqrt{\delta_x^2+\delta_y^2}\big)+\eta_\varepsilon,\\
 \mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\tilde{\rho}}{\rho_{\max}}\Big),\nonumber
 \end{align}
-where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. A transmission is not received beyond $\rho_{\max}$ or when a Bernoulli dropout fires. In the noisy acoustic mode, independent Gaussian noise $\mathcal{N}(0,\sigma_b)$ is added to $\beta$, $\varepsilon$ and $\rho$; the official tracks use $\sigma_b\in\{0.2,0.45,0.6\}$ and dropout probabilities up to $0.04$. Every ordered gate has one independent periodic transmitter with a unique contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All transmit regardless of referee state; at each update a rover receives every in-range, non-dropped packet. Packet randomness is seeded by the run seed, transmitter, receiver and transmission index, making reception independent of participant count and call order.
+where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to $(-180^\circ,180^\circ]$. Bearing and elevation carry independent angular perturbations $\eta_\beta,\eta_\varepsilon\sim\mathcal{N}(0,\sigma_\theta^2)$ with $\sigma_\theta$ in degrees, and the range carries a single perturbation $\eta_\rho$ with $\sigma_\rho$ in metres; each is drawn once per packet, and the signal strength derives from the single noisy range $\tilde{\rho}$ so no cleaner distance leaks as a side channel. A transmission is not received beyond $\rho_{\max}$ or when a Bernoulli dropout fires. The official tracks set $\sigma_\theta$ and $\sigma_\rho$ to a common per-track value in $\{0.2,0.45,0.6\}$ (degrees and metres, respectively) and dropout probabilities up to $0.04$. Every ordered gate has one independent periodic transmitter with a unique contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All transmit regardless of referee state; at each update a vehicle receives every in-range, non-dropped packet. Packet randomness is seeded by the run seed, transmitter, receiver and transmission index, making reception independent of participant count and call order.
 
 \subsection{Current Field Model}
 
@@ -42,15 +42,15 @@ The current field is a sum of analytic primitives evaluated at the vehicle posit
 where each primitive is one of the following. A \emph{constant} term contributes a fixed velocity $\mathbf{v}_0$. A \emph{localized jet} centered at $c_j$ with radius $R_j$ contributes, for $\lVert p-c_j\rVert\le R_j$,
 \begin{equation}
 \label{eq:jet}
-\mathbf{v}_j=\mathbf{v}_0\, \omega(d), \qquad
-\omega(d)=\begin{cases} \max\!\big(0,1-\tfrac{d}{R_j}\big) & \text{linear,}\\[2pt] \exp\!\big(-\tfrac{d^2}{2\sigma^2}\big) & \text{Gaussian,} \end{cases}
+\mathbf{v}_j=\mathbf{v}_0\, \omega(d_j), \qquad
+\omega(s)=\begin{cases} \max\!\big(0,1-\tfrac{s}{R_j}\big) & \text{linear,}\\[2pt] \exp\!\big(-\tfrac{s^2}{2\sigma_j^2}\big) & \text{Gaussian,} \end{cases}
 \end{equation}
-with $d=\lVert p-c_j\rVert$ and $\sigma=\max(R_j/2,10^{-6})$ and zero outside $R_j$. A \emph{sinusoidal} term modulates one axis, $v_{j,\mathrm{axis}}(t)=v_{0,\mathrm{axis}}+A\sin(2\pi f t+\phi)$. A \emph{vortex} of radius $R_j$, tangential speed $V_t$ and vertical speed $V_z$ contributes, with $r=\sqrt{\Delta x^2+\Delta y^2}$ and tangent $\hat{\theta}=(-\Delta y,\Delta x)/r$,
+with jet distance $d_j=\lVert p-c_j\rVert$ and jet width $\sigma_j=\max(R_j/2,10^{-6})$ and zero outside $R_j$. A \emph{sinusoidal} term modulates one axis, $v_{j,\mathrm{axis}}(t)=v_{0,\mathrm{axis}}+A\sin(2\pi f t+\phi)$. A \emph{vortex} of radius $R_j$, tangential speed $V_t$ and vertical speed $V_z$ contributes, with $r=\sqrt{\Delta x^2+\Delta y^2}$ and tangent $\hat{\theta}=(-\Delta y,\Delta x)/r$,
 \begin{equation}
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. Both named profiles are defined relative to the gate layout and are available on each official circuit. The HoloOcean adapter evaluates the field at every rover before each control step, corresponding to one physics tick in the reported setup.
+The provided \texttt{strong} profile superposes a constant set-flow of $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the \texttt{medium} profile scales these magnitudes by $0.5$. Both named profiles are defined relative to the gate layout and are available on each official circuit. The HoloOcean adapter evaluates the field at every vehicle before each control step, corresponding to one physics tick in the reported setup.
 
 \subsection{Declarative Track Configuration}
 
@@ -67,7 +67,9 @@ A track is a self-contained JSON file. Its principal sections are \cmd{race} (na
     "passage_direction": [1.0, 0.0, 0.0] }
 ],
 "beacon": {
-  "range_m": 90.0, "noise_std": 0.2,
+  "range_m": 90.0,
+  "angular_noise_std_deg": 0.2,
+  "range_noise_std_m": 0.2,
   "dropout_probability": 0.0,
   "update_rate_hz": 10.0
 },
@@ -83,7 +85,7 @@ A track is a self-contained JSON file. Its principal sections are \cmd{race} (na
 }
 \end{lstlisting}
 
-The three official v0.1 tracks are summarized in Table~\ref{tab:official_tracks}; all use $1.5\,\text{m}\times1.5\,\text{m}$ apertures (requirement R4).
+The three official tracks are summarized in Table~\ref{tab:official_tracks}; all use $1.5\,\text{m}\times1.5\,\text{m}$ apertures (requirement R4).
 
 \input{tables/official_tracks}
 
@@ -92,7 +94,7 @@ The \cmd{obstacle\_gate} task accepts explicit fixed obstacles or deterministic 
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. The builder is structurally independent of the referee: its signature contains the track configuration, arena, adapter and participant state, but no referee object. It constructs participant-local elapsed time, asks the adapter only for allow-listed onboard sensors and asks the beacon field which periodic transmissions were physically received. Numeric arrays are made JSON-safe while image arrays are preserved. A controller must infer disturbance effects from its onboard sensors, particularly body-frame DVL measurements, rather than read the current directly. When the optional inter-rover acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose payloads are authored from another controller's own legal information.
+The controller \texttt{step} function receives a dictionary with the fields in Table~\ref{tab:observation}. The builder is structurally independent of the referee: its signature contains the track configuration, arena, adapter and participant state, but no referee object. It constructs participant-local elapsed time, asks the adapter only for allow-listed onboard sensors and asks the beacon field which periodic transmissions were physically received. Numeric arrays are made JSON-safe while image arrays are preserved. A controller must infer disturbance effects from its onboard sensors, particularly body-frame DVL measurements, rather than read the current directly. When the optional inter-vehicle acoustic channel is enabled (Section~\ref{sec:fleet}), the observation additionally carries a \cmd{comms} inbox whose payloads are authored from another controller's own legal information.
 
 Each beacon packet contains exactly \cmd{beacon\_id}, \cmd{bearing\_deg}, \cmd{elevation\_deg}, \cmd{range\_m}, \cmd{signal\_strength} and the receiver-local \cmd{received\_at\_s}.
 
@@ -105,10 +107,10 @@ Each beacon packet contains exactly \cmd{beacon\_id}, \cmd{bearing\_deg}, \cmd{e
 \toprule
 Field & Meaning \\
 \midrule
-\cmd{local\_time\_s} & Elapsed time since this rover's release; it is not official race time. \\
+\cmd{local\_time\_s} & Elapsed time since this vehicle's release; it is not official race time. \\
 \cmd{sensors} & Filtered onboard dictionary containing only configured camera, depth, IMU, DVL and optional collision measurements. \\
 \cmd{beacons} & List of physically received packets from independent transmitters; it may be empty or contain several ids. \\
-\cmd{comms} & Present only when the optional inter-rover acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and a receiver-local reception timestamp (Section~\ref{sec:fleet}). \\
+\cmd{comms} & Present only when the optional inter-vehicle acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender id, the controller-authored payload and a receiver-local reception timestamp (Section~\ref{sec:fleet}). \\
 \bottomrule
 \end{tabular}
 \end{table}

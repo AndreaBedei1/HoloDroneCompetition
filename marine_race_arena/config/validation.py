@@ -293,8 +293,14 @@ def _validate_beacons(config: TrackConfig, result: ValidationResult) -> None:
         seen[beacon.id] = gate_id
         if beacon.range_m <= 0:
             result.error(f"Beacon '{beacon.id}' range_m must be positive.")
-        if beacon.noise_std < 0:
-            result.error(f"Beacon '{beacon.id}' noise_std must be zero or positive.")
+        if beacon.angular_noise_std_deg < 0:
+            result.error(
+                f"Beacon '{beacon.id}' angular_noise_std_deg must be zero or positive."
+            )
+        if beacon.range_noise_std_m < 0:
+            result.error(
+                f"Beacon '{beacon.id}' range_noise_std_m must be zero or positive."
+            )
         if not 0.0 <= beacon.dropout_probability <= 1.0:
             result.error(f"Beacon '{beacon.id}' dropout_probability must be in [0, 1].")
         if beacon.update_rate_hz <= 0:

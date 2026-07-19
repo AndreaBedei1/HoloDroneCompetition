@@ -46,7 +46,8 @@ class Beacon:
     gate_id: str
     position: Vector3
     range_m: float
-    noise_std: float
+    angular_noise_std_deg: float
+    range_noise_std_m: float
     dropout_probability: float
     update_rate_hz: float
     enabled: bool = True
@@ -68,7 +69,8 @@ class Beacon:
             gate_id=gate.id,
             position=position,
             range_m=config.range_m,
-            noise_std=config.noise_std,
+            angular_noise_std_deg=config.angular_noise_std_deg,
+            range_noise_std_m=config.range_noise_std_m,
             dropout_probability=config.dropout_probability,
             update_rate_hz=config.update_rate_hz,
             enabled=True,
@@ -116,10 +118,15 @@ class Beacon:
         elevation = math.degrees(math.atan2(delta[2], horizontal_distance))
         range_measurement = distance
 
-        if self.noise_std > 0.0:
-            relative_bearing += rng.gauss(0.0, self.noise_std)
-            elevation += rng.gauss(0.0, self.noise_std)
-            range_measurement = max(0.0, range_measurement + rng.gauss(0.0, self.noise_std))
+        # Draw order is fixed: bearing, then elevation (both with the angular
+        # sigma, in degrees), then range (with the range sigma, in metres).
+        # Range noise is applied exactly once. When both sigmas equal the
+        # legacy scalar this reproduces the pre-refactor packet stream bit for
+        # bit (see tests/test_beacon_noise_migration.py).
+        if self.angular_noise_std_deg > 0.0 or self.range_noise_std_m > 0.0:
+            relative_bearing += rng.gauss(0.0, self.angular_noise_std_deg)
+            elevation += rng.gauss(0.0, self.angular_noise_std_deg)
+            range_measurement = max(0.0, range_measurement + rng.gauss(0.0, self.range_noise_std_m))
 
         # Signal strength is derived from the noisy range so the packet never
         # carries a second, cleaner distance estimate as a side channel.

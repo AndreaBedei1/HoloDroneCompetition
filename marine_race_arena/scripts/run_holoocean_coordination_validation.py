@@ -12,7 +12,8 @@ ahead when uncoordinated: the leader runs the slower continuous-servo
 
 Ablations supported for the coordinated condition:
 
-* ``--min-gate-gap`` overrides the yield margin (default 2);
+* ``--min-gate-gap`` overrides the yield margin (default 1, the recommended
+  setting; 2 is the conservative comparison margin);
 * ``--comms-packet-loss-prob`` injects seeded acoustic packet loss.
 """
 
@@ -973,8 +974,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--min-gate-gap",
         type=int,
-        default=2,
-        help="Leader-follower yield margin in locally estimated gates (ablation).",
+        default=1,
+        help=(
+            "Leader-follower yield margin in locally estimated gates. Default 1 "
+            "(recommended); 2 is the conservative comparison margin."
+        ),
     )
     parser.add_argument(
         "--comms-packet-loss-prob",

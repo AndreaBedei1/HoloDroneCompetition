@@ -47,8 +47,15 @@ class LeaderFollowerController(BaseController):
     debug_only = False
     uses_ground_truth = False
 
-    #: Required predecessor lead, in locally-estimated gates, before a follower advances.
-    MIN_GATE_GAP = 2
+    #: Required predecessor lead, in locally-estimated gates, before a follower
+    #: advances. LF(1) is the recommended default: in the reported HoloOcean
+    #: coordination validation it finished every run with zero collisions,
+    #: proximity, out-of-bounds and stuck events at both evaluated start gaps,
+    #: and was faster than the more conservative LF(2) margin. A value of 2
+    #: keeps a larger nominal gate separation but did not improve safety in the
+    #: evaluated conditions and can add waiting (and, in one condition, a stuck
+    #: penalty); it remains available as an explicit conservative comparison.
+    MIN_GATE_GAP = 1
     #: Minimum local-clock spacing between this rover's own heartbeats (seconds).
     HEARTBEAT_INTERVAL_S = 0.5
     #: Drop teammate information that has not been refreshed within this window.

@@ -14,14 +14,19 @@ where:
 \begin{itemize}
  \item $\mathcal{W}$ is the \emph{world}: an axis-aligned bounds box $\mathcal{B}=[x_{\min},x_{\max}]\times[y_{\min},y_{\max}]\times[z_{\min},z_{\max}]\subset\mathbb{R}^3$ (with $z$ positive-up, so the navigable volume satisfies $z<0$) and the simulation environment selected through the adapter;
  \item $\mathcal{G}=(g_1,\dots,g_M)$ is the \emph{ordered} gate sequence; each gate is the tuple $g_k=(c_k,\,n_k,\,w_k,\,h_k)$ of center $c_k\in\mathbb{R}^3$, passage-direction vector $n_k\in\mathbb{R}^3$ (nonzero, not necessarily unit length) and inner aperture width $w_k$ and height $h_k$;
- \item $\mathcal{S}$ is the start configuration: a spawn pose and an optional release delay $\tau_i\!\ge\!0$ per participant;
+ \item $\mathcal{S}$ is the shared \emph{start default}: a base spawn pose and an optional release policy that a participant inherits only when it does not specify its own;
  \item $\mathcal{F}$ is the finish condition: completion of the last gate of the last lap (Section~\ref{sec:referee});
  \item $\mathcal{C}$ is the current field $\mathbf{v}_c:\mathbb{R}^3\times\mathbb{R}_{\ge0}\to\mathbb{R}^3$ (Section~\ref{sec:configuration});
  \item $\mathcal{O}$ is the obstacle set;
- \item $\mathcal{P}=\{1,\dots,N\}$ is the participant set, each with a vehicle, sensor profile, controller, spawn and release delay;
+ \item $\mathcal{P}=\{1,\dots,N\}$ is the participant set; participant $i$ carries a vehicle, sensor profile and controller, together with an optional spawn pose and release delay $\tau_i\!\ge\!0$ that override the start default of $\mathcal{S}$;
  \item $\mathcal{R}$ is the referee configuration: gate-validation parameters, penalty values and scoring rules.
 \end{itemize}
-The gate basis is right-handed and derived from the passage direction alone, so the orientation of a gate is unambiguous and independent of any visual rotation (Section~\ref{sec:referee}).
+Each gate's orientation derives solely from its passage direction $n_g$, giving a right-handed frame
+\begin{equation}
+\label{eq:gate_frame}
+\hat{n}=\frac{n_g}{\lVert n_g\rVert},\quad \hat{r}_g=\frac{\hat{z}\times\hat{n}}{\lVert\hat{z}\times\hat{n}\rVert},\quad \hat{s}_g=\hat{n}\times\hat{r}_g,
+\end{equation}
+with world-up $\hat{z}=(0,0,1)$; if the passage direction is vertical ($\lVert\hat{z}\times\hat{n}\rVert\!\approx\!0$), $\hat{r}_g$ falls back to the world $\hat{x}$ axis so the frame stays well defined. The gate basis is therefore unambiguous and independent of any visual rotation, and it is reused by the beacon placement (Section~\ref{sec:configuration}) and the crossing test (Section~\ref{sec:referee}).
 
 \subsection{Participant Interface}
 
@@ -39,11 +44,11 @@ The action of \eqref{eq:command} is the portable, constrained interface that an 
 
 \subsection{Design Requirements}
 
-The release-candidate design follows the seven requirements in Table~\ref{tab:requirements}. They encode the central commitment that scoring logic is independent of the participant and cannot be manipulated through privileged feedback, together with the secondary commitment that enabling fleet mode must not silently change single-rover behavior.
+The design follows the seven requirements in Table~\ref{tab:requirements}. They encode the central commitment that scoring logic is independent of the participant and cannot be manipulated through privileged feedback, together with the secondary commitment that enabling fleet mode must not silently change single-vehicle behavior.
 
 \begin{table}[t]
 \centering
-\caption{Design requirements for the v0.1 benchmark layer.}
+\caption{Design requirements for the benchmark layer.}
 \label{tab:requirements}
 \mratablestyle
 \begin{tabular}{p{0.10\columnwidth}p{0.80\columnwidth}}
@@ -55,8 +60,8 @@ R2 & Official controller observations exclude ground-truth pose, simulator-only 
 R3 & Referee logic is independent of the participant controller and cannot be influenced by it. \\
 R4 & Gate dimensions, referee margins and track geometry are not changed to hide failures. \\
 R5 & Every run emits structured event logs and machine-readable summaries. \\
-R6 & Single-rover behavior is unchanged when fleet mode is disabled. \\
-R7 & Fleet mode aggregates a team score while preserving per-rover diagnostics. \\
+R6 & Single-vehicle behavior is unchanged when fleet mode is disabled. \\
+R7 & Fleet mode aggregates a team score while preserving per-vehicle diagnostics. \\
 \bottomrule
 \end{tabular}
 \end{table}

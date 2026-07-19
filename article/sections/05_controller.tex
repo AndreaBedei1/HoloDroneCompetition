@@ -1,7 +1,7 @@
 \section{Controller Interface and Rule Baseline}
 \label{sec:controller}
 
-A central usability goal of \mra{} is that a custom autonomy stack is integrated by implementing a small interface, without touching the runner, the referee or the adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the two camera-assisted rule controllers used in the reported single-rover comparison.
+A central usability goal of \mra{} is that a custom autonomy stack is integrated by implementing a small interface, without touching the runner, the referee or the adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the two camera-assisted rule controllers used in the reported single-vehicle comparison.
 
 \subsection{Controller Interface}
 
@@ -35,7 +35,7 @@ class MyController:
         pass
 \end{lstlisting}
 
-The high-level command fields are listed in Table~\ref{tab:commands}; values are normalized to $[-1,1]$ and clamped by the framework before the action mapping. In fleet mode a controller may additionally return a small \cmd{message} payload alongside its command and read incoming teammate messages from the observation, using the optional inter-rover acoustic channel of Section~\ref{sec:fleet}.
+The high-level command fields are listed in Table~\ref{tab:commands}; values are normalized to $[-1,1]$ and clamped by the framework before the action mapping. In fleet mode a controller may additionally return a small \cmd{message} payload alongside its command and read incoming teammate messages from the observation, using the optional inter-vehicle acoustic channel of Section~\ref{sec:fleet}.
 
 \begin{table}[t]
 \centering
@@ -76,20 +76,20 @@ The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safe
 Both official rule controllers own a \cmd{LocalCourseTracker}; the runner supplies no progression signal. The tracker starts at the public mission assignment \cmd{initial\_beacon\_id} and maintains a local expected beacon, completed count, lap and status through
 \begin{equation*}
 \begin{aligned}
-\textsc{Search}&\rightarrow\textsc{Approach}\rightarrow\textsc{VisualAlign}\\
-&\rightarrow\textsc{Commit}\rightarrow\textsc{VerifyExit}\rightarrow\textsc{Advance},
+\textsc{search}&\rightarrow\textsc{approach}\rightarrow\textsc{visual\_align}\\
+&\rightarrow\textsc{commit}\rightarrow\textsc{verify\_exit}\rightarrow\textsc{advance},
 \end{aligned}
 \end{equation*}
-ending in \textsc{Finished} after the final locally confirmed beacon. It filters the received list for its own expected id; packets from other transmitters are not labeled or selected by the framework. Temporary visual loss, a missing packet, an isolated range jump, a range rise without a prior close approach and a commit without forward DVL displacement cannot advance the state.
+ending in \textsc{finished} after the final locally confirmed beacon. It filters the received list for its own expected id; packets from other transmitters are not labeled or selected by the framework. Temporary visual loss, a missing packet, an isolated range jump, a range rise without a prior close approach and a commit without forward DVL displacement cannot advance the state.
 
 The tracker enters and completes a passage only when persistent camera, acoustic and DVL evidence agrees with the expected beacon. Incomplete or inconsistent evidence returns it to local acquisition without advancing. The two reference controllers and their local-progression logic were designed and validated for the gate geometry, beacon placement, sensing configuration and vehicle dynamics of the three official circuits used in this study. After each non-final local advancement the tracker holds an exit-clearance phase; after the final advancement it enters \textsc{Finished} directly and commands zero. Controller-local snapshots and independent referee crossings are logged separately for offline comparison and never fed back into control.
 
 \subsection{Baseline Based on Rules}
 
-The reference controller is deliberately interpretable rather than optimal. Its role is to provide a deterministic policy that is exercised across the clean tracks. Obstacle construction is validated separately and no obstacle-avoidance capability is claimed. Let $\beta$ and $\rho$ be the beacon bearing and range, $d$ the measured depth and $d^\star$ the nominal hold depth. The policy is organized into the four explicit components summarized in Fig.~\ref{fig:rule_baseline_state}.
+The reference controller, \emph{Continuous Servo} (\cmd{rule\_gate\_baseline}), is deliberately interpretable rather than optimal. Its role is to provide a deterministic policy that is exercised across the clean tracks. Obstacle construction is validated separately and no obstacle-avoidance capability is claimed. Let $\beta$ and $\rho$ be the beacon bearing and range, $d$ the measured depth and $d^\star$ the nominal hold depth. The policy is organized into the four control components below; together they drive the shared \textsc{LocalCourseTracker} state machine of Fig.~\ref{fig:rule_baseline_state}.
 
 \begin{itemize}
-\item \emph{Bearing alignment and surge gating.} The controller aligns the rover before allowing sustained forward motion. Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
+\item \emph{Bearing alignment and surge gating.} The controller aligns the vehicle before allowing sustained forward motion. Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
 \begin{equation}
 \label{eq:rule_yaw}
 u^{\mathrm{yaw}} = \operatorname{clamp}\!\big(k_\psi\,\beta,\,-\bar{u}_{\mathrm{yaw}},\,\bar{u}_{\mathrm{yaw}}\big),\qquad \bar{u}_{\mathrm{yaw}}=0.16,
@@ -119,34 +119,36 @@ which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^
   arrow/.style={-Latex, thick},
   lbl/.style={font=\tiny, fill=white, inner sep=1.5pt}
 ]
-\node[state] (target) {Local beacon search};
-\node[state, below=of target] (align) {Align bearing};
-\node[state, below=of align] (approach) {Approach gate};
-\node[state, below=of approach] (visual) {Visual centering};
-\node[state, below=of visual] (exit) {Exit hold};
+\node[state] (search) {\textsc{search}};
+\node[state, below=of search] (approach) {\textsc{approach}};
+\node[state, below=of approach] (align) {\textsc{visual\_align}};
+\node[state, below=of align] (commit) {\textsc{commit}};
+\node[state, below=of commit] (verify) {\textsc{verify\_exit}};
+\node[state, below=of verify] (advance) {\textsc{advance}};
 
 % forward path, straight down the centre
-\draw[arrow] (target) -- node[lbl, right] {expected packet} (align);
-\draw[arrow] (align) -- node[lbl, right] {$|\beta|$ small} (approach);
-\draw[arrow] (approach) -- node[lbl, right] {camera gate} (visual);
-\draw[arrow] (visual) -- node[lbl, right] {local exit evidence} (exit);
+\draw[arrow] (search) -- node[lbl, right] {expected packet} (approach);
+\draw[arrow] (approach) -- node[lbl, right] {$|\beta|$ small} (align);
+\draw[arrow] (align) -- node[lbl, right] {centered frames} (commit);
+\draw[arrow] (commit) -- node[lbl, right] {forward DVL} (verify);
+\draw[arrow] (verify) -- node[lbl, right] {exit evidence} (advance);
 
-% lost-view feedback returns to alignment, routed on the right
-\draw[arrow] (visual.east) -- ++(0.7,0)
-  |- node[lbl, pos=0.5] {lost view} (align.east);
+% lost-view / failed-commit feedback returns to approach, routed on the right
+\draw[arrow] (commit.east) -- ++(0.7,0)
+  |- node[lbl, pos=0.5] {lost view} (approach.east);
 
 % next-gate loop, routed on the left
-\draw[arrow] (exit.west) -- ++(-0.7,0)
-  |- node[lbl, pos=0.5] {next gate} (target.west);
+\draw[arrow] (advance.west) -- ++(-0.7,0)
+  |- node[lbl, pos=0.5] {next gate} (search.west);
 \end{tikzpicture}
-\caption{Rule-based navigation around the controller-local course tracker.}
+\caption{The \textsc{LocalCourseTracker} state machine shared by both rule controllers. \textsc{advance} loops to \textsc{search} for the next gate and reaches \textsc{finished} after the last confirmed passage.}
 \label{fig:rule_baseline_state}
 \end{figure}
 
 \subsection{A Center-Then-Commit Rule Controller}
 \label{sec:center_commit_baseline}
 
-The second controller changes the gate-passage command rather than the observation, tracker or command envelope. It uses the same received beacon packets, front camera, depth and DVL feedback, command caps, smoothing and local confirmation logic as \cmd{rule\_gate\_baseline}. During \textsc{Commit} and \textsc{VerifyExit}, the continuous-servo controller continues bounded lateral and vertical image correction while damping yaw from the onboard gyroscope. The center-then-commit controller instead stops chasing image-centroid changes: it sets image-driven sway to zero, holds the depth measured at lock, damps yaw from the IMU and permits only a small acoustic lateral correction while maintaining forward surge. Let $q_t$ and $a_t$ be the camera-target confidence and image-area fraction and let $(c_{x,t},c_{y,t})$ be the normalized image errors. The normal lock condition is
+The second controller, \emph{Center-then-Commit} (\cmd{rule\_gate\_center\_then\_commit}), changes the gate-passage command rather than the observation, tracker or command envelope. It uses the same received beacon packets, front camera, depth and DVL feedback, command caps, smoothing and local confirmation logic as Continuous Servo (\cmd{rule\_gate\_baseline}). During \textsc{commit} and \textsc{verify\_exit}, Continuous Servo continues bounded lateral and vertical image correction while damping yaw from the IMU angular-rate measurement. Center-then-Commit instead stops chasing image-centroid changes: it sets image-driven sway to zero, holds the depth measured at lock, damps yaw from the same IMU angular-rate measurement and permits only a small acoustic lateral correction while maintaining forward surge. Let $q_t$ and $a_t$ be the camera-target confidence and image-area fraction and let $(c_{x,t},c_{y,t})$ be the normalized image errors. The normal lock condition is
 \begin{equation}
 \label{eq:commit_condition}
 \begin{aligned}

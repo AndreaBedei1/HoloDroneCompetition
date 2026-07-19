@@ -28,13 +28,18 @@ def make_beacon(
     noise_std=0.0,
     dropout=0.0,
     rate_hz=10.0,
+    angular_noise_std_deg=None,
+    range_noise_std_m=None,
 ):
+    # ``noise_std`` mirrors the legacy scalar and maps to both channels; explicit
+    # angular/range overrides are available for the dimensioned tests.
     return Beacon(
         id=beacon_id,
         gate_id="G01",
         position=position,
         range_m=range_m,
-        noise_std=noise_std,
+        angular_noise_std_deg=noise_std if angular_noise_std_deg is None else angular_noise_std_deg,
+        range_noise_std_m=noise_std if range_noise_std_m is None else range_noise_std_m,
         dropout_probability=dropout,
         update_rate_hz=rate_hz,
     )

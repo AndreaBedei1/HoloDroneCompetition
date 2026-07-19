@@ -1,22 +1,22 @@
 \begin{table*}[t]
 \centering
-\caption{Three-rover coordination on clean Horseshoe Bay over three seeds per condition.}
+\caption{Three-vehicle coordination on clean Horseshoe Bay over three seeds per condition. LF(1) is the recommended margin; LF(2) is the conservative comparison.}
 \label{tab:holoocean_coordination}
 \mratablestyle
 \begin{tabular*}{0.742\textwidth}{@{\extracolsep{\fill}}clccrrrrc@{}}
 \toprule
-Gap (s) & Policy & FIN & Gates & Team raw (s) & Team penal. (s) & GW & IV & OOB and S \\
+Gap (s) & Policy & FIN $\uparrow$ & Gates $\uparrow$ & Team raw (s) $\downarrow$ & Team penal. (s) $\downarrow$ & GW $\downarrow$ & IV $\downarrow$ & OOB and S $\downarrow$ \\
 \midrule
 \multirow{3}{*}{0.0}
- & No coord. & 3/3 & 36.0 & $219.7\pm2.0$ & $266.4\pm52.4$ & 9.333 & 2.333 & 0.0; 0.0 \\
- & LF(2)     & 3/3 & 36.0 & $288.3\pm1.1$ & $303.3\pm1.1$  & 0.0   & 0.0   & 0.0; 1.0 \\
- & LF(1)     & 3/3 & 36.0 & $262.3\pm6.3$ & $262.3\pm6.3$  & 0.0   & 0.0   & 0.0; 0.0 \\
+ & No coord. & 3/3 & 36.0 & $219.7\pm2.5$ & $266.4\pm64.1$ & 9.3 & 2.3 & 0.0; 0.0 \\
+ & LF(1), recommended & 3/3 & 36.0 & $262.3\pm7.7$ & $262.3\pm7.7$ & 0.0 & 0.0 & 0.0; 0.0 \\
+ & LF(2), conservative & 3/3 & 36.0 & $288.3\pm1.3$ & $303.3\pm1.3$ & 0.0 & 0.0 & 0.0; 1.0 \\
 \midrule
 \multirow{3}{*}{8.0}
- & No coord. & 2/3 & 34.333 & $254.0\pm17.4$ & $564.0\pm327.4$ & 127.333 & 2.0 & 0.0; 0.0 \\
- & LF(2)     & 3/3 & 36.0   & $285.7\pm3.1$  & $285.7\pm3.1$   & 0.0     & 0.0 & 0.0; 0.0 \\
- & LF(1)     & 3/3 & 36.0   & $266.0\pm6.8$  & $266.0\pm6.8$   & 0.0     & 0.0 & 0.0; 0.0 \\
+ & No coord. & 2/3 & 34.3 & $254.0\pm24.5$ & $564.0\pm463.0$ & 127.3 & 2.0 & 0.0; 0.0 \\
+ & LF(1), recommended & 3/3 & 36.0 & $266.0\pm8.3$ & $266.0\pm8.3$ & 0.0 & 0.0 & 0.0; 0.0 \\
+ & LF(2), conservative & 3/3 & 36.0 & $285.7\pm3.8$ & $285.7\pm3.8$ & 0.0 & 0.0 & 0.0; 0.0 \\
 \bottomrule
 \end{tabular*}
-\mratablenote FIN counts full-team finishes. Times are team-level mean$\pm$population standard deviation over finished runs; event columns are three-seed means. GW is gate and world collisions, IV is inter-vehicle proximity and OOB and S are out-of-bounds and stuck events. LF(2) and LF(1) use two- and one-gate margins.
+\mratablenote FIN counts full-team finishes out of three seeds. Times are team-level mean$\pm$sample standard deviation (ddof$=1$) over full-team-finished runs; event columns are three-seed means. GW is gate and world collisions, IV is inter-vehicle proximity and OOB and S are out-of-bounds and stuck events. LF(1) and LF(2) use one- and two-gate margins.
 \end{table*}

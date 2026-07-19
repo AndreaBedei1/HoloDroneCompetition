@@ -1,30 +1,30 @@
 \begin{table*}[t]
 \centering
-\caption{Final HoloOcean clean-track, current and homogeneous two-rover fleet results over five seeds per case.}
+\caption{Final HoloOcean clean-track, current and homogeneous two-vehicle fleet results over five seeds per case. Times are finished-runs-only; gate, collision and event means are over all five seeds.}
 \label{tab:validation_results}
 \mratablestyle
 \begin{tabular}{llrlrrr}
 \toprule
-Setting & Controller and track & Seeds & Status & Gates & Time (s) & Collisions \\
+Setting & Controller and track & Seeds & Status & Gates $\uparrow$ & Time (s) $\downarrow$ & Collisions $\downarrow$ \\
 \midrule
 \multirow{6}{*}{Clean}
- & Continuous servo, Horseshoe Bay & 5 & 5/5 FIN & 12.0/12 & $194.5\pm4.3$ & 0.0 \\
- & Center-then-commit, Horseshoe Bay & 5 & 5/5 FIN & 12.0/12 & $197.7\pm6.3$ & 0.0 \\
- & Continuous servo, Vertical Serpent & 5 & 5/5 FIN & 17.0/17 & $236.9\pm5.7$ & 0.0 \\
- & Center-then-commit, Vertical Serpent & 5 & 4/5 FIN & 14.8/17 & $241.1\pm1.6$ & 0.0 \\
- & Continuous servo, Mixed Endurance & 5 & 2/5 FIN & 17.0/22 & $394.7\pm2.8$ & 0.0 \\
- & Center-then-commit, Mixed Endurance & 5 & 5/5 FIN & 22.0/22 & $410.7\pm7.9$ & 0.0 \\
+ & Continuous servo, Horseshoe Bay & 5 & 5/5 FIN & 12.0/12 & $194.5\pm4.8$ & 0.0 \\
+ & Center-then-commit, Horseshoe Bay & 5 & 5/5 FIN & 12.0/12 & $197.7\pm7.1$ & 0.0 \\
+ & Continuous servo, Vertical Serpent & 5 & 5/5 FIN & 17.0/17 & $236.9\pm6.4$ & 0.0 \\
+ & Center-then-commit, Vertical Serpent & 5 & 4/5 FIN & 14.8/17 & $241.1\pm1.8$ & 0.0 \\
+ & Continuous servo, Mixed Endurance & 5 & 2/5 FIN & 17.0/22 & $394.7\pm3.9$ & 0.0 \\
+ & Center-then-commit, Mixed Endurance & 5 & 5/5 FIN & 22.0/22 & $410.7\pm8.8$ & 0.0 \\
 \midrule
 \multirow{4}{*}{Currents}
- & Continuous servo, Horseshoe medium & 5 & 2/5 FIN & 8.4/12 & $337.9\pm13.6$ & 43.4 \\
- & Center-then-commit, Horseshoe medium & 5 & 3/5 FIN & 8.8/12 & $217.3\pm1.2$ & 25.2 \\
+ & Continuous servo, Horseshoe medium & 5 & 2/5 FIN & 8.4/12 & $337.9\pm19.2$ & 43.4 \\
+ & Center-then-commit, Horseshoe medium & 5 & 3/5 FIN & 8.8/12 & $217.3\pm1.5$ & 25.2 \\
  & Continuous servo, Horseshoe strong & 5 & 0/5 FIN & 3.0/12 & \textemdash & 0.0 \\
  & Center-then-commit, Horseshoe strong & 5 & 0/5 FIN & 3.2/12 & \textemdash & 0.8 \\
 \midrule
 \multirow{2}{*}{Fleet, gap 90 s}
- & Continuous servo, team aggregate & 5 & 5/5 FIN & 24.0/24 & $303.1\pm2.9$ & 0.0 \\
- & Center-then-commit, team aggregate & 5 & 5/5 FIN & 24.0/24 & $308.0\pm5.2$ & 0.0 \\
+ & Continuous servo, team aggregate & 5 & 5/5 FIN & 24.0/24 & $303.1\pm3.2$ & 0.0 \\
+ & Center-then-commit, team aggregate & 5 & 5/5 FIN & 24.0/24 & $308.0\pm5.8$ & 0.0 \\
 \bottomrule
 \end{tabular}
-\mratablenote Times are mean$\pm$population standard deviation over finished runs. Gates and collisions are five-seed means; fleet values are team-level and collisions combine gate and world events. Medium-current penalized times are $692.9\pm53.6$\,s for continuous servo and $223.9\pm1.5$\,s for center-then-commit.
+\mratablenote Times are mean$\pm$sample standard deviation (ddof$=1$) over finished runs; a cell with a single finished run shows the mean without a spread. Gates and collisions are five-seed means; fleet values are team-level and collisions combine gate and world events. Medium-current penalized times are $692.9\pm75.7$\,s for continuous servo and $223.9\pm1.8$\,s for center-then-commit.
 \end{table*}

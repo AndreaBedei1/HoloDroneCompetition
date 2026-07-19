@@ -1,16 +1,11 @@
 \section{Referee, Gate Validation and Scoring}
 \label{sec:referee}
 
-The referee evaluates progress independently of the controller (requirement R3) using privileged ground-truth state. This section formalizes the gate-crossing test, the referee state machine and its arbitration order, the penalty model and the single-rover score.
+The referee evaluates progress independently of the controller (requirement R3) using privileged ground-truth state. This section formalizes the gate-crossing test, the referee state machine and its arbitration order, the penalty model and the single-vehicle score.
 
 \subsection{Gate Frame and Crossing}
 
-Each gate's orientation derives solely from its passage direction $n_g$, giving a right-handed frame
-\begin{equation}
-\label{eq:gate_frame}
-\hat{n}=\frac{n_g}{\lVert n_g\rVert},\quad \hat{r}_g=\frac{\hat{z}\times\hat{n}}{\lVert\hat{z}\times\hat{n}\rVert},\quad \hat{s}_g=\hat{n}\times\hat{r}_g,
-\end{equation}
-with world-up $\hat{z}=(0,0,1)$; if the passage direction is vertical ($\lVert\hat{z}\times\hat{n}\rVert\!\approx\!0$), $\hat{r}_g$ falls back to the world $\hat{x}$ axis so the frame stays well defined. For consecutive referee-side positions $p_{t-1},p_t$, the signed distances to the gate plane are
+The referee reuses the right-handed gate frame $(\hat{n},\hat{r}_g,\hat{s}_g)$ of \eqref{eq:gate_frame}, defined in Section~\ref{sec:system_overview} from the passage direction $n_g$ (with the vertical-normal fallback to the world $\hat{x}$ axis). For consecutive referee-side positions $p_{t-1},p_t$, the signed distances to the gate plane are
 \begin{equation}
 \label{eq:signed_dist}
 d_{t-1}=\hat{n}^{\!\top}(p_{t-1}-c_g),\qquad d_t=\hat{n}^{\!\top}(p_t-c_g).
@@ -44,14 +39,14 @@ Each participant occupies one of the states \textsc{not\_started}, \textsc{runni
 
 \input{tables/penalties}
 
-Penalties accumulate into a per-participant total $P_i$; the defaults applied in v0.1 are listed in Table~\ref{tab:penalties}. The non-trivial conditions are formalized as follows. The instantaneous speed is $s_t=\lVert p_t-p_{t-1}\rVert/\Delta t$; a stuck accumulator integrates low-speed time,
+Penalties accumulate into a per-participant total $P_i$; the applied defaults are listed in Table~\ref{tab:penalties}. The non-trivial conditions are formalized as follows. The instantaneous speed is $s_t=\lVert p_t-p_{t-1}\rVert/\Delta t$; a stuck accumulator integrates low-speed time,
 \begin{equation}
 \label{eq:stuck}
 T^{\mathrm{stuck}}\!\leftarrow\!\begin{cases} T^{\mathrm{stuck}}+\Delta t, & s_t<v_{\mathrm{stuck}}\\ 0, & \text{otherwise,}\end{cases}
 \end{equation}
 and a soft penalty is charged once per continuous low-speed episode when $T^{\mathrm{stuck}}\ge T^{\mathrm{stuck}}_{\max}$, with $v_{\mathrm{stuck}}=0.02$\,m/s. The configured $T^{\mathrm{stuck}}_{\max}$ is $45$\,s on Horseshoe Bay and $65$\,s on Vertical Serpent and Mixed Endurance. An out-of-bounds event is $p_t\notin\mathcal{B}$. A duration timeout, disabled by default, fires when $t-t_{\mathrm{green}}>T_{\max}$. A missed gate sets \textsc{dnf} when \cmd{missed\_gate\_dnf} is enabled (the default), but carries no time penalty, so a disqualifying error is never cheaper than a slow-but-legal lap.
 
-\subsection{Single-Rover Score and Ranking}
+\subsection{Single-Vehicle Score and Ranking}
 
 For a finished participant the official time $T_i^{\mathrm{official}}$ is measured between the first and last gate (or green-to-finish, per the timing mode) and the score is the penalized time
 \begin{equation}
@@ -66,7 +61,7 @@ Ranking places finished participants before unfinished ones and is defined by th
 (1,-G_i^{\mathrm{done}},n_i^{\mathrm{coll}},P_i,\mathrm{dist}_i,\mathrm{id}_i), & f_i=0,
 \end{cases}
 \end{equation}
-where $f_i=1$ denotes a finished rover, $G_i^{\mathrm{done}}$ is the number of completed gates, $n_i^{\mathrm{coll}}$ the collision count and $\mathrm{dist}_i$ the distance to the next gate; the participant id is the deterministic final tie-break. Thus finished rovers sort by penalized time, while unfinished rovers sort by progress, then fewer collisions, then fewer penalties, then proximity to the next gate, so partial runs remain informative rather than being discarded.
+where $f_i=1$ denotes a finished vehicle, $G_i^{\mathrm{done}}$ is the number of completed gates, $n_i^{\mathrm{coll}}$ the collision count and $\mathrm{dist}_i$ the distance to the next gate; the participant id is the deterministic final tie-break. Thus finished vehicles sort by penalized time, while unfinished vehicles sort by progress, then fewer collisions, then fewer penalties, then proximity to the next gate, so partial runs remain informative rather than being discarded.
 
 \subsection{Event Logging}
 
