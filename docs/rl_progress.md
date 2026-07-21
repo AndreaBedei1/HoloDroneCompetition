@@ -6,14 +6,17 @@ contract, the independent referee, gate validation, official scoring, the offici
 track geometry, the rule-based baselines or the frozen 78-run results, and it adds
 no dependencies to the benchmark `requirements.txt`.
 
-**Honest headline:** the full learning *pipeline* is implemented and tested end to
-end — record → dataset → BC train → deploy through the unchanged runner + referee,
-plus a Gymnasium env, a training-only reward and an exact BC→PPO warm-start. Open-loop
-behavioral cloning fits the expert well on engine-free demonstrations. **No closed-loop
-learned-policy success is claimed**: collecting real demonstrations and training to
-reliable gate completion requires HoloOcean training runs that have not been executed
-here (the engine-free fallback cannot complete gates because the reference controllers
-are camera-gated). See *Training status* and *Next steps*.
+**Honest headline:** the full learning pipeline is implemented, tested, and now
+**demonstrated on the real HoloOcean engine at Stage 1**: a behavioral-cloning
+controller trained on 34 real randomized-start demonstrations completes the single
+gate in **20/20 held-out closed-loop episodes (100%)** under the *unchanged* referee,
+using only legal onboard observations, with zero collisions and zero out-of-bounds —
+exceeding the Stage-1 ≥90% criterion. Reaching this required diagnosing and fixing a
+real covariate-shift failure (fixed-start demonstrations gave 0% closed-loop despite a
+tiny open-loop error; Stage-2 start randomization fixed it). PPO is **not** trained to
+convergence — only its workflow was validated (fallback tests + a 300-step real-HoloOcean
+plumbing smoke); PPO-to-convergence and the BC/PPO/BC+PPO comparison are the documented
+next step. No gate geometry or referee margin was ever weakened. See *Training status*.
 
 ## Package layout (`marine_race_arena/learning/`)
 
@@ -135,12 +138,44 @@ unchanged and any artifacts go to fresh directories.
 - Exact BC→PPO warm-start; PPO and BC-initialized-PPO training plumbing run on the
   fallback backend.
 
-**Not done (requires HoloOcean compute, out of scope for this session):**
-- Collecting real HoloOcean expert demonstrations. The fallback adapter cannot complete
-  gates (the reference controllers are camera-gated), so fallback data trains the pipeline
-  but yields no gate-completing policy.
-- Actual BC / PPO / BC+PPO training runs to the Stage-1 completion criterion and beyond.
-- Any closed-loop performance number on training or official tracks.
+### Stage 1 — real HoloOcean BC result (ACHIEVED)
+
+Demonstrations, training and evaluation were run on the **real HoloOcean adapter**
+(`--adapter holoocean`, no fallback) in the dedicated `marine_race_rl` environment,
+on the Stage-1 single-gate training track, scored by the unchanged referee. Training
+and evaluation seeds are disjoint.
+
+| Demonstrations (expert `rule_gate_center_then_commit`) | Held-out closed-loop BC completion |
+| --- | --- |
+| 21 demos, **fixed start / zero beacon noise** | **0/16 (0%)** — catastrophic covariate shift |
+| 18 demos, **Stage-2 seeded start/beacon randomization** | 11/16 (69%) |
+| 34 demos, randomized | **20/20 (100%)**, 0 collisions, 0 out-of-bounds |
+
+- Expert demonstrations complete the gate 100% (both fixed and randomized start).
+- Open-loop BC validation MSE is tiny (`~2.3e-5` fixed, `~6.5e-5` combined), but that
+  alone does **not** imply closed-loop success — the fixed-start set fails completely.
+- **Diagnosis and remedy:** the fixed-start track produces near-identical trajectories,
+  so BC sees almost no state diversity and small closed-loop errors compound into unseen
+  states (out-of-bounds/collisions). Collecting demonstrations under the Stage-2 seeded
+  start/beacon randomization restores diversity; **34 randomized demonstrations reach
+  100% closed-loop completion over 20 held-out seeds**, exceeding the Stage-1 ≥90%
+  criterion. No gate or referee margin was weakened.
+- The final Stage-1 BC controller runs through the unchanged runner + referee via
+  `--controller rl_gate_controller --controller-model-path <best_model.pt>`, using only
+  legal onboard observations.
+
+Artifacts (git-ignored `results/rl/`): `stage1/demos_rand{,2}/` datasets,
+`stage1/bc_rand_combined/best_model.pt` + reports, `stage1/eval_bc_combined/eval_summary.json`.
+
+**PPO status (plumbing validated, not converged):**
+- The resumable PPO workflow was run on the **real HoloOcean engine** as a short 300-step
+  plumbing smoke (`results/rl/stage1/ppo/smoke_holoocean/`): checkpoints, best-model,
+  eval CSV and full provenance (`adapter_actual=holoocean`, git SHA, versions) were
+  produced. 300 steps is **not** a trained policy.
+- PPO-to-convergence and the BC / PPO / BC+PPO comparison are **not** completed:
+  `MarineRaceGymEnv.reset()` relaunches HoloOcean per episode (~30 s), so the ~10⁴–10⁵
+  steps PPO needs are impractical within this session. The exact BC→PPO warm-start is
+  verified (test), so BC-initialized PPO is ready to run. This is the documented next step.
 
 ### Test coverage (measured, not copied)
 
@@ -148,13 +183,13 @@ Counts from actually running the suites in each environment:
 
 | Suite / environment | Result |
 | --- | --- |
-| Benchmark environment (`ocean`, no RL deps), full `pytest` | **469 passed, 6 skipped** |
+| Benchmark environment (`ocean`, no RL deps), full `pytest` | **470 passed, 6 skipped** |
 | — of which non-learning benchmark tests | 387 |
-| — of which learning tests that run without RL deps (numpy-only) | 82 |
+| — of which learning tests that run without RL deps (numpy-only) | 83 |
 | — skipped (the 6 RL-dependency test files) | 6 |
-| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **118 passed** |
-| RL environment, full `pytest` | **505 passed** |
-| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 36 (= 118 − 82) |
+| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **119 passed** |
+| RL environment, full `pytest` | **506 passed** |
+| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 36 (= 119 − 83) |
 | Tests that launch the HoloOcean engine | **0** (all use the fallback adapter) |
 
 Test categories:
@@ -183,11 +218,11 @@ tests below, run locally in both environments.
 Reproduce the reported counts locally:
 
 ```bash
-# Benchmark environment (no RL deps): 469 passed, 6 skipped
+# Benchmark environment (no RL deps): 470 passed, 6 skipped
 conda run -n ocean python -m pytest -q
 
-# RL environment (torch + SB3 + Gymnasium): 505 passed (118 in tests/learning)
-conda run -n <rl-env> python -m pytest -q
+# RL environment (torch + SB3 + Gymnasium): 506 passed (119 in tests/learning)
+conda run -n marine_race_rl python -m pytest -q
 ```
 
 A hosted CI job for the numpy/torch/SB3 tests (fallback only, no HoloOcean) can be

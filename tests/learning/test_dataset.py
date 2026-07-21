@@ -106,6 +106,19 @@ def test_recorded_expert_action_matches_applied_when_in_bounds():
     assert np.allclose(rec.actions, np.clip(rec.expert_actions_raw, -1.0, 1.0))
 
 
+def test_load_many_concatenates_and_reindexes(tmp_path):
+    a = BCDataset.from_records(_records(n_seeds=2, max_steps=8))
+    b = BCDataset.from_records(collect_dataset(TRACK, seeds=[10, 11], max_steps=8))
+    pa, pb = tmp_path / "a.npz", tmp_path / "b.npz"
+    a.save(pa)
+    b.save(pb)
+    combined = BCDataset.load_many([pa, pb])
+    combined.check_integrity()  # group ids re-indexed, no collisions
+    assert combined.num_episodes == a.num_episodes + b.num_episodes
+    assert len(combined) == len(a) + len(b)
+    assert len(set(combined.group_ids.tolist())) == combined.num_episodes
+
+
 def test_recorder_prev_action_temporal_convention():
     """Recorded observation[k] carries the action applied at step k-1 (o_(t+1) has a_t)."""
     rec = record_episode(TRACK, seed=0, max_steps=10, adapter="fallback", allow_fallback=True)

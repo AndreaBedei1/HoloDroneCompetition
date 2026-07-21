@@ -204,6 +204,46 @@ class BCDataset:
         )
 
     @classmethod
+    def load_many(cls, paths) -> "BCDataset":
+        """Load and concatenate several saved datasets, re-indexing episode groups."""
+        datasets = [cls.load(p) for p in paths]
+        datasets = [d for d in datasets if len(d) > 0]
+        if not datasets:
+            raise DatasetIntegrityError("no non-empty datasets to combine")
+        obs, act, gid, seeds, eids, sids, dones, truncs = [], [], [], [], [], [], [], []
+        episodes: List[EpisodeMeta] = []
+        offset = 0
+        for ds in datasets:
+            local_groups = sorted({int(g) for g in ds.group_ids})
+            remap = {g: offset + i for i, g in enumerate(local_groups)}
+            obs.append(ds.observations)
+            act.append(ds.actions)
+            gid.append(np.array([remap[int(g)] for g in ds.group_ids], dtype=np.int64))
+            seeds.append(ds.seeds)
+            eids.append(ds.episode_ids)
+            sids.append(ds.step_ids)
+            dones.append(ds.dones)
+            truncs.append(ds.truncated)
+            for m in ds.episodes:
+                episodes.append(
+                    EpisodeMeta(
+                        group_id=remap[m.group_id],
+                        episode_id=m.episode_id,
+                        seed=m.seed,
+                        track=m.track,
+                        controller=m.controller,
+                        length=m.length,
+                        final_status=m.final_status,
+                        gate_crossings=m.gate_crossings,
+                    )
+                )
+            offset += len(local_groups)
+        return cls(
+            np.concatenate(obs), np.concatenate(act), np.concatenate(gid), np.concatenate(seeds),
+            np.concatenate(eids), np.concatenate(sids), np.concatenate(dones), np.concatenate(truncs), episodes,
+        )
+
+    @classmethod
     def load(cls, path) -> "BCDataset":
         data = np.load(Path(path), allow_pickle=False)
         meta = json.loads(str(data["episodes_json"]))
