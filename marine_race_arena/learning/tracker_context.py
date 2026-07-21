@@ -44,6 +44,19 @@ class OnboardContextTracker:
             raise RuntimeError("OnboardContextTracker.reset() must be called first.")
         return self._tracker
 
+    @property
+    def started(self) -> bool:
+        return self._tracker is not None
+
+    def set_depth_reference(self, observation: Optional[Mapping[str, Any]]) -> None:
+        """Set the depth reference from the first observation seen at runtime.
+
+        Used by the deployable controller, which does not receive the first
+        observation until its first ``step`` call.
+        """
+        sensors = (observation or {}).get("sensors") or {}
+        self._depth_ref = _depth_m(sensors)
+
     def context(
         self,
         observation: Mapping[str, Any],

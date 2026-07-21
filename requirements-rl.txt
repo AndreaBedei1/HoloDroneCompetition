@@ -1,0 +1,22 @@
+# Marine Race Arena - imitation/reinforcement-learning dependencies.
+#
+# feature/rl-controller ONLY. These are NOT part of the benchmark requirements.txt
+# and must NOT be installed into the canonical benchmark environment. Install them
+# into a dedicated environment, on top of the benchmark stack (the HoloOcean 2.3.0
+# client + requirements.txt), so the reported 78-run benchmark environment stays
+# unchanged:
+#     pip install -r requirements.txt          # benchmark deps (+ HoloOcean client)
+#     pip install -r requirements-rl.txt        # this file
+#
+# Verified together with Python 3.9.25 and numpy==2.0.2 (the benchmark pin):
+#   torch 2.8.0+cpu, stable-baselines3 2.7.1, gymnasium 1.0.0 all import cleanly and
+#   PPO + gymnasium/SB3 env checkers run against MarineRaceGymEnv.
+
+gymnasium==1.0.0            # step-wise environment API
+torch==2.8.0               # policy network (CPU wheel; a CUDA build also works)
+stable-baselines3==2.7.1   # PPO reinforcement learning
+
+# Optional: TensorBoard training curves. SB3 also logs to CSV without it, which is
+# the default used by the training scripts, so this is left optional to keep the
+# environment lean.
+# tensorboard

@@ -34,6 +34,13 @@ class ControllerLoader:
             "marine_race_arena.controllers.leader_follower",
             "LeaderFollowerController",
         ),
+        # Learned controller (feature/rl-controller). Imported lazily only when
+        # selected; requires the RL dependencies (requirements-rl.txt) and a
+        # trained model via model_path / $MARINE_RACE_RL_MODEL.
+        "rl_gate_controller": (
+            "marine_race_arena.learning.rl_controller",
+            "RLGateController",
+        ),
         "keyboard": (
             "marine_race_arena.controllers.keyboard_manual",
             "KeyboardManualController",
