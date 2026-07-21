@@ -41,30 +41,56 @@ def build_ppo(env, *, hidden_sizes: Sequence[int] = (256, 256), seed: int = 0, *
 
 
 def transfer_bc_to_ppo(bc_policy, ppo_model) -> None:
-    """Copy the BC MLP weights into the PPO policy (extractor + action head).
+    """Copy the BC MLP weights into the PPO policy, absorbing BC's obs normalization.
 
-    The BC extractor mirrors SB3's ``mlp_extractor.policy_net`` and the BC head
-    mirrors ``action_net``; the value network is left for PPO to learn. After this
-    transfer, PPO's deterministic action equals the BC network output (before the
-    BC clip) for the same observation, when observations are not renormalized.
+    The BC policy normalizes observations internally,
+    ``y = W1 @ ((x - mean) / std) + b1``, while SB3's PPO ``MlpPolicy`` consumes raw
+    observations. To make the transfer exact for *any* normalization, the BC
+    normalization is folded into PPO's first policy layer:
+
+        ``W_new = W1 / std`` (column-wise),   ``b_new = b1 - W_new @ mean``
+
+    The remaining hidden layers and the action head are copied directly; the value
+    network is left for PPO to learn. After this transfer, PPO's deterministic action
+    equals the BC network output (before the BC clip) for the same raw observation.
     """
     import torch
     import torch.nn as nn
 
     ppo_policy_net = ppo_model.policy.mlp_extractor.policy_net
+    bc_linears = [m for m in bc_policy.extractor if isinstance(m, nn.Linear)]
+    ppo_linears = [m for m in ppo_policy_net if isinstance(m, nn.Linear)]
+    if len(bc_linears) != len(ppo_linears):
+        raise ValueError(
+            f"architecture mismatch: BC has {len(bc_linears)} hidden linears, "
+            f"PPO has {len(ppo_linears)}"
+        )
+    if not bc_linears:
+        raise ValueError("BC policy has no hidden linear layers to transfer")
+
+    mean = bc_policy.obs_mean.detach().to(torch.float32)
+    std = bc_policy.obs_std.detach().to(torch.float32).clone()
+    # Guard against invalid/near-zero std (features with no variance are left as-is).
+    std = torch.where(std.abs() < 1e-6, torch.ones_like(std), std)
+
     with torch.no_grad():
-        bc_linears = [m for m in bc_policy.extractor if isinstance(m, nn.Linear)]
-        ppo_linears = [m for m in ppo_policy_net if isinstance(m, nn.Linear)]
-        if len(bc_linears) != len(ppo_linears):
-            raise ValueError(
-                f"architecture mismatch: BC has {len(bc_linears)} hidden linears, "
-                f"PPO has {len(ppo_linears)}"
-            )
-        for ppo_layer, bc_layer in zip(ppo_linears, bc_linears):
+        for idx, (ppo_layer, bc_layer) in enumerate(zip(ppo_linears, bc_linears)):
             if ppo_layer.weight.shape != bc_layer.weight.shape:
                 raise ValueError(f"layer shape mismatch {ppo_layer.weight.shape} vs {bc_layer.weight.shape}")
-            ppo_layer.weight.copy_(bc_layer.weight)
-            ppo_layer.bias.copy_(bc_layer.bias)
+            if idx == 0:
+                if bc_layer.weight.shape[1] != std.shape[0]:
+                    raise ValueError(
+                        f"first-layer input {bc_layer.weight.shape[1]} != normalization dim {std.shape[0]}"
+                    )
+                w_new = bc_layer.weight / std.reshape(1, -1)   # divide each input column j by std[j]
+                b_new = bc_layer.bias - w_new @ mean
+                ppo_layer.weight.copy_(w_new)
+                ppo_layer.bias.copy_(b_new)
+            else:
+                ppo_layer.weight.copy_(bc_layer.weight)
+                ppo_layer.bias.copy_(bc_layer.bias)
+        if ppo_model.policy.action_net.weight.shape != bc_policy.head.weight.shape:
+            raise ValueError("action head shape mismatch between BC and PPO")
         ppo_model.policy.action_net.weight.copy_(bc_policy.head.weight)
         ppo_model.policy.action_net.bias.copy_(bc_policy.head.bias)
 
