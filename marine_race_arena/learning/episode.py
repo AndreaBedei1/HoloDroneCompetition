@@ -16,7 +16,10 @@ score match.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+
+if TYPE_CHECKING:  # pragma: no cover
+    from marine_race_arena.learning.randomization import StartRandomization
 
 from marine_race_arena.adapters import select_adapter
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter
@@ -53,6 +56,7 @@ class RaceContext:
     referee: Referee
     adapter: BaseRaceAdapter
     participant: RaceParticipant
+    applied_randomization: Optional[Dict[str, float]] = None
 
 
 def build_single_vehicle_race(
@@ -71,11 +75,15 @@ def build_single_vehicle_race(
     obstacle_physics: Optional[str] = None,
     current_profile: Optional[str] = None,
     controller: Optional[BaseController] = None,
+    start_randomization: Optional["StartRandomization"] = None,
 ) -> RaceContext:
     """Build one single-vehicle race exactly as the runner does (no logging).
 
     Uses ``logger=None`` so stepping an episode performs no disk I/O. The
     participant carries a placeholder controller; the caller supplies commands.
+    ``start_randomization`` applies a deterministic, seeded perturbation of the
+    start pose and beacon noise (training only); the applied values are returned in
+    the :class:`RaceContext`.
     """
     config = load_track_config(
         track,
@@ -88,13 +96,22 @@ def build_single_vehicle_race(
     )
     config = _with_cli_overrides(config, duration_s=duration_s, official=official)
 
-    arena = ArenaBuilder(config, seed=seed).build()
-    referee = Referee(config, arena.gate_map, arena.bounds, logger=None)
-
     participant_config = config.participants[0]
     spawn = participant_config.spawn or {}
     position = _vector3(spawn.get("position", config.start.position))
     rotation = _vector3(spawn.get("rotation_rpy_deg", config.start.rotation_rpy_deg))
+
+    applied_randomization = None
+    if start_randomization is not None and not start_randomization.is_noop():
+        from marine_race_arena.learning.randomization import apply_start_randomization
+
+        config, position, rotation, applied_randomization = apply_start_randomization(
+            config, position, rotation, start_randomization, seed
+        )
+
+    arena = ArenaBuilder(config, seed=seed).build()
+    referee = Referee(config, arena.gate_map, arena.bounds, logger=None)
+
     participant = RaceParticipant(
         config=participant_config,
         controller=controller or _NullController(),
@@ -118,7 +135,14 @@ def build_single_vehicle_race(
 
     referee.register_participants([participant.id])
     participant.controller.reset(_mission_info(config, participant.id))
-    return RaceContext(config=config, arena=arena, referee=referee, adapter=race_adapter, participant=participant)
+    return RaceContext(
+        config=config,
+        arena=arena,
+        referee=referee,
+        adapter=race_adapter,
+        participant=participant,
+        applied_randomization=applied_randomization,
+    )
 
 
 class RaceEpisode:
@@ -140,6 +164,7 @@ class RaceEpisode:
         obstacle_density: Optional[str] = None,
         obstacle_physics: Optional[str] = None,
         current_profile: Optional[str] = None,
+        start_randomization: Optional["StartRandomization"] = None,
     ) -> None:
         self.track = track
         self.seed = seed
@@ -149,6 +174,7 @@ class RaceEpisode:
         self.max_steps = max_steps
         self.official = official
         self.duration_s = duration_s
+        self.start_randomization = start_randomization
         self._build_kwargs = dict(
             benchmark_task=benchmark_task,
             obstacles=obstacles,
@@ -191,6 +217,7 @@ class RaceEpisode:
             allow_fallback=self.allow_fallback,
             official=self.official,
             duration_s=self.duration_s,
+            start_randomization=self.start_randomization,
             **self._build_kwargs,
         )
         ctx = self._ctx

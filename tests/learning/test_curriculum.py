@@ -12,6 +12,7 @@ OFFICIAL_TRACK = "marine_race_arena/tracks/marine_race_horseshoe_bay.json"
 TRAINING_TRACKS = [
     "marine_race_arena/tracks/training/stage1_single_gate.json",
     "marine_race_arena/tracks/training/stage3_three_gates.json",
+    "marine_race_arena/tracks/training/stage4_six_gates.json",
 ]
 
 
@@ -48,13 +49,68 @@ def test_completion_criteria_are_monotone_sane():
 
 
 def test_training_tracks_exist_and_load():
-    for key in ("stage1", "stage3"):
+    for key in ("stage1", "stage3", "stage4"):
         track = cur.stage(key).track
         assert Path(track).exists(), f"missing training track {track}"
         config = load_track_config(track)
         assert config.race.official_mode is True
         # official gate aperture preserved
         assert tuple(config.track.gate_inner_size_m) == (1.5, 1.5)
+
+
+def test_stage4_is_five_or_six_gates():
+    config = load_track_config(cur.stage("stage4").track)
+    assert 5 <= len(config.track.gate_sequence) <= 6
+
+
+def test_stage2_has_real_randomization():
+    s = cur.stage("stage2")
+    assert s.randomization is not None and not s.randomization.is_noop()
+    assert s.randomization.lateral_offset_m > 0.0
+    assert s.randomization.beacon_angular_noise_std_deg is not None
+
+
+def test_stage6_evaluates_both_official_tracks():
+    s = cur.stage("stage6_generalization")
+    assert "vertical_serpent" in s.tracks[0] or "vertical_serpent" in s.tracks[1]
+    assert any("mixed_endurance" in t for t in s.tracks)
+    assert len(s.tracks) == 2
+
+
+def test_stage7_is_a_real_current_progression():
+    s = cur.stage("stage7_disturbance")
+    assert s.current_progression == ("none", "medium", "strong")  # not medium-only
+
+
+def test_seed_split_is_disjoint():
+    split = cur.seed_split(n_train=50, n_val=10, n_eval=10)
+    train, val, ev = set(split["train"]), set(split["val"]), set(split["eval"])
+    assert not (train & val) and not (train & ev) and not (val & ev)
+    assert len(train) == 50 and len(val) == 10 and len(ev) == 10
+
+
+def test_advance_decision_logic():
+    nxt, decision = cur.advance_decision("stage1", 0.95)
+    assert nxt == "stage2" and "advance" in decision
+    nxt2, decision2 = cur.advance_decision("stage1", 0.50)
+    assert nxt2 is None and "HOLD" in decision2
+    # last stage advances to None even when passed
+    assert cur.advance_decision("stage7_disturbance", 0.95)[0] is None
+
+
+def test_evaluate_stage_runner_refuses_advance_on_failure():
+    from marine_race_arena.participants.controller_loader import ControllerLoader
+
+    factory = lambda: ControllerLoader().load("rule_gate_center_then_commit")
+    result = cur.evaluate_stage("stage1", factory, seeds=[100, 101], adapter="fallback", allow_fallback=True, duration_s=3.0)
+    assert result.stage_key == "stage1"
+    assert result.n_episodes == 2
+    assert len(result.per_evaluation) == 1
+    assert 0.0 <= result.completion_rate <= 1.0
+    # The engine-free fallback stalls camera-gated controllers; the runner must not advance.
+    if not result.passed:
+        nxt, decision = cur.advance_decision("stage1", result.completion_rate)
+        assert nxt is None and "HOLD" in decision
 
 
 def test_official_stages_reference_unchanged_official_tracks():

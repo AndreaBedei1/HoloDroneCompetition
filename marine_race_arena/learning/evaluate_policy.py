@@ -100,6 +100,7 @@ def evaluate_controller(
     dt: float = 0.1,
     current_profile: Optional[str] = None,
     obstacles: Optional[str] = None,
+    start_randomization=None,
 ) -> EvalReport:
     """Evaluate a controller over held-out seeds through the unchanged runner."""
     report = EvalReport(track=track, label=label)
@@ -115,6 +116,7 @@ def evaluate_controller(
             current_profile=current_profile,
             obstacles=obstacles,
             controller=controller,
+            start_randomization=start_randomization,
         )
         pid = ctx.participant.id
         try:

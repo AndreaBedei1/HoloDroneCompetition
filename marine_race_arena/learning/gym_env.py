@@ -69,6 +69,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         obstacles: Optional[str] = None,
         obstacle_density: Optional[str] = None,
         reward_fn: Optional[RewardFn] = None,
+        start_randomization=None,
     ) -> None:
         if gym is None:  # pragma: no cover - only without gymnasium installed
             raise ImportError(
@@ -87,6 +88,7 @@ class MarineRaceGymEnv(_GYM_BASE):
             current_profile=current_profile,
             obstacles=obstacles,
             obstacle_density=obstacle_density,
+            start_randomization=start_randomization,
         )
         self._reward_fn: RewardFn = reward_fn or TrainingReward()
         self._ctx_source: Optional[OnboardContextTracker] = None

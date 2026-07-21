@@ -79,6 +79,7 @@ def record_episode(
     current_profile: Optional[str] = None,
     obstacles: Optional[str] = None,
     duration_s: Optional[float] = None,
+    start_randomization=None,
 ) -> EpisodeRecord:
     """Record one expert episode. The expert sees the raw official observation."""
     episode = RaceEpisode(
@@ -92,6 +93,7 @@ def record_episode(
         duration_s=duration_s,
         current_profile=current_profile,
         obstacles=obstacles,
+        start_randomization=start_randomization,
     )
     obs = episode.reset()
     cfg = episode.context.config
@@ -181,6 +183,7 @@ def collect_dataset(
     official: bool = True,
     current_profile: Optional[str] = None,
     obstacles: Optional[str] = None,
+    start_randomization=None,
 ) -> List[EpisodeRecord]:
     """Record one episode per seed. Episode ids are the seed order index."""
     records: List[EpisodeRecord] = []
@@ -198,6 +201,7 @@ def collect_dataset(
                 episode_id=episode_id,
                 current_profile=current_profile,
                 obstacles=obstacles,
+                start_randomization=start_randomization,
             )
         )
     return records
