@@ -1,7 +1,7 @@
 \section{Benchmark Model and System Architecture}
 \label{sec:system_overview}
 
-We specify \mra{} as an \emph{evaluation problem} rather than a controller-design problem: the benchmark fixes the world, the task and the scoring and a participant supplies only a policy. This section defines the benchmark instance, the participant interface and the runtime architecture that enforces the separation between the two.
+We specify \mra{} as an \emph{evaluation problem} rather than a controller-design problem: the benchmark fixes the world, task and scoring, while a participant supplies only a policy. This section defines the benchmark instance, participant interface and runtime architecture that enforce the separation between the two.
 
 \subsection{Benchmark Instance}
 
@@ -26,7 +26,7 @@ Each gate's orientation derives solely from its passage direction $n_g$, giving 
 \label{eq:gate_frame}
 \hat{n}=\frac{n_g}{\lVert n_g\rVert},\quad \hat{r}_g=\frac{\hat{z}\times\hat{n}}{\lVert\hat{z}\times\hat{n}\rVert},\quad \hat{s}_g=\hat{n}\times\hat{r}_g,
 \end{equation}
-with world-up $\hat{z}=(0,0,1)$; if the passage direction is vertical ($\lVert\hat{z}\times\hat{n}\rVert\!\approx\!0$), $\hat{r}_g$ falls back to the world $\hat{x}$ axis so the frame stays well defined. The gate basis is therefore unambiguous and independent of any visual rotation, and it is reused by the beacon placement (Section~\ref{sec:configuration}) and the crossing test (Section~\ref{sec:referee}).
+with world-up $\hat{z}=(0,0,1)$; if the passage direction is vertical ($\lVert\hat{z}\times\hat{n}\rVert\!\approx\!0$), $\hat{r}_g$ falls back to the world $\hat{x}$ axis so the frame stays well defined. The gate basis is therefore unambiguous and independent of any visual rotation and is reused by the beacon placement (Section~\ref{sec:configuration}) and the crossing test (Section~\ref{sec:referee}).
 
 \subsection{Participant Interface}
 
@@ -44,7 +44,7 @@ The action of \eqref{eq:command} is the portable, constrained interface that an 
 
 \subsection{Design Requirements}
 
-The design follows the seven requirements in Table~\ref{tab:requirements}. They encode the central commitment that scoring logic is independent of the participant and cannot be manipulated through privileged feedback, together with the secondary commitment that enabling fleet mode must not silently change single-vehicle behavior.
+The design follows the seven requirements in Table~\ref{tab:requirements}. They encode two commitments: scoring logic is independent of the participant and cannot be manipulated through privileged feedback; enabling fleet mode must not silently change single-vehicle behavior.
 
 \begin{table}[t]
 \centering
@@ -70,4 +70,4 @@ R7 & Fleet mode aggregates a team score while preserving per-vehicle diagnostics
 
 \input{figures/architecture_diagram}
 
-Fig.~\ref{fig:architecture} shows the runtime architecture and the modules that realize it. The configuration loader parses and validates the track JSON into a typed configuration; the arena builder instantiates gates, independent beacons, the current field, obstacles and bounds. The race runner drives the discrete-time loop. On the simulation side, the adapter handles reset, actions, ticking and sensor extraction. An engine-free adapter implements the same interface for unit and plumbing tests but is not used for reported results. On the control side, the runner assembles the official observation from participant-local time, filtered onboard sensors and physically received packets, then passes it to the controller, which returns a command. On the scoring side, the referee consumes privileged simulator state, validates progress and emits structured events and summaries. The observation builder has no referee argument and no referee result flows back across the dashed boundary in Fig.~\ref{fig:architecture}; privileged state may support arena synthesis, adapter physics and evaluation, but remains outside the controller boundary. A controller may therefore disagree with the referee. The official trajectory is scored, while the disagreement is logged and audited offline rather than corrected by the runner.
+The runtime separates scenario construction, vehicle autonomy and race evaluation. A declarative track configuration defines the environment, ordered gates, beacon network, disturbances, participants and scoring rules; after validation, it becomes an arena instance connected to a simulator adapter. The adapter isolates sensing, actuation and time advancement, allowing the controller and referee interfaces to be reused across simulation backends, while the engine-free adapter supports deterministic tests without contributing to the reported results. During execution, the race runner advances the simulator and mediates vehicle-environment interaction. The controller receives an observation containing only participant-local time, allow-listed onboard measurements, physically received beacon packets and optional inter-vehicle messages. It returns a bounded motion command and cannot access simulator state, gate geometry, race progress or referee decisions, so navigation and course progression must be inferred locally. In parallel, the referee uses privileged simulator state to validate crossings and rule violations and to produce event logs, participant results and team-level scores. Referee-derived targets, progress and status are never returned to the controller; disagreements with its local estimate are recorded for offline analysis rather than corrected. Figure~\ref{fig:runtime_architecture} summarizes this separation and the controller-visible observation boundary.

@@ -1,16 +1,25 @@
 # Marine Race Arena - Python dependencies
 # Verified with Python 3.9 in a conda environment named "ocean".
 #
-# IMPORTANT: after `pip install -r requirements.txt`, HoloOcean still needs its
-# simulator world package ("Ocean") downloaded once:
+# IMPORTANT: HoloOcean 2.3.0 is NOT on PyPI and is therefore NOT installed by
+# this file. `pip install holoocean==2.3.0` fails (PyPI only ships 0.5.8). Install
+# the HoloOcean 2.3.0 client from its official source *before* this file:
+#     cd <HoloOcean-2.3.0 source>/client && pip install .
+# The client pulls in numpy, scipy and matplotlib (unpinned); the numpy pin below
+# then fixes the exact version used for the reported results. See the README
+# "Installation" section and https://byu-holoocean.github.io/holoocean-docs for
+# the full ordered setup.
+#
+# After the HoloOcean client and the pins below are installed, HoloOcean still
+# needs its simulator world package ("Ocean") downloaded once:
 #     python -c "import holoocean; holoocean.install('Ocean')"
 # Verify with:
 #     python -c "import holoocean; print(holoocean.installed_packages())"   # -> ['Ocean']
-# See the README "Installation" section for the full setup.
 
-# --- Core runtime ---
-holoocean==2.3.0           # underwater simulator backend (BlueROV2, sensors, worlds)
-numpy==2.0.2
+# --- Core runtime (PyPI) ---
+# HoloOcean 2.3.0 (the underwater simulator backend: BlueROV2, sensors, worlds)
+# is installed separately from source, not here (see the note above).
+numpy==2.0.2               # pin the numpy that HoloOcean pulls in unpinned
 
 # --- Optional feature dependencies (lazily imported) ---
 opencv-python==4.12.0.88   # front-camera preview (run.py debug.show_front_camera)

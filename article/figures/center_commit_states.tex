@@ -12,7 +12,7 @@
 \node[state, below=of center] (commit) {\textsc{commit}};
 \node[state, below=of commit] (exit) {\textsc{verify\_exit}};
 
-\draw[arrow] (center) -- node[lbl, right] {four centered frames} (commit);
+\draw[arrow] (center) -- node[lbl, right] {stable visual lock} (commit);
 \draw[arrow] (commit) -- node[lbl, right] {onboard exit evidence} (exit);
 \draw[arrow] (commit.west) -- ++(-0.75,0)
   |- node[lbl, pos=0.48] {local timeout} (center.west);

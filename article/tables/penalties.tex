@@ -11,10 +11,10 @@ Gate, bar or generic collision & $5.0$\,s each & no \\
 Obstacle collision            & $5.0$\,s each\textsuperscript{\dag} & no \\
 Out of bounds                 & $10.0$\,s each & no \\
 Stuck (soft)                  & $15.0$\,s per episode & no \\
-Missed gate                   & not applicable & yes (DNF) \\
-Timeout                       & not applicable & yes \\
-Gate-timeout stuck            & not applicable & yes \\
-Inter-vehicle proximity event & $0$ (off or diagnostic); $5.0$\,s per pair (penalize) & no (team-level) \\
+Missed gate                   & N/A & yes (DNF) \\
+Timeout                       & N/A & yes \\
+Gate-timeout stuck            & N/A & yes \\
+Inter-vehicle proximity       & $0$ or $5.0$\,s per pair & no (team-level) \\
 \bottomrule
 \end{tabular}
 \mratablenote \textsuperscript{\dag}Per-obstacle value if specified, else the collision default. Collision, obstacle, out-of-bounds and inter-vehicle proximity charges use independent configured cooldowns (default $1.0$\,s); stuck uses one latch per episode and terminal events have no cooldown.

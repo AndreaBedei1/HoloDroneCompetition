@@ -1,11 +1,11 @@
 \section{Controller Interface and Rule Baseline}
 \label{sec:controller}
 
-A central usability goal of \mra{} is that a custom autonomy stack is integrated by implementing a small interface, without touching the runner, the referee or the adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the two camera-assisted rule controllers used in the reported single-vehicle comparison.
+A central usability goal of \mra{} is to integrate a custom autonomy stack through a small interface without modifying the runner, referee or adapter. This section specifies that interface, the dynamic loading mechanism, the action mapping and the two camera-assisted rule controllers used in the reported single-vehicle comparison.
 
 \subsection{Controller Interface}
 
-A controller implements three methods: \cmd{reset(mission\_info)}, called once before the run with a minimal static assignment; \cmd{step(observation)}, called every control tick with the official observation of \eqref{eq:policy} and returning the command of \eqref{eq:command}; and \cmd{close()}, called at teardown. The reset dictionary contains exactly \cmd{participant\_id}, \cmd{initial\_beacon\_id}, \cmd{total\_beacons}, \cmd{laps} and per-axis \cmd{command\_limits}. Fleet missions additionally contain the configured release order, release index and predecessor id. They contain no referee target, progress, status, timing, world, current, obstacle, adapter or benchmark-task metadata. The contract is duck-typed: any object exposing the three callables is accepted, so a participant need not depend on framework base classes. A manual controller may raise a dedicated stop exception from \cmd{step} to end a run cleanly; other exceptions are recorded as controller errors. Listing~\ref{lst:controller} shows a minimal locally progressing example.
+A controller implements three methods: \cmd{reset(mission\_info)}, called once before the run with a minimal static assignment; \cmd{step(observation)}, which receives the official observation of \eqref{eq:policy} at every control tick and returns the command of \eqref{eq:command}; and \cmd{close()}, called at teardown. The contract is duck-typed: any object exposing the three callables is accepted, so a participant need not depend on framework base classes. A manual controller may raise a dedicated stop exception from \cmd{step} to end a run cleanly; other exceptions are recorded as controller errors. Listing~\ref{lst:controller} shows a minimal example of local progression.
 
 \begin{lstlisting}[language=Python, caption={Minimal custom controller.}, label={lst:controller}]
 class MyController:
@@ -73,7 +73,7 @@ The framework clamps the returned command to $[-1,1]^4$ and applies a depth-safe
 
 \subsection{Controller-Local Course Progression}
 
-Both official rule controllers own a \cmd{LocalCourseTracker}; the runner supplies no progression signal. The tracker starts at the public mission assignment \cmd{initial\_beacon\_id} and maintains a local expected beacon, completed count, lap and status through
+Both official rule controllers own a \cmd{LocalCourseTracker}; the runner supplies no progression signal. The tracker initializes from the public mission assignment \cmd{initial\_beacon\_id} and maintains a local expected beacon, completed count, lap and status through
 \begin{equation*}
 \begin{aligned}
 \textsc{search}&\rightarrow\textsc{approach}\rightarrow\textsc{visual\_align}\\
@@ -82,32 +82,13 @@ Both official rule controllers own a \cmd{LocalCourseTracker}; the runner suppli
 \end{equation*}
 ending in \textsc{finished} after the final locally confirmed beacon. It filters the received list for its own expected id; packets from other transmitters are not labeled or selected by the framework. Temporary visual loss, a missing packet, an isolated range jump, a range rise without a prior close approach and a commit without forward DVL displacement cannot advance the state.
 
-The tracker enters and completes a passage only when persistent camera, acoustic and DVL evidence agrees with the expected beacon. Incomplete or inconsistent evidence returns it to local acquisition without advancing. The two reference controllers and their local-progression logic were designed and validated for the gate geometry, beacon placement, sensing configuration and vehicle dynamics of the three official circuits used in this study. After each non-final local advancement the tracker holds an exit-clearance phase; after the final advancement it enters \textsc{Finished} directly and commands zero. Controller-local snapshots and independent referee crossings are logged separately for offline comparison and never fed back into control.
+The tracker enters and completes a passage only when persistent camera, acoustic and DVL evidence agrees with the expected beacon. Incomplete or inconsistent evidence returns it to local acquisition without advancing. The two reference controllers and their local-progression logic were designed and validated for the gate geometry, beacon placement, sensing configuration and vehicle dynamics of the three official circuits used in this study. After each non-final local advancement, the tracker holds an exit-clearance phase; after the final advancement, it enters \textsc{Finished} directly and commands zero. Controller-local snapshots and independent referee crossings are logged separately for offline comparison and never fed back into control.
 
-\subsection{Baseline Based on Rules}
+\subsection{Rule-Based Baselines}
 
-The reference controller, \emph{Continuous Servo} (\cmd{rule\_gate\_baseline}), is deliberately interpretable rather than optimal. Its role is to provide a deterministic policy that is exercised across the clean tracks. Obstacle construction is validated separately and no obstacle-avoidance capability is claimed. Let $\beta$ and $\rho$ be the beacon bearing and range, $d$ the measured depth and $d^\star$ the nominal hold depth. The policy is organized into the four control components below; together they drive the shared \textsc{LocalCourseTracker} state machine of Fig.~\ref{fig:rule_baseline_state}.
+The two official reference controllers are deterministic and interpretable rule-based baselines rather than optimized policies. They use the same onboard inputs: received acoustic beacon packets, the forward RGB camera, depth and IMU measurements and body-frame DVL velocity. Both combine acoustic guidance, visual centering, depth hold and DVL-based passage verification through the shared \textsc{LocalCourseTracker} shown in Fig.~\ref{fig:rule_baseline_state}.
 
-\begin{itemize}
-\item \emph{Bearing alignment and surge gating.} The controller aligns the vehicle before allowing sustained forward motion. Yaw tracks the beacon bearing through a clamped proportional law with a small deadband,
-\begin{equation}
-\label{eq:rule_yaw}
-u^{\mathrm{yaw}} = \operatorname{clamp}\!\big(k_\psi\,\beta,\,-\bar{u}_{\mathrm{yaw}},\,\bar{u}_{\mathrm{yaw}}\big),\qquad \bar{u}_{\mathrm{yaw}}=0.16,
-\end{equation}
-and surge is gated by alignment. Sustained forward motion is admitted only when $|\beta|<24^\circ$; for larger errors the controller turns without forward drive or applies a small reverse brake when it is within $3$\,m of the gate. When aligned, surge is capped at $\bar{u}_{\mathrm{surge}}=0.46$ and scales linearly with range and bearing alignment.
-
-\item \emph{Depth hold.} The controller records the initial measured depth $d^\star$ and uses it as a nominal hold depth while beacon elevation guides the approach to each gate. With measured depth $d$ and vertical velocity $v_z$, the implemented depth-hold term is
-\begin{equation}
-\label{eq:rule_depth}
-u^{\mathrm{heave}}_{\mathrm{depth}} =
-\operatorname{clamp}\!\big(0.20(d-d^\star)-0.08v_z,\,-0.16,\,0.16\big),
-\end{equation}
-which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^{\mathrm{heave}}_{\mathrm{beacon}}+0.30\,u^{\mathrm{heave}}_{\mathrm{depth}}$. When a gate is visible, the vertical image error contributes an additional correction.
-
-\item \emph{Visual centering.} This component refines the acoustic approach in the final meters. When the front camera detects a gate, normalized image errors $(c_x,c_y)\in[-1,1]^2$ generate proportional sway, yaw and heave corrections. Forward passage remains gated by the acoustic bearing and by centered-image thresholds $(|c_x|,|c_y|)\le(0.13,0.30)$.
-
-\item \emph{Exit clearance and command smoothing.} After a non-final local passage confirmation, the controller clears the structure for $2.5$\,s with forward surge, holds the onboard measured passage depth and permits only a limited expected-beacon heading correction. Each confirmed gate establishes the depth reference for the next segment. All commands are low-pass filtered, $u_t=(1-\alpha)\,u_{t-1}+\alpha\,u_t^{\mathrm{raw}}$ with $\alpha=0.45$ and rate-limited per axis to avoid abrupt thrust changes.
-\end{itemize}
+\emph{Continuous Servo} steers toward the expected beacon and uses the camera to refine alignment as the gate becomes visible. Depth feedback maintains the vertical reference, while DVL motion provides evidence that the vehicle has crossed and cleared the gate. Its defining behavior appears during \textsc{commit} and \textsc{verify\_exit}: the controller continues applying bounded visual corrections while moving through the aperture. It therefore keeps servoing toward the observed image center throughout the passage.
 
 \begin{figure}[t]
 \centering
@@ -148,17 +129,9 @@ which is blended with the beacon-elevation heave as $u^{\mathrm{heave}}=0.70\,u^
 \subsection{A Center-Then-Commit Rule Controller}
 \label{sec:center_commit_baseline}
 
-The second controller, \emph{Center-then-Commit} (\cmd{rule\_gate\_center\_then\_commit}), changes the gate-passage command rather than the observation, tracker or command envelope. It uses the same received beacon packets, front camera, depth and DVL feedback, command caps, smoothing and local confirmation logic as Continuous Servo (\cmd{rule\_gate\_baseline}). During \textsc{commit} and \textsc{verify\_exit}, Continuous Servo continues bounded lateral and vertical image correction while damping yaw from the IMU angular-rate measurement. Center-then-Commit instead stops chasing image-centroid changes: it sets image-driven sway to zero, holds the depth measured at lock, damps yaw from the same IMU angular-rate measurement and permits only a small acoustic lateral correction while maintaining forward surge. Let $q_t$ and $a_t$ be the camera-target confidence and image-area fraction and let $(c_{x,t},c_{y,t})$ be the normalized image errors. The normal lock condition is
-\begin{equation}
-\label{eq:commit_condition}
-\begin{aligned}
-\chi_t = \mathbb{1}\Big[&\rho_t \le 3.2\,\mathrm{m},\ |\beta_t| \le 8^\circ,\\
-                         &q_t \ge 0.42,\ (a_t\ge0.03\ \lor\ q_t\ge0.60),\\
-                         &|c_{x,t}| \le 0.13,\ |c_{y,t}| \le 0.32\Big],\\
-\mathrm{commit}_t &\Longleftrightarrow \sum_{k=0}^{3}\chi_{t-k}=4.
-\end{aligned}
-\end{equation}
-The same tracker decides when both controllers have passed; neither observes a valid-crossing event. A commit with no sufficient motion times out after $14$\,s and incomplete exit evidence times out after $16$\,s, in both cases returning to local acquisition without incrementing progress. Section~\ref{sec:eval_comparison} compares the two passage commands under matched HoloOcean conditions.
+\emph{Center-then-Commit} retains the same observations, acoustic and visual guidance, shared tracker and local confirmation criterion as Continuous Servo. The only difference is the gate-passage strategy. After establishing a stable visual-acoustic lock, it stops chasing subsequent image-centroid changes during \textsc{commit} and \textsc{verify\_exit}. It instead advances through the aperture while maintaining the locked depth and attitude from onboard depth and IMU feedback; the same DVL-based evidence is used to verify the passage.
+
+Because the observations, \textsc{LocalCourseTracker} and confirmation logic remain unchanged, the matched comparison of Section~\ref{sec:eval_comparison} isolates the effect of continuous visual correction versus a stabilized committed passage.
 
 \input{figures/center_commit_states}
 

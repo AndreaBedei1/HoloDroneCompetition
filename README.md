@@ -51,21 +51,34 @@ framework supports those scenarios and records their real outcomes.
 
 ## 2. Installation
 
-The documented environment is Python 3.9 in a conda environment named `ocean`:
+The documented environment is Python 3.9 in a conda environment named `ocean`.
+HoloOcean 2.3.0 is **not on PyPI** (`pip install holoocean==2.3.0` fails; PyPI
+only ships 0.5.8), so it is installed from its official source before the pinned
+Python dependencies:
 
 ```bash
 conda create -n ocean python=3.9 -y
 conda activate ocean
+
+# 1. Install the HoloOcean 2.3.0 client (not on PyPI). Obtain the HoloOcean
+#    2.3.0 source from https://github.com/byu-holoocean/HoloOcean (see
+#    https://byu-holoocean.github.io/holoocean-docs for full instructions), then
+#    install its `client` package. This also pulls numpy, scipy and matplotlib.
+cd <HoloOcean-2.3.0 source>/client && pip install .
+
+# 2. Install the remaining pinned dependencies (run from this repository root).
 pip install -r requirements.txt
 
-# One-time HoloOcean world installation.
+# 3. One-time HoloOcean world ("Ocean") installation. Worlds are stored per
+#    HoloOcean version under the user profile and shared across environments.
 python -c "import holoocean; holoocean.install('Ocean')"
-python -c "import holoocean; print(holoocean.installed_packages())"
+python -c "import holoocean; print(holoocean.installed_packages())"   # -> ['Ocean']
 ```
 
-Run commands from the repository root. Unit tests can use the fallback adapter;
-article-facing and physical validation must use `--adapter holoocean` without
-`--allow-fallback`.
+Run commands from the repository root. Unit tests and the engine-free fallback
+adapter need only the pinned dependencies of step 2; article-facing and physical
+validation additionally require the HoloOcean client of step 1 and must use
+`--adapter holoocean` without `--allow-fallback`.
 
 ## 3. Quick start
 

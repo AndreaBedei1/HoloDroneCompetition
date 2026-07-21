@@ -153,20 +153,24 @@ def controller_comparison() -> None:
     fig, ax = plt.subplots(figsize=(7.1, 2.6))
     x = range(len(conditions))
     w = 0.30
-    b1 = ax.bar([i - w / 2 - 0.02 for i in x], [d["gate_frac"] for d in base], w,
+    b1 = ax.bar([i - w / 2 - 0.02 for i in x], [d["finish_rate"] for d in base], w,
                 color=C_BASE, label="Continuous servo", edgecolor="white", linewidth=0.4)
-    b2 = ax.bar([i + w / 2 + 0.02 for i in x], [d["gate_frac"] for d in ctc], w,
+    b2 = ax.bar([i + w / 2 + 0.02 for i in x], [d["finish_rate"] for d in ctc], w,
                 color=C_CTC, label="Center-then-commit", edgecolor="white", linewidth=0.4)
 
-    # finished-runs/seeds printed inside each bar (not above it)
-    for bars, data in ((b1, base), (b2, ctc)):
+    # The label and bar height encode the same finished-runs fraction.
+    for bars, data, color in ((b1, base, C_BASE), (b2, ctc, C_CTC)):
         for rect, d in zip(bars, data):
+            height = rect.get_height()
+            inside = height >= 0.12
             ax.annotate(f"{d['fin']}/{d['n']}",
-                        (rect.get_x() + rect.get_width() / 2, rect.get_height() - 0.03),
-                        ha="center", va="top", fontsize=5.4, color="white")
+                        (rect.get_x() + rect.get_width() / 2,
+                         height - 0.03 if inside else 0.02),
+                        ha="center", va="top" if inside else "bottom",
+                        fontsize=5.4, color="white" if inside else color)
 
     ax.set_ylim(0, 1.05)
-    ax.set_ylabel("mean completed-gate fraction")
+    ax.set_ylabel("finished-run fraction")
     ax.set_xticks(list(x))
     ax.set_xticklabels([c for c, _ in conditions])
     ax.legend(loc="upper right", frameon=False, ncol=1, handlelength=1.2)

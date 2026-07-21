@@ -234,40 +234,38 @@ def build_coordination() -> str:
         fin = sum(r["finished"] for r in rows)
         gates = _m1([r["total_completed_gates"] for r in rows])
         raw = _pm(_finished(rows, "team_elapsed_time_s"))
-        pen = _pm(_finished(rows, "team_penalized_time_s"))
         gw = _m1([r["total_gate_collisions"] for r in rows])
         iv = _m1([r["total_inter_vehicle_collisions"] for r in rows])
-        oob = _m1([r["out_of_bounds_events"] for r in rows])
         stuck = _m1([r["stuck_events"] for r in rows])
         return (
-            f" & {policy_label} & {fin}/{n} & {gates} & {raw} & {pen} & "
-            f"{gw} & {iv} & {oob}; {stuck} \\\\"
+            f" & {policy_label} & {n} & {fin}/{n} FIN & {gates}/36 & {raw} & "
+            f"{gw} / {iv} / {stuck} \\\\"
         )
 
     def block(gap_label: str, gap_text: str) -> List[str]:
         return [
-            rf"\multirow{{3}}{{*}}{{{gap_text}}}",
-            row("No coord.", _coord_dirs("main", gap_label, "no_coordination")),
-            row("LF(1), recommended", _coord_dirs("min_gate_gap_1", gap_label, "leader_follower")),
-            row("LF(2), conservative", _coord_dirs("main", gap_label, "leader_follower")),
+            rf"\multirow{{3}}{{*}}{{Gap {gap_text} s}}",
+            row("No coordination", _coord_dirs("main", gap_label, "no_coordination")),
+            row("LF(1)", _coord_dirs("min_gate_gap_1", gap_label, "leader_follower")),
+            row("LF(2)", _coord_dirs("main", gap_label, "leader_follower")),
         ]
 
     lines = [
         r"\begin{table*}[t]",
         r"\centering",
-        r"\caption{Three-vehicle coordination on clean Horseshoe Bay over three seeds per condition. LF(1) is the recommended margin; LF(2) is the conservative comparison.}",
+        r"\caption{Three-vehicle coordination on clean Horseshoe Bay over three seeds per condition.}",
         r"\label{tab:holoocean_coordination}",
         r"\mratablestyle",
-        r"\begin{tabular*}{0.742\textwidth}{@{\extracolsep{\fill}}clccrrrrc@{}}",
+        r"\begin{tabular}{llrlrrr}",
         r"\toprule",
-        r"Gap (s) & Policy & FIN $\uparrow$ & Gates $\uparrow$ & Team raw (s) $\downarrow$ & Team penal. (s) $\downarrow$ & GW $\downarrow$ & IV $\downarrow$ & OOB and S $\downarrow$ \\",
+        r"Setting & Policy & Seeds & Status & Gates $\uparrow$ & Team time (s) $\downarrow$ & Events $\downarrow$ \\",
         r"\midrule",
-        *block("gap_0", "0.0"),
+        *block("gap_0", "0"),
         r"\midrule",
-        *block("gap_8", "8.0"),
+        *block("gap_8", "8"),
         r"\bottomrule",
-        r"\end{tabular*}",
-        r"\mratablenote FIN counts full-team finishes out of three seeds. Times are team-level mean$\pm$sample standard deviation (ddof$=1$) over full-team-finished runs; event columns are three-seed means. GW is gate and world collisions, IV is inter-vehicle proximity and OOB and S are out-of-bounds and stuck events. LF(1) and LF(2) use one- and two-gate margins.",
+        r"\end{tabular}",
+        r"\mratablenote Times are raw team elapsed mean$\pm$sample standard deviation over full-team finishes; gates and events are three-seed means. Events are GW / IV / S: gate and world collisions, inter-vehicle proximity and stuck. No run records an out-of-bounds event. Penalized time differs for no coordination at gaps 0 and 8 s ($266.4\pm64.1$ and $564.0\pm463.0$\,s) and LF(2) at gap 0 s ($303.3\pm1.3$\,s).",
         r"\end{table*}",
     ]
     return "\n".join(lines) + "\n"
