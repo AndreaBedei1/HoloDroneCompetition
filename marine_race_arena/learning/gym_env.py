@@ -43,30 +43,11 @@ from marine_race_arena.learning.config import (
 )
 from marine_race_arena.learning.episode import EpisodeStep, RaceEpisode
 from marine_race_arena.learning.observation_encoder import _depth_m, encode_observation
+from marine_race_arena.learning.reward import TrainingReward
 
-# Reward callable: (env, step, gate_delta) -> (reward, components_dict).
-RewardFn = Callable[["MarineRaceGymEnv", EpisodeStep, int], Tuple[float, Dict[str, float]]]
-
-
-def _default_reward(env: "MarineRaceGymEnv", step: EpisodeStep, gate_delta: int) -> Tuple[float, Dict[str, float]]:
-    """Minimal placeholder reward used until the training reward module is wired.
-
-    Uses only privileged referee/collision signals (never fed to the policy):
-    a bonus per newly crossed gate, a completion bonus, per-step time cost and a
-    collision penalty. The full documented training reward replaces this.
-    """
-    components = {
-        "gate_bonus": 10.0 * float(gate_delta),
-        "time_cost": -0.01,
-        "collision_penalty": -1.0 * float(step.collision) - 1.0 * float(step.obstacle_collisions),
-        "completion_bonus": 0.0,
-    }
-    if step.terminated:
-        progress = env.episode.referee_progress()
-        if progress["status"] == "FINISHED":
-            components["completion_bonus"] = 50.0
-    reward = float(sum(components.values()))
-    return reward, components
+# Reward callable: (env, step, gate_delta, action) -> (reward, components_dict).
+# A reward object may also expose ``reset(env)`` to restart per-episode state.
+RewardFn = Callable[["MarineRaceGymEnv", EpisodeStep, int, np.ndarray], Tuple[float, Dict[str, float]]]
 
 
 class MarineRaceGymEnv(_GYM_BASE):
@@ -108,7 +89,7 @@ class MarineRaceGymEnv(_GYM_BASE):
             obstacles=obstacles,
             obstacle_density=obstacle_density,
         )
-        self._reward_fn: RewardFn = reward_fn or _default_reward
+        self._reward_fn: RewardFn = reward_fn or TrainingReward()
         self._tracker: Optional[LocalCourseTracker] = None
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._depth_ref: Optional[float] = None
@@ -143,6 +124,8 @@ class MarineRaceGymEnv(_GYM_BASE):
         sensors = obs_dict.get("sensors") or {}
         self._depth_ref = _depth_m(sensors)
         self._last_gates = self._episode.referee_progress()["valid_gate_crossings"]
+        if hasattr(self._reward_fn, "reset"):
+            self._reward_fn.reset(self)
         encoded = self._encode(obs_dict)
         return encoded, self._info(terminated=False, truncated=False, components={})
 
@@ -158,7 +141,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         gate_delta = max(0, gates_now - self._last_gates)
         self._last_gates = gates_now
 
-        reward, components = self._reward_fn(self, step, gate_delta)
+        reward, components = self._reward_fn(self, step, gate_delta, action)
         encoded = self._encode(step.observation)
         self._prev_action = action
         info = self._info(step.terminated, step.truncated, components)

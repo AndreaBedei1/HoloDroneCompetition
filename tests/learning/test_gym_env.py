@@ -130,3 +130,34 @@ def test_close_is_idempotent_and_safe_after_error():
     env.reset(seed=0)
     env.close()
     env.close()  # safe twice
+
+
+def test_reward_does_not_affect_observation():
+    """The (privileged) reward must not leak into the policy observation."""
+    zero_reward = lambda env, step, gate_delta, action: (0.0, {})
+    env_r = _make()
+    env_z = _make(reward_fn=zero_reward)
+    try:
+        oa, _ = env_r.reset(seed=11)
+        ob, _ = env_z.reset(seed=11)
+        assert np.allclose(oa, ob)
+        for _ in range(12):
+            a = np.array([0.5, 0.1, 0.0, 0.1], dtype=np.float32)
+            ora, ra, _, _, _ = env_r.step(a)
+            orb, rb, _, _, _ = env_z.step(a)
+            assert np.allclose(ora, orb), "observation depends on the reward function"
+    finally:
+        env_r.close()
+        env_z.close()
+
+
+def test_raw_observation_has_no_privileged_keys():
+    env = _make()
+    try:
+        env.reset(seed=0)
+        obs_dict = env.episode._build_observation()
+        for forbidden in ("referee", "ground_truth", "own_position", "gates", "bounds", "true_current"):
+            assert forbidden not in obs_dict
+        assert set(obs_dict.keys()) <= {"local_time_s", "sensors", "beacons", "comms"}
+    finally:
+        env.close()
