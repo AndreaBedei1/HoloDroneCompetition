@@ -92,6 +92,10 @@ FEATURE_NAMES = (
 
 OBS_DIM = len(FEATURE_NAMES)
 
+# Bumped when the observation feature layout changes; recorded in run metadata so a
+# checkpoint is never resumed or evaluated against an incompatible encoding.
+OBS_ENCODING_VERSION = "onboard_only_v1"
+
 # Per-feature declared bounds, used both to clip in the encoder and to assert
 # bounds in tests. Order matches FEATURE_NAMES.
 _PM1 = (-1.0, 1.0)

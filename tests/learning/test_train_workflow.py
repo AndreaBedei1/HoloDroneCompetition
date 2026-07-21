@@ -1,0 +1,79 @@
+"""Resumable PPO workflow: metadata, checkpoints, resume, best-model (fallback only)."""
+
+import json
+
+import pytest
+
+pytest.importorskip("torch")
+pytest.importorskip("stable_baselines3")
+
+from marine_race_arena.learning.train_workflow import latest_checkpoint, run_ppo_training
+
+TRACK = "marine_race_arena/tracks/training/stage1_single_gate.json"
+ENV_KWARGS = dict(adapter="fallback", allow_fallback=True, max_steps=15, dt=0.1)
+PPO_KWARGS = dict(n_steps=32, batch_size=16, n_epochs=2)
+
+
+def _run(run_dir, total, resume=False):
+    return run_ppo_training(
+        TRACK,
+        stage="stage1",
+        algorithm="ppo",
+        total_timesteps=total,
+        train_seed=0,
+        eval_seeds=[900, 901],
+        run_dir=str(run_dir),
+        hidden_sizes=(32, 32),
+        checkpoint_freq=32,
+        eval_freq=32,
+        env_kwargs=ENV_KWARGS,
+        ppo_kwargs=PPO_KWARGS,
+        resume=resume,
+    )
+
+
+def test_run_produces_full_metadata_and_artifacts(tmp_path):
+    run_dir, model = _run(tmp_path / "run", total=64)
+
+    # Metadata files.
+    for name in ("run_config.json", "environment.json", "seeds.json", "reward_config.json", "track.json", "track_sha256.txt", "reproduce.txt"):
+        assert (run_dir / name).exists(), f"missing {name}"
+    for sub in ("checkpoints", "best_model", "logs", "evaluation"):
+        assert (run_dir / sub).is_dir()
+
+    run_config = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    assert run_config["stage"] == "stage1"
+    assert run_config["obs_encoding_version"] == "onboard_only_v1"
+    assert run_config["obs_dim"] == 36
+
+    env_json = json.loads((run_dir / "environment.json").read_text(encoding="utf-8"))
+    assert env_json["packages"]["stable_baselines3"] is not None
+    assert env_json["adapter_actual"] == "fallback"
+    assert env_json["fallback_used"] is True
+    assert env_json["wall_clock_s"] is not None
+    assert env_json["final_num_timesteps"] >= 64
+
+    seeds = json.loads((run_dir / "seeds.json").read_text(encoding="utf-8"))
+    assert seeds["eval_seeds"] == [900, 901]
+
+    # Checkpoints + evaluation + final model.
+    assert latest_checkpoint(run_dir) is not None
+    assert (run_dir / "evaluation" / "eval.csv").exists()
+    assert (run_dir / "final_model.zip").exists()
+    assert "completion_rate" in (run_dir / "evaluation" / "eval.csv").read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_never_overwrites_nonempty_run(tmp_path):
+    run_dir = tmp_path / "run"
+    _run(run_dir, total=32)
+    with pytest.raises(FileExistsError):
+        _run(run_dir, total=32, resume=False)
+
+
+def test_resume_continues_from_checkpoint(tmp_path):
+    run_dir = tmp_path / "run"
+    _, model1 = _run(run_dir, total=32)
+    steps1 = int(model1.num_timesteps)
+    _, model2 = _run(run_dir, total=96, resume=True)
+    steps2 = int(model2.num_timesteps)
+    assert steps2 > steps1, "resume did not continue training from the checkpoint"
