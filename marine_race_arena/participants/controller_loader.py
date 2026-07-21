@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import inspect
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 from marine_race_arena.participants.controller_interface import validate_controller_instance
 
@@ -67,11 +68,20 @@ class ControllerLoader:
         ),
     }
 
-    def load(self, controller_reference: str, controller_class: Optional[str] = None) -> object:
+    def load(
+        self,
+        controller_reference: str,
+        controller_class: Optional[str] = None,
+        constructor_kwargs: Optional[Mapping[str, Any]] = None,
+    ) -> object:
+        """Load a controller. ``constructor_kwargs`` are passed to the controller
+        constructor, but only the ones its ``__init__`` actually accepts, so
+        controllers that do not declare an option (e.g. the rule baselines) receive
+        no unsupported argument."""
         if controller_reference in self.BUILT_INS:
             module_name, class_name = self.BUILT_INS[controller_reference]
             module = importlib.import_module(module_name)
-            return self._instantiate(module, class_name)
+            return self._instantiate(module, class_name, constructor_kwargs)
 
         if controller_reference.endswith(".py"):
             module = self._load_from_file(Path(controller_reference))
@@ -79,19 +89,52 @@ class ControllerLoader:
                 raise ControllerError(
                     "controller_class is required when loading a controller from a file path."
                 )
-            return self._instantiate(module, controller_class)
+            return self._instantiate(module, controller_class, constructor_kwargs)
 
         module_name, class_name = self._split_module_and_class(controller_reference, controller_class)
         module = importlib.import_module(module_name)
-        return self._instantiate(module, class_name)
+        return self._instantiate(module, class_name, constructor_kwargs)
 
-    def _instantiate(self, module: ModuleType, class_name: str) -> object:
+    def _instantiate(
+        self,
+        module: ModuleType,
+        class_name: str,
+        constructor_kwargs: Optional[Mapping[str, Any]] = None,
+    ) -> object:
         controller_type = getattr(module, class_name, None)
         if controller_type is None:
             raise ControllerError(f"Controller class '{class_name}' was not found in {module.__name__}.")
-        controller = controller_type()
+        kwargs = self._accepted_kwargs(controller_type, constructor_kwargs)
+        controller = controller_type(**kwargs)
         validate_controller_instance(controller)
         return controller
+
+    @staticmethod
+    def _accepted_kwargs(
+        controller_type: type, constructor_kwargs: Optional[Mapping[str, Any]]
+    ) -> dict:
+        """Keep only the constructor keywords this controller class accepts.
+
+        Drops ``None`` values (so an unset CLI option is a no-op and, for example,
+        an RL controller falls back to its environment variable). Controllers with a
+        ``**kwargs`` constructor receive everything non-None."""
+        if not constructor_kwargs:
+            return {}
+        provided = {key: value for key, value in constructor_kwargs.items() if value is not None}
+        if not provided:
+            return {}
+        init = getattr(controller_type, "__init__", None)
+        # A class that does not define its own __init__ (inherits object.__init__,
+        # whose reported signature is (*args, **kwargs)) accepts no keyword arguments.
+        if init is None or init is object.__init__:
+            return {}
+        try:
+            parameters = inspect.signature(init).parameters
+        except (TypeError, ValueError):  # pragma: no cover - builtin/edge constructors
+            return {}
+        if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+            return dict(provided)
+        return {key: value for key, value in provided.items() if key in parameters}
 
     def _load_from_file(self, path: Path) -> ModuleType:
         if not path.exists():

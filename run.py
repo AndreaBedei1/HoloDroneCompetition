@@ -68,6 +68,7 @@ def _controller_flags(argv: list[str], controller: dict) -> None:
         _flag(argv, "--controller-class", controller.get("class"))
     else:
         _flag(argv, "--controller", controller.get("name"))
+    _flag(argv, "--controller-model-path", controller.get("model_path"))
 
 
 def _common_race_flags(argv: list[str], config: dict) -> None:

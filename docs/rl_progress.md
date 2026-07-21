@@ -60,6 +60,25 @@ geometry and current vectors are **never** encoded (test-enforced).
 `Box(-1, 1, shape=(4,))` → normalized body-frame `surge, sway, heave, yaw`. Mapped
 straight to the command; the adapter clamps to the vehicle's control limits.
 
+## Running the learned controller (CLI)
+
+The trained controller runs through the normal runner. The model path comes from
+`--controller-model-path` (highest precedence), then `$MARINE_RACE_RL_MODEL`, then a
+Python constructor argument. Controllers that do not accept a model path ignore the
+option, so rule baselines are unaffected.
+
+```bash
+python -m marine_race_arena.scripts.run_marine_race \
+  --track marine_race_arena/tracks/training/stage1_single_gate.json \
+  --controller rl_gate_controller \
+  --controller-model-path results/rl/stage1/bc/best_model.pt \
+  --adapter holoocean \
+  --official
+```
+
+Config-driven `run.py` accepts `controller.model_path` in the JSON, which maps to the
+same flag.
+
 ## Training-only reward
 
 Documented, tunable components (privileged geometry/referee counters used only here):
