@@ -142,9 +142,56 @@ unchanged and any artifacts go to fresh directories.
 - Actual BC / PPO / BC+PPO training runs to the Stage-1 completion criterion and beyond.
 - Any closed-loop performance number on training or official tracks.
 
-Test coverage: **82 learning tests** (`tests/learning/`). The RL-only tests
-skip automatically when torch/SB3 are absent, so the benchmark environment is unaffected
-(benchmark suite: 432 passed, 4 skipped in `ocean`).
+### Test coverage (measured, not copied)
+
+Counts from actually running the suites in each environment:
+
+| Suite / environment | Result |
+| --- | --- |
+| Benchmark environment (`ocean`, no RL deps), full `pytest` | **469 passed, 6 skipped** |
+| — of which non-learning benchmark tests | 387 |
+| — of which learning tests that run without RL deps (numpy-only) | 82 |
+| — skipped (the 6 RL-dependency test files) | 6 |
+| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **118 passed** |
+| RL environment, full `pytest` | **505 passed** |
+| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 36 (= 118 − 82) |
+| Tests that launch the HoloOcean engine | **0** (all use the fallback adapter) |
+
+Test categories:
+- **Benchmark tests** (387): the original suite; unaffected by the learning package.
+- **RL unit/integration tests** (118 total; 82 numpy-only + 36 needing torch/SB3/Gymnasium):
+  observation encoder, episode equivalence, reward, dataset, curriculum, randomization,
+  controller model-path, temporal alignment, Gym env, BC, RL controller, BC→PPO transfer,
+  PPO workflow.
+- **Skipped in the benchmark env** (6 files): they `pytest.importorskip` torch/SB3/Gymnasium
+  and run only in the RL environment, so the benchmark environment stays RL-free.
+- **HoloOcean-engine tests**: none. Every automated test uses the engine-free **fallback**
+  adapter (fast, deterministic). Real-HoloOcean validation is a manual smoke command
+  (`--adapter holoocean`, no `--allow-fallback`), never a `pytest` test — so CI never
+  launches Unreal.
+
+### Continuous integration — decision
+
+No automated CI workflow is added at this time, deliberately. HoloOcean 2.3.0 is not
+installable in a hosted runner (it is not on PyPI, needs its multi-GB Unreal world and
+a GPU), and part of the benchmark suite constructs the HoloOcean adapter (with mocks).
+A CI that omitted HoloOcean could not be validated green from here without a Linux
+runner, so adding one now risks exactly the misleading/fragile failures to avoid. The
+observation/reward/dataset/curriculum logic is instead covered by the fast, engine-free
+tests below, run locally in both environments.
+
+Reproduce the reported counts locally:
+
+```bash
+# Benchmark environment (no RL deps): 469 passed, 6 skipped
+conda run -n ocean python -m pytest -q
+
+# RL environment (torch + SB3 + Gymnasium): 505 passed (118 in tests/learning)
+conda run -n <rl-env> python -m pytest -q
+```
+
+A hosted CI job for the numpy/torch/SB3 tests (fallback only, no HoloOcean) can be
+added later once the HoloOcean-free subset is confirmed green on a Linux runner.
 
 ## Failures / learnings
 
@@ -179,12 +226,35 @@ skip automatically when torch/SB3 are absent, so the benchmark environment is un
    compared should any manuscript change be proposed. Until then the paper keeps the
    current conservative future-work wording.
 
+## Foundation corrections (post-scaffold)
+
+Before demonstration collection / long training, these correctness fixes landed:
+
+1. **Temporal alignment** — the Gym env encoded the next observation before updating
+   `prev_action`, so `o_(t+1)` carried `a_(t-1)`; fixed to carry `a_t`, matching the
+   recorder and controller (train/inference parity is test-enforced).
+2. **Normalization-aware BC→PPO transfer** — the BC observation normalization is folded
+   into PPO's first layer (`W/std`, `b − W/std·mean`), so the warm-start is exact for
+   *any* normalization (tested with non-identity mean/std).
+3. **Model-path CLI** — `--controller-model-path` (precedence over `$MARINE_RACE_RL_MODEL`);
+   `ControllerLoader` passes only constructor kwargs a controller accepts, so rule
+   baselines are unaffected.
+4. **Official referee margin** — training tracks restored to `vehicle_clearance_margin_m
+   = 0.10` (was 0.05); a test pins each training track to the official geometry/referee.
+5. **Directional reward** — progress uses the signed distance to the gate plane, gated to
+   the legal entry side; wrong-side approach earns nothing and wrong-direction crossings
+   are penalized.
+6. **Executable curriculum** — Stage 4 (six gates), real seeded Stage-2 randomization,
+   Stage 6 over both official tracks, Stage 7 as `none→medium→strong`, and a runner that
+   refuses to advance until the held-out criterion is met (disjoint train/val/eval seeds).
+7. **Resumable PPO workflow** — timestamped non-overwriting run dirs, checkpoints, resume,
+   completion-based best-model, full provenance (config/seeds/reward/track hash/git SHA/
+   versions/adapter/reproduce).
+
 ## Commits (this branch)
 
-```
-5e2ab6e Add legal fixed-size learning observation encoder
-6f92397 Add Gymnasium-compatible step-wise race environment
-87016ad Add training-only reward and wire it into the Gym env
-1d41141 Add trajectory recording and BC dataset pipeline
-6c50ede Add behavioral-cloning trainer, PPO scaffold and deployable RL controller
-```
+See `git log main..feature/rl-controller`. Scaffold: `5e2ab6e` encoder, `6f92397` gym
+env, `87016ad` reward, `1d41141` recorder/dataset, `6c50ede` BC/PPO/controller,
+`9ef2a4a` curriculum/eval/docs. Foundation fixes: `40e5672` temporal alignment,
+`7bbcec9` normalization-aware transfer, `7364d52` model-path CLI, `51678bd` referee
+margin, `37693ab` directional reward, `5d27209` curriculum, `d42182f` PPO workflow.
