@@ -33,17 +33,16 @@ except Exception as exc:  # pragma: no cover - exercised only without gymnasium
 else:
     _GYM_IMPORT_ERROR = None
 
-from marine_race_arena.controllers.local_course_tracker import LocalCourseTracker
 from marine_race_arena.learning.config import (
     ACTION_AXES,
     ACTION_DIM,
     FEATURE_BOUNDS,
     OBS_DIM,
-    LearningContext,
 )
 from marine_race_arena.learning.episode import EpisodeStep, RaceEpisode
-from marine_race_arena.learning.observation_encoder import _depth_m, encode_observation
+from marine_race_arena.learning.observation_encoder import encode_observation
 from marine_race_arena.learning.reward import TrainingReward
+from marine_race_arena.learning.tracker_context import OnboardContextTracker
 
 # Reward callable: (env, step, gate_delta, action) -> (reward, components_dict).
 # A reward object may also expose ``reset(env)`` to restart per-episode state.
@@ -90,9 +89,8 @@ class MarineRaceGymEnv(_GYM_BASE):
             obstacle_density=obstacle_density,
         )
         self._reward_fn: RewardFn = reward_fn or TrainingReward()
-        self._tracker: Optional[LocalCourseTracker] = None
+        self._ctx_source: Optional[OnboardContextTracker] = None
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
-        self._depth_ref: Optional[float] = None
         self._last_gates = 0
 
         low = np.array([b[0] for b in FEATURE_BOUNDS], dtype=np.float32)
@@ -106,8 +104,8 @@ class MarineRaceGymEnv(_GYM_BASE):
         return self._episode
 
     @property
-    def tracker(self) -> Optional[LocalCourseTracker]:
-        return self._tracker
+    def tracker(self):
+        return self._ctx_source.tracker if self._ctx_source is not None else None
 
     # ------------------------------------------------------------------ api
     def reset(self, *, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None):
@@ -117,12 +115,9 @@ class MarineRaceGymEnv(_GYM_BASE):
         ctx_cfg = self._episode.context.config
         total_beacons = max(1, len(ctx_cfg.track.gate_sequence))
         laps = max(1, int(ctx_cfg.race.laps))
-        self._tracker = LocalCourseTracker(
-            initial_beacon_id="B01", total_beacons=total_beacons, laps=laps
-        )
+        self._ctx_source = OnboardContextTracker(total_beacons=total_beacons, laps=laps)
+        self._ctx_source.reset(obs_dict)
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
-        sensors = obs_dict.get("sensors") or {}
-        self._depth_ref = _depth_m(sensors)
         self._last_gates = self._episode.referee_progress()["valid_gate_crossings"]
         if hasattr(self._reward_fn, "reset"):
             self._reward_fn.reset(self)
@@ -149,31 +144,11 @@ class MarineRaceGymEnv(_GYM_BASE):
         return encoded, float(reward), bool(step.terminated), bool(step.truncated), info
 
     def _encode(self, obs_dict: Mapping[str, Any]) -> np.ndarray:
-        context = self._build_context(obs_dict)
+        assert self._ctx_source is not None
+        context = self._ctx_source.context(
+            obs_dict, dt=self._episode.dt, prev_action=self._prev_action.tolist()
+        )
         return encode_observation(obs_dict, context)
-
-    def _build_context(self, obs_dict: Mapping[str, Any]) -> LearningContext:
-        sensors = obs_dict.get("sensors") or {}
-        assert self._tracker is not None
-        self._tracker.update(
-            local_time_s=float(obs_dict.get("local_time_s", 0.0)),
-            beacons=obs_dict.get("beacons") or [],
-            camera_image=sensors.get("FrontCamera"),
-            dvl_velocity=sensors.get("DVLSensor"),
-            dt=self._episode.dt,
-        )
-        visual_lock = getattr(self._tracker, "_latest_visual_target", None) is not None
-        return LearningContext(
-            expected_beacon_id=self._tracker.expected_beacon_id,
-            tracker_phase=self._tracker.phase,
-            local_beacon_index=self._tracker.local_beacon_index,
-            local_lap=self._tracker.local_lap,
-            total_beacons=self._tracker.total_beacons,
-            laps=self._tracker.laps,
-            depth_reference_m=self._depth_ref,
-            visual_lock=visual_lock,
-            prev_action=self._prev_action.tolist(),
-        )
 
     def _info(self, terminated: bool, truncated: bool, components: Mapping[str, float]) -> Dict[str, Any]:
         return {
