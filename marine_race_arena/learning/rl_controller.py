@@ -104,6 +104,12 @@ class RLGateController(BaseController):
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._pending_first_obs = True
         self._finished = False
+        self._last_encoded_observation = None
+
+    @property
+    def last_encoded_observation(self):
+        """The most recent encoded observation the policy acted on (diagnostic)."""
+        return self._last_encoded_observation
 
     def step(self, observation: Mapping[str, Any]) -> dict:
         if self._ctx_source is None or self._inference is None:
@@ -113,6 +119,9 @@ class RLGateController(BaseController):
             self._ctx_source.reset(observation)
             self._pending_first_obs = False
 
+        # Temporal convention: this observation is encoded with prev_action set to
+        # the last action this controller actually applied. Combined with the Gym
+        # env and the recorder, o_(t+1) always carries a_t (train/inference parity).
         context = self._ctx_source.context(observation, dt=None, prev_action=self._prev_action.tolist())
 
         # Command zero once the local course tracker reports completion.
@@ -123,6 +132,7 @@ class RLGateController(BaseController):
             return _zero_command()
 
         encoded = encode_observation(observation, context)
+        self._last_encoded_observation = encoded
         action = np.clip(np.nan_to_num(self._inference.act(encoded), nan=0.0), -1.0, 1.0).astype(np.float32)
         self._prev_action = action
         return {axis: float(action[i]) for i, axis in enumerate(ACTION_AXES)}

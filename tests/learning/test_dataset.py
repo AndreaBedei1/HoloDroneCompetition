@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from marine_race_arena.learning.config import ACTION_DIM, OBS_DIM
+from marine_race_arena.learning.config import ACTION_DIM, FEATURE_NAMES, OBS_DIM
 from marine_race_arena.learning.dataset import BCDataset, DatasetIntegrityError, EpisodeMeta
 from marine_race_arena.learning.trajectory_recorder import collect_dataset, record_episode
 
@@ -104,3 +104,12 @@ def test_recorded_expert_action_matches_applied_when_in_bounds():
     rec = record_episode(TRACK, seed=0, max_steps=8, adapter="fallback", allow_fallback=True)
     # The official controllers stay well inside [-1, 1], so applied == raw here.
     assert np.allclose(rec.actions, np.clip(rec.expert_actions_raw, -1.0, 1.0))
+
+
+def test_recorder_prev_action_temporal_convention():
+    """Recorded observation[k] carries the action applied at step k-1 (o_(t+1) has a_t)."""
+    rec = record_episode(TRACK, seed=0, max_steps=10, adapter="fallback", allow_fallback=True)
+    prev_idx = [FEATURE_NAMES.index(f"prev_{a}") for a in ("surge", "sway", "heave", "yaw")]
+    assert np.allclose(rec.observations[0, prev_idx], 0.0), "first obs must have zero prev action"
+    for k in range(1, rec.length):
+        assert np.allclose(rec.observations[k, prev_idx], rec.actions[k - 1], atol=1e-5), f"prev-action delay at step {k}"

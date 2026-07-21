@@ -137,8 +137,11 @@ class MarineRaceGymEnv(_GYM_BASE):
         self._last_gates = gates_now
 
         reward, components = self._reward_fn(self, step, gate_delta, action)
-        encoded = self._encode(step.observation)
+        # Temporal convention: observation o_(t+1) carries the action a_t that was
+        # actually applied this step, so update prev_action BEFORE encoding. This
+        # matches TrajectoryRecorder and RLGateController (train/inference parity).
         self._prev_action = action
+        encoded = self._encode(step.observation)
         info = self._info(step.terminated, step.truncated, components)
         info["gate_crossings"] = gates_now
         return encoded, float(reward), bool(step.terminated), bool(step.truncated), info
