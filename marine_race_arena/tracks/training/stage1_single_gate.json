@@ -89,7 +89,7 @@
   "referee": {
     "gate_validation": {
       "vehicle_model": "center_point",
-      "vehicle_clearance_margin_m": 0.05,
+      "vehicle_clearance_margin_m": 0.10,
       "stuck_timeout_s": 45.0,
       "stuck_speed_threshold_m_s": 0.02,
       "timeout_enabled": false,

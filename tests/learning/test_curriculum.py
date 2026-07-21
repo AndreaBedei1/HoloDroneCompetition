@@ -1,11 +1,22 @@
 """Tests for the curriculum definitions and training tracks."""
 
+import json
 from pathlib import Path
 
 import pytest
 
 from marine_race_arena.config.loader import load_track_config
 from marine_race_arena.learning import curriculum as cur
+
+OFFICIAL_TRACK = "marine_race_arena/tracks/marine_race_horseshoe_bay.json"
+TRAINING_TRACKS = [
+    "marine_race_arena/tracks/training/stage1_single_gate.json",
+    "marine_race_arena/tracks/training/stage3_three_gates.json",
+]
+
+
+def _raw(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def test_stage_keys_unique_and_lookup():
@@ -51,3 +62,32 @@ def test_official_stages_reference_unchanged_official_tracks():
         s = cur.stage(key)
         assert s.official_track is True
         assert "tracks/marine_race_" in s.track
+
+
+@pytest.mark.parametrize("track", TRAINING_TRACKS)
+def test_training_tracks_preserve_official_difficulty(track):
+    """Training tracks must not relax the benchmark's gate geometry or referee."""
+    official = _raw(OFFICIAL_TRACK)
+    t = _raw(track)
+
+    # Official 1.5 x 1.5 m gate aperture, normal thickness and depth.
+    assert t["track"]["gate_inner_size_m"] == [1.5, 1.5]
+    assert t["track"]["gate_bar_thickness_m"] == official["track"]["gate_bar_thickness_m"]
+    assert t["track"]["gate_depth_m"] == official["track"]["gate_depth_m"]
+
+    # Official onboard observation profile and action mapping.
+    part = t["participants"][0]
+    off_part = official["participants"][0]
+    assert part["sensors"]["profile"] == off_part["sensors"]["profile"]
+    assert set(part["sensors"]["allowed_sensors"]) == set(off_part["sensors"]["allowed_sensors"])
+    assert part["control_mode"] == off_part["control_mode"] == "high_level"
+    assert t["race"]["official_mode"] is True
+
+    # Independent referee with the OFFICIAL clearance margin and no relaxed validation.
+    gv = t["referee"]["gate_validation"]
+    off_gv = official["referee"]["gate_validation"]
+    assert gv["vehicle_clearance_margin_m"] == off_gv["vehicle_clearance_margin_m"] == 0.1
+    assert gv["vehicle_model"] == off_gv["vehicle_model"] == "center_point"
+    assert gv["timeout_enabled"] == off_gv["timeout_enabled"]
+    # Penalties/scoring present (independent referee is fully configured).
+    assert "penalties" in t["referee"] and "scoring" in t["referee"]
