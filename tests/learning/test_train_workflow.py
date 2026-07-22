@@ -77,3 +77,29 @@ def test_resume_continues_from_checkpoint(tmp_path):
     _, model2 = _run(run_dir, total=96, resume=True)
     steps2 = int(model2.num_timesteps)
     assert steps2 > steps1, "resume did not continue training from the checkpoint"
+
+
+def test_resume_preserves_eval_history_and_best_metrics(tmp_path):
+    run_dir = tmp_path / "run"
+    _run(run_dir, total=64)
+    eval_csv = run_dir / "evaluation" / "eval.csv"
+    header = eval_csv.read_text(encoding="utf-8").splitlines()[0]
+    assert "mean_time_finished" in header  # best-model tie-breaker column present
+    rows_before = len(eval_csv.read_text(encoding="utf-8").strip().splitlines())
+    assert (run_dir / "best_model" / "best_metrics.json").exists()
+    _run(run_dir, total=160, resume=True)
+    rows_after = len(eval_csv.read_text(encoding="utf-8").strip().splitlines())
+    assert rows_after > rows_before, "resume erased evaluation history instead of appending"
+
+
+def test_incompatible_resume_is_rejected(tmp_path):
+    from marine_race_arena.learning.train_workflow import run_ppo_training
+
+    run_dir = tmp_path / "run"
+    _run(run_dir, total=32)  # trained with hidden_sizes=(32, 32)
+    with pytest.raises(ValueError, match="incompatible"):
+        run_ppo_training(
+            TRACK, stage="stage1", algorithm="ppo", total_timesteps=64, train_seed=0,
+            eval_seeds=[900, 901], run_dir=str(run_dir), hidden_sizes=(64, 64),  # changed
+            checkpoint_freq=32, eval_freq=32, env_kwargs=ENV_KWARGS, ppo_kwargs=PPO_KWARGS, resume=True,
+        )

@@ -79,6 +79,26 @@ def latest_checkpoint(run_dir) -> Optional[Path]:
     return zips[-1] if zips else None
 
 
+def best_metric_key(row: Dict[str, Any]) -> Tuple[float, float, float, float]:
+    """Best-model ordering (higher is better) with documented lexicographic tie-breaks:
+    (1) completion rate, (2) mean gates, (3) fewer collisions, (4) lower finished time."""
+    time_finished = row.get("mean_time_finished")
+    neg_time = -float(time_finished) if time_finished is not None else 0.0
+    return (
+        float(row["completion_rate"]),
+        float(row["mean_gates"]),
+        -float(row["mean_collisions"]),
+        neg_time,
+    )
+
+
+def strictly_better(new_row: Dict[str, Any], best_row: Optional[Dict[str, Any]]) -> bool:
+    """A new evaluation replaces the best model only if strictly better by the key."""
+    if best_row is None:
+        return True
+    return best_metric_key(new_row) > best_metric_key(best_row)
+
+
 # --------------------------------------------------------------- eval callback
 def _make_completion_eval_callback():
     from stable_baselines3.common.callbacks import BaseCallback
@@ -95,15 +115,44 @@ def _make_completion_eval_callback():
             self.eval_csv = Path(eval_csv)
             self.env_kwargs = dict(env_kwargs or {})
             self.reward_config = reward_config
-            self.best_completion = -1.0
             self._rows: List[Dict[str, float]] = []
+            self._best_key: Optional[Tuple[float, float, float, float]] = None
+            self._best_row: Optional[Dict[str, float]] = None
+
+        _metric_key = staticmethod(best_metric_key)
 
         def _init_callback(self):
             self.best_dir.mkdir(parents=True, exist_ok=True)
             self.eval_csv.parent.mkdir(parents=True, exist_ok=True)
+            # Resume: recover prior evaluation history and best metric, so a resumed
+            # run never erases history nor overwrites a previously better model.
+            if self.eval_csv.exists():
+                try:
+                    with self.eval_csv.open(newline="", encoding="utf-8") as handle:
+                        for r in csv.DictReader(handle):
+                            row = {
+                                "timesteps": int(float(r["timesteps"])),
+                                "completion_rate": float(r["completion_rate"]),
+                                "mean_gates": float(r["mean_gates"]),
+                                "mean_collisions": float(r["mean_collisions"]),
+                                "mean_time_finished": (float(r["mean_time_finished"]) if r.get("mean_time_finished") not in (None, "", "None") else None),
+                            }
+                            self._rows.append(row)
+                except Exception:  # pragma: no cover - tolerate a partial/old CSV
+                    self._rows = []
+            best_path = self.best_dir / "best_metrics.json"
+            if best_path.exists():
+                try:
+                    self._best_row = json.loads(best_path.read_text(encoding="utf-8"))
+                    self._best_key = self._metric_key(self._best_row)
+                except Exception:  # pragma: no cover
+                    self._best_row = None
+            if self._best_row is None and self._rows:
+                self._best_row = max(self._rows, key=self._metric_key)
+                self._best_key = self._metric_key(self._best_row)
 
-        def _evaluate(self) -> Tuple[float, float, float]:
-            completions, gates, collisions = 0, [], []
+        def _evaluate(self) -> Dict[str, float]:
+            completions, gates, collisions, finished_times = 0, [], [], []
             for seed in self.eval_seeds:
                 env = MarineRaceGymEnv(
                     self.track, seed=int(seed), reward_fn=TrainingReward(self.reward_config), **self.env_kwargs
@@ -119,43 +168,43 @@ def _make_completion_eval_callback():
                     state = env.episode.context.referee.states[env.episode.participant_id]
                     if progress["status"] == "FINISHED":
                         completions += 1
+                        finished_times.append(env.episode.step_count * env.episode.dt)
                     gates.append(progress["valid_gate_crossings"])
                     collisions.append(int(state.collision_events))
                 finally:
                     env.close()
             n = max(1, len(self.eval_seeds))
-            return (
-                completions / n,
-                float(np.mean(gates)) if gates else 0.0,
-                float(np.mean(collisions)) if collisions else 0.0,
-            )
+            return {
+                "completion_rate": completions / n,
+                "mean_gates": float(np.mean(gates)) if gates else 0.0,
+                "mean_collisions": float(np.mean(collisions)) if collisions else 0.0,
+                "mean_time_finished": (float(np.mean(finished_times)) if finished_times else None),
+            }
 
         def _on_step(self) -> bool:
             if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-                rate, mean_gates, mean_collisions = self._evaluate()
-                row = {
-                    "timesteps": int(self.num_timesteps),
-                    "completion_rate": rate,
-                    "mean_gates": mean_gates,
-                    "mean_collisions": mean_collisions,
-                }
+                metrics = self._evaluate()
+                row = {"timesteps": int(self.num_timesteps), **metrics}
                 self._rows.append(row)
                 self._write_csv()
-                self.logger.record("eval/completion_rate", rate)
-                self.logger.record("eval/mean_gates", mean_gates)
-                if rate > self.best_completion:
-                    self.best_completion = rate
+                self.logger.record("eval/completion_rate", metrics["completion_rate"])
+                self.logger.record("eval/mean_gates", metrics["mean_gates"])
+                if strictly_better(row, self._best_row):  # strictly better only
+                    self._best_key = best_metric_key(row)
+                    self._best_row = row
                     self.model.save(str(self.best_dir / "best_model"))
-                    (self.best_dir / "best_completion.json").write_text(json.dumps(row, indent=2), encoding="utf-8")
+                    (self.best_dir / "best_metrics.json").write_text(json.dumps(row, indent=2), encoding="utf-8")
             return True
 
         def _write_csv(self):
             if not self._rows:
                 return
+            fields = ["timesteps", "completion_rate", "mean_gates", "mean_collisions", "mean_time_finished"]
             with self.eval_csv.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.DictWriter(handle, fieldnames=list(self._rows[0].keys()))
+                writer = csv.DictWriter(handle, fieldnames=fields)
                 writer.writeheader()
-                writer.writerows(self._rows)
+                for row in self._rows:
+                    writer.writerow({k: row.get(k) for k in fields})
 
     return CompletionEvalCallback
 
@@ -205,6 +254,24 @@ def run_ppo_training(
         raise FileExistsError(
             f"run directory {run_path} exists and is not empty; use a new timestamp or resume=True"
         )
+    # On resume, refuse to continue against an incompatible configuration.
+    if resuming:
+        _validate_resume_compatibility(
+            run_path,
+            current={
+                "track_sha256": _sha256(track),
+                "hidden_sizes": list(hidden_sizes),
+                "bc_initialized": bc_policy is not None,
+                "adapter_requested": env_kwargs.get("adapter", "fallback"),
+                "current_profile": env_kwargs.get("current_profile"),
+                "randomized": env_kwargs.get("start_randomization") is not None,
+                "obs_encoding_version": OBS_ENCODING_VERSION,
+                "action_dim": ACTION_DIM,
+                "reward_config": asdict(reward_config),
+                "ppo_kwargs": ppo_kwargs,
+            },
+        )
+
     for sub in ("checkpoints", "best_model", "logs", "evaluation"):
         (run_path / sub).mkdir(parents=True, exist_ok=True)
 
@@ -287,6 +354,61 @@ def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def _serializable_env_kwargs(env_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Make env_kwargs JSON-serializable (a StartRandomization becomes its dict)."""
+    from dataclasses import asdict as _asdict, is_dataclass
+
+    out: Dict[str, Any] = {}
+    for key, value in (env_kwargs or {}).items():
+        out[key] = _asdict(value) if is_dataclass(value) else value
+    return out
+
+
+def _validate_resume_compatibility(run_path: Path, *, current: Dict[str, Any]) -> None:
+    """Raise if resuming against an incompatible configuration."""
+    mismatches: List[str] = []
+    track_hash_path = run_path / "track_sha256.txt"
+    if track_hash_path.exists():
+        prev = track_hash_path.read_text(encoding="utf-8").strip()
+        if prev != current["track_sha256"]:
+            mismatches.append(f"track_sha256 ({prev[:12]} != {current['track_sha256'][:12]})")
+    run_config_path = run_path / "run_config.json"
+    if run_config_path.exists():
+        rc = json.loads(run_config_path.read_text(encoding="utf-8"))
+        prev_env = rc.get("env_kwargs", {}) or {}
+        prev = {
+            "obs_encoding_version": rc.get("obs_encoding_version"),
+            "action_dim": rc.get("action_dim"),
+            "hidden_sizes": rc.get("hidden_sizes"),
+            "bc_initialized": rc.get("bc_initialized"),
+            "adapter": prev_env.get("adapter", "fallback"),
+            "current_profile": prev_env.get("current_profile"),
+            "randomized": bool(prev_env.get("start_randomization")),
+        }
+        cur = {
+            "obs_encoding_version": current["obs_encoding_version"],
+            "action_dim": current["action_dim"],
+            "hidden_sizes": current["hidden_sizes"],
+            "bc_initialized": current["bc_initialized"],
+            "adapter": current["adapter_requested"],
+            "current_profile": current["current_profile"],
+            "randomized": current["randomized"],
+        }
+        for key in cur:
+            if prev.get(key) != cur[key]:
+                mismatches.append(f"{key} ({prev.get(key)} != {cur[key]})")
+        prev_ppo = rc.get("ppo_kwargs", {}) or {}
+        for key in ("n_steps", "batch_size", "n_epochs"):
+            if prev_ppo.get(key) != current["ppo_kwargs"].get(key):
+                mismatches.append(f"ppo.{key} ({prev_ppo.get(key)} != {current['ppo_kwargs'].get(key)})")
+    reward_path = run_path / "reward_config.json"
+    if reward_path.exists():
+        if json.loads(reward_path.read_text(encoding="utf-8")) != current["reward_config"]:
+            mismatches.append("reward_config")
+    if mismatches:
+        raise ValueError("cannot resume: incompatible configuration -> " + "; ".join(mismatches))
+
+
 def _write_metadata(run_path: Path, **info) -> None:
     reward_config = info["reward_config"]
     run_config = {
@@ -301,7 +423,7 @@ def _write_metadata(run_path: Path, **info) -> None:
         "bc_initialized": info["bc_initialized"],
         "resuming": info["resuming"],
         "ppo_kwargs": info["ppo_kwargs"],
-        "env_kwargs": info["env_kwargs"],
+        "env_kwargs": _serializable_env_kwargs(info["env_kwargs"]),
         "obs_dim": OBS_DIM,
         "action_dim": ACTION_DIM,
         "obs_encoding_version": OBS_ENCODING_VERSION,
