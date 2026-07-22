@@ -97,39 +97,84 @@ def main(argv=None) -> int:
             "finished": r.finished,
             "completed_gates": r.completed_gates,
             "expected_gates": r.expected_gates,
+            "official_time_s": r.official_time_s,
+            "penalized_time_s": r.penalized_time_s,
             "collision_events": r.collision_events,
             "obstacle_collision_events": r.obstacle_collision_events,
             "out_of_bounds_events": r.out_of_bounds_events,
-            "wrong_direction": r.missed_gate_attempts,
-            "official_time_s": r.official_time_s,
-            "wall_s": round(wall, 1),
+            "stuck_events": r.stuck_events,
+            "missed_gate_attempts": r.missed_gate_attempts,
+            "wrong_direction_crossings": r.wrong_direction_crossings,
+            "inference_time_ms": r.inference_time_ms,
+            "wall_s": round(wall, 3),
+            "adapter_used": r.adapter_used,
+            "applied_randomization": r.applied_randomization,
         }
         rows.append(row)
         print(f"[eval] seed={seed:>3} status={r.status:<9} gates={r.completed_gates}/{r.expected_gates} "
-              f"coll={r.collision_events} oob={r.out_of_bounds_events} wall={wall:5.1f}s")
+              f"coll={r.collision_events} oob={r.out_of_bounds_events} wrongdir={r.wrong_direction_crossings} "
+              f"wall={wall:5.1f}s")
         rows_sorted = sorted(rows, key=lambda x: x["seed"])
-        results_path.write_text(json.dumps(rows_sorted, indent=2), encoding="utf-8")
+        _atomic_write(results_path, json.dumps(rows_sorted, indent=2))
+        _write_csv(out_dir / "eval_results.csv", rows_sorted)
 
     rows = sorted(rows, key=lambda x: x["seed"])
     evaluated = [r for r in rows if r["seed"] in set(seeds)]
     n = len(evaluated)
     finished = [r for r in evaluated if r["finished"]]
+    rate = len(finished) / n if n else 0.0
+    ci = _wilson(rate, n)
     summary = {
         "controller": args.controller,
         "model": args.model,
         "track": args.track,
         "adapter": args.adapter,
+        "randomized": bool(args.randomize),
         "n_eval": n,
-        "completion_rate": round(len(finished) / n, 4) if n else 0.0,
+        "completions": len(finished),
+        "completion_rate": round(rate, 4),
+        "completion_rate_wilson95_low": round(ci[0], 4),
+        "completion_rate_wilson95_high": round(ci[1], 4),
         "mean_gates": round(float(np.mean([r["completed_gates"] for r in evaluated])), 3) if evaluated else 0.0,
         "total_collisions": int(sum(r["collision_events"] for r in evaluated)),
         "total_out_of_bounds": int(sum(r["out_of_bounds_events"] for r in evaluated)),
-        "total_wrong_direction": int(sum(r["wrong_direction"] for r in evaluated)),
+        "total_stuck": int(sum(r["stuck_events"] for r in evaluated)),
+        "total_missed_gate_attempts": int(sum(r["missed_gate_attempts"] for r in evaluated)),
+        "total_wrong_direction_crossings": int(sum(r["wrong_direction_crossings"] for r in evaluated)),
+        "mean_inference_time_ms": round(float(np.mean([r["inference_time_ms"] for r in evaluated if r["inference_time_ms"] is not None])), 4) if any(r["inference_time_ms"] is not None for r in evaluated) else None,
         "seeds": sorted(r["seed"] for r in evaluated),
     }
     (out_dir / "eval_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print("[eval] SUMMARY:", json.dumps(summary, indent=2))
     return 0
+
+
+def _wilson(p: float, n: int, z: float = 1.96):
+    if n == 0:
+        return (0.0, 0.0)
+    denom = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = (z * ((p * (1 - p) + z * z / (4 * n)) / n) ** 0.5) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
+def _write_csv(path: Path, rows) -> None:
+    import csv
+
+    if not rows:
+        return
+    fields = [k for k in rows[0].keys() if k != "applied_randomization"]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({k: row.get(k) for k in fields})
 
 
 if __name__ == "__main__":

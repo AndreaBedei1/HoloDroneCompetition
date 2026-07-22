@@ -13,6 +13,7 @@ should write any artifacts to a fresh directory.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence
 
@@ -21,6 +22,29 @@ from marine_race_arena.participants.controller_interface import BaseController
 from marine_race_arena.scripts.run_marine_race import _mission_info, _run_race_loop
 
 ControllerFactory = Callable[[], BaseController]
+
+
+class _StepTimer:
+    """Wrap a controller's ``step`` to accumulate inference time, unchanged behavior."""
+
+    def __init__(self, controller: BaseController) -> None:
+        self._total_s = 0.0
+        self._count = 0
+        self._original = controller.step
+
+        def timed_step(observation):
+            start = time.perf_counter()
+            command = self._original(observation)
+            self._total_s += time.perf_counter() - start
+            self._count += 1
+            return command
+
+        controller.step = timed_step  # type: ignore[method-assign]
+
+    def mean_ms(self) -> Optional[float]:
+        if self._count == 0:
+            return None
+        return round(1000.0 * self._total_s / self._count, 4)
 
 
 @dataclass
@@ -37,6 +61,11 @@ class EvalResult:
     out_of_bounds_events: int
     stuck_events: int
     missed_gate_attempts: int
+    wrong_direction_crossings: int = 0
+    inference_time_ms: Optional[float] = None
+    wall_s: Optional[float] = None
+    adapter_used: Optional[str] = None
+    applied_randomization: Optional[dict] = None
 
 
 @dataclass
@@ -72,18 +101,35 @@ class EvalReport:
     def mean_collisions(self) -> float:
         return self._mean("collision_events")
 
+    def wilson_interval(self, z: float = 1.96) -> Dict[str, float]:
+        """Wilson score 95% confidence interval for the completion rate."""
+        n = self.n
+        if n == 0:
+            return {"low": 0.0, "high": 0.0}
+        p = self.completion_rate
+        denom = 1.0 + z * z / n
+        centre = (p + z * z / (2 * n)) / denom
+        half = (z * ((p * (1 - p) + z * z / (4 * n)) / n) ** 0.5) / denom
+        return {"low": max(0.0, centre - half), "high": min(1.0, centre + half)}
+
     def summary(self) -> Dict[str, float]:
+        ci = self.wilson_interval()
         return {
             "track": self.track,
             "label": self.label,
             "episodes": self.n,
             "completion_rate": self.completion_rate,
+            "completion_rate_wilson95_low": round(ci["low"], 4),
+            "completion_rate_wilson95_high": round(ci["high"], 4),
             "mean_gates": self.mean_gates,
             "mean_official_time_finished": self.mean_official_time_finished,
             "mean_collisions": self.mean_collisions,
             "mean_obstacle_collisions": self._mean("obstacle_collision_events"),
             "mean_out_of_bounds": self._mean("out_of_bounds_events"),
             "mean_stuck": self._mean("stuck_events"),
+            "mean_missed_gate_attempts": self._mean("missed_gate_attempts"),
+            "mean_wrong_direction_crossings": self._mean("wrong_direction_crossings"),
+            "mean_inference_time_ms": self._mean("inference_time_ms"),
         }
 
 
@@ -106,6 +152,7 @@ def evaluate_controller(
     report = EvalReport(track=track, label=label)
     for seed in seeds:
         controller = controller_factory()
+        timer = _StepTimer(controller)  # time controller.step() without changing behavior
         ctx = build_single_vehicle_race(
             track,
             seed=int(seed),
@@ -119,6 +166,7 @@ def evaluate_controller(
             start_randomization=start_randomization,
         )
         pid = ctx.participant.id
+        wall_start = time.time()
         try:
             controller.reset(_mission_info(ctx.config, pid))
             _run_race_loop(
@@ -145,6 +193,11 @@ def evaluate_controller(
                     out_of_bounds_events=int(state.out_of_bounds_events),
                     stuck_events=int(state.stuck_events),
                     missed_gate_attempts=int(state.missed_gate_attempts),
+                    wrong_direction_crossings=int(state.wrong_direction_crossings),
+                    inference_time_ms=timer.mean_ms(),
+                    wall_s=round(time.time() - wall_start, 3),
+                    adapter_used=ctx.adapter.name,
+                    applied_randomization=ctx.applied_randomization,
                 )
             )
         finally:

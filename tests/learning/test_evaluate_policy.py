@@ -30,9 +30,39 @@ def test_evaluate_rule_controller_report_structure():
         assert r.completed_gates >= 0
         assert r.status is not None
     s = report.summary()
-    for key in ("completion_rate", "mean_gates", "mean_collisions", "episodes"):
+    for key in (
+        "completion_rate", "completion_rate_wilson95_low", "completion_rate_wilson95_high",
+        "mean_gates", "mean_collisions", "episodes",
+        "mean_missed_gate_attempts", "mean_wrong_direction_crossings", "mean_inference_time_ms",
+    ):
         assert key in s
     assert s["episodes"] == 2
+    # Per-seed rows expose the corrected, independent metrics and provenance.
+    for r in report.results:
+        assert hasattr(r, "missed_gate_attempts") and hasattr(r, "wrong_direction_crossings")
+        assert r.adapter_used == "fallback"
+        assert r.inference_time_ms is not None and r.inference_time_ms >= 0.0
+        assert r.wall_s is not None
+
+
+def test_missed_gate_and_wrong_direction_are_independent():
+    # A row with missed-gate attempts but no wrong-direction crossings, and vice versa.
+    a = EvalResult(0, "DNF", False, 0, 1, None, None, 0, 0, 0, 0, missed_gate_attempts=2, wrong_direction_crossings=0)
+    b = EvalResult(1, "RUNNING", False, 0, 1, None, None, 0, 0, 0, 0, missed_gate_attempts=0, wrong_direction_crossings=3)
+    assert a.missed_gate_attempts == 2 and a.wrong_direction_crossings == 0
+    assert b.missed_gate_attempts == 0 and b.wrong_direction_crossings == 3
+    report = EvalReport(track="t", label="x", results=[a, b])
+    s = report.summary()
+    assert s["mean_missed_gate_attempts"] == pytest.approx(1.0)
+    assert s["mean_wrong_direction_crossings"] == pytest.approx(1.5)
+
+
+def test_wilson_interval_brackets_the_point_estimate():
+    report = EvalReport(track="t", label="x")
+    report.results = [EvalResult(i, "FINISHED", True, 1, 1, 1.0, 1.0, 0, 0, 0, 0, 0) for i in range(20)]
+    ci = report.wilson_interval()
+    assert ci["low"] <= report.completion_rate <= ci["high"] + 1e-9  # boundary (p=1) float tolerance
+    assert 0.8 < ci["low"] < 1.0  # 20/20 gives a tight lower bound well above 0.8, below 1
 
 
 def test_report_aggregations_on_synthetic_results():
