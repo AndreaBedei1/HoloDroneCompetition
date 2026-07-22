@@ -1,0 +1,10 @@
+{
+  "results\\rl\\stage1\\demos_rand\\stage1_demos.npz": {
+    "bytes": 167640,
+    "sha256": "d2e5b4fdd324eb8e94dec674f4736db36ee922ed7548848995c7eeae1cf883a2"
+  },
+  "results\\rl\\stage1\\demos_rand2\\stage1_demos.npz": {
+    "bytes": 142242,
+    "sha256": "e5544c578e5583c09233ae4b9a6eceaddb43aabcc97f61d1badd895d57554f7e"
+  }
+}

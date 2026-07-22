@@ -1,0 +1,12 @@
+# Reproduce the Stage-1 BC training (marine_race_rl env)
+# 1) Collect 34 randomized-start real-HoloOcean demonstrations (resumable):
+python -m marine_race_arena.learning.collect_demos \
+  --track marine_race_arena/tracks/training/stage1_single_gate.json \
+  --seeds 0-17 --out results/rl/stage1/demos_rand --adapter holoocean --randomize
+python -m marine_race_arena.learning.collect_demos \
+  --track marine_race_arena/tracks/training/stage1_single_gate.json \
+  --seeds 18-33 --out results/rl/stage1/demos_rand2 --adapter holoocean --randomize
+# 2) Train BC on the combined dataset:
+python -m marine_race_arena.learning.train_bc_stage1 \
+  --dataset results/rl/stage1/demos_rand/stage1_demos.npz results/rl/stage1/demos_rand2/stage1_demos.npz \
+  --out results/rl/stage1/bc_rand_combined --epochs 400

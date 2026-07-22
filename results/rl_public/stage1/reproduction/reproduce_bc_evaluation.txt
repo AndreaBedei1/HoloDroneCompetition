@@ -1,0 +1,11 @@
+# Reproduce the held-out closed-loop evaluation (marine_race_rl env)
+# Fixed-start Stage-1 (Evaluation A), 50 held-out seeds:
+python -m marine_race_arena.learning.closed_loop_eval \
+  --track marine_race_arena/tracks/training/stage1_single_gate.json \
+  --seeds 1000-1049 --model results\rl\stage1\bc_rand_combined\best_model.pt \
+  --out results/rl/stage1/eval_fixed_50 --adapter holoocean
+# Randomized-start Stage-2 (Evaluation B), 50 disjoint held-out seeds:
+python -m marine_race_arena.learning.closed_loop_eval \
+  --track marine_race_arena/tracks/training/stage1_single_gate.json \
+  --seeds 1100-1149 --model results\rl\stage1\bc_rand_combined\best_model.pt \
+  --out results/rl/stage1/eval_randomized_50 --adapter holoocean --randomize

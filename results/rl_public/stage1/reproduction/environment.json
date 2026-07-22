@@ -1,0 +1,14 @@
+{
+  "packages": {
+    "python": "3.9.25",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.0.2",
+    "torch": null,
+    "gymnasium": null,
+    "stable_baselines3": null,
+    "holoocean": "2.3.0"
+  },
+  "git_sha": "cb02b5ed6d38319fbed5162a38ec4f5fac7accf8",
+  "obs_encoding_version": "onboard_only_v1",
+  "generated_utc": "2026-07-22T19:21:07Z"
+}

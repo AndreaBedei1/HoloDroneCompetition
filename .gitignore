@@ -37,8 +37,11 @@ output/
 .env.*
 !.env.example
 
-# Marine race and simulator generated outputs
-results/
+# Marine race and simulator generated outputs.
+# Ignore each entry under results/ (so results/rl/ etc. stay ignored) but allow git
+# to descend so results/rl_public/ can be re-included (see end of file).
+/results/*
+!/results/rl_public/
 logs/
 runs/
 /diagnostics/
@@ -79,3 +82,16 @@ desktop.ini
 # Local agent/tool state
 .agents/
 .codex/
+
+# --- Public, auditable RL result package -------------------------------------
+# results/rl/ (heavy datasets/models/checkpoints/logs) stays ignored above.
+# results/rl_public/ holds only compact, audit-relevant artifacts and IS tracked.
+# These re-include rules are last so they override results/ and the *_summary.json
+# / *.jsonl / *.npz patterns for this subtree only.
+!results/rl_public/
+!results/rl_public/**
+# ...but never commit heavy binaries even under rl_public (models/checkpoints/data):
+results/rl_public/**/*.zip
+results/rl_public/**/*.npz
+results/rl_public/**/*.npy
+results/rl_public/**/*.mp4

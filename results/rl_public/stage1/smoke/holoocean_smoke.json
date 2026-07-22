@@ -1,0 +1,8 @@
+{
+  "race_name": "RL Curriculum Stage 1 Single Gate",
+  "adapter": "holoocean",
+  "fallback_used": false,
+  "physical_current_coupling_active": true,
+  "status": "FINISHED",
+  "completed_gates": 1
+}
