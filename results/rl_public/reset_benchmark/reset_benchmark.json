@@ -1,0 +1,53 @@
+{
+  "generated_utc": "2026-07-22T23:37:00Z",
+  "git_sha": "505ee6b4615ad7c1a4852294e5176083990c898a",
+  "track": "marine_race_arena/tracks/training/stage1_single_gate.json",
+  "seeds": [
+    2000,
+    2001,
+    2002
+  ],
+  "rollout_steps": 8,
+  "fresh_reset": {
+    "mean_s": 15.56,
+    "std_s": 0.35,
+    "n": 3,
+    "values_s": [
+      16.06,
+      15.28,
+      15.35
+    ]
+  },
+  "persistent_reset": {
+    "mean_s": 6.77,
+    "std_s": 0.04,
+    "n": 3,
+    "values_s": [
+      6.75,
+      6.83,
+      6.74
+    ]
+  },
+  "speedup_x": 2.3,
+  "equivalence": {
+    "initial_observation_max_abs_diff": 1.0,
+    "referee_gate_progress_matches": true,
+    "max_residual_dvl_speed_m_s": 0.0,
+    "equivalent": false
+  },
+  "recommended_training_mode": "fresh_reset (persistent not validated equivalent here)",
+  "known_limitations": [
+    "Validated only on the noise-free Stage-1 track with yaw-0 base start.",
+    "Persistent reset re-uses the arena beacon manager; on tracks with beacon noise the per-episode noise stream differs from fresh reset until separately validated.",
+    "Frozen correctness evaluations use fresh reset; persistent reset is for training throughput only."
+  ],
+  "packages": {
+    "python": "3.9.25",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.0.2",
+    "torch": "2.8.0+cpu",
+    "gymnasium": "1.0.0",
+    "stable_baselines3": "2.7.1",
+    "holoocean": "2.3.0"
+  }
+}

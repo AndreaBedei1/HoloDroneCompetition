@@ -333,3 +333,144 @@ class EpisodeStep:
     current_state: AdapterParticipantState
     collision: bool
     obstacle_collisions: int
+
+
+class PersistentRaceSession:
+    """EXPERIMENTAL: reuse ONE HoloOcean engine across episodes for fast resets.
+
+    Launching HoloOcean (``holoocean.make``) dominates a fresh reset. This session
+    builds the adapter/arena once, then per episode resets the running engine
+    (``env.reset``), teleports the vehicle to the (possibly randomized) start pose,
+    and installs a fresh referee -- avoiding a relaunch. It does not change the normal
+    fresh-reset :class:`RaceEpisode`; use it only after validating equivalence (see
+    ``reset_benchmark``). Intended for training throughput, not for the frozen
+    correctness evaluations.
+
+    Note: the visual gates spawned into the engine persist across ``env.reset`` for the
+    validated Stage-1 case; re-seeded beacon noise is a no-op on noise-free training
+    tracks. For tracks with beacon noise, prefer fresh reset until validated there.
+    """
+
+    def __init__(
+        self,
+        track: str,
+        *,
+        seed: int = 0,
+        dt: float = 0.1,
+        adapter: str = "holoocean",
+        allow_fallback: bool = False,
+        official: bool = True,
+        duration_s: Optional[float] = None,
+        max_steps: Optional[int] = None,
+    ) -> None:
+        self.track = track
+        self.dt = float(dt)
+        self.max_steps = max_steps
+        self._ctx = build_single_vehicle_race(
+            track, seed=seed, adapter=adapter, allow_fallback=allow_fallback,
+            official=official, duration_s=duration_s,
+        )
+        self._referee = None
+        self._release_time_s = 0.0
+        self._step_count = 0
+        self.last_reset_applied_randomization: Optional[Dict[str, float]] = None
+
+    @property
+    def participant_id(self) -> str:
+        return self._ctx.participant.id
+
+    @property
+    def adapter_name(self) -> str:
+        return self._ctx.adapter.name
+
+    def reset_episode(self, seed: int = 0, start_randomization=None) -> Dict[str, Any]:
+        """Reset the running engine and start a fresh episode (no relaunch)."""
+        from marine_race_arena.referee.referee import Referee
+
+        ctx = self._ctx
+        pid = ctx.participant.id
+        base = ctx.participant
+        position = base.position
+        rotation = base.rotation_rpy_deg
+        self.last_reset_applied_randomization = None
+        if start_randomization is not None and not start_randomization.is_noop():
+            from marine_race_arena.learning.randomization import apply_start_randomization
+
+            _, position, rotation, self.last_reset_applied_randomization = apply_start_randomization(
+                ctx.config, position, rotation, start_randomization, seed
+            )
+
+        # Reset the engine to its spawn state, then teleport to the (new) start pose.
+        ctx.adapter.reset()
+        ctx.adapter.teleport_participant(pid, position, rotation)
+        ctx.adapter.step(self.dt)  # let the teleport settle and refresh sensors
+        ctx.adapter.reset()        # clear the transient tick so time restarts at 0
+
+        # Fresh referee for the new episode (arena geometry is reused).
+        self._referee = Referee(ctx.config, ctx.arena.gate_map, ctx.arena.bounds, logger=None)
+        self._referee.register_participants([pid])
+        start_time = ctx.adapter.get_current_time()
+        self._referee.start_race(start_time, start_delays={pid: 0.0})
+        self._referee.release_participant(pid, start_time)
+        self._release_time_s = start_time
+        self._step_count = 0
+        return self._build_observation()
+
+    def _build_observation(self) -> Dict[str, Any]:
+        ctx = self._ctx
+        state = ctx.adapter.get_participant_state(ctx.participant.id)
+        return _build_controller_observation(
+            config=ctx.config, arena=ctx.arena, adapter=ctx.adapter, participant=ctx.participant,
+            participant_state=state, release_time_s=self._release_time_s, comms_inbox=None,
+        )
+
+    def step(self, command: Mapping[str, Any]) -> EpisodeStep:
+        ctx = self._ctx
+        pid = ctx.participant.id
+        previous_state = ctx.adapter.get_participant_state(pid)
+        ctx.adapter.apply_command(pid, dict(command), ctx.participant.config.control_mode)
+        ctx.adapter.step(self.dt)
+        time_s = ctx.adapter.get_current_time()
+        current_state = ctx.adapter.get_participant_state(pid)
+        obstacle_collisions = ctx.adapter.get_obstacle_collision_events(
+            pid, previous_position=previous_state.position, current_position=current_state.position)
+        collision = ctx.adapter.get_collision_state(pid)
+        self._referee.update(
+            participant_id=pid, previous_position=previous_state.position,
+            current_position=current_state.position, time_s=time_s,
+            collision=collision and not obstacle_collisions, obstacle_collisions=obstacle_collisions)
+        self._step_count += 1
+        state = self._referee.states[pid]
+        terminated = bool(state.is_terminal)
+        truncated = (not terminated) and (
+            (self.max_steps is not None and self._step_count >= self.max_steps)
+            or time_s >= float(ctx.config.race.max_duration_s))
+        count = len(obstacle_collisions) if isinstance(obstacle_collisions, (list, tuple)) else int(bool(obstacle_collisions))
+        return EpisodeStep(self._build_observation(), terminated, truncated, time_s,
+                           previous_state, current_state, bool(collision), count)
+
+    def referee_progress(self) -> Dict[str, Any]:
+        state = self._referee.states[self._ctx.participant.id]
+        return {"valid_gate_crossings": int(state.valid_gate_crossings),
+                "status": state.status.value if hasattr(state.status, "value") else str(state.status),
+                "is_terminal": bool(state.is_terminal)}
+
+    def dvl_speed(self) -> float:
+        """Body-frame speed magnitude from the DVL (for residual-velocity checks)."""
+        sensors = self._ctx.adapter.get_allowed_sensor_data(self._ctx.participant.id, self._ctx.participant.config.sensors)
+        dvl = sensors.get("DVLSensor")
+        if dvl is None:
+            return 0.0
+        try:
+            values = list(dvl.tolist()) if hasattr(dvl, "tolist") else list(dvl)
+            return float(sum(v * v for v in values[:3]) ** 0.5)
+        except Exception:
+            return 0.0
+
+    def close(self) -> None:
+        if self._ctx is not None:
+            try:
+                self._ctx.adapter.close()
+            except Exception:  # pragma: no cover
+                pass
+            self._ctx = None
