@@ -53,6 +53,62 @@ class EpisodeRecord:
     def length(self) -> int:
         return int(self.observations.shape[0])
 
+    def save_npz(self, path) -> None:
+        """Save this episode to a single compressed .npz (atomic temp-then-rename)."""
+        import json as _json
+        from pathlib import Path as _Path
+
+        path = _Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        meta = {
+            "episode_id": int(self.episode_id),
+            "seed": int(self.seed),
+            "track": str(self.track),
+            "controller": str(self.controller),
+            "final_status": str(self.final_status),
+            "gate_crossings": int(self.gate_crossings),
+        }
+        # Temp name ends in .npz so np.savez_compressed writes exactly that file
+        # (it appends .npz otherwise); then atomically rename over the target.
+        tmp = path.with_name("_tmp_" + path.name)
+        np.savez_compressed(
+            tmp,
+            observations=self.observations,
+            expert_actions_raw=self.expert_actions_raw,
+            actions=self.actions,
+            dones=self.dones,
+            truncated=self.truncated,
+            step_ids=self.step_ids,
+            phase_ids=self.phase_ids,
+            diag_positions=self.diagnostics.get("positions", np.zeros((self.length, 3), dtype=np.float32)),
+            diag_gate_crossings=self.diagnostics.get("gate_crossings", np.zeros(self.length, dtype=np.int64)),
+            meta=np.array(_json.dumps(meta)),
+        )
+        tmp.replace(path)
+
+    @classmethod
+    def load_npz(cls, path) -> "EpisodeRecord":
+        import json as _json
+
+        data = np.load(path, allow_pickle=False)
+        meta = _json.loads(str(data["meta"]))
+        return cls(
+            episode_id=int(meta["episode_id"]),
+            seed=int(meta["seed"]),
+            track=str(meta["track"]),
+            controller=str(meta["controller"]),
+            observations=data["observations"],
+            expert_actions_raw=data["expert_actions_raw"],
+            actions=data["actions"],
+            dones=data["dones"],
+            truncated=data["truncated"],
+            step_ids=data["step_ids"],
+            phase_ids=data["phase_ids"],
+            final_status=str(meta["final_status"]),
+            gate_crossings=int(meta["gate_crossings"]),
+            diagnostics={"positions": data["diag_positions"], "gate_crossings": data["diag_gate_crossings"]},
+        )
+
 
 def _command_to_vector(command: Any) -> np.ndarray:
     vec = np.zeros(ACTION_DIM, dtype=np.float32)
