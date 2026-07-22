@@ -12,6 +12,7 @@ the gate geometry, referee, observation contract and action mapping are untouche
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import math
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -69,12 +70,21 @@ def apply_start_randomization(
     case a copy with the overridden ``beacon`` is returned (the input is frozen).
     """
     rng = np.random.default_rng(np.random.SeedSequence([int(seed), _RANDOMIZATION_SALT]))
-    dx = _uniform(rng, spec.longitudinal_offset_m)
-    dy = _uniform(rng, spec.lateral_offset_m)
-    dz = _uniform(rng, spec.depth_offset_m)
-    dyaw = _uniform(rng, spec.yaw_offset_deg)
+    # Sample offsets in the vehicle's initial *body* frame.
+    d_longitudinal = _uniform(rng, spec.longitudinal_offset_m)  # along initial forward
+    d_lateral = _uniform(rng, spec.lateral_offset_m)            # along initial body-right/left
+    dz = _uniform(rng, spec.depth_offset_m)                     # vertical (world z)
+    dyaw = _uniform(rng, spec.yaw_offset_deg)                   # relative to initial yaw
 
-    new_position = (float(position[0]) + dx, float(position[1]) + dy, float(position[2]) + dz)
+    # Rotate the body-frame (longitudinal, lateral) offset into the world frame using
+    # the initial yaw. Project convention (matches the adapter body->world transform):
+    #   forward f = [cos psi, sin psi],  lateral r = [-sin psi, cos psi].
+    psi = math.radians(float(rotation[2]))
+    cos_psi, sin_psi = math.cos(psi), math.sin(psi)
+    world_dx = d_longitudinal * cos_psi - d_lateral * sin_psi
+    world_dy = d_longitudinal * sin_psi + d_lateral * cos_psi
+
+    new_position = (float(position[0]) + world_dx, float(position[1]) + world_dy, float(position[2]) + dz)
     new_rotation = (float(rotation[0]), float(rotation[1]), float(rotation[2]) + dyaw)
 
     beacon = config.beacon
@@ -91,10 +101,16 @@ def apply_start_randomization(
 
     applied = {
         "seed": int(seed),
-        "longitudinal_offset_m": dx,
-        "lateral_offset_m": dy,
+        "initial_yaw_deg": float(rotation[2]),
+        # Sampled body-frame offsets (what the spec ranges refer to).
+        "longitudinal_offset_m": d_longitudinal,
+        "lateral_offset_m": d_lateral,
         "depth_offset_m": dz,
         "yaw_offset_deg": dyaw,
+        # Resulting world-frame translation actually applied to the spawn position.
+        "world_dx_m": world_dx,
+        "world_dy_m": world_dy,
+        "world_dz_m": dz,
         "beacon_angular_noise_std_deg": beacon_updates.get("angular_noise_std_deg", float(beacon.angular_noise_std_deg)),
         "beacon_range_noise_std_m": beacon_updates.get("range_noise_std_m", float(beacon.range_noise_std_m)),
         "beacon_dropout_probability": beacon_updates.get("dropout_probability", float(beacon.dropout_probability)),
