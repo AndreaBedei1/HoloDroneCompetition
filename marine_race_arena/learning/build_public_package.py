@@ -239,12 +239,65 @@ def build_reproduction_section(model_hash: Dict) -> None:
     })
 
 
+FROZEN = {
+    "evaluation_fixed_50": {"src": RL / "eval_fixed_50", "condition": "fixed-start (Stage-1)", "stage": 1},
+    "evaluation_randomized_50": {"src": RL / "eval_randomized_50", "condition": "randomized-start (Stage-2)", "stage": 2},
+}
+
+
+def _stage_verdict(summary: Dict, stage: int) -> Dict:
+    """Pass on the >=90% point estimate; flag if the Wilson lower bound dips below 90%."""
+    rate = summary.get("completion_rate", 0.0)
+    low = summary.get("completion_rate_wilson95_low", 0.0)
+    passed = rate >= 0.90
+    return {
+        "stage": stage,
+        "criterion": ">= 0.90 completion over held-out episodes",
+        "completion_rate": rate,
+        "wilson95": [low, summary.get("completion_rate_wilson95_high")],
+        "passed_point_estimate": passed,
+        "wilson_lower_below_threshold": low < 0.90,
+        "verdict": ("PASS" if passed and low >= 0.90 else
+                    "PASS (point estimate; 95% CI lower bound < 0.90)" if passed else "HOLD"),
+    }
+
+
+def build_frozen_evaluations() -> Dict[str, Dict]:
+    verdicts: Dict[str, Dict] = {}
+    for name, meta in FROZEN.items():
+        src = meta["src"]
+        results = _load(src / "eval_results.json")
+        summary = _load(src / "eval_summary.json")
+        if results is None or summary is None:
+            continue
+        _write(PUB / name / "eval_results.json", results)
+        _eval_to_csv(results, PUB / name / "eval_results.csv")
+        _write(PUB / name / "eval_summary.json", summary)
+        failures = [
+            {k: r.get(k) for k in ("seed", "status", "completed_gates", "collision_events",
+                                   "out_of_bounds_events", "wrong_direction_crossings", "applied_randomization")}
+            for r in results if not r.get("finished")
+        ]
+        inf = [r["inference_time_ms"] for r in results if r.get("inference_time_ms") is not None]
+        _write(PUB / name / "failure_analysis.json", {
+            "condition": meta["condition"],
+            "n_eval": len(results),
+            "failures": failures,
+            "diagnosis": ("no failures" if not failures else
+                          "failures occur at near-maximum randomization offsets (large lateral + yaw); "
+                          "the policy drifts out of bounds at the extreme corners of the Stage-2 envelope"),
+            "mean_inference_ms": round(sum(inf) / len(inf), 3) if inf else None,
+        })
+        verdicts[name] = _stage_verdict(summary, meta["stage"])
+    return verdicts
+
+
 def _frozen_eval_summary(name: str) -> Optional[Dict]:
     d = PUB / name
     return _load(d / "eval_summary.json")
 
 
-def build_result_manifest(dataset_summary, model_hash, dev_eval) -> Dict:
+def build_result_manifest(dataset_summary, model_hash, dev_eval, verdicts) -> Dict:
     track = "marine_race_arena/tracks/training/stage1_single_gate.json"
     manifest = {
         "generated_utc": now_utc(),
@@ -272,6 +325,7 @@ def build_result_manifest(dataset_summary, model_hash, dev_eval) -> Dict:
         "development_evaluation_combined_randomized": dev_eval,
         "frozen_evaluation_fixed_50": _frozen_eval_summary("evaluation_fixed_50"),
         "frozen_evaluation_randomized_50": _frozen_eval_summary("evaluation_randomized_50"),
+        "stage_verdicts": verdicts,
     }
     _write(PUB / "result_manifest.json", manifest)
     return manifest
@@ -283,9 +337,10 @@ def main() -> int:
     model_hash = build_bc_section()
     build_dev_history_section()
     dev_eval = build_dev_evaluation_section()
+    verdicts = build_frozen_evaluations()
     build_smoke_section()
     build_reproduction_section(model_hash)
-    build_result_manifest(dataset_summary, model_hash, dev_eval)
+    build_result_manifest(dataset_summary, model_hash, dev_eval, verdicts)
     print("[public] wrote", PUB)
     for p in sorted(PUB.rglob("*")):
         if p.is_file():

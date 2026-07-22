@@ -1,0 +1,7 @@
+{
+  "condition": "fixed-start (Stage-1)",
+  "n_eval": 50,
+  "failures": [],
+  "diagnosis": "no failures",
+  "mean_inference_ms": 42.327
+}

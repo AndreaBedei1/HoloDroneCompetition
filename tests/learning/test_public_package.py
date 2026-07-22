@@ -74,6 +74,29 @@ def test_dev_history_classifies_conditions():
     assert by_dir["eval_bc_combined"]["completion_rate"] == 1.0
 
 
+def test_frozen_evaluations_present_and_classified():
+    m = _load("result_manifest.json")
+    verdicts = m.get("stage_verdicts", {})
+    if not verdicts:
+        pytest.skip("frozen A/B evaluations not yet run")
+    # A -> stage 1 (fixed), B -> stage 2 (randomized), each with a Wilson CI and a verdict.
+    a = verdicts["evaluation_fixed_50"]
+    b = verdicts["evaluation_randomized_50"]
+    assert a["stage"] == 1 and b["stage"] == 2
+    for v in (a, b):
+        assert "wilson95" in v and len(v["wilson95"]) == 2
+        assert v["verdict"] in ("PASS", "PASS (point estimate; 95% CI lower bound < 0.90)", "HOLD")
+    for name in ("evaluation_fixed_50", "evaluation_randomized_50"):
+        for f in ("eval_results.json", "eval_results.csv", "eval_summary.json", "failure_analysis.json"):
+            assert (PUB / name / f).exists(), f"missing {name}/{f}"
+    # every per-seed row carries the corrected, independent metrics
+    rows = json.loads((PUB / "evaluation_fixed_50" / "eval_results.json").read_text(encoding="utf-8"))
+    for r in rows:
+        for k in ("missed_gate_attempts", "wrong_direction_crossings", "adapter_used", "inference_time_ms"):
+            assert k in r
+        assert r["adapter_used"] == "holoocean"
+
+
 def test_no_heavy_binaries_committed():
     for p in PUB.rglob("*"):
         if p.is_file():
