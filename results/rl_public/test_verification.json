@@ -1,0 +1,76 @@
+{
+  "generated_utc": "2026-07-22T23:43:25Z",
+  "commit": "91fd943fa4f384365ca9485c622615f6df024d7e",
+  "note": "Measured by running the suites at this commit; counts are not copied from an earlier run.",
+  "environments": {
+    "benchmark": {
+      "conda_env": "ocean",
+      "rl_dependencies": false
+    },
+    "rl": {
+      "conda_env": "marine_race_rl",
+      "rl_dependencies": [
+        "torch",
+        "stable-baselines3",
+        "gymnasium"
+      ]
+    }
+  },
+  "suites": [
+    {
+      "command": "conda run -n ocean python -m pytest -q",
+      "env": "ocean",
+      "passed": 509,
+      "skipped": 6,
+      "breakdown": {
+        "benchmark_only": 387,
+        "learning_numpy_only": 122,
+        "skipped_rl_dependency_files": 6
+      }
+    },
+    {
+      "command": "conda run -n ocean python -m pytest tests/learning -q",
+      "env": "ocean",
+      "passed": 122,
+      "skipped": 6
+    },
+    {
+      "command": "conda run -n marine_race_rl python -m pytest -q",
+      "env": "marine_race_rl",
+      "passed": 548,
+      "skipped": 0
+    },
+    {
+      "command": "conda run -n marine_race_rl python -m pytest tests/learning -q",
+      "env": "marine_race_rl",
+      "passed": 161,
+      "skipped": 0
+    }
+  ],
+  "categories": {
+    "benchmark_tests": 387,
+    "learning_tests_total": 161,
+    "learning_tests_numpy_only": 122,
+    "learning_tests_requiring_rl_deps": 39,
+    "skipped_in_benchmark_env_files": 6,
+    "tests_using_fallback_adapter": "all automated tests",
+    "tests_launching_real_holoocean_engine": 0,
+    "manual_real_holoocean_validations": [
+      "Stage-1 smoke (adapter=holoocean, no fallback)",
+      "Frozen Evaluation A fixed-start 50 seeds",
+      "Frozen Evaluation B randomized-start 50 seeds",
+      "PPO 300-step plumbing smoke",
+      "Reset benchmark (fresh vs persistent)"
+    ]
+  },
+  "ci_status": "No hosted GitHub CI checks on this commit (documented decision: HoloOcean is not installable in a hosted runner).",
+  "package_versions": {
+    "python": "3.9.25",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.0.2",
+    "torch": "2.8.0+cpu",
+    "gymnasium": "1.0.0",
+    "stable_baselines3": "2.7.1",
+    "holoocean": "2.3.0"
+  }
+}

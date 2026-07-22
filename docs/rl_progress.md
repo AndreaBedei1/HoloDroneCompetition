@@ -6,14 +6,21 @@ contract, the independent referee, gate validation, official scoring, the offici
 track geometry, the rule-based baselines or the frozen 78-run results, and it adds
 no dependencies to the benchmark `requirements.txt`.
 
-**Honest headline:** the full learning pipeline is implemented, tested, and now
-**demonstrated on the real HoloOcean engine at Stage 1**: a behavioral-cloning
-controller trained on 34 real randomized-start demonstrations completes the single
-gate in **20/20 held-out closed-loop episodes (100%)** under the *unchanged* referee,
-using only legal onboard observations, with zero collisions and zero out-of-bounds —
-exceeding the Stage-1 ≥90% criterion. Reaching this required diagnosing and fixing a
-real covariate-shift failure (fixed-start demonstrations gave 0% closed-loop despite a
-tiny open-loop error; Stage-2 start randomization fixed it). PPO is **not** trained to
+**Honest headline:** the full learning pipeline is implemented, tested, and
+**demonstrated on the real HoloOcean engine**. Two frozen 50-seed held-out
+evaluations of the 34-demo BC controller (unchanged referee, onboard-only
+observations, corrected metric/randomization code; see `results/rl_public/stage1/`):
+
+- **Evaluation A — fixed start (Stage 1):** **50/50 = 100%**, Wilson 95% CI
+  [0.929, 1.000], 0 collisions/OOB/wrong-direction → **Stage 1 PASS**.
+- **Evaluation B — randomized start (Stage 2):** **48/50 = 96%**, Wilson 95% CI
+  [0.865, 0.989] → **Stage 2 PASS on the point estimate**, but the 95% CI lower bound
+  dips below 0.90 (reported honestly, not rounded up); both failures are at
+  near-maximum randomization offsets.
+
+Reaching this required diagnosing and fixing a real covariate-shift failure
+(fixed-start demonstrations gave 0% closed-loop despite a tiny open-loop error;
+Stage-2 start randomization fixed it: 0% → 69% → 100%). PPO is **not** trained to
 convergence — only its workflow was validated (fallback tests + a 300-step real-HoloOcean
 plumbing smoke); PPO-to-convergence and the BC/PPO/BC+PPO comparison are the documented
 next step. No gate geometry or referee margin was ever weakened. See *Training status*.
@@ -163,9 +170,16 @@ and evaluation seeds are disjoint.
 - The final Stage-1 BC controller runs through the unchanged runner + referee via
   `--controller rl_gate_controller --controller-model-path <best_model.pt>`, using only
   legal onboard observations.
+- The 20/20 above is a **randomized-start (Stage-2)** development evaluation. The
+  **authoritative** verdicts come from two frozen 50-seed evaluations on unused seeds
+  with the corrected metric/randomization code — **Evaluation A (fixed, Stage 1): 100%**,
+  **Evaluation B (randomized, Stage 2): 96%** — published for external audit under
+  `results/rl_public/stage1/` (`frozen_evaluations.md`, `result_manifest.json`,
+  per-seed `evaluation_fixed_50/` and `evaluation_randomized_50/`, and the committed
+  0.3 MB model with its SHA-256).
 
-Artifacts (git-ignored `results/rl/`): `stage1/demos_rand{,2}/` datasets,
-`stage1/bc_rand_combined/best_model.pt` + reports, `stage1/eval_bc_combined/eval_summary.json`.
+Artifacts: the compact, externally inspectable package is `results/rl_public/stage1/`;
+the heavy raw datasets/checkpoints stay under the git-ignored `results/rl/`.
 
 **PPO status (plumbing validated, not converged):**
 - The resumable PPO workflow was run on the **real HoloOcean engine** as a short 300-step
@@ -183,13 +197,16 @@ Counts from actually running the suites in each environment:
 
 | Suite / environment | Result |
 | --- | --- |
-| Benchmark environment (`ocean`, no RL deps), full `pytest` | **470 passed, 6 skipped** |
+| Benchmark environment (`ocean`, no RL deps), full `pytest` | **509 passed, 6 skipped** |
 | — of which non-learning benchmark tests | 387 |
-| — of which learning tests that run without RL deps (numpy-only) | 83 |
+| — of which learning tests that run without RL deps (numpy-only) | 122 |
 | — skipped (the 6 RL-dependency test files) | 6 |
-| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **119 passed** |
-| RL environment, full `pytest` | **506 passed** |
-| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 36 (= 119 − 83) |
+| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **161 passed** |
+| RL environment, full `pytest` | **548 passed** |
+| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 39 (= 161 − 122) |
+
+Machine-readable verification (commands, counts, versions, commit) is published at
+`results/rl_public/test_verification.json`.
 | Tests that launch the HoloOcean engine | **0** (all use the fallback adapter) |
 
 Test categories:
@@ -218,10 +235,10 @@ tests below, run locally in both environments.
 Reproduce the reported counts locally:
 
 ```bash
-# Benchmark environment (no RL deps): 470 passed, 6 skipped
+# Benchmark environment (no RL deps): 509 passed, 6 skipped
 conda run -n ocean python -m pytest -q
 
-# RL environment (torch + SB3 + Gymnasium): 506 passed (119 in tests/learning)
+# RL environment (torch + SB3 + Gymnasium): 548 passed (161 in tests/learning)
 conda run -n marine_race_rl python -m pytest -q
 ```
 
