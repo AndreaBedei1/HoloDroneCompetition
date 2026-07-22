@@ -1,6 +1,10 @@
 """Resumable PPO workflow: metadata, checkpoints, resume, best-model (fallback only)."""
 
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -90,6 +94,19 @@ def test_resume_preserves_eval_history_and_best_metrics(tmp_path):
     _run(run_dir, total=160, resume=True)
     rows_after = len(eval_csv.read_text(encoding="utf-8").strip().splitlines())
     assert rows_after > rows_before, "resume erased evaluation history instead of appending"
+
+
+def test_generated_reproduce_script_executes(tmp_path):
+    """The reproduce.txt python body runs end-to-end and produces a fresh run."""
+    run_dir = tmp_path / "run"
+    _run(run_dir, total=64)
+    reproduce = (run_dir / "reproduce.txt").read_text(encoding="utf-8")
+    body = reproduce.split("python - <<'PY'", 1)[1].split("\nPY", 1)[0]
+    fresh_root = tmp_path / "reproduced"
+    env = dict(os.environ, MARINE_RACE_REPRODUCE_ROOT=str(fresh_root), PYTHONPATH=str(Path.cwd()))
+    result = subprocess.run([sys.executable, "-c", body], capture_output=True, text=True, env=env, timeout=400)
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert list(fresh_root.rglob("run_config.json")), "reproduce script created no run"
 
 
 def test_incompatible_resume_is_rejected(tmp_path):

@@ -222,6 +222,7 @@ def run_ppo_training(
     timestamp: Optional[str] = None,
     run_dir: Optional[str] = None,
     bc_policy=None,
+    bc_model_path: Optional[str] = None,
     reward_config: Optional[RewardConfig] = None,
     env_kwargs: Optional[Dict[str, Any]] = None,
     hidden_sizes: Sequence[int] = (256, 256),
@@ -242,6 +243,15 @@ def run_ppo_training(
     reward_config = reward_config or RewardConfig()
     env_kwargs = dict(env_kwargs or {})
     ppo_kwargs = dict(ppo_kwargs or {})
+
+    # BC initialization can be supplied as a policy object or a path (for reproducibility).
+    bc_model_sha256 = None
+    if bc_model_path is not None:
+        bc_model_sha256 = _sha256(bc_model_path)
+        if bc_policy is None:
+            from marine_race_arena.learning.bc_train import load_policy
+
+            bc_policy = load_policy(bc_model_path)
 
     # Resolve the run directory (timestamped, never overwritten unless resuming).
     if run_dir is not None:
@@ -323,6 +333,10 @@ def run_ppo_training(
         eval_freq=eval_freq,
         ppo_kwargs=ppo_kwargs,
         env_kwargs=env_kwargs,
+        bc_model_path=bc_model_path,
+        bc_model_sha256=bc_model_sha256,
+        output_root=output_root,
+        run_dir=str(run_path),
     )
 
     adapter_actual = adapter_requested
@@ -447,20 +461,70 @@ def _write_metadata(run_path: Path, **info) -> None:
     }
     (run_path / "environment.json").write_text(json.dumps(environment, indent=2), encoding="utf-8")
 
-    reproduce = (
-        "# Reproduce this PPO run\n"
-        f"# git checkout {_git_sha() or '<commit>'}\n"
-        "# conda activate marine_race_rl\n"
-        "python - <<'PY'\n"
-        "from marine_race_arena.learning.train_workflow import run_ppo_training\n"
-        f"run_ppo_training({info['track']!r}, stage={info['stage']!r}, algorithm={info['algorithm']!r},\n"
-        f"    total_timesteps={info['total_timesteps']}, train_seed={info['train_seed']},\n"
-        f"    eval_seeds={info['eval_seeds']!r}, env_kwargs={info['env_kwargs']!r},\n"
-        f"    hidden_sizes={info['hidden_sizes']!r}, checkpoint_freq={info['checkpoint_freq']}, eval_freq={info['eval_freq']})\n"
-        "PY\n"
-        "# To resume: pass run_dir=<this directory> and resume=True.\n"
-    )
-    (run_path / "reproduce.txt").write_text(reproduce, encoding="utf-8")
+    (run_path / "reproduce.txt").write_text(build_reproduce_script(info, _git_sha()), encoding="utf-8")
+
+
+def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
+    """Build a complete, executable reproduction script (no ellipsis placeholders).
+
+    Machine-specific paths are exposed as clearly documented variables; everything
+    else (seeds, reward config, PPO hyperparameters, randomization, BC model + hash)
+    is captured literally so the run can be reproduced from scratch or resumed.
+    """
+    env_kwargs = _serializable_env_kwargs(info["env_kwargs"])
+    reward_dict = asdict(info["reward_config"])
+    bc_path = info.get("bc_model_path")
+    bc_sha = info.get("bc_model_sha256")
+    randomized = bool(env_kwargs.get("start_randomization"))
+
+    lines: List[str] = []
+    lines.append("# Reproduce this PPO run. Machine-specific paths are variables below.")
+    lines.append(f"# commit: {commit or '<unknown>'}")
+    lines.append("# git checkout " + (commit or "<commit>"))
+    lines.append("# conda activate marine_race_rl")
+    lines.append(f"# adapter={info['adapter_requested']}  fallback_allowed={info['allow_fallback']}  "
+                 f"obs_encoding={OBS_ENCODING_VERSION}  bc_initialized={info['bc_initialized']}")
+    if bc_path:
+        lines.append(f"# BC model: {bc_path}  (sha256 {bc_sha})")
+    lines.append("python - <<'PY'")
+    lines.append("import os")
+    lines.append("from marine_race_arena.learning.train_workflow import run_ppo_training")
+    lines.append("from marine_race_arena.learning.reward import RewardConfig")
+    if randomized:
+        lines.append("from marine_race_arena.learning.randomization import StartRandomization")
+    lines.append("")
+    lines.append("# --- machine-specific variables (edit these) ---")
+    lines.append(f"OUTPUT_ROOT = os.environ.get('MARINE_RACE_REPRODUCE_ROOT', {info['output_root']!r})")
+    if bc_path:
+        lines.append(f"BC_MODEL_PATH = {bc_path!r}  # sha256 {bc_sha}")
+    lines.append("")
+    lines.append(f"reward_config = RewardConfig(**{reward_dict!r})")
+    env_literal = dict(env_kwargs)
+    if randomized:
+        rspec = env_literal.pop("start_randomization")
+        lines.append(f"env_kwargs = {env_literal!r}")
+        lines.append(f"env_kwargs['start_randomization'] = StartRandomization(**{rspec!r})")
+    else:
+        lines.append(f"env_kwargs = {env_literal!r}")
+    lines.append("")
+    lines.append("run_ppo_training(")
+    lines.append(f"    {info['track']!r},")
+    lines.append(f"    stage={info['stage']!r}, algorithm={info['algorithm']!r},")
+    lines.append(f"    total_timesteps={info['total_timesteps']}, train_seed={info['train_seed']},")
+    lines.append(f"    eval_seeds={list(info['eval_seeds'])!r},")
+    lines.append("    output_root=OUTPUT_ROOT,")
+    lines.append(f"    hidden_sizes={info['hidden_sizes']!r},")
+    lines.append(f"    checkpoint_freq={info['checkpoint_freq']}, eval_freq={info['eval_freq']},")
+    lines.append("    reward_config=reward_config, env_kwargs=env_kwargs,")
+    lines.append(f"    ppo_kwargs={info['ppo_kwargs']!r},")
+    if bc_path:
+        lines.append("    bc_model_path=BC_MODEL_PATH,")
+    lines.append(")")
+    lines.append("PY")
+    lines.append("")
+    lines.append("# To RESUME this exact run instead of starting fresh, add to the call above:")
+    lines.append(f"#     run_dir={info['run_dir']!r}, resume=True")
+    return "\n".join(lines) + "\n"
 
 
 def _finalize_environment_json(run_path: Path, *, adapter_actual: str, wall_clock_s: float, num_timesteps: int) -> None:
