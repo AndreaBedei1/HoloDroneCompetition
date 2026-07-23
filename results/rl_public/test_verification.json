@@ -1,7 +1,11 @@
 {
-  "generated_utc": "2026-07-22T23:43:25Z",
-  "commit": "91fd943fa4f384365ca9485c622615f6df024d7e",
-  "note": "Measured by running the suites at this commit; counts are not copied from an earlier run.",
+  "generated_utc": "2026-07-24T01:05:00Z",
+  "note": "Measured by actually running the suites against the working tree of this verification pass; counts are not copied from an earlier run.",
+  "provenance": {
+    "artifact_generated_at_commit": "6bb9ca0",
+    "verified_again_at_commit": "6bb9ca0",
+    "note": "The suites were run against the working tree that becomes this pass's final commits (a descendant of 6bb9ca0). Physical HoloOcean evaluations A/B were NOT re-run; the four PPO/CLI smokes listed below WERE run on real HoloOcean this pass."
+  },
   "environments": {
     "benchmark": {
       "conda_env": "ocean",
@@ -20,50 +24,63 @@
     {
       "command": "conda run -n ocean python -m pytest -q",
       "env": "ocean",
-      "passed": 509,
-      "skipped": 6,
+      "passed": 562,
+      "skipped": 7,
       "breakdown": {
         "benchmark_only": 387,
-        "learning_numpy_only": 122,
-        "skipped_rl_dependency_files": 6
+        "learning_numpy_only": 175,
+        "skipped_rl_dependency_files": 7
       }
     },
     {
       "command": "conda run -n ocean python -m pytest tests/learning -q",
       "env": "ocean",
-      "passed": 122,
-      "skipped": 6
+      "passed": 175,
+      "skipped": 7
     },
     {
       "command": "conda run -n marine_race_rl python -m pytest -q",
       "env": "marine_race_rl",
-      "passed": 548,
+      "passed": 611,
       "skipped": 0
     },
     {
       "command": "conda run -n marine_race_rl python -m pytest tests/learning -q",
       "env": "marine_race_rl",
-      "passed": 161,
+      "passed": 224,
       "skipped": 0
     }
   ],
   "categories": {
     "benchmark_tests": 387,
-    "learning_tests_total": 161,
-    "learning_tests_numpy_only": 122,
-    "learning_tests_requiring_rl_deps": 39,
-    "skipped_in_benchmark_env_files": 6,
+    "learning_tests_total": 224,
+    "learning_tests_numpy_only": 175,
+    "learning_tests_requiring_rl_deps": 49,
+    "skipped_in_benchmark_env_files": 7,
     "tests_using_fallback_adapter": "all automated tests",
     "tests_launching_real_holoocean_engine": 0,
     "manual_real_holoocean_validations": [
-      "Stage-1 smoke (adapter=holoocean, no fallback)",
-      "Frozen Evaluation A fixed-start 50 seeds",
-      "Frozen Evaluation B randomized-start 50 seeds",
-      "PPO 300-step plumbing smoke",
+      "Stage-1 rule smoke (adapter=holoocean, no fallback)",
+      "Frozen Evaluation A fixed-start 50 seeds (not re-run this pass)",
+      "Frozen Evaluation B randomized-start 50 seeds (not re-run this pass)",
+      "Public-model CLI smoke on unseen seed 3001 (FINISHED, holoocean, no fallback)",
+      "BC-init 1,000-step PPO smoke (timestep-zero completion 1.0)",
+      "Scratch 1,000-step PPO control smoke (timestep-zero completion 0.0)",
+      "BC-init resume to 1,500 steps (eval history appended, no duplicate timestep-zero)",
       "Reset benchmark (fresh vs persistent)"
     ]
   },
-  "ci_status": "No hosted GitHub CI checks on this commit (documented decision: HoloOcean is not installable in a hosted runner).",
+  "focused_tests_this_pass": [
+    "evaluation end reasons (test_evaluate_policy)",
+    "evaluation-manifest resume compatibility (test_closed_loop_eval)",
+    "public reproduction path + provenance (test_public_package)",
+    "demonstration metadata + backward compat (test_collect_demos)",
+    "BC->PPO deterministic transfer + per-axis log_std + stochastic warm-start + save/load (test_bc_ppo_init, test_bc_ppo_transfer)",
+    "timestep-zero evaluation + action-std persistence (test_train_workflow)",
+    "launcher dry-run + output-directory safety + resume gate (test_launch_stage1_ppo)",
+    "PPO smoke package validation (test_ppo_smoke_package)"
+  ],
+  "ci_status": "No hosted GitHub CI checks on this commit (documented decision: HoloOcean is not installable in a hosted runner; the real-HoloOcean smokes above are run locally in the marine_race_rl env).",
   "package_versions": {
     "python": "3.9.25",
     "platform": "Windows-10-10.0.26200-SP0",

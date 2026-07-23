@@ -39,9 +39,16 @@ next step. No gate geometry or referee margin was ever weakened. See *Training s
 | `dataset.py` | `BCDataset`: integrity checks, episode-level train/val split, npz IO. |
 | `bc_train.py` | `BCPolicy` (Tanh-MLP + linear head + obs norm) and `train_bc`. |
 | `rl_train.py` | PPO builder, **exact** BC→PPO weight transfer, `train_ppo`. |
+| `bc_ppo_init.py` | Safe stochastic warm-start: per-axis exploration `log_std` from BC residuals. |
+| `train_workflow.py` | Resumable PPO workflow: run metadata, timestep-zero eval, best-model, reproduce. |
+| `launch_stage1_ppo.py` | User-facing PPO launcher (safe defaults, hash checks, `--dry-run`, resume). |
+| `collect_demos.py` | Resumable demonstration collection with a full provenance manifest. |
+| `closed_loop_eval.py` | Held-out closed-loop eval with an `evaluation_manifest.json` resume gate. |
 | `rl_controller.py` | `RLGateController`: deployable `BaseController`, alias `rl_gate_controller`. |
-| `evaluate_policy.py` | Held-out evaluation of any controller under the unchanged referee. |
+| `evaluate_policy.py` | Held-out evaluation; records referee status + `evaluation_end_reason`. |
 | `curriculum.py` | Staged tasks + success criteria. |
+| `build_public_package.py` / `build_ppo_smoke_package.py` | Derive the compact public audit packages. |
+| `reset_benchmark.py` | Fresh-vs-persistent reset benchmark (persistent stays experimental). |
 
 RL dependencies (separate `requirements-rl.txt`, verified together on Python 3.9.25 /
 numpy 2.0.2): `torch 2.8.0`, `stable-baselines3 2.7.1`, `gymnasium 1.0.0`.
@@ -181,15 +188,27 @@ and evaluation seeds are disjoint.
 Artifacts: the compact, externally inspectable package is `results/rl_public/stage1/`;
 the heavy raw datasets/checkpoints stay under the git-ignored `results/rl/`.
 
-**PPO status (plumbing validated, not converged):**
-- The resumable PPO workflow was run on the **real HoloOcean engine** as a short 300-step
-  plumbing smoke (`results/rl/stage1/ppo/smoke_holoocean/`): checkpoints, best-model,
-  eval CSV and full provenance (`adapter_actual=holoocean`, git SHA, versions) were
-  produced. 300 steps is **not** a trained policy.
-- PPO-to-convergence and the BC / PPO / BC+PPO comparison are **not** completed:
-  `MarineRaceGymEnv.reset()` relaunches HoloOcean per episode (~30 s), so the ~10⁴–10⁵
-  steps PPO needs are impractical within this session. The exact BC→PPO warm-start is
-  verified (test), so BC-initialized PPO is ready to run. This is the documented next step.
+**PPO status (workflow + 1k smokes validated on real HoloOcean, NOT converged):**
+- **Safe BC→PPO stochastic warm-start** (`bc_ppo_init.py`): the exact normalization-aware
+  transfer reproduces the BC mean, and the PPO exploration `log_std` is set to a small
+  per-axis value derived from the BC validation residuals (`sqrt(MSE)`, clamped to
+  `[0.05, 0.15]`; documented fallback `log_std=-2.5`). For the Stage-1 model every axis
+  floors at std `0.05` (residuals are tiny). Without this, SB3's default std ≈ 1.0 would
+  saturate actions and destroy the warm-start on the first update.
+- **Timestep-zero held-out evaluation** runs (deterministically) before `model.learn()`
+  and writes `evaluation/initial_eval.json` + a `timesteps=0` row; the timestep-0 policy
+  is saved as the initial best. This verifies the warm-start starts near the BC baseline.
+- **One-command launcher** `launch_stage1_ppo` (+ `scripts/*.bat`, `docs/rl_quickstart.md`):
+  safe defaults (holoocean, no fallback, **fresh reset**, committed public BC model with
+  hash check, dev seeds 1200–1204, conservative config lr 5e-5 / target_kl 0.01 /
+  clip 0.1), `--dry-run`, refuses a non-empty output dir, verifies branch + hashes.
+- **1,000-step smokes run on the real HoloOcean engine (both arms, no fallback)** —
+  plumbing only, **not convergence**. Compact results: `results/rl_public/stage1/ppo_smoke/`.
+  BC-init timestep-zero completion matched the BC baseline (warm-start intact); resume to
+  1,500 steps was verified (eval history appended, timestep-0 not duplicated, best model
+  preserved). No superiority claim from 1,000 steps; the staged 5k/10k plan and exact
+  commands are in `docs/ppo_plan.md`, and the final evaluation must use new unseen seeds.
+- Convergence and the scientific BC-vs-scratch comparison remain the documented next step.
 
 ### Test coverage (measured, not copied)
 
@@ -197,30 +216,32 @@ Counts from actually running the suites in each environment:
 
 | Suite / environment | Result |
 | --- | --- |
-| Benchmark environment (`ocean`, no RL deps), full `pytest` | **509 passed, 6 skipped** |
+| Benchmark environment (`ocean`, no RL deps), full `pytest` | **562 passed, 7 skipped** |
 | — of which non-learning benchmark tests | 387 |
-| — of which learning tests that run without RL deps (numpy-only) | 122 |
-| — skipped (the 6 RL-dependency test files) | 6 |
-| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **161 passed** |
-| RL environment, full `pytest` | **548 passed** |
-| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 39 (= 161 − 122) |
-
-Machine-readable verification (commands, counts, versions, commit) is published at
-`results/rl_public/test_verification.json`.
+| — of which learning tests that run without RL deps (numpy-only) | 175 |
+| — skipped (the 7 RL-dependency test files) | 7 |
+| RL environment (torch + SB3 + Gymnasium), `tests/learning` | **224 passed** |
+| RL environment, full `pytest` | **611 passed** |
+| Learning tests that REQUIRE RL deps (torch/SB3/Gymnasium) | 49 (= 224 − 175) |
 | Tests that launch the HoloOcean engine | **0** (all use the fallback adapter) |
+
+Machine-readable verification (commands, counts, versions, provenance) is published at
+`results/rl_public/test_verification.json`.
 
 Test categories:
 - **Benchmark tests** (387): the original suite; unaffected by the learning package.
-- **RL unit/integration tests** (118 total; 82 numpy-only + 36 needing torch/SB3/Gymnasium):
+- **RL unit/integration tests** (224 total; 175 numpy-only + 49 needing torch/SB3/Gymnasium):
   observation encoder, episode equivalence, reward, dataset, curriculum, randomization,
-  controller model-path, temporal alignment, Gym env, BC, RL controller, BC→PPO transfer,
-  PPO workflow.
-- **Skipped in the benchmark env** (6 files): they `pytest.importorskip` torch/SB3/Gymnasium
+  controller model-path, temporal alignment, Gym env, BC, RL controller, BC→PPO transfer +
+  safe stochastic warm-start, PPO workflow + timestep-zero eval, evaluation end-reasons +
+  resume manifests, demonstration provenance, launcher dry-run/safety, public-package +
+  PPO-smoke validation.
+- **Skipped in the benchmark env** (7 files): they `pytest.importorskip` torch/SB3/Gymnasium
   and run only in the RL environment, so the benchmark environment stays RL-free.
 - **HoloOcean-engine tests**: none. Every automated test uses the engine-free **fallback**
   adapter (fast, deterministic). Real-HoloOcean validation is a manual smoke command
-  (`--adapter holoocean`, no `--allow-fallback`), never a `pytest` test — so CI never
-  launches Unreal.
+  (`--adapter holoocean`, no `--allow-fallback`) or the `launch_stage1_ppo` launcher, never
+  a `pytest` test — so CI never launches Unreal.
 
 ### Continuous integration — decision
 
