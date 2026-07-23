@@ -109,6 +109,57 @@ def test_generated_reproduce_script_executes(tmp_path):
     assert list(fresh_root.rglob("run_config.json")), "reproduce script created no run"
 
 
+def _bc_policy():
+    from marine_race_arena.learning.bc_train import BCPolicy
+
+    return BCPolicy(hidden_sizes=(32, 32))
+
+
+def test_timestep_zero_eval_and_action_std_for_bcinit(tmp_path):
+    run_dir = tmp_path / "run"
+    run_ppo_training(
+        TRACK, stage="stage1", algorithm="ppo_bcinit", total_timesteps=32, train_seed=0,
+        eval_seeds=[900, 901], run_dir=str(run_dir), hidden_sizes=(32, 32),
+        checkpoint_freq=32, eval_freq=32, env_kwargs=ENV_KWARGS, ppo_kwargs=PPO_KWARGS,
+        bc_policy=_bc_policy(),
+    )
+    # Timestep-zero held-out evaluation, deterministic, with the required metrics.
+    init = json.loads((run_dir / "evaluation" / "initial_eval.json").read_text(encoding="utf-8"))
+    assert init["timesteps"] == 0 and init["bc_initialized"] is True and init["deterministic"] is True
+    for k in ("completion_rate", "mean_gates", "mean_collisions", "mean_out_of_bounds", "mean_wrong_direction"):
+        assert k in init
+    assert init["model_initialization_source"].startswith("bc_transfer")
+    assert "action_std" in init
+    # eval.csv's first data row is the timestep-0 evaluation.
+    csv_lines = (run_dir / "evaluation" / "eval.csv").read_text(encoding="utf-8").strip().splitlines()
+    assert csv_lines[1].startswith("0,")
+    # Per-axis action-std provenance persisted.
+    astd = json.loads((run_dir / "action_std.json").read_text(encoding="utf-8"))
+    assert set(astd["std_per_axis"]) == {"surge", "sway", "heave", "yaw"}
+    rc = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    assert rc["bc_action_std_config"]["std_min"] == 0.05 and rc["action_std"] is not None
+    # The timestep-0 policy is saved as the initial best.
+    assert (run_dir / "best_model" / "best_metrics.json").exists()
+
+
+def test_scratch_arm_keeps_default_action_std(tmp_path):
+    run_dir = tmp_path / "run"
+    _run(run_dir, total=32)  # no bc_policy -> scratch
+    astd = json.loads((run_dir / "action_std.json").read_text(encoding="utf-8"))
+    assert astd["source"] == "sb3_default" and astd["mode"] == "scratch"
+    init = json.loads((run_dir / "evaluation" / "initial_eval.json").read_text(encoding="utf-8"))
+    assert init["model_initialization_source"] == "scratch_sb3_default"
+
+
+def test_resume_does_not_duplicate_timestep_zero(tmp_path):
+    run_dir = tmp_path / "run"
+    _run(run_dir, total=32)
+    _run(run_dir, total=96, resume=True)
+    csv_text = (run_dir / "evaluation" / "eval.csv").read_text(encoding="utf-8").strip().splitlines()
+    zero_rows = [ln for ln in csv_text[1:] if ln.split(",")[0] == "0"]
+    assert len(zero_rows) == 1, "resume must not add a second timestep-zero row"
+
+
 def test_incompatible_resume_is_rejected(tmp_path):
     from marine_race_arena.learning.train_workflow import run_ppo_training
 
