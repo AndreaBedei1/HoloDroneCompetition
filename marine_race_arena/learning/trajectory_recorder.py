@@ -20,9 +20,17 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from marine_race_arena.learning.config import ACTION_AXES, ACTION_DIM, OBS_DIM, TRACKER_PHASES
+from marine_race_arena.learning.config import (
+    ACTION_AXES,
+    ACTION_CONTRACT_VERSION,
+    ACTION_DIM,
+    OBS_DIM,
+    OBS_ENCODING_VERSION,
+    TRACKER_PHASES,
+)
 from marine_race_arena.learning.episode import RaceEpisode
 from marine_race_arena.learning.observation_encoder import encode_observation
+from marine_race_arena.learning.provenance import git_sha, sha256_file
 from marine_race_arena.learning.tracker_context import OnboardContextTracker
 from marine_race_arena.participants.controller_loader import ControllerLoader
 from marine_race_arena.scripts.run_marine_race import _mission_info
@@ -48,6 +56,9 @@ class EpisodeRecord:
     final_status: str
     gate_crossings: int
     diagnostics: Dict[str, np.ndarray] = field(default_factory=dict)  # training-only, excluded from BC
+    # Collection provenance (metadata only; never part of the policy input). Empty
+    # for episode files written before this schema, so old files still load.
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def length(self) -> int:
@@ -67,6 +78,7 @@ class EpisodeRecord:
             "controller": str(self.controller),
             "final_status": str(self.final_status),
             "gate_crossings": int(self.gate_crossings),
+            "metadata": self.metadata,
         }
         # Temp name ends in .npz so np.savez_compressed writes exactly that file
         # (it appends .npz otherwise); then atomically rename over the target.
@@ -107,6 +119,7 @@ class EpisodeRecord:
             final_status=str(meta["final_status"]),
             gate_crossings=int(meta["gate_crossings"]),
             diagnostics={"positions": data["diag_positions"], "gate_crossings": data["diag_gate_crossings"]},
+            metadata=meta.get("metadata", {}),  # backward compatible: absent in old files
         )
 
 
@@ -204,7 +217,32 @@ def record_episode(
         except Exception:  # pragma: no cover
             pass
         progress = episode.referee_progress()
+        # Capture the adapter actually used and the applied randomization *before*
+        # closing (metadata only -- never part of the policy observation).
+        adapter_actual = adapter
+        applied_randomization = None
+        try:
+            adapter_actual = episode.context.adapter.name
+            applied_randomization = getattr(episode.context, "applied_randomization", None)
+        except Exception:  # pragma: no cover - defensive
+            pass
         episode.close()
+
+    metadata = {
+        "track_sha256": sha256_file(track),
+        "controller": controller,
+        "adapter_requested": adapter,
+        "adapter_actual": adapter_actual,
+        "fallback_allowed": bool(allow_fallback),
+        "fallback_used": (adapter_actual == "fallback"),
+        "obs_encoding_version": OBS_ENCODING_VERSION,
+        "action_contract_version": ACTION_CONTRACT_VERSION,
+        "applied_randomization": applied_randomization,
+        "dt": float(dt),
+        "max_steps": int(max_steps),
+        "official": bool(official),
+        "collection_git_sha": git_sha(),
+    }
 
     return EpisodeRecord(
         episode_id=episode_id,
@@ -224,6 +262,7 @@ def record_episode(
             "positions": np.asarray(positions, dtype=np.float32).reshape(-1, 3),
             "gate_crossings": np.asarray(crossings, dtype=np.int64),
         },
+        metadata=metadata,
     )
 
 

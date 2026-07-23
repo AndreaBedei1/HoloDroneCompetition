@@ -40,6 +40,43 @@ def test_episode_record_npz_roundtrip(tmp_path):
     assert np.array_equal(loaded.actions, rec.actions)
 
 
+def test_episode_record_metadata_captured_and_roundtrips(tmp_path):
+    from marine_race_arena.learning.trajectory_recorder import record_episode
+
+    rec = record_episode(TRACK, seed=0, max_steps=6, adapter="fallback", allow_fallback=True)
+    md = rec.metadata
+    # Provenance metadata is present (and separate from the policy observation).
+    for key in ("track_sha256", "adapter_requested", "adapter_actual", "fallback_allowed",
+                "fallback_used", "obs_encoding_version", "action_contract_version", "dt",
+                "max_steps", "official", "collection_git_sha"):
+        assert key in md, f"missing metadata {key}"
+    assert md["adapter_requested"] == "fallback" and md["adapter_actual"] == "fallback"
+    assert md["fallback_used"] is True and md["dt"] == 0.1 and md["max_steps"] == 6
+    # Metadata survives the npz roundtrip.
+    path = tmp_path / "ep.npz"
+    rec.save_npz(path)
+    assert EpisodeRecord.load_npz(path).metadata == md
+
+
+def test_old_episode_file_without_metadata_still_loads(tmp_path):
+    """Backward compatibility: an npz whose meta lacks 'metadata' loads with {}."""
+    import json as _json
+    n = 4
+    path = tmp_path / "old.npz"
+    meta = {"episode_id": 0, "seed": 7, "track": TRACK, "controller": "c",
+            "final_status": "FINISHED", "gate_crossings": 1}  # no 'metadata' key (old schema)
+    np.savez_compressed(
+        path.with_suffix(""),  # np appends .npz
+        observations=np.zeros((n, 36), np.float32), expert_actions_raw=np.zeros((n, 4), np.float32),
+        actions=np.zeros((n, 4), np.float32), dones=np.zeros(n, bool), truncated=np.zeros(n, bool),
+        step_ids=np.arange(n, dtype=np.int64), phase_ids=np.zeros(n, np.int64),
+        diag_positions=np.zeros((n, 3), np.float32), diag_gate_crossings=np.zeros(n, np.int64),
+        meta=np.array(_json.dumps(meta)),
+    )
+    rec = EpisodeRecord.load_npz(path)
+    assert rec.seed == 7 and rec.metadata == {}
+
+
 def test_initial_collection(tmp_path):
     out = tmp_path / "demos"
     assert _run(out, "0-2") == 0
@@ -49,6 +86,23 @@ def test_initial_collection(tmp_path):
     assert (out / "stage1_demos.npz").exists()
     assert man["dataset_sha256"] and man["track_sha256"]
     assert len(list((out / "episodes").glob("ep_*.npz"))) == 3
+    # Per-seed provenance in the manifest (S5).
+    assert set(man["per_seed_adapter"]) == {"0", "1", "2"}
+    assert all(v == "fallback" for v in man["per_seed_adapter"].values())
+    assert man["adapters_actually_observed"] == ["fallback"]
+    assert man["any_fallback_occurred"] is True
+    assert set(man["per_episode_file_sha256"]) == {"0", "1", "2"}
+    assert "0" in man["per_seed_applied_randomization"]
+    assert man["action_contract_version"] and man["dt"] == 0.1 and man["max_steps"] == 6
+
+
+def test_dt_or_maxsteps_change_is_incompatible(tmp_path):
+    out = tmp_path / "demos"
+    _run(out, "0-1")  # default dt from _run is unset -> collect_demos default 0.1, max-steps 6
+    # Re-running with a different dt must be refused (identity mismatch).
+    argv = ["--track", TRACK, "--seeds", "0-1", "--out", str(out),
+            "--adapter", "fallback", "--allow-fallback", "--max-steps", "6", "--dt", "0.2"]
+    assert collect_demos.main(argv) == 2
 
 
 def test_resume_skips_completed_and_appends(tmp_path):

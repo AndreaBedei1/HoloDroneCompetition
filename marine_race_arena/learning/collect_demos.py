@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from marine_race_arena.learning.config import OBS_ENCODING_VERSION
+from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION, OBS_ENCODING_VERSION
 from marine_race_arena.learning.dataset import BCDataset
 from marine_race_arena.learning.provenance import git_sha, now_utc, package_versions, sha256_file
 from marine_race_arena.learning.trajectory_recorder import EpisodeRecord, record_episode
@@ -63,12 +63,17 @@ def _run_signature(args, track_hash: str, randomization) -> Dict:
         "randomized": bool(args.randomize),
         "randomization_spec": (dataclasses.asdict(randomization) if randomization is not None else None),
         "obs_encoding_version": OBS_ENCODING_VERSION,
+        "action_contract_version": ACTION_CONTRACT_VERSION,
+        "dt": float(args.dt),
+        "max_steps": int(args.max_steps),
+        "official": True,  # demonstrations are always collected on the official track
     }
 
 
 def _incompatibilities(existing: Dict, current: Dict) -> List[str]:
     keys = ["track", "track_sha256", "controller", "adapter", "allow_fallback",
-            "randomized", "randomization_spec", "obs_encoding_version"]
+            "randomized", "randomization_spec", "obs_encoding_version",
+            "action_contract_version", "dt", "max_steps", "official"]
     return [k for k in keys if existing.get(k) != current.get(k)]
 
 
@@ -163,6 +168,21 @@ def main(argv=None) -> int:
     commit = git_sha()
 
     def write_manifest(dataset: Optional[BCDataset]):
+        # Per-seed provenance derived from each recorded episode's metadata.
+        per_seed_adapter: Dict[str, Optional[str]] = {}
+        per_seed_randomization: Dict[str, Optional[dict]] = {}
+        per_episode_file_sha256: Dict[str, Optional[str]] = {}
+        adapters_observed = set()
+        any_fallback = False
+        for s in sorted(records):
+            meta = records[s].metadata or {}
+            actual = meta.get("adapter_actual", args.adapter)
+            per_seed_adapter[str(s)] = actual
+            per_seed_randomization[str(s)] = meta.get("applied_randomization")
+            adapters_observed.add(actual)
+            any_fallback = any_fallback or bool(meta.get("fallback_used"))
+            ep_path = episodes_dir / f"ep_{int(s):05d}.npz"
+            per_episode_file_sha256[str(s)] = sha256_file(ep_path) if ep_path.exists() else None
         manifest = {
             "created_utc": created_utc,
             "updated_utc": now_utc(),
@@ -173,12 +193,20 @@ def main(argv=None) -> int:
             "controller": args.controller,
             "adapter_requested": args.adapter,
             "allow_fallback": bool(args.allow_fallback),
+            "adapters_actually_observed": sorted(a for a in adapters_observed if a is not None),
+            "any_fallback_occurred": any_fallback,
             "randomization_enabled": bool(args.randomize),
             "randomization_spec": signature["randomization_spec"],
             "obs_encoding_version": OBS_ENCODING_VERSION,
+            "action_contract_version": ACTION_CONTRACT_VERSION,
+            "dt": float(args.dt),
+            "max_steps": int(args.max_steps),
             "requested_seeds": requested,
             "completed_seeds": sorted(records),
             "failed_seeds": sorted(set(failed_seeds)),
+            "per_seed_adapter": per_seed_adapter,
+            "per_seed_applied_randomization": per_seed_randomization,
+            "per_episode_file_sha256": per_episode_file_sha256,
             "total_episodes": len(records),
             "total_steps": int(len(dataset)) if dataset is not None else 0,
             "dataset_path": str(dataset_path),
