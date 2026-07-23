@@ -23,6 +23,51 @@ from marine_race_arena.scripts.run_marine_race import _mission_info, _run_race_l
 
 ControllerFactory = Callable[[], BaseController]
 
+# Documented set of reasons the *evaluation runner* stopped an episode. This is
+# distinct from the referee's own participant status: the referee decides race
+# outcome (FINISHED/DNF/...); the end reason records why the runner loop ended.
+EVALUATION_END_REASONS = (
+    "FINISHED",          # participant reached the referee's FINISHED status
+    "REFEREE_TERMINAL",  # referee ended it non-finished (DNF/DSQ/TIMEOUT/STUCK)
+    "TIME_LIMIT",        # race duration expired while the referee status was still RUNNING
+    "MAX_STEPS",         # step-wise runner truncated at its max-step budget
+    "CONTROLLER_ERROR",  # referee marked the participant CONTROLLER_ERROR
+    "MANUAL_STOP",       # a manual stop was requested (referee MANUAL_STOP)
+    "UNKNOWN",           # anything not covered above
+)
+
+# Terminal referee statuses map deterministically to a runner end reason. A
+# non-terminal status (RUNNING/NOT_STARTED) means the runner, not the referee,
+# ended the episode -> TIME_LIMIT (deadline) or MAX_STEPS (step-wise truncation).
+_END_REASON_BY_REFEREE_STATUS = {
+    "FINISHED": "FINISHED",
+    "DNF": "REFEREE_TERMINAL",
+    "DSQ": "REFEREE_TERMINAL",
+    "TIMEOUT": "REFEREE_TERMINAL",
+    "STUCK": "REFEREE_TERMINAL",
+    "CONTROLLER_ERROR": "CONTROLLER_ERROR",
+    "MANUAL_STOP": "MANUAL_STOP",
+}
+
+
+def derive_evaluation_end_reason(referee_status, *, truncated_by_max_steps: bool = False) -> str:
+    """Map a final referee status to the documented evaluation end reason.
+
+    This never invents a referee status: a non-terminal referee status (the
+    participant was still ``RUNNING`` / ``NOT_STARTED`` when the runner stopped)
+    yields ``MAX_STEPS`` for the step-wise runner or ``TIME_LIMIT`` otherwise,
+    while the referee's own status is reported separately as ``referee_status``.
+    """
+    status = referee_status.value if hasattr(referee_status, "value") else str(referee_status)
+    mapped = _END_REASON_BY_REFEREE_STATUS.get(status)
+    if mapped is not None:
+        return mapped
+    if truncated_by_max_steps:
+        return "MAX_STEPS"
+    if status in ("RUNNING", "NOT_STARTED"):
+        return "TIME_LIMIT"
+    return "UNKNOWN"
+
 
 class _StepTimer:
     """Wrap a controller's ``step`` to accumulate inference time, unchanged behavior."""
@@ -50,7 +95,7 @@ class _StepTimer:
 @dataclass
 class EvalResult:
     seed: int
-    status: str
+    status: str  # deprecated alias of ``referee_status`` (kept for backward compatibility)
     finished: bool
     completed_gates: int
     expected_gates: int
@@ -66,6 +111,15 @@ class EvalResult:
     wall_s: Optional[float] = None
     adapter_used: Optional[str] = None
     applied_randomization: Optional[dict] = None
+    # The referee's own participant status vs. why the evaluation runner stopped.
+    referee_status: str = ""
+    evaluation_end_reason: str = "UNKNOWN"
+
+    def __post_init__(self) -> None:
+        # ``status`` is the historical field name; keep both consistent so old
+        # readers (``r.status``) and new readers (``r.referee_status``) agree.
+        if not self.referee_status:
+            self.referee_status = self.status
 
 
 @dataclass
@@ -101,6 +155,19 @@ class EvalReport:
     def mean_collisions(self) -> float:
         return self._mean("collision_events")
 
+    def end_reason_counts(self) -> Dict[str, int]:
+        """Count of evaluation end reasons across all episodes (audit breakdown)."""
+        counts: Dict[str, int] = {}
+        for r in self.results:
+            counts[r.evaluation_end_reason] = counts.get(r.evaluation_end_reason, 0) + 1
+        return counts
+
+    def referee_status_counts(self) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for r in self.results:
+            counts[r.referee_status] = counts.get(r.referee_status, 0) + 1
+        return counts
+
     def wilson_interval(self, z: float = 1.96) -> Dict[str, float]:
         """Wilson score 95% confidence interval for the completion rate."""
         n = self.n
@@ -130,6 +197,8 @@ class EvalReport:
             "mean_missed_gate_attempts": self._mean("missed_gate_attempts"),
             "mean_wrong_direction_crossings": self._mean("wrong_direction_crossings"),
             "mean_inference_time_ms": self._mean("inference_time_ms"),
+            "end_reason_counts": self.end_reason_counts(),
+            "referee_status_counts": self.referee_status_counts(),
         }
 
 
@@ -179,10 +248,15 @@ def evaluate_controller(
             )
             state = ctx.referee.states[pid]
             status = state.status.value if hasattr(state.status, "value") else str(state.status)
+            # The runner (``_run_race_loop``) is time-deadline based, so a
+            # non-terminal referee status means the race duration expired.
+            end_reason = derive_evaluation_end_reason(status, truncated_by_max_steps=False)
             report.results.append(
                 EvalResult(
                     seed=int(seed),
                     status=status,
+                    referee_status=status,
+                    evaluation_end_reason=end_reason,
                     finished=(status == "FINISHED"),
                     completed_gates=int(state.valid_gate_crossings),
                     expected_gates=len(ctx.referee.gate_sequence) * int(ctx.config.race.laps),

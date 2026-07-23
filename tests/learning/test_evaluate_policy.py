@@ -2,7 +2,13 @@
 
 import pytest
 
-from marine_race_arena.learning.evaluate_policy import EvalReport, EvalResult, evaluate_controller
+from marine_race_arena.learning.evaluate_policy import (
+    EVALUATION_END_REASONS,
+    EvalReport,
+    EvalResult,
+    derive_evaluation_end_reason,
+    evaluate_controller,
+)
 from marine_race_arena.participants.controller_loader import ControllerLoader
 
 STAGE1 = "marine_race_arena/tracks/training/stage1_single_gate.json"
@@ -77,6 +83,74 @@ def test_report_aggregations_on_synthetic_results():
     # finished-only time excludes the unfinished (None) run
     assert report.mean_official_time_finished == pytest.approx((100.0 + 120.0) / 2)
     assert report.mean_collisions == pytest.approx((0 + 1 + 2) / 3)
+
+
+@pytest.mark.parametrize(
+    "referee_status, truncated, expected",
+    [
+        ("FINISHED", False, "FINISHED"),          # successful finish
+        ("RUNNING", False, "TIME_LIMIT"),          # race duration expired, referee still running
+        ("NOT_STARTED", False, "TIME_LIMIT"),      # never released, window closed
+        ("RUNNING", True, "MAX_STEPS"),            # step-wise runner truncation
+        ("DNF", False, "REFEREE_TERMINAL"),        # terminal referee failure
+        ("DSQ", False, "REFEREE_TERMINAL"),
+        ("STUCK", False, "REFEREE_TERMINAL"),
+        ("TIMEOUT", False, "REFEREE_TERMINAL"),    # referee gate/stuck timeout (not runner TIME_LIMIT)
+        ("CONTROLLER_ERROR", False, "CONTROLLER_ERROR"),  # controller exception -> referee marks it
+        ("MANUAL_STOP", False, "MANUAL_STOP"),
+        ("SOMETHING_ELSE", False, "UNKNOWN"),      # defensive default
+    ],
+)
+def test_derive_evaluation_end_reason(referee_status, truncated, expected):
+    reason = derive_evaluation_end_reason(referee_status, truncated_by_max_steps=truncated)
+    assert reason == expected
+    assert reason in EVALUATION_END_REASONS
+
+
+def test_end_reason_accepts_enum_like_status():
+    class _S:
+        value = "FINISHED"
+
+    assert derive_evaluation_end_reason(_S()) == "FINISHED"
+
+
+def test_eval_result_backward_compatible_referee_status():
+    # Old-style construction (no referee_status/evaluation_end_reason) still works;
+    # referee_status mirrors the legacy `status` field.
+    r = EvalResult(0, "FINISHED", True, 1, 1, 1.0, 1.0, 0, 0, 0, 0, 0)
+    assert r.referee_status == "FINISHED"
+    assert r.evaluation_end_reason == "UNKNOWN"  # unset until derived by the runner
+    # New-style construction carries both explicitly.
+    r2 = EvalResult(1, "RUNNING", False, 0, 1, None, None, 0, 0, 0, 0, 0,
+                    referee_status="RUNNING", evaluation_end_reason="TIME_LIMIT")
+    assert r2.referee_status == "RUNNING" and r2.evaluation_end_reason == "TIME_LIMIT"
+
+
+def test_summary_reports_end_reason_breakdown():
+    report = EvalReport(track="t", label="x")
+    report.results = [
+        EvalResult(0, "FINISHED", True, 1, 1, 1.0, 1.0, 0, 0, 0, 0, 0,
+                   referee_status="FINISHED", evaluation_end_reason="FINISHED"),
+        EvalResult(1, "RUNNING", False, 0, 1, None, None, 0, 0, 0, 0, 0,
+                   referee_status="RUNNING", evaluation_end_reason="TIME_LIMIT"),
+    ]
+    s = report.summary()
+    assert s["end_reason_counts"] == {"FINISHED": 1, "TIME_LIMIT": 1}
+    assert s["referee_status_counts"] == {"FINISHED": 1, "RUNNING": 1}
+
+
+def test_evaluate_populates_end_reason_from_referee(tmp_path):
+    # A real fallback run: the rule controller finishes or times out; either way the
+    # per-seed row carries a referee_status and a documented evaluation_end_reason.
+    report = evaluate_controller(
+        STAGE1, _rule_factory, seeds=[0], adapter="fallback", allow_fallback=True, duration_s=3.0
+    )
+    r = report.results[0]
+    assert r.referee_status == r.status
+    assert r.evaluation_end_reason in EVALUATION_END_REASONS
+    # Consistency: a FINISHED referee status must map to a FINISHED end reason.
+    if r.referee_status == "FINISHED":
+        assert r.evaluation_end_reason == "FINISHED"
 
 
 def test_evaluation_seeds_are_independent_runs():

@@ -20,6 +20,11 @@ ACTION_DIM = len(ACTION_AXES)
 ACTION_LOW = -1.0
 ACTION_HIGH = 1.0
 
+# Bumped when the action axes or their range change; recorded alongside the
+# observation-encoding version in run/eval manifests so a model is never resumed
+# or evaluated against an incompatible action contract.
+ACTION_CONTRACT_VERSION = "surge_sway_heave_yaw_pm1_v1"
+
 # --- LocalCourseTracker phases (mirror of the controller-side constants) -------
 # Duplicated here as plain strings so the encoding layout is stable and does not
 # import controller internals; a test cross-checks these against the tracker.
