@@ -346,9 +346,17 @@ class PersistentRaceSession:
     ``reset_benchmark``). Intended for training throughput, not for the frozen
     correctness evaluations.
 
-    Note: the visual gates spawned into the engine persist across ``env.reset`` for the
-    validated Stage-1 case; re-seeded beacon noise is a no-op on noise-free training
-    tracks. For tracks with beacon noise, prefer fresh reset until validated there.
+    Known limitations (persistent reset is experimental and NOT the recommended PPO
+    mode -- fresh reset is the default everywhere):
+      * The trailing ``adapter.reset()`` that restarts the clock also restores the
+        spawn pose, so it UNDOES a preceding teleport. Persistent reset therefore
+        cannot reliably apply start-pose randomization; ``reset_episode`` refuses a
+        non-trivial ``start_randomization`` rather than silently ignoring it.
+      * Per-episode beacon noise is not re-seeded here (the arena beacon manager is
+        reused), so beacon-noise randomization is not applied in persistent mode.
+      * The initial observation is not bit-identical to a fresh reset (see the reset
+        benchmark). Use the fresh-reset :class:`RaceEpisode` for any correctness
+        evaluation, or any randomized/noisy track.
     """
 
     def __init__(
@@ -394,17 +402,25 @@ class PersistentRaceSession:
         rotation = base.rotation_rpy_deg
         self.last_reset_applied_randomization = None
         if start_randomization is not None and not start_randomization.is_noop():
-            from marine_race_arena.learning.randomization import apply_start_randomization
-
-            _, position, rotation, self.last_reset_applied_randomization = apply_start_randomization(
-                ctx.config, position, rotation, start_randomization, seed
+            # The trailing reset below restores the spawn pose (undoing the teleport)
+            # and beacon noise is not re-seeded here, so a randomized start would be
+            # silently dropped. Refuse rather than mislead; use fresh RaceEpisode.
+            raise NotImplementedError(
+                "PersistentRaceSession cannot reliably apply start randomization: the engine "
+                "reset that restarts the clock also restores the spawn pose (undoing the "
+                "teleport), and per-episode beacon noise is not re-seeded here. Use the "
+                "fresh-reset RaceEpisode for any randomized or noisy evaluation."
             )
 
-        # Reset the engine to its spawn state, then teleport to the (new) start pose.
+        # Reset the engine to its spawn state, then teleport to the start pose.
+        # NOTE: the second reset (below) is what restarts the clock at 0, and it also
+        # restores the spawn pose -- which is why a randomized teleport is not supported
+        # here (guarded above). For the noise-free, yaw-0 Stage-1 case the start pose IS
+        # the spawn pose, so teleport and the trailing reset are both no-ops.
         ctx.adapter.reset()
         ctx.adapter.teleport_participant(pid, position, rotation)
         ctx.adapter.step(self.dt)  # let the teleport settle and refresh sensors
-        ctx.adapter.reset()        # clear the transient tick so time restarts at 0
+        ctx.adapter.reset()        # restart the clock at 0 (also restores spawn pose)
 
         # Fresh referee for the new episode (arena geometry is reused).
         self._referee = Referee(ctx.config, ctx.arena.gate_map, ctx.arena.bounds, logger=None)

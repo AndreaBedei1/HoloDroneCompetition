@@ -103,7 +103,8 @@ def main(seeds=(2000, 2001, 2002), rollout_steps: int = 8) -> int:
         "known_limitations": [
             "Validated only on the noise-free Stage-1 track with yaw-0 base start.",
             "Persistent reset re-uses the arena beacon manager; on tracks with beacon noise the per-episode noise stream differs from fresh reset until separately validated.",
-            "Frozen correctness evaluations use fresh reset; persistent reset is for training throughput only.",
+            "The trailing engine reset (which restarts the clock) also restores the spawn pose, so it undoes a preceding teleport. PersistentRaceSession.reset_episode therefore refuses a non-trivial start_randomization; randomized/noisy starts require fresh reset.",
+            "Frozen correctness evaluations use fresh reset; persistent reset is for training throughput only and is NOT the recommended PPO mode.",
         ],
         "packages": package_versions(),
     }

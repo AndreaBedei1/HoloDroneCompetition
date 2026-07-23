@@ -20,12 +20,18 @@ teleports the vehicle. Measured on the Stage-1 track, real HoloOcean, 3 seeds
 
 ## Recommendation
 
-- **Frozen correctness evaluations (Evaluation A/B) use fresh reset** — the initial
-  observation is guaranteed identical to a normal run.
-- **Persistent reset is a promising 2.3× training speedup** but is **experimental and
-  not yet bit-equivalent** on the first observation frame. Use it for PPO *training*
-  throughput only after accepting that first-frame perception can differ; keep fresh
-  reset for anything that must match the benchmark exactly.
+- **Fresh reset is the default everywhere, including the PPO smokes.** Frozen
+  correctness evaluations (Evaluation A/B) use fresh reset — the initial observation is
+  guaranteed identical to a normal run.
+- **Persistent reset is experimental and is NOT the recommended PPO mode.** It is a
+  promising 2.3× training speedup but is **not yet bit-equivalent** on the first
+  observation frame, and it has two further limitations found on inspection:
+  - The trailing engine reset that restarts the clock also **restores the spawn pose**,
+    undoing a preceding teleport. `PersistentRaceSession.reset_episode` therefore
+    **refuses a non-trivial `start_randomization`** rather than silently dropping it.
+  - Per-episode **beacon noise is not re-seeded** in persistent mode (the arena beacon
+    manager is reused).
+  Use fresh reset for anything randomized, noisy, or that must match the benchmark.
 - Validated only on the noise-free, yaw-0 Stage-1 track. On tracks with beacon noise
   or non-zero start yaw, re-validate before use (the persistent path re-uses the arena
   beacon manager). This limitation is recorded in `reset_benchmark.json`.
