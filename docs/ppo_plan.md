@@ -39,7 +39,8 @@ Run each stage and inspect before continuing. **Never claim convergence from rew
 curves** — advancement is judged only by held-out completion under the unchanged referee.
 
 1. **1,000-step smoke** (~8 min): confirm reward components, action ranges, resets and
-   simulator stability. No performance claim.
+   simulator stability. No performance claim. **Done this pass** (both arms; see
+   `results/rl_public/stage1/ppo_smoke/`).
 2. **5,000-step diagnostic** (~20 min): inspect the reward-component and eval CSVs; check
    the policy is not collapsing to a saturated action. Continue only if held-out
    completion trends upward.
@@ -49,33 +50,76 @@ curves** — advancement is judged only by held-out completion under the unchang
 
 Run **two arms** and compare on identical held-out seeds:
 
-- **PPO from scratch** — control.
-- **BC-initialized PPO** — warm-started from `results/rl/stage1/bc_rand_combined/best_model.pt`
-  via the verified exact normalization-aware transfer (`bc_model_path=...`).
+- **PPO from scratch** — control (SB3-default exploration).
+- **BC-initialized PPO** — warm-started from the committed public BC model
+  `results/rl_public/stage1/bc/model/best_model.pt` via the verified exact
+  normalization-aware transfer, with a **safe per-axis exploration std** derived from the
+  BC validation residuals (clamped to `[0.05, 0.15]`; see `bc_ppo_init.py`).
 
-Each run writes to `results/rl/stage1/ppo/<arm>/<timestamp>/` with full provenance
-(`run_config.json`, `environment.json`, `reproduce.txt`); resume is supported and the
-best model is kept by held-out completion (not training reward). Optionally use
-`PersistentRaceSession` for training throughput (experimental; see the reset benchmark).
+Both arms use the same track, seeds, reward and conservative PPO config; only the BC-init
+arm applies the warm-start. Each run writes to
+`results/rl/stage1/ppo_<arm>/<timestamp>/` with full provenance (`run_config.json`,
+`action_std.json`, `environment.json`, `reproduce.txt`), a **timestep-zero** held-out
+evaluation before training, resume support, and best-model selection by held-out
+completion (not training reward). **Fresh reset only** — persistent reset stays
+experimental (see the reset benchmark).
 
-## Exact next command (BC-initialized PPO, 1k smoke)
+## Run it (no hand-written Python needed)
+
+The 1,000-step smoke is launched with one command (or the Windows scripts in `scripts/`);
+see `docs/rl_quickstart.md`:
 
 ```bash
-conda activate marine_race_rl
-python - <<'PY'
-from marine_race_arena.learning.train_workflow import run_ppo_training
-run_ppo_training(
-    "marine_race_arena/tracks/training/stage1_single_gate.json",
-    stage="stage1", algorithm="ppo_bcinit",
-    total_timesteps=1000, train_seed=0, eval_seeds=[1200, 1201, 1202, 1203, 1204],
-    output_root="results/rl",
-    env_kwargs=dict(adapter="holoocean", allow_fallback=False, max_steps=400, dt=0.1),
-    hidden_sizes=(256, 256), checkpoint_freq=500, eval_freq=1000,
-    ppo_kwargs=dict(n_steps=1000, batch_size=100, n_epochs=5),
-    bc_model_path="results/rl/stage1/bc_rand_combined/best_model.pt",
-)
-PY
+conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit  --steps 1000
+conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch --steps 1000
 ```
 
-Use fresh seeds (e.g. 1200+) disjoint from all evaluation seeds. From-scratch control:
-drop `bc_model_path` and set `algorithm="ppo_scratch"`.
+## 1k smoke result (this pass)
+
+Both 1,000-step arms were run on real HoloOcean (no fallback), dev seeds 1200–1204.
+Compact results: `results/rl_public/stage1/ppo_smoke/`. These are **plumbing smokes, not
+convergence** — no superiority claim.
+
+| | BC-init | Scratch |
+| --- | --- | --- |
+| Timestep-zero held-out completion | **1.00** (warm-start = BC baseline) | 0.00 (untrained) |
+| Completion after 1,000 steps | 1.00 | 0.00 (1k ≪ convergence) |
+| Final-policy action saturation (sampled) | **0.00** (std floored at 0.05) | 0.33 (SB3 default std ≈ 1.0) |
+
+The BC-init timestep-zero completion matched the BC baseline (warm-start intact and not
+destroyed by the first updates); the near-zero action saturation vs. the scratch arm's
+0.33 is exactly the effect the safe warm-start is designed to produce. Resume of the
+BC-init run to 1,500 steps was verified (eval history appended, timestep-0 not
+duplicated, best model preserved).
+
+## Prepared next-stage commands (NOT run automatically)
+
+Advance only if the gates below hold. Seeds 1200–1204 are **development** seeds; do not
+use them as final test seeds.
+
+**5,000-step diagnostics** (run both, compare on the dev seeds):
+
+```bash
+conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit  --steps 5000
+conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch --steps 5000
+```
+
+**10,000-step pilots** (prepare only; run only if the 5k diagnostic improves held-out
+completion or another justified metric):
+
+```bash
+conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit  --steps 10000
+conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch --steps 10000
+```
+
+Advance from 5k → 10k → longer **only if all** hold: no crashes; no NaN; no manifest
+mismatch; action saturation stays low; approx-KL stays acceptable; best-model selection
+works; the BC-init warm-start has not catastrophically collapsed. A 50,000-step launcher
+is **deliberately not provided** as a default action.
+
+## Final scientific evaluation
+
+The final comparison must use **new, unseen seeds** — e.g. a range such as `1300–1349`
+(confirm they are disjoint from every seed used in demos/dev/frozen A-B before using
+them) — evaluated with `closed_loop_eval` under the unchanged referee, on both the fixed
+and randomized start conditions.

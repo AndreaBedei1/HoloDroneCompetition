@@ -1,0 +1,15 @@
+{
+  "source": "last row of evaluation/eval.csv",
+  "timesteps": "1000",
+  "completion_rate": "1.0",
+  "mean_gates": "1.0",
+  "mean_collisions": "0.0",
+  "mean_time_finished": "10.280000000000001",
+  "best_checkpoint": {
+    "timesteps": 0,
+    "completion_rate": 1.0,
+    "mean_gates": 1.0,
+    "mean_collisions": 0.0,
+    "mean_time_finished": 9.8
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "stage": "stage1",
+  "algorithm": "ppo_bcinit",
+  "track": "marine_race_arena/tracks/training/stage1_single_gate.json",
+  "total_timesteps": 1000,
+  "hidden_sizes": [
+    256,
+    256
+  ],
+  "train_seed": 0,
+  "checkpoint_freq": 500,
+  "eval_freq": 1000,
+  "bc_initialized": true,
+  "resuming": false,
+  "ppo_kwargs": {
+    "learning_rate": 5e-05,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "ent_coef": 0.0,
+    "target_kl": 0.01,
+    "clip_range": 0.1,
+    "n_steps": 500,
+    "batch_size": 100,
+    "n_epochs": 2,
+    "device": "cpu"
+  },
+  "env_kwargs": {
+    "adapter": "holoocean",
+    "allow_fallback": false,
+    "max_steps": 200,
+    "dt": 0.1
+  },
+  "obs_dim": 36,
+  "action_dim": 4,
+  "obs_encoding_version": "onboard_only_v1",
+  "action_contract_version": "surge_sway_heave_yaw_pm1_v1",
+  "bc_action_std_config": {
+    "mode": "from_validation",
+    "std_min": 0.05,
+    "std_max": 0.15,
+    "log_std_fallback": -2.5
+  },
+  "bc_report_path": "results/rl_public/stage1/bc/bc_report.json",
+  "action_std": {
+    "mode": "from_validation",
+    "source": "bc_validation_residual",
+    "std_min": 0.05,
+    "std_max": 0.15,
+    "log_std_fallback": -2.5,
+    "std_per_axis": {
+      "surge": 0.05000000074505806,
+      "sway": 0.05000000074505806,
+      "heave": 0.05000000074505806,
+      "yaw": 0.05000000074505806
+    },
+    "log_std_per_axis": {
+      "surge": -2.995732307434082,
+      "sway": -2.995732307434082,
+      "heave": -2.995732307434082,
+      "yaw": -2.995732307434082
+    },
+    "per_axis_source": {
+      "surge": "validation_residual",
+      "sway": "validation_residual",
+      "heave": "validation_residual",
+      "yaw": "validation_residual"
+    },
+    "bc_report_path": "results\\rl_public\\stage1\\bc\\bc_report.json",
+    "bc_report_sha256": "976224dd5f735cb8217c6b7e43315d83138110cffdecc7e60aafe67f41d5c798",
+    "bc_model_path": "results/rl_public/stage1/bc/model/best_model.pt",
+    "bc_model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "timesteps": 0,
+  "phase": "timestep_zero",
+  "deterministic": true,
+  "bc_initialized": false,
+  "model_initialization_source": "scratch_sb3_default",
+  "eval_seeds": [
+    1200,
+    1201,
+    1202,
+    1203,
+    1204
+  ],
+  "action_std": {
+    "mode": "scratch",
+    "source": "sb3_default",
+    "note": "PPO-from-scratch keeps Stable-Baselines3's default log_std (~1.0 std)."
+  },
+  "completion_rate": 0.0,
+  "mean_gates": 0.0,
+  "mean_collisions": 0.0,
+  "mean_out_of_bounds": 0.0,
+  "mean_wrong_direction": 0.0,
+  "mean_time_finished": null
+}

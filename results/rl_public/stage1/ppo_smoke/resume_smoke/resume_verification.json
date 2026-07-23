@@ -1,0 +1,21 @@
+{
+  "run_dir": "results\\rl\\stage1\\ppo_bcinit\\20260724_002744",
+  "resumed": true,
+  "final_num_timesteps": 1500,
+  "eval_history_rows": 3,
+  "timestep_zero_rows": 1,
+  "no_duplicate_timestep_zero": true,
+  "best_metrics": {
+    "timesteps": 0,
+    "completion_rate": 1.0,
+    "mean_gates": 1.0,
+    "mean_collisions": 0.0,
+    "mean_time_finished": 10.06
+  },
+  "timesteps_present": [
+    0,
+    1000,
+    1500
+  ],
+  "note": "Resume continued the same run: timestep-zero row not duplicated; eval history appended."
+}

@@ -1,0 +1,31 @@
+# Reproduce this PPO run. Machine-specific paths are variables below.
+# commit: 6bb9ca0ec22b3147dc33681a99a9874556baf917
+# git checkout 6bb9ca0ec22b3147dc33681a99a9874556baf917
+# conda activate marine_race_rl
+# adapter=holoocean  fallback_allowed=False  obs_encoding=onboard_only_v1  bc_initialized=False
+python - <<'PY'
+import os
+from marine_race_arena.learning.train_workflow import run_ppo_training
+from marine_race_arena.learning.reward import RewardConfig
+
+# --- machine-specific variables (edit these) ---
+OUTPUT_ROOT = os.environ.get('MARINE_RACE_REPRODUCE_ROOT', 'results/rl')
+
+reward_config = RewardConfig(**{'progress_scale': 1.0, 'alignment_scale': 0.5, 'heading_scale': 0.1, 'gate_bonus': 10.0, 'completion_bonus': 50.0, 'time_cost': 0.02, 'collision_penalty': 5.0, 'obstacle_penalty': 5.0, 'out_of_bounds_penalty': 10.0, 'missed_gate_penalty': 5.0, 'wrong_direction_penalty': 5.0, 'stuck_penalty': 15.0, 'dnf_penalty': 20.0, 'timeout_penalty': 10.0, 'stuck_terminal_penalty': 15.0, 'action_change_penalty': 0.05, 'action_magnitude_penalty': 0.0})
+env_kwargs = {'adapter': 'holoocean', 'allow_fallback': False, 'max_steps': 200, 'dt': 0.1}
+
+run_ppo_training(
+    'marine_race_arena/tracks/training/stage1_single_gate.json',
+    stage='stage1', algorithm='ppo_scratch',
+    total_timesteps=1000, train_seed=0,
+    eval_seeds=[1200, 1201, 1202, 1203, 1204],
+    output_root=OUTPUT_ROOT,
+    hidden_sizes=[256, 256],
+    checkpoint_freq=500, eval_freq=1000,
+    reward_config=reward_config, env_kwargs=env_kwargs,
+    ppo_kwargs={'learning_rate': 5e-05, 'gamma': 0.99, 'gae_lambda': 0.95, 'ent_coef': 0.0, 'target_kl': 0.01, 'clip_range': 0.1, 'n_steps': 500, 'batch_size': 100, 'n_epochs': 2, 'device': 'cpu'},
+)
+PY
+
+# To RESUME this exact run instead of starting fresh, add to the call above:
+#     run_dir='results\\rl\\stage1\\ppo_scratch\\20260724_004200', resume=True

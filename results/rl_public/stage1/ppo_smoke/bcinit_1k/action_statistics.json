@@ -1,0 +1,62 @@
+{
+  "initial_action_std": {
+    "mode": "from_validation",
+    "source": "bc_validation_residual",
+    "std_min": 0.05,
+    "std_max": 0.15,
+    "log_std_fallback": -2.5,
+    "std_per_axis": {
+      "surge": 0.05000000074505806,
+      "sway": 0.05000000074505806,
+      "heave": 0.05000000074505806,
+      "yaw": 0.05000000074505806
+    },
+    "log_std_per_axis": {
+      "surge": -2.995732307434082,
+      "sway": -2.995732307434082,
+      "heave": -2.995732307434082,
+      "yaw": -2.995732307434082
+    },
+    "per_axis_source": {
+      "surge": "validation_residual",
+      "sway": "validation_residual",
+      "heave": "validation_residual",
+      "yaw": "validation_residual"
+    },
+    "bc_report_path": "results\\rl_public\\stage1\\bc\\bc_report.json",
+    "bc_report_sha256": "976224dd5f735cb8217c6b7e43315d83138110cffdecc7e60aafe67f41d5c798",
+    "bc_model_path": "results/rl_public/stage1/bc/model/best_model.pt",
+    "bc_model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3"
+  },
+  "training_log_metrics": {
+    "approx_kl": 0.124945946,
+    "entropy_loss": 6.307175159454346,
+    "clip_fraction": 0.3400000035762787,
+    "explained_variance": 0.050324320793151855,
+    "policy_gradient_loss": 0.03353994205594191,
+    "value_loss": 3.3694602251052856,
+    "policy_std_mean": 0.049999989569187164,
+    "loss": 2.059469699859619
+  },
+  "final_per_axis_exploration_std": {
+    "surge": 0.049995213747024536,
+    "sway": 0.0500035397708416,
+    "heave": 0.049995869398117065,
+    "yaw": 0.050004780292510986
+  },
+  "sampled_action_mean_per_axis": {
+    "surge": 0.08484412729740143,
+    "sway": 0.009945948608219624,
+    "heave": 0.004789023194462061,
+    "yaw": 0.04131646454334259
+  },
+  "sampled_action_std_per_axis": {
+    "surge": 0.11227379739284515,
+    "sway": 0.06741531938314438,
+    "heave": 0.08791644126176834,
+    "yaw": 0.06434039771556854
+  },
+  "sampled_action_saturation_frac": 0.0,
+  "all_actions_finite": true,
+  "note": "Statistics sampled from the FINAL policy on random in-range observations (not a HoloOcean rollout); characterizes exploration width and saturation."
+}
