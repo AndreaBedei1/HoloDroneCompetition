@@ -16,12 +16,80 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from marine_race_arena.learning.config import ACTION_AXES, FEATURE_NAMES, OBS_DIM, OBS_ENCODING_VERSION
+from marine_race_arena.learning.config import (
+    ACTION_AXES,
+    ACTION_CONTRACT_VERSION,
+    FEATURE_NAMES,
+    OBS_DIM,
+    OBS_ENCODING_VERSION,
+)
 from marine_race_arena.learning.curriculum import STAGE2_RANDOMIZATION
+from marine_race_arena.learning.evaluate_policy import derive_evaluation_end_reason
 from marine_race_arena.learning.provenance import git_sha, now_utc, package_versions, sha256_file
 
 RL = Path("results/rl/stage1")
 PUB = Path("results/rl_public/stage1")
+
+# Commits at which the underlying artifacts were physically generated / first published.
+# These are historical facts and are preserved so a later verification pass never
+# masquerades as a re-measurement (see docs/rl_progress.md and git history).
+ARTIFACT_GENERATED_AT_COMMIT = "505ee6b"   # frozen fixed/randomized 50-seed evaluations measured
+ARTIFACT_PUBLISHED_AT_COMMIT = "63e544d"   # compact public package first written
+
+# The committed, directly-inspectable public BC model (relative POSIX path so the
+# reproduction command works after a fresh clone on any platform).
+PUBLIC_MODEL_REL = "results/rl_public/stage1/bc/model/best_model.pt"
+
+
+def _annotate_end_reasons(results: List[Dict]) -> List[Dict]:
+    """Add ``referee_status`` + ``evaluation_end_reason`` to compact rows that predate
+    the schema.
+
+    This is a *schema annotation derived from the existing frozen measurement*
+    (the recorded referee status), NOT a newly measured physical trajectory. Numeric
+    measurements are copied through unchanged.
+    """
+    annotated: List[Dict] = []
+    for r in results:
+        if "evaluation_end_reason" in r and "referee_status" in r:
+            annotated.append(dict(r))
+            continue
+        status = r.get("status")
+        row: Dict = {}
+        inserted = False
+        for k, v in r.items():
+            row[k] = v
+            if k == "status":
+                row["referee_status"] = r.get("referee_status", status)
+                row["evaluation_end_reason"] = r.get("evaluation_end_reason", derive_evaluation_end_reason(status))
+                inserted = True
+        if not inserted:
+            row["referee_status"] = r.get("referee_status", status)
+            row["evaluation_end_reason"] = r.get("evaluation_end_reason", derive_evaluation_end_reason(status))
+        annotated.append(row)
+    return annotated
+
+
+def _count(rows: List[Dict], key: str) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for r in rows:
+        val = r.get(key)
+        counts[val] = counts.get(val, 0) + 1
+    return counts
+
+
+def _artifact_provenance() -> Dict:
+    """Distinguish when the physical results were generated, first published, and
+    (re)verified — so a code-only verification pass is never read as a re-measurement."""
+    return {
+        "artifact_generated_at_commit": ARTIFACT_GENERATED_AT_COMMIT,
+        "artifact_published_at_commit": ARTIFACT_PUBLISHED_AT_COMMIT,
+        "verified_again_at_commit": git_sha(),
+        "note": ("Physical HoloOcean evaluations were NOT re-run when this package was refreshed; "
+                 "referee_status/evaluation_end_reason are schema annotations derived from the frozen "
+                 "referee status. verified_again_at_commit is the code HEAD at refresh time; the commit "
+                 "that stores this file is its descendant."),
+    }
 
 DEMO_DIRS = [RL / "demos_rand", RL / "demos_rand2"]
 BC_DIR = RL / "bc_rand_combined"
@@ -140,8 +208,14 @@ def build_dev_history_section() -> List[Dict]:
 
 
 def build_dev_evaluation_section() -> Dict:
-    results = _load(DEV_EVAL_DIR / "eval_results.json") or []
-    summary = _load(DEV_EVAL_DIR / "eval_summary.json") or {}
+    results = _annotate_end_reasons(_load(DEV_EVAL_DIR / "eval_results.json") or [])
+    summary = dict(_load(DEV_EVAL_DIR / "eval_summary.json") or {})
+    if results:
+        summary.setdefault("end_reason_counts", _count(results, "evaluation_end_reason"))
+        summary.setdefault("referee_status_counts", _count(results, "referee_status"))
+        summary["_schema_annotation"] = (
+            "referee_status/evaluation_end_reason are derived from the frozen referee status; "
+            "not a re-measured trajectory")
     _write(PUB / "evaluation" / "eval_results.json", results)
     _eval_to_csv(results, PUB / "evaluation" / "eval_results.csv")
     _write(PUB / "evaluation" / "eval_summary.json", summary)
@@ -200,7 +274,7 @@ def build_smoke_section() -> Dict:
 
 
 def build_reproduction_section(model_hash: Dict) -> None:
-    model_path = model_hash.get("source_path", str(MODEL))
+    source_path = model_hash.get("source_path", str(MODEL))
     (PUB / "reproduction").mkdir(parents=True, exist_ok=True)
     (PUB / "reproduction" / "reproduce_bc_training.txt").write_text(
         "# Reproduce the Stage-1 BC training (marine_race_rl env)\n"
@@ -218,23 +292,40 @@ def build_reproduction_section(model_hash: Dict) -> None:
         encoding="utf-8",
     )
     (PUB / "reproduction" / "reproduce_bc_evaluation.txt").write_text(
-        "# Reproduce the held-out closed-loop evaluation (marine_race_rl env)\n"
-        "# Fixed-start Stage-1 (Evaluation A), 50 held-out seeds:\n"
+        "# Reproduce the held-out closed-loop evaluation (marine_race_rl env).\n"
+        "# Uses the COMMITTED public BC model, so it works after a fresh clone.\n"
+        "#\n"
+        "# 1) Verify the committed model hash (fails loudly on mismatch):\n"
+        "python -c \"import json,hashlib,pathlib,sys; "
+        f"m=pathlib.Path('{PUBLIC_MODEL_REL}'); "
+        "h=json.load(open('results/rl_public/stage1/bc/model_hash.json')); "
+        "a=hashlib.sha256(m.read_bytes()).hexdigest(); "
+        "print('model sha256 OK', a) if a==h['sha256'] else sys.exit('MODEL HASH MISMATCH %s != %s'%(a,h['sha256']))\"\n"
+        "#\n"
+        "# 2) Fixed-start Stage-1 (Evaluation A), 50 held-out seeds:\n"
         "python -m marine_race_arena.learning.closed_loop_eval \\\n"
         "  --track marine_race_arena/tracks/training/stage1_single_gate.json \\\n"
-        f"  --seeds 1000-1049 --model {model_path} \\\n"
-        "  --out results/rl/stage1/eval_fixed_50 --adapter holoocean\n"
-        "# Randomized-start Stage-2 (Evaluation B), 50 disjoint held-out seeds:\n"
+        f"  --seeds 1000-1049 --model {PUBLIC_MODEL_REL} \\\n"
+        "  --out results/rl/stage1/eval_fixed_50_repro --adapter holoocean\n"
+        "#\n"
+        "# 3) Randomized-start Stage-2 (Evaluation B), 50 disjoint held-out seeds:\n"
         "python -m marine_race_arena.learning.closed_loop_eval \\\n"
         "  --track marine_race_arena/tracks/training/stage1_single_gate.json \\\n"
-        f"  --seeds 1100-1149 --model {model_path} \\\n"
-        "  --out results/rl/stage1/eval_randomized_50 --adapter holoocean --randomize\n",
+        f"  --seeds 1100-1149 --model {PUBLIC_MODEL_REL} \\\n"
+        "  --out results/rl/stage1/eval_randomized_50_repro --adapter holoocean --randomize\n"
+        "#\n"
+        f"# Provenance: the model was trained/evaluated from the git-ignored local copy\n"
+        f"#   {source_path}\n"
+        f"# The committed public copy ({PUBLIC_MODEL_REL}) is byte-identical (same sha256).\n",
         encoding="utf-8",
     )
     _write(PUB / "reproduction" / "environment.json", {
         "packages": package_versions(),
         "git_sha": git_sha(),
         "obs_encoding_version": OBS_ENCODING_VERSION,
+        "action_contract_version": ACTION_CONTRACT_VERSION,
+        "public_model_path": PUBLIC_MODEL_REL,
+        "provenance": _artifact_provenance(),
         "generated_utc": now_utc(),
     })
 
@@ -266,15 +357,23 @@ def build_frozen_evaluations() -> Dict[str, Dict]:
     verdicts: Dict[str, Dict] = {}
     for name, meta in FROZEN.items():
         src = meta["src"]
-        results = _load(src / "eval_results.json")
+        raw_results = _load(src / "eval_results.json")
         summary = _load(src / "eval_summary.json")
-        if results is None or summary is None:
+        if raw_results is None or summary is None:
             continue
+        results = _annotate_end_reasons(raw_results)
+        summary = dict(summary)
+        summary.setdefault("end_reason_counts", _count(results, "evaluation_end_reason"))
+        summary.setdefault("referee_status_counts", _count(results, "referee_status"))
+        summary["_schema_annotation"] = (
+            "referee_status/evaluation_end_reason are derived from the frozen referee status; "
+            "not a re-measured trajectory")
         _write(PUB / name / "eval_results.json", results)
         _eval_to_csv(results, PUB / name / "eval_results.csv")
         _write(PUB / name / "eval_summary.json", summary)
         failures = [
-            {k: r.get(k) for k in ("seed", "status", "completed_gates", "collision_events",
+            {k: r.get(k) for k in ("seed", "status", "referee_status", "evaluation_end_reason",
+                                   "completed_gates", "collision_events",
                                    "out_of_bounds_events", "wrong_direction_crossings", "applied_randomization")}
             for r in results if not r.get("finished")
         ]
@@ -284,8 +383,10 @@ def build_frozen_evaluations() -> Dict[str, Dict]:
             "n_eval": len(results),
             "failures": failures,
             "diagnosis": ("no failures" if not failures else
-                          "failures occur at near-maximum randomization offsets (large lateral + yaw); "
-                          "the policy drifts out of bounds at the extreme corners of the Stage-2 envelope"),
+                          "non-finished episodes end with referee_status=RUNNING and evaluation_end_reason=TIME_LIMIT "
+                          "(the race duration expired); they occur at near-maximum randomization offsets "
+                          "(large lateral + yaw) where the policy drifts out of bounds at the extreme corners "
+                          "of the Stage-2 envelope"),
             "mean_inference_ms": round(sum(inf) / len(inf), 3) if inf else None,
         })
         verdicts[name] = _stage_verdict(summary, meta["stage"])
@@ -302,6 +403,7 @@ def build_result_manifest(dataset_summary, model_hash, dev_eval, verdicts) -> Di
     manifest = {
         "generated_utc": now_utc(),
         "commit": git_sha(),
+        "provenance": _artifact_provenance(),
         "task": "Stage-1 single-gate behavioral cloning, real HoloOcean, unchanged referee",
         "model": {"path": model_hash.get("source_path"), **{k: model_hash.get(k) for k in ("filename", "bytes", "sha256")}},
         "dataset": {
@@ -322,6 +424,7 @@ def build_result_manifest(dataset_summary, model_hash, dev_eval, verdicts) -> Di
         "observation_dim": OBS_DIM,
         "observation_feature_names": list(FEATURE_NAMES),
         "action_contract": {"axes": list(ACTION_AXES), "range": [-1.0, 1.0]},
+        "action_contract_version": ACTION_CONTRACT_VERSION,
         "development_evaluation_combined_randomized": dev_eval,
         "frozen_evaluation_fixed_50": _frozen_eval_summary("evaluation_fixed_50"),
         "frozen_evaluation_randomized_50": _frozen_eval_summary("evaluation_randomized_50"),

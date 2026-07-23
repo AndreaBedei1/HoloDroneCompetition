@@ -30,5 +30,12 @@
     417,
     418,
     419
-  ]
+  ],
+  "end_reason_counts": {
+    "FINISHED": 20
+  },
+  "referee_status_counts": {
+    "FINISHED": 20
+  },
+  "_schema_annotation": "referee_status/evaluation_end_reason are derived from the frozen referee status; not a re-measured trajectory"
 }

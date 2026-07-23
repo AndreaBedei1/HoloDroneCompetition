@@ -8,7 +8,15 @@
     "stable_baselines3": null,
     "holoocean": "2.3.0"
   },
-  "git_sha": "63e544d605d884f177ae432f9f097275dad41049",
+  "git_sha": "6bb9ca0ec22b3147dc33681a99a9874556baf917",
   "obs_encoding_version": "onboard_only_v1",
-  "generated_utc": "2026-07-22T23:30:17Z"
+  "action_contract_version": "surge_sway_heave_yaw_pm1_v1",
+  "public_model_path": "results/rl_public/stage1/bc/model/best_model.pt",
+  "provenance": {
+    "artifact_generated_at_commit": "505ee6b",
+    "artifact_published_at_commit": "63e544d",
+    "verified_again_at_commit": "6bb9ca0ec22b3147dc33681a99a9874556baf917",
+    "note": "Physical HoloOcean evaluations were NOT re-run when this package was refreshed; referee_status/evaluation_end_reason are schema annotations derived from the frozen referee status. verified_again_at_commit is the code HEAD at refresh time; the commit that stores this file is its descendant."
+  },
+  "generated_utc": "2026-07-23T16:48:44Z"
 }

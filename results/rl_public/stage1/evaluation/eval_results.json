@@ -2,6 +2,8 @@
   {
     "seed": 400,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -15,6 +17,8 @@
   {
     "seed": 401,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -28,6 +32,8 @@
   {
     "seed": 402,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -41,6 +47,8 @@
   {
     "seed": 403,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -54,6 +62,8 @@
   {
     "seed": 404,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -67,6 +77,8 @@
   {
     "seed": 405,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -80,6 +92,8 @@
   {
     "seed": 406,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -93,6 +107,8 @@
   {
     "seed": 407,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -106,6 +122,8 @@
   {
     "seed": 408,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -119,6 +137,8 @@
   {
     "seed": 409,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -132,6 +152,8 @@
   {
     "seed": 410,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -145,6 +167,8 @@
   {
     "seed": 411,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -158,6 +182,8 @@
   {
     "seed": 412,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -171,6 +197,8 @@
   {
     "seed": 413,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -184,6 +212,8 @@
   {
     "seed": 414,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -197,6 +227,8 @@
   {
     "seed": 415,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -210,6 +242,8 @@
   {
     "seed": 416,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -223,6 +257,8 @@
   {
     "seed": 417,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -236,6 +272,8 @@
   {
     "seed": 418,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,
@@ -249,6 +287,8 @@
   {
     "seed": 419,
     "status": "FINISHED",
+    "referee_status": "FINISHED",
+    "evaluation_end_reason": "FINISHED",
     "finished": true,
     "completed_gates": 1,
     "expected_gates": 1,

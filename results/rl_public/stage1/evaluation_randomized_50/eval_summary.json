@@ -67,5 +67,14 @@
     1147,
     1148,
     1149
-  ]
+  ],
+  "end_reason_counts": {
+    "FINISHED": 48,
+    "TIME_LIMIT": 2
+  },
+  "referee_status_counts": {
+    "FINISHED": 48,
+    "RUNNING": 2
+  },
+  "_schema_annotation": "referee_status/evaluation_end_reason are derived from the frozen referee status; not a re-measured trajectory"
 }

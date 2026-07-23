@@ -1,6 +1,12 @@
 {
-  "generated_utc": "2026-07-22T23:30:17Z",
-  "commit": "63e544d605d884f177ae432f9f097275dad41049",
+  "generated_utc": "2026-07-23T16:48:44Z",
+  "commit": "6bb9ca0ec22b3147dc33681a99a9874556baf917",
+  "provenance": {
+    "artifact_generated_at_commit": "505ee6b",
+    "artifact_published_at_commit": "63e544d",
+    "verified_again_at_commit": "6bb9ca0ec22b3147dc33681a99a9874556baf917",
+    "note": "Physical HoloOcean evaluations were NOT re-run when this package was refreshed; referee_status/evaluation_end_reason are schema annotations derived from the frozen referee status. verified_again_at_commit is the code HEAD at refresh time; the commit that stores this file is its descendant."
+  },
   "task": "Stage-1 single-gate behavioral cloning, real HoloOcean, unchanged referee",
   "model": {
     "path": "results\\rl\\stage1\\bc_rand_combined\\best_model.pt",
@@ -116,6 +122,7 @@
       1.0
     ]
   },
+  "action_contract_version": "surge_sway_heave_yaw_pm1_v1",
   "development_evaluation_combined_randomized": {
     "controller": "rl_gate_controller",
     "model": "results/rl/stage1/bc_rand_combined/best_model.pt",
@@ -148,7 +155,14 @@
       417,
       418,
       419
-    ]
+    ],
+    "end_reason_counts": {
+      "FINISHED": 20
+    },
+    "referee_status_counts": {
+      "FINISHED": 20
+    },
+    "_schema_annotation": "referee_status/evaluation_end_reason are derived from the frozen referee status; not a re-measured trajectory"
   },
   "frozen_evaluation_fixed_50": {
     "controller": "rl_gate_controller",
@@ -219,7 +233,14 @@
       1047,
       1048,
       1049
-    ]
+    ],
+    "end_reason_counts": {
+      "FINISHED": 50
+    },
+    "referee_status_counts": {
+      "FINISHED": 50
+    },
+    "_schema_annotation": "referee_status/evaluation_end_reason are derived from the frozen referee status; not a re-measured trajectory"
   },
   "frozen_evaluation_randomized_50": {
     "controller": "rl_gate_controller",
@@ -290,7 +311,16 @@
       1147,
       1148,
       1149
-    ]
+    ],
+    "end_reason_counts": {
+      "FINISHED": 48,
+      "TIME_LIMIT": 2
+    },
+    "referee_status_counts": {
+      "FINISHED": 48,
+      "RUNNING": 2
+    },
+    "_schema_annotation": "referee_status/evaluation_end_reason are derived from the frozen referee status; not a re-measured trajectory"
   },
   "stage_verdicts": {
     "evaluation_fixed_50": {

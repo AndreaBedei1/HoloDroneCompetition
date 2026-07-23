@@ -1,11 +1,21 @@
-# Reproduce the held-out closed-loop evaluation (marine_race_rl env)
-# Fixed-start Stage-1 (Evaluation A), 50 held-out seeds:
+# Reproduce the held-out closed-loop evaluation (marine_race_rl env).
+# Uses the COMMITTED public BC model, so it works after a fresh clone.
+#
+# 1) Verify the committed model hash (fails loudly on mismatch):
+python -c "import json,hashlib,pathlib,sys; m=pathlib.Path('results/rl_public/stage1/bc/model/best_model.pt'); h=json.load(open('results/rl_public/stage1/bc/model_hash.json')); a=hashlib.sha256(m.read_bytes()).hexdigest(); print('model sha256 OK', a) if a==h['sha256'] else sys.exit('MODEL HASH MISMATCH %s != %s'%(a,h['sha256']))"
+#
+# 2) Fixed-start Stage-1 (Evaluation A), 50 held-out seeds:
 python -m marine_race_arena.learning.closed_loop_eval \
   --track marine_race_arena/tracks/training/stage1_single_gate.json \
-  --seeds 1000-1049 --model results\rl\stage1\bc_rand_combined\best_model.pt \
-  --out results/rl/stage1/eval_fixed_50 --adapter holoocean
-# Randomized-start Stage-2 (Evaluation B), 50 disjoint held-out seeds:
+  --seeds 1000-1049 --model results/rl_public/stage1/bc/model/best_model.pt \
+  --out results/rl/stage1/eval_fixed_50_repro --adapter holoocean
+#
+# 3) Randomized-start Stage-2 (Evaluation B), 50 disjoint held-out seeds:
 python -m marine_race_arena.learning.closed_loop_eval \
   --track marine_race_arena/tracks/training/stage1_single_gate.json \
-  --seeds 1100-1149 --model results\rl\stage1\bc_rand_combined\best_model.pt \
-  --out results/rl/stage1/eval_randomized_50 --adapter holoocean --randomize
+  --seeds 1100-1149 --model results/rl_public/stage1/bc/model/best_model.pt \
+  --out results/rl/stage1/eval_randomized_50_repro --adapter holoocean --randomize
+#
+# Provenance: the model was trained/evaluated from the git-ignored local copy
+#   results\rl\stage1\bc_rand_combined\best_model.pt
+# The committed public copy (results/rl_public/stage1/bc/model/best_model.pt) is byte-identical (same sha256).

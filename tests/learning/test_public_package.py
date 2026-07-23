@@ -102,3 +102,49 @@ def test_no_heavy_binaries_committed():
         if p.is_file():
             assert p.suffix not in (".zip", ".npz", ".npy", ".mp4"), f"heavy binary in package: {p}"
             assert p.stat().st_size <= 30 * 1024 * 1024
+
+
+def test_reproduction_uses_committed_model_with_hash_check():
+    """The public reproduction must point at the committed model and verify its hash,
+    so it works after a fresh clone (S4)."""
+    txt = (PUB / "reproduction" / "reproduce_bc_evaluation.txt").read_text(encoding="utf-8")
+    committed = "results/rl_public/stage1/bc/model/best_model.pt"
+    assert committed in txt
+    # the executable --model arguments must reference the committed model, not the git-ignored copy
+    for line in txt.splitlines():
+        if "--model" in line:
+            assert committed in line
+            assert "bc_rand_combined" not in line  # never the git-ignored source path
+    # a hash-verification step is present
+    assert "model_hash.json" in txt and "sha256" in txt.lower()
+
+
+def test_manifest_has_provenance_triplet():
+    """S6: distinguish generation / publication / verification commits without
+    claiming the physical evaluations were re-run."""
+    prov = _load("result_manifest.json")["provenance"]
+    for key in ("artifact_generated_at_commit", "artifact_published_at_commit", "verified_again_at_commit"):
+        assert prov.get(key)
+    assert "not" in prov["note"].lower() and "re-run" in prov["note"].lower().replace("rerun", "re-run")
+
+
+def test_public_rows_carry_end_reason_annotation():
+    """S2: every frozen row exposes referee_status + evaluation_end_reason; the two
+    randomized failures are RUNNING/TIME_LIMIT (schema annotation, not a re-measurement)."""
+    for name in ("evaluation_fixed_50", "evaluation_randomized_50"):
+        rows = json.loads((PUB / name / "eval_results.json").read_text(encoding="utf-8"))
+        for r in rows:
+            assert r["referee_status"] == r["status"]
+            assert r["evaluation_end_reason"] in (
+                "FINISHED", "REFEREE_TERMINAL", "TIME_LIMIT", "MAX_STEPS",
+                "CONTROLLER_ERROR", "MANUAL_STOP", "UNKNOWN")
+            if r["finished"]:
+                assert r["evaluation_end_reason"] == "FINISHED"
+    rand = json.loads((PUB / "evaluation_randomized_50" / "eval_results.json").read_text(encoding="utf-8"))
+    failures = [r for r in rand if not r["finished"]]
+    assert failures and all(r["evaluation_end_reason"] == "TIME_LIMIT" and r["referee_status"] == "RUNNING"
+                            for r in failures)
+    fa = _load("evaluation_randomized_50/failure_analysis.json")
+    assert all("evaluation_end_reason" in f for f in fa["failures"])
+    summ = _load("evaluation_randomized_50/eval_summary.json")
+    assert "_schema_annotation" in summ and "end_reason_counts" in summ

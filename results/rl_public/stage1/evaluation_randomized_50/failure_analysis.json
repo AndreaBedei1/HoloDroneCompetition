@@ -5,6 +5,8 @@
     {
       "seed": 1103,
       "status": "RUNNING",
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "TIME_LIMIT",
       "completed_gates": 0,
       "collision_events": 0,
       "out_of_bounds_events": 103,
@@ -27,6 +29,8 @@
     {
       "seed": 1139,
       "status": "RUNNING",
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "TIME_LIMIT",
       "completed_gates": 0,
       "collision_events": 0,
       "out_of_bounds_events": 21,
@@ -47,6 +51,6 @@
       }
     }
   ],
-  "diagnosis": "failures occur at near-maximum randomization offsets (large lateral + yaw); the policy drifts out of bounds at the extreme corners of the Stage-2 envelope",
+  "diagnosis": "non-finished episodes end with referee_status=RUNNING and evaluation_end_reason=TIME_LIMIT (the race duration expired); they occur at near-maximum randomization offsets (large lateral + yaw) where the policy drifts out of bounds at the extreme corners of the Stage-2 envelope",
   "mean_inference_ms": 42.199
 }
