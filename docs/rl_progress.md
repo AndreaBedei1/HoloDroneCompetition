@@ -39,9 +39,13 @@ next step. No gate geometry or referee margin was ever weakened. See *Training s
 | `dataset.py` | `BCDataset`: integrity checks, episode-level train/val split, npz IO. |
 | `bc_train.py` | `BCPolicy` (Tanh-MLP + linear head + obs norm) and `train_bc`. |
 | `rl_train.py` | PPO builder, **exact** BC→PPO weight transfer, `train_ppo`. |
-| `bc_ppo_init.py` | Safe stochastic warm-start: per-axis exploration `log_std` from BC residuals. |
-| `train_workflow.py` | Resumable PPO workflow: run metadata, timestep-zero eval, best-model, reproduce. |
-| `launch_stage1_ppo.py` | User-facing PPO launcher (safe defaults, hash checks, `--dry-run`, resume). |
+| `bc_ppo_init.py` | Action-std resolver: residual / fixed-scalar / per-axis / SB3-default warm-start. |
+| `ppo_monitor.py` | Per-update KL/saturation recorder + hard KL safety stop + run-status enum. |
+| `stage2_eval.py` | Rich Stage-2 eval (interior vs extreme-corner), robustness best-model rule, reward-component logging. |
+| `seed_registry.py` | Canonical seed registry; keeps development and reserved-final seeds disjoint. |
+| `extreme_corner_demos.py` | Prepare-only extreme-corner demonstration planner (`bc_extreme_corners_v2`). |
+| `train_workflow.py` | Resumable PPO workflow: run metadata, timestep-zero eval, KL monitor, best-model, reproduce. |
+| `launch_stage1_ppo.py` | PPO launcher: fair arms, KL-safe presets, fixed/randomized conditions, safety. |
 | `collect_demos.py` | Resumable demonstration collection with a full provenance manifest. |
 | `closed_loop_eval.py` | Held-out closed-loop eval with an `evaluation_manifest.json` resume gate. |
 | `rl_controller.py` | `RLGateController`: deployable `BaseController`, alias `rl_gate_controller`. |
@@ -208,7 +212,17 @@ the heavy raw datasets/checkpoints stay under the git-ignored `results/rl/`.
   1,500 steps was verified (eval history appended, timestep-0 not duplicated, best model
   preserved). No superiority claim from 1,000 steps; the staged 5k/10k plan and exact
   commands are in `docs/ppo_plan.md`, and the final evaluation must use new unseen seeds.
-- Convergence and the scientific BC-vs-scratch comparison remain the documented next step.
+- **KL-safe calibration + fair Stage-2 diagnostic (this pass).** The 1k smoke's update was
+  over-aggressive (approx_kl ≈ 0.125 vs target 0.01) and its scratch arm used SB3's ~1.0
+  default std (unfair vs BC-init 0.05). Now: a `kl_safe_v1` config (lr 1e-5, n_epochs 1,
+  clip 0.05, std 0.10) with a hard `max_acceptable_kl` stop and per-update KL logging; three
+  fair arms (`bcinit_controlled`, `scratch_controlled` sharing the same std, `scratch_default`
+  as an exploration diagnostic); a randomized Stage-2 condition (per-episode randomization
+  stream for training, explicit dev seeds 1410–1419 for eval); and rich interior/extreme-corner
+  robustness metrics with a robustness-first best-model rule. Seeds are registered
+  (`results/rl_public/seed_registry.json`); the reserved final ranges (1500–1599) stay untouched.
+- Convergence and the scientific BC-vs-scratch comparison remain the documented next step; the
+  5,000-step Stage-2 diagnostic results are published under `results/rl_public/stage2/`.
 
 ### Test coverage (measured, not copied)
 

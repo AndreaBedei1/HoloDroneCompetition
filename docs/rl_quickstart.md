@@ -75,10 +75,38 @@ Press **Ctrl+C** in the terminal running the script to stop only that run; the l
 closes the HoloOcean environment cleanly. **Do not** kill all Python/Unreal/HoloOcean
 processes — another project may be using them.
 
+## Stage-2 randomized diagnostic (KL-safe, fair arms)
+
+Stage 1 (fixed start) is **calibration only** — BC already solves it. The first meaningful
+learning target is the **randomized Stage-2** condition. The launcher supports it via
+`--condition randomized` and three fair arms:
+
+```bash
+# Stage-1 KL calibration (500 steps, fixed start) -- verify the update is KL-safe
+scripts\run_stage1_kl_calibration.bat
+# Stage-2 randomized 5,000-step diagnostics (dev seeds 1410-1419)
+scripts\run_stage2_ppo_bcinit_controlled_5k.bat      REM BC weights + controlled std (the warm-start)
+scripts\run_stage2_ppo_scratch_controlled_5k.bat     REM random weights + the SAME controlled std (fair)
+scripts\run_stage2_ppo_scratch_default_5k.bat         REM random weights + SB3 default std (exploration diagnostic)
+scripts\resume_stage2_ppo.bat results\rl\stage2\<run-directory> --steps 6000
+```
+
+- The **fair comparison** is `bcinit_controlled` vs `scratch_controlled` (identical
+  exploration std and hyperparameters; only the initial weights differ). `scratch_default`
+  is only an exploration-variance diagnostic — do not read it as proof about BC weights.
+- Every update's KL is recorded to `training/ppo_update_metrics.csv`; a hard
+  `max_acceptable_kl` (default 0.02) stops the run cleanly (exit code 3) and records
+  `run_status.json` = `ABORT_MAX_KL` (a KL safety stop is **not** a simulator failure).
+- Completion is split into **interior vs extreme-corner** (|lateral| ≥ 0.8 m and |yaw| ≥
+  12°) — where the frozen BC failed. Best-model selection prefers robustness over speed.
+- Compact results: `results/rl_public/stage2/ppo_diagnostic_5k/`.
+
 ## Notes
 
-- Development eval seeds are **1200–1204**. These are for checkpoint selection during the
-  smokes; the final scientific evaluation must use new, unseen seeds (see
+- Development eval seeds are **1200–1204** (Stage-1 smokes), **1400–1404** (Stage-1
+  calibration) and **1410–1419** (Stage-2 checkpoint selection); see
+  `results/rl_public/seed_registry.json`. The final scientific evaluation must use the
+  reserved unseen seeds **1500–1549 / 1550–1599**, which remain untouched (see
   `docs/ppo_plan.md`).
 - Persistent reset is experimental and **not** used here — see
   `results/rl_public/reset_benchmark/`.

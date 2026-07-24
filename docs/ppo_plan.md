@@ -92,30 +92,43 @@ destroyed by the first updates); the near-zero action saturation vs. the scratch
 BC-init run to 1,500 steps was verified (eval history appended, timestep-0 not
 duplicated, best model preserved).
 
-## Prepared next-stage commands (NOT run automatically)
+## Stage-2 randomized diagnostic (calibration + fair arms + KL-safe)
 
-Advance only if the gates below hold. Seeds 1200–1204 are **development** seeds; do not
-use them as final test seeds.
+The 1k smoke exposed an **over-aggressive PPO update** (approx_kl ≈ 0.125 with
+target_kl=0.01), and the earlier scratch arm was unfair (SB3 default std ≈ 1.0 vs the
+BC-init 0.05). Both are now addressed:
 
-**5,000-step diagnostics** (run both, compare on the dev seeds):
+1. **KL calibration (Stage-1 fixed, 500 steps).** BC already solves Stage 1, so this only
+   calibrates update stability. Config `kl_safe_v1`: `lr 1e-5, n_epochs 1, clip 0.05,
+   target_kl 0.01, action_std 0.10, max_acceptable_kl 0.02`. A config passes if
+   `run_status=COMPLETED`, `max approx_kl ≤ 0.02`, action saturation < 5%, completion stays
+   100%. Fall back to `kl_safe_v2` (lr 5e-6) or `kl_safe_v3` (std 0.075) only if needed.
+   ```bash
+   conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit_controlled --condition fixed --config kl_safe_v1 --steps 500
+   ```
+2. **Three fair arms** on the randomized Stage-2 condition (dev seeds 1410–1419):
+   ```bash
+   conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit_controlled  --condition randomized --steps 5000
+   conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch_controlled --condition randomized --steps 5000
+   conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch_default    --condition randomized --steps 5000
+   ```
+   The **primary comparison** is `bcinit_controlled` vs `scratch_controlled` (same std,
+   same hyperparameters; only the weights differ). `scratch_default` is an
+   exploration-variance diagnostic only.
 
-```bash
-conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit  --steps 5000
-conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch --steps 5000
-```
+Every update's KL/clip/entropy/std/saturation is logged to
+`training/ppo_update_metrics.csv`; a hard `max_acceptable_kl` stops the run cleanly with
+`run_status=ABORT_MAX_KL`. Completion is split **interior vs extreme-corner** (|lateral| ≥
+0.8 m, |yaw| ≥ 12°); best-model selection prefers robustness over speed. Never train,
+select or tune on the frozen 1100–1149 seeds or the reserved 1500–1599 final seeds.
 
-**10,000-step pilots** (prepare only; run only if the 5k diagnostic improves held-out
-completion or another justified metric):
-
-```bash
-conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm bcinit  --steps 10000
-conda run -n marine_race_rl python -m marine_race_arena.learning.launch_stage1_ppo --arm scratch --steps 10000
-```
-
-Advance from 5k → 10k → longer **only if all** hold: no crashes; no NaN; no manifest
-mismatch; action saturation stays low; approx-KL stays acceptable; best-model selection
-works; the BC-init warm-start has not catastrophically collapsed. A 50,000-step launcher
-is **deliberately not provided** as a default action.
+**Advance to 10,000 steps only if** the 5k diagnostic improves completion / extreme-corner
+completion / OOB robustness on the dev seeds, KL stays controlled, no saturation collapse,
+best-model selection works, and simulator+resume stay stable. A 50,000-step launcher is
+**deliberately not provided**. If BC-init stays robust in the interior but keeps failing
+extreme corners and PPO does not fix it, prepare corrective demonstrations with
+`marine_race_arena.learning.extreme_corner_demos` (prepare-only) → a BC-v2 → optional
+BC-v2→PPO warm-start.
 
 ## Final scientific evaluation
 
