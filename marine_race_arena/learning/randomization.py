@@ -57,6 +57,19 @@ def _uniform(rng, magnitude: float) -> float:
     return float(rng.uniform(-magnitude, magnitude))
 
 
+def sample_offsets(spec: StartRandomization, seed: int) -> Dict[str, float]:
+    """Body-frame start-pose offsets for ``seed`` (the exact stream
+    :func:`apply_start_randomization` uses). Lets tooling inspect a seed's perturbation
+    without constructing a track/adapter."""
+    rng = np.random.default_rng(np.random.SeedSequence([int(seed), _RANDOMIZATION_SALT]))
+    return {
+        "longitudinal_offset_m": _uniform(rng, spec.longitudinal_offset_m),
+        "lateral_offset_m": _uniform(rng, spec.lateral_offset_m),
+        "depth_offset_m": _uniform(rng, spec.depth_offset_m),
+        "yaw_offset_deg": _uniform(rng, spec.yaw_offset_deg),
+    }
+
+
 def apply_start_randomization(
     config: Any,
     position: Tuple[float, float, float],
@@ -69,12 +82,12 @@ def apply_start_randomization(
     ``config`` is returned unchanged unless a beacon-noise override is set, in which
     case a copy with the overridden ``beacon`` is returned (the input is frozen).
     """
-    rng = np.random.default_rng(np.random.SeedSequence([int(seed), _RANDOMIZATION_SALT]))
-    # Sample offsets in the vehicle's initial *body* frame.
-    d_longitudinal = _uniform(rng, spec.longitudinal_offset_m)  # along initial forward
-    d_lateral = _uniform(rng, spec.lateral_offset_m)            # along initial body-right/left
-    dz = _uniform(rng, spec.depth_offset_m)                     # vertical (world z)
-    dyaw = _uniform(rng, spec.yaw_offset_deg)                   # relative to initial yaw
+    # Sample offsets in the vehicle's initial *body* frame (same stream as sample_offsets).
+    offs = sample_offsets(spec, seed)
+    d_longitudinal = offs["longitudinal_offset_m"]  # along initial forward
+    d_lateral = offs["lateral_offset_m"]            # along initial body-right/left
+    dz = offs["depth_offset_m"]                     # vertical (world z)
+    dyaw = offs["yaw_offset_deg"]                   # relative to initial yaw
 
     # Rotate the body-frame (longitudinal, lateral) offset into the world frame using
     # the initial yaw. Project convention (matches the adapter body->world transform):

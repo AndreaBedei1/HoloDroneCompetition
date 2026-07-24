@@ -144,11 +144,11 @@ def test_timestep_zero_eval_and_action_std_for_bcinit(tmp_path):
 
 def test_scratch_arm_keeps_default_action_std(tmp_path):
     run_dir = tmp_path / "run"
-    _run(run_dir, total=32)  # no bc_policy -> scratch
+    _run(run_dir, total=32)  # no bc_policy -> scratch defaults to sb3_default std
     astd = json.loads((run_dir / "action_std.json").read_text(encoding="utf-8"))
-    assert astd["source"] == "sb3_default" and astd["mode"] == "scratch"
+    assert astd["source"] == "sb3_default" and astd["strategy"] == "sb3_default"
     init = json.loads((run_dir / "evaluation" / "initial_eval.json").read_text(encoding="utf-8"))
-    assert init["model_initialization_source"] == "scratch_sb3_default"
+    assert init["model_initialization_source"] == "sb3_default"
 
 
 def test_resume_does_not_duplicate_timestep_zero(tmp_path):
@@ -158,6 +158,60 @@ def test_resume_does_not_duplicate_timestep_zero(tmp_path):
     csv_text = (run_dir / "evaluation" / "eval.csv").read_text(encoding="utf-8").strip().splitlines()
     zero_rows = [ln for ln in csv_text[1:] if ln.split(",")[0] == "0"]
     assert len(zero_rows) == 1, "resume must not add a second timestep-zero row"
+
+
+def test_stage2_run_produces_monitor_and_rich_eval(tmp_path):
+    """A Stage-2 randomized fallback run wires the KL monitor, run_status, rich eval and
+    reward-component diagnostic together."""
+    from marine_race_arena.learning.curriculum import STAGE2_RANDOMIZATION
+
+    run_dir = tmp_path / "run"
+    env_kwargs = dict(adapter="fallback", allow_fallback=True, max_steps=15, dt=0.1,
+                      start_randomization=STAGE2_RANDOMIZATION)
+    run_ppo_training(
+        TRACK, stage="stage2", algorithm="stage2_randomized_bcinit_controlled",
+        total_timesteps=64, train_seed=9000, eval_seeds=[1410, 1411, 1412], run_dir=str(run_dir),
+        hidden_sizes=(32, 32), checkpoint_freq=32, eval_freq=32, env_kwargs=env_kwargs,
+        ppo_kwargs=dict(n_steps=32, batch_size=16, n_epochs=1, target_kl=0.01, clip_range=0.05),
+        bc_policy=_bc_policy(), arm="bcinit_controlled", action_std_strategy="fixed", action_std_value=0.10,
+        max_acceptable_kl=0.5, stage2=True,
+    )
+    # KL monitoring + run status.
+    assert (run_dir / "training" / "ppo_update_metrics.csv").exists()
+    status = json.loads((run_dir / "run_status.json").read_text(encoding="utf-8"))
+    assert status["run_status"] in ("COMPLETED", "ABORT_MAX_KL")
+    assert "max_approx_kl" in status["kl_summary"]
+    # Rich Stage-2 timestep-zero eval with interior/extreme split + per-seed rows.
+    init = json.loads((run_dir / "evaluation" / "initial_eval.json").read_text(encoding="utf-8"))
+    for k in ("completion_rate", "interior_completion", "extreme_completion", "oob_episodes",
+              "mean_action_saturation", "per_seed"):
+        assert k in init
+    assert init["action_std"]["strategy"] == "fixed"
+    # Reward-component diagnostic present.
+    assert (run_dir / "evaluation" / "reward_components.json").exists()
+    # Stage-2 best_metrics carries the aggregate (not the Stage-1 shape).
+    best = json.loads((run_dir / "best_model" / "best_metrics.json").read_text(encoding="utf-8"))
+    assert "completion_rate" in best and "extreme_completion" in best
+
+
+def test_stage2_kl_safety_abort(tmp_path):
+    """A tiny max_acceptable_kl trips the hard KL stop -> ABORT_MAX_KL, env still closed."""
+    from marine_race_arena.learning.curriculum import STAGE2_RANDOMIZATION
+
+    run_dir = tmp_path / "run"
+    env_kwargs = dict(adapter="fallback", allow_fallback=True, max_steps=15, dt=0.1,
+                      start_randomization=STAGE2_RANDOMIZATION)
+    run_ppo_training(
+        TRACK, stage="stage2", algorithm="stage2_randomized_scratch_controlled",
+        total_timesteps=64, train_seed=9000, eval_seeds=[1410, 1411], run_dir=str(run_dir),
+        hidden_sizes=(32, 32), checkpoint_freq=32, eval_freq=64, env_kwargs=env_kwargs,
+        ppo_kwargs=dict(n_steps=32, batch_size=16, n_epochs=3, target_kl=0.01, clip_range=0.2),
+        arm="scratch_controlled", action_std_strategy="fixed", action_std_value=0.10,
+        max_acceptable_kl=1e-6, stage2=True,  # absurdly strict -> abort on the first update
+    )
+    status = json.loads((run_dir / "run_status.json").read_text(encoding="utf-8"))
+    assert status["run_status"] == "ABORT_MAX_KL"
+    assert (run_dir / "final_model.zip").exists()  # latest safe checkpoint saved
 
 
 def test_incompatible_resume_is_rejected(tmp_path):

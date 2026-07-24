@@ -70,6 +70,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         obstacle_density: Optional[str] = None,
         reward_fn: Optional[RewardFn] = None,
         start_randomization=None,
+        episode_seed_stream: Optional[int] = None,
     ) -> None:
         if gym is None:  # pragma: no cover - only without gymnasium installed
             raise ImportError(
@@ -94,6 +95,11 @@ class MarineRaceGymEnv(_GYM_BASE):
         self._ctx_source: Optional[OnboardContextTracker] = None
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._last_gates = 0
+        # Training-only: when set and reset() is called without an explicit seed, vary the
+        # randomization seed each episode so training sees diverse randomized starts. Eval
+        # always passes an explicit seed, so it is unaffected.
+        self._episode_seed_stream = episode_seed_stream
+        self._episode_counter = 0
 
         low = np.array([b[0] for b in FEATURE_BOUNDS], dtype=np.float32)
         high = np.array([b[1] for b in FEATURE_BOUNDS], dtype=np.float32)
@@ -113,7 +119,12 @@ class MarineRaceGymEnv(_GYM_BASE):
     def reset(self, *, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None):
         if gym is not None:
             super().reset(seed=seed)
-        obs_dict = self._episode.reset(seed=seed)
+        effective_seed = seed
+        if (effective_seed is None and self._episode_seed_stream is not None
+                and self._episode.start_randomization is not None):
+            effective_seed = int(self._episode_seed_stream) + self._episode_counter
+            self._episode_counter += 1
+        obs_dict = self._episode.reset(seed=effective_seed)
         ctx_cfg = self._episode.context.config
         total_beacons = max(1, len(ctx_cfg.track.gate_sequence))
         laps = max(1, int(ctx_cfg.race.laps))

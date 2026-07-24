@@ -85,6 +85,67 @@ def compute_bc_action_std(
     return stds, info
 
 
+def resolve_action_std(
+    strategy: str,
+    *,
+    bc_report: Optional[Dict[str, Any]] = None,
+    value=None,
+    action_dim: int = ACTION_DIM,
+    std_min: float = 0.05,
+    std_max: float = 0.15,
+    log_std_fallback: float = -2.5,
+):
+    """Resolve a PPO exploration std for any arm; returns ``(std_array | None, info)``.
+
+    Strategies:
+      * ``"residual"``  — per-axis std from BC validation residuals (BC-init only).
+      * ``"fixed"``     — a documented scalar or per-axis override (``value``).
+      * ``"sb3_default"`` — leave SB3's own initialization untouched (returns ``None``).
+    """
+    axes = list(ACTION_AXES[:action_dim])
+    if strategy == "sb3_default":
+        return None, {"strategy": "sb3_default", "source": "sb3_default",
+                      "note": "PPO keeps Stable-Baselines3's default log_std (~1.0 std)."}
+    if strategy == "fixed":
+        if value is None:
+            raise ValueError("action-std strategy 'fixed' requires a value (scalar or per-axis list)")
+        if isinstance(value, (int, float)):
+            std = np.full(action_dim, float(value), dtype=np.float32)
+            per_axis_source = {a: "fixed_scalar" for a in axes}
+        else:
+            std = np.asarray(value, dtype=np.float32)
+            if std.shape != (action_dim,):
+                raise ValueError(f"per-axis action-std must have exactly {action_dim} values, got {std.shape}")
+            per_axis_source = {a: "fixed_per_axis" for a in axes}
+        if np.any(std <= 0) or not np.all(np.isfinite(std)):
+            raise ValueError(f"action-std must be positive and finite, got {std}")
+        log_std = np.log(std)
+        info = {
+            "strategy": "fixed", "source": "fixed_override",
+            "std_per_axis": {a: float(std[i]) for i, a in enumerate(axes)},
+            "log_std_per_axis": {a: float(log_std[i]) for i, a in enumerate(axes)},
+            "per_axis_source": per_axis_source,
+        }
+        return std, info
+    if strategy == "residual":
+        std, info = compute_bc_action_std(bc_report, action_dim=action_dim, mode="from_validation",
+                                          std_min=std_min, std_max=std_max, log_std_fallback=log_std_fallback)
+        info["strategy"] = "residual"
+        return std, info
+    raise ValueError(f"unknown action-std strategy {strategy!r}")
+
+
+def initialize_action_std(ppo_model, strategy: str, **kwargs) -> Dict[str, Any]:
+    """Resolve and (if applicable) install an exploration std on ``ppo_model``.
+
+    For ``sb3_default`` nothing is changed; the returned info records that choice.
+    """
+    std, info = resolve_action_std(strategy, **kwargs)
+    if std is not None:
+        apply_bc_action_std(ppo_model, std)
+    return info
+
+
 def apply_bc_action_std(ppo_model, std_per_axis) -> None:
     """Copy ``log(std_per_axis)`` into the PPO policy's ``log_std`` parameter."""
     import torch

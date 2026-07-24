@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from marine_race_arena.learning.bc_ppo_init import compute_bc_action_std
+from marine_race_arena.learning.bc_ppo_init import compute_bc_action_std, resolve_action_std
 from marine_race_arena.learning.config import ACTION_AXES, ACTION_DIM
 
 
@@ -79,3 +79,38 @@ def test_fixed_mode_ignores_report():
 def test_output_shape_and_dtype():
     std, _ = compute_bc_action_std(None, action_dim=ACTION_DIM)
     assert std.shape == (ACTION_DIM,) and std.dtype == np.float32
+
+
+def test_resolve_action_std_fixed_scalar():
+    std, info = resolve_action_std("fixed", value=0.10)
+    np.testing.assert_allclose(std, 0.10, atol=1e-6)
+    assert info["strategy"] == "fixed" and info["source"] == "fixed_override"
+
+
+def test_resolve_action_std_fixed_per_axis():
+    std, info = resolve_action_std("fixed", value=[0.1, 0.05, 0.05, 0.08])
+    np.testing.assert_allclose(std, [0.1, 0.05, 0.05, 0.08], atol=1e-6)
+    assert info["per_axis_source"]["surge"] == "fixed_per_axis"
+
+
+def test_resolve_action_std_sb3_default_returns_none():
+    std, info = resolve_action_std("sb3_default")
+    assert std is None and info["source"] == "sb3_default"
+
+
+def test_resolve_action_std_residual_matches_compute():
+    report = _report(surge=0.09, sway=0.04, heave=0.0025, yaw=0.01)
+    std, info = resolve_action_std("residual", bc_report=report)
+    assert info["strategy"] == "residual"
+    np.testing.assert_allclose(std, [0.15, 0.15, 0.05, 0.10], atol=1e-6)
+
+
+@pytest.mark.parametrize("bad", [0.0, -0.1, [0.1, 0.1, 0.1]])  # non-positive scalar, or wrong dim
+def test_resolve_action_std_fixed_rejects_invalid(bad):
+    with pytest.raises(ValueError):
+        resolve_action_std("fixed", value=bad)
+
+
+def test_resolve_action_std_unknown_strategy():
+    with pytest.raises(ValueError):
+        resolve_action_std("bogus")

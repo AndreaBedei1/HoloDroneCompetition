@@ -28,11 +28,24 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from marine_race_arena.learning.bc_ppo_init import initialize_bc_action_std
+from marine_race_arena.learning.bc_ppo_init import initialize_action_std
 from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION, ACTION_DIM, OBS_DIM, OBS_ENCODING_VERSION
 from marine_race_arena.learning.gym_env import MarineRaceGymEnv
+from marine_race_arena.learning.ppo_monitor import (
+    PPOUpdateRecorder,
+    RunStatus,
+    WarmStartAbort,
+    make_kl_monitor_callback,
+)
 from marine_race_arena.learning.reward import RewardConfig, TrainingReward
 from marine_race_arena.learning.rl_train import build_ppo, transfer_bc_to_ppo
+from marine_race_arena.learning.stage2_eval import (
+    aggregate_stage2,
+    evaluate_stage2,
+    log_reward_components,
+    stage2_best_metric_key,
+    stage2_is_better,
+)
 
 
 def evaluate_completion(model, track, eval_seeds, *, env_kwargs, reward_config) -> Dict[str, Any]:
@@ -164,6 +177,22 @@ def _load_action_std(run_path: Path) -> Dict[str, Any]:
     return {}
 
 
+def _coerce_eval_row(raw: Dict[str, str]) -> Dict[str, Any]:
+    """Coerce a CSV eval row back to numbers (int timesteps, floats elsewhere, None for blanks)."""
+    out: Dict[str, Any] = {}
+    for k, v in raw.items():
+        if v in (None, "", "None"):
+            out[k] = None
+        elif k == "timesteps":
+            out[k] = int(float(v))
+        else:
+            try:
+                out[k] = float(v)
+            except (TypeError, ValueError):
+                out[k] = v
+    return out
+
+
 def _append_eval_row(path: Path, row: Dict[str, Any]) -> None:
     exists = Path(path).exists()
     with Path(path).open("a", newline="", encoding="utf-8") as handle:
@@ -173,40 +202,64 @@ def _append_eval_row(path: Path, row: Dict[str, Any]) -> None:
         writer.writerow({k: row.get(k) for k in _EVAL_CSV_FIELDS})
 
 
+def _write_single_eval_csv(path: Path, row: Dict[str, Any]) -> None:
+    """Create eval.csv seeded with one row (all scalar columns; nested values dropped)."""
+    fields = [k for k, v in row.items() if not isinstance(v, (dict, list))]
+    if "timesteps" in fields:
+        fields = ["timesteps"] + [f for f in fields if f != "timesteps"]
+    with Path(path).open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerow({k: row.get(k) for k in fields})
+
+
 def _run_timestep_zero_eval(model, track, eval_seeds, *, env_kwargs, reward_config, run_path,
-                            bc_initialized, action_std_info, min_initial_completion) -> Dict[str, Any]:
+                            bc_initialized, action_std_info, min_initial_completion, stage2=False) -> Dict[str, Any]:
     """Deterministic held-out evaluation BEFORE ``model.learn()`` modifies the policy.
 
     Writes ``evaluation/initial_eval.json`` and a timestep-0 row to ``evaluation/eval.csv``,
-    and saves the timestep-0 policy as the initial best model. For a BC-initialized run
-    this verifies the transferred policy starts near the frozen BC baseline; if it does
-    not (and ``min_initial_completion`` is set) training is aborted before it begins.
+    saves the timestep-0 policy as the initial best, and (Stage-2) logs the reward
+    components by outcome. Aborts before training if a BC warm-start looks broken.
     """
-    metrics = evaluate_completion(model, track, eval_seeds, env_kwargs=env_kwargs, reward_config=reward_config)
+    if stage2:
+        full = evaluate_stage2(model, track, eval_seeds, env_kwargs=env_kwargs, reward_config=reward_config)
+        per_seed = full.get("rows", [])
+        metrics = {k: v for k, v in full.items() if k != "rows"}
+    else:
+        metrics = evaluate_completion(model, track, eval_seeds, env_kwargs=env_kwargs, reward_config=reward_config)
+        per_seed = None
     initial = {
         "timesteps": 0,
         "phase": "timestep_zero",
         "deterministic": True,
         "bc_initialized": bool(bc_initialized),
         "model_initialization_source": (
-            "bc_transfer+" + str(action_std_info.get("source")) if bc_initialized else "scratch_sb3_default"),
+            "bc_transfer+" + str(action_std_info.get("source")) if bc_initialized else str(action_std_info.get("source"))),
         "eval_seeds": list(eval_seeds),
         "action_std": action_std_info,
         **metrics,
     }
+    if per_seed is not None:
+        initial["per_seed"] = per_seed
     eval_dir = run_path / "evaluation"
     eval_dir.mkdir(parents=True, exist_ok=True)
     (eval_dir / "initial_eval.json").write_text(json.dumps(initial, indent=2), encoding="utf-8")
-    row = {"timesteps": 0, **{k: metrics.get(k) for k in
-           ("completion_rate", "mean_gates", "mean_collisions", "mean_time_finished")}}
-    _append_eval_row(eval_dir / "eval.csv", row)
-    # The timestep-0 policy is the initial best: a run that only degrades keeps it.
+    row = {"timesteps": 0, **metrics}
+    _write_single_eval_csv(eval_dir / "eval.csv", row)
     best_dir = run_path / "best_model"
     best_dir.mkdir(parents=True, exist_ok=True)
     model.save(str(best_dir / "best_model"))
     (best_dir / "best_metrics.json").write_text(json.dumps(row, indent=2), encoding="utf-8")
+    # Reward-component diagnostic (does not modify the reward).
+    try:
+        rc = log_reward_components(model, track, eval_seeds, env_kwargs=env_kwargs, reward_config=reward_config)
+        (eval_dir / "reward_components.json").write_text(json.dumps(rc, indent=2), encoding="utf-8")
+    except Exception:  # pragma: no cover - diagnostic must never break a run
+        pass
     if bc_initialized and min_initial_completion is not None and metrics["completion_rate"] < float(min_initial_completion):
-        raise RuntimeError(
+        from marine_race_arena.learning.ppo_monitor import WarmStartAbort
+
+        raise WarmStartAbort(
             f"BC-initialized timestep-zero completion {metrics['completion_rate']:.3f} < required "
             f"{float(min_initial_completion):.3f}; the warm-start looks broken -- stopping before training.")
     return initial
@@ -219,7 +272,8 @@ def _make_completion_eval_callback():
     class CompletionEvalCallback(BaseCallback):
         """Evaluate held-out completion rate; save the best model on improvement."""
 
-        def __init__(self, track, eval_seeds, eval_freq, best_dir, eval_csv, env_kwargs, reward_config, verbose=0):
+        def __init__(self, track, eval_seeds, eval_freq, best_dir, eval_csv, env_kwargs, reward_config,
+                     stage2=False, verbose=0):
             super().__init__(verbose)
             self.track = track
             self.eval_seeds = list(eval_seeds)
@@ -228,11 +282,14 @@ def _make_completion_eval_callback():
             self.eval_csv = Path(eval_csv)
             self.env_kwargs = dict(env_kwargs or {})
             self.reward_config = reward_config
+            self.stage2 = bool(stage2)
             self._rows: List[Dict[str, float]] = []
-            self._best_key: Optional[Tuple[float, float, float, float]] = None
+            self._best_key = None
             self._best_row: Optional[Dict[str, float]] = None
 
-        _metric_key = staticmethod(best_metric_key)
+        @property
+        def _metric_key(self):
+            return stage2_best_metric_key if self.stage2 else best_metric_key
 
         def _init_callback(self):
             self.best_dir.mkdir(parents=True, exist_ok=True)
@@ -243,14 +300,7 @@ def _make_completion_eval_callback():
                 try:
                     with self.eval_csv.open(newline="", encoding="utf-8") as handle:
                         for r in csv.DictReader(handle):
-                            row = {
-                                "timesteps": int(float(r["timesteps"])),
-                                "completion_rate": float(r["completion_rate"]),
-                                "mean_gates": float(r["mean_gates"]),
-                                "mean_collisions": float(r["mean_collisions"]),
-                                "mean_time_finished": (float(r["mean_time_finished"]) if r.get("mean_time_finished") not in (None, "", "None") else None),
-                            }
-                            self._rows.append(row)
+                            self._rows.append(_coerce_eval_row(r))
                 except Exception:  # pragma: no cover - tolerate a partial/old CSV
                     self._rows = []
             best_path = self.best_dir / "best_metrics.json"
@@ -265,10 +315,16 @@ def _make_completion_eval_callback():
                 self._best_key = self._metric_key(self._best_row)
 
         def _evaluate(self) -> Dict[str, float]:
-            return evaluate_completion(
-                self.model, self.track, self.eval_seeds,
-                env_kwargs=self.env_kwargs, reward_config=self.reward_config,
-            )
+            if self.stage2:
+                agg = evaluate_stage2(self.model, self.track, self.eval_seeds,
+                                      env_kwargs=self.env_kwargs, reward_config=self.reward_config)
+                agg.pop("rows", None)  # keep the periodic history compact
+                return agg
+            return evaluate_completion(self.model, self.track, self.eval_seeds,
+                                       env_kwargs=self.env_kwargs, reward_config=self.reward_config)
+
+        def _is_better(self, new_row, best_row) -> bool:
+            return stage2_is_better(new_row, best_row) if self.stage2 else strictly_better(new_row, best_row)
 
         def _on_step(self) -> bool:
             if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
@@ -276,10 +332,9 @@ def _make_completion_eval_callback():
                 row = {"timesteps": int(self.num_timesteps), **metrics}
                 self._rows.append(row)
                 self._write_csv()
-                self.logger.record("eval/completion_rate", metrics["completion_rate"])
-                self.logger.record("eval/mean_gates", metrics["mean_gates"])
-                if strictly_better(row, self._best_row):  # strictly better only
-                    self._best_key = best_metric_key(row)
+                self.logger.record("eval/completion_rate", metrics.get("completion_rate", 0.0))
+                self.logger.record("eval/mean_gates", metrics.get("mean_gates", 0.0))
+                if self._is_better(row, self._best_row):
                     self._best_row = row
                     self.model.save(str(self.best_dir / "best_model"))
                     (self.best_dir / "best_metrics.json").write_text(json.dumps(row, indent=2), encoding="utf-8")
@@ -288,7 +343,13 @@ def _make_completion_eval_callback():
         def _write_csv(self):
             if not self._rows:
                 return
-            fields = ["timesteps", "completion_rate", "mean_gates", "mean_collisions", "mean_time_finished"]
+            # Flat CSV: timesteps first, then every scalar key seen (nested dicts/lists go
+            # to best_metrics.json only). Supports both Stage-1 and Stage-2 aggregates.
+            fields = ["timesteps"]
+            for r in self._rows:
+                for k, v in r.items():
+                    if k not in fields and not isinstance(v, (dict, list)):
+                        fields.append(k)
             with self.eval_csv.open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fields)
                 writer.writeheader()
@@ -313,10 +374,15 @@ def run_ppo_training(
     bc_policy=None,
     bc_model_path: Optional[str] = None,
     bc_report_path: Optional[str] = None,
-    bc_action_std_mode: str = "from_validation",
+    arm: str = "bcinit",
+    action_std_strategy: Optional[str] = None,
+    action_std_value=None,
     bc_action_std_min: float = 0.05,
     bc_action_std_max: float = 0.15,
     bc_log_std_fallback: float = -2.5,
+    max_acceptable_kl: Optional[float] = None,
+    max_action_saturation: Optional[float] = None,
+    stage2: bool = False,
     initial_eval: bool = True,
     min_initial_completion: Optional[float] = None,
     reward_config: Optional[RewardConfig] = None,
@@ -339,6 +405,12 @@ def run_ppo_training(
     reward_config = reward_config or RewardConfig()
     env_kwargs = dict(env_kwargs or {})
     ppo_kwargs = dict(ppo_kwargs or {})
+    # Exploration-std strategy: BC-init defaults to residual-derived; scratch defaults to
+    # SB3's own init. An explicit strategy (e.g. a fixed 0.10 for the controlled arms) wins.
+    effective_std_strategy = action_std_strategy or ("residual" if (bc_policy is not None or bc_model_path) else "sb3_default")
+    target_kl = ppo_kwargs.get("target_kl")
+    std_config = {"strategy": effective_std_strategy, "value": action_std_value,
+                  "std_min": bc_action_std_min, "std_max": bc_action_std_max, "log_std_fallback": bc_log_std_fallback}
 
     # BC initialization can be supplied as a policy object or a path (for reproducibility).
     bc_model_sha256 = None
@@ -375,8 +447,7 @@ def run_ppo_training(
                 "action_dim": ACTION_DIM,
                 "reward_config": asdict(reward_config),
                 "ppo_kwargs": ppo_kwargs,
-                "bc_action_std_config": {"mode": bc_action_std_mode, "std_min": bc_action_std_min,
-                                         "std_max": bc_action_std_max, "log_std_fallback": bc_log_std_fallback},
+                "bc_action_std_config": std_config,
             },
         )
 
@@ -390,7 +461,12 @@ def run_ppo_training(
     adapter_requested = env_kwargs.get("adapter", "fallback")
     allow_fallback = env_kwargs.get("allow_fallback", True)
 
-    env = MarineRaceGymEnv(track, seed=train_seed, reward_fn=TrainingReward(reward_config), **env_kwargs)
+    # Stage-2 training varies the randomization seed per episode (train seed stream); eval
+    # keeps explicit seeds, so env_kwargs (shared with eval) must NOT carry the stream.
+    train_env_kwargs = dict(env_kwargs)
+    if stage2 and env_kwargs.get("start_randomization") is not None:
+        train_env_kwargs["episode_seed_stream"] = int(train_seed)
+    env = MarineRaceGymEnv(track, seed=train_seed, reward_fn=TrainingReward(reward_config), **train_env_kwargs)
 
     start_time = time.time()
     action_std_info: Dict[str, Any]
@@ -404,24 +480,26 @@ def run_ppo_training(
         action_std_info = _load_action_std(run_path)
     else:
         model = build_ppo(env, hidden_sizes=hidden_sizes, seed=train_seed, **ppo_kwargs)
+        bc_report_used = None
         if bc_policy is not None:
             transfer_bc_to_ppo(bc_policy, model)
-            # Safe stochastic warm-start: small per-axis exploration std from BC
-            # residuals (SB3's default ~1.0 std would saturate actions immediately).
+        # Install the resolved exploration std (residual/fixed for the controlled arms;
+        # sb3_default leaves SB3's own init). Fixed applies to scratch_controlled too.
+        bc_report = None
+        if effective_std_strategy == "residual":
             bc_report, bc_report_used = _load_bc_report(bc_report_path, bc_model_path)
-            action_std_info = initialize_bc_action_std(
-                model, bc_report, action_dim=ACTION_DIM, mode=bc_action_std_mode,
-                std_min=bc_action_std_min, std_max=bc_action_std_max, log_std_fallback=bc_log_std_fallback,
-            )
-            action_std_info["bc_report_path"] = bc_report_used
-            action_std_info["bc_report_sha256"] = (_sha256(bc_report_used)
-                                                   if bc_report_used and Path(bc_report_used).exists() else None)
-            action_std_info["bc_model_path"] = bc_model_path
-            action_std_info["bc_model_sha256"] = bc_model_sha256
-        else:
-            # Scratch arm: keep SB3's own initialization (never reduced automatically).
-            action_std_info = {"mode": "scratch", "source": "sb3_default",
-                               "note": "PPO-from-scratch keeps Stable-Baselines3's default log_std (~1.0 std)."}
+        action_std_info = initialize_action_std(
+            model, effective_std_strategy, bc_report=bc_report, value=action_std_value,
+            action_dim=ACTION_DIM, std_min=bc_action_std_min, std_max=bc_action_std_max,
+            log_std_fallback=bc_log_std_fallback,
+        )
+        action_std_info["arm"] = arm
+        action_std_info["bc_initialized"] = bc_policy is not None
+        action_std_info["bc_report_path"] = bc_report_used
+        action_std_info["bc_report_sha256"] = (_sha256(bc_report_used)
+                                               if bc_report_used and Path(bc_report_used).exists() else None)
+        action_std_info["bc_model_path"] = bc_model_path
+        action_std_info["bc_model_sha256"] = bc_model_sha256
         remaining = int(total_timesteps)
         reset_num_timesteps = True
         (run_path / "action_std.json").write_text(json.dumps(action_std_info, indent=2), encoding="utf-8")
@@ -432,7 +510,8 @@ def run_ppo_training(
     eval_cb_cls = _make_completion_eval_callback()
     callbacks = [
         CheckpointCallback(save_freq=checkpoint_freq, save_path=str(run_path / "checkpoints"), name_prefix="ppo"),
-        eval_cb_cls(track, eval_seeds, eval_freq, run_path / "best_model", run_path / "evaluation" / "eval.csv", env_kwargs, reward_config),
+        eval_cb_cls(track, eval_seeds, eval_freq, run_path / "best_model", run_path / "evaluation" / "eval.csv",
+                    env_kwargs, reward_config, stage2=stage2),
     ]
 
     _write_metadata(
@@ -456,41 +535,55 @@ def run_ppo_training(
         bc_model_path=bc_model_path,
         bc_model_sha256=bc_model_sha256,
         action_std=action_std_info,
-        bc_action_std_config={"mode": bc_action_std_mode, "std_min": bc_action_std_min,
-                              "std_max": bc_action_std_max, "log_std_fallback": bc_log_std_fallback},
+        bc_action_std_config=std_config,
         bc_report_path=bc_report_path,
+        arm=arm,
+        stage2=stage2,
+        max_acceptable_kl=max_acceptable_kl,
         output_root=output_root,
         run_dir=str(run_path),
     )
 
+    # Structured KL monitoring + hard safety stop (an SB3 callback; records each update
+    # at the next rollout start and stops learn() cleanly if the hard KL is exceeded).
+    recorder = PPOUpdateRecorder(model, run_path / "training" / "ppo_update_metrics.csv",
+                                 target_kl=target_kl, max_acceptable_kl=max_acceptable_kl,
+                                 max_action_saturation=max_action_saturation)
+    callbacks.append(make_kl_monitor_callback(recorder))
+    run_status = RunStatus.COMPLETED
     adapter_actual = adapter_requested
     try:
-        # Timestep-zero held-out evaluation BEFORE learning (fresh start only; never
-        # duplicated on resume). May abort here if a BC warm-start looks broken.
         if initial_eval and not resuming:
             _run_timestep_zero_eval(
                 model, track, list(eval_seeds), env_kwargs=env_kwargs, reward_config=reward_config,
                 run_path=run_path, bc_initialized=bc_policy is not None, action_std_info=action_std_info,
-                min_initial_completion=min_initial_completion,
+                min_initial_completion=min_initial_completion, stage2=stage2,
             )
         if remaining > 0:
-            model.learn(
-                total_timesteps=remaining,
-                callback=callbacks,
-                reset_num_timesteps=reset_num_timesteps,
-                progress_bar=False,
-            )
+            model.learn(total_timesteps=remaining, callback=callbacks,
+                        reset_num_timesteps=reset_num_timesteps, progress_bar=False)
+        recorder.record()  # capture the final update (not seen by the next rollout start)
+        run_status = recorder.status
         model.save(str(run_path / "final_model"))
+    except WarmStartAbort:
+        run_status = "ABORT_INITIAL_EVAL"
+        raise
+    except Exception:  # pragma: no cover - engine / other failure
+        run_status = RunStatus.SIMULATOR_FAILURE
+        raise
+    finally:
         try:
             if env.episode._ctx is not None:  # noqa: SLF001 - record the adapter actually used
                 adapter_actual = env.episode._ctx.adapter.name
         except Exception:  # pragma: no cover
             pass
-    finally:
         env.close()
-
-    wall_clock_s = time.time() - start_time
-    _finalize_environment_json(run_path, adapter_actual=adapter_actual, wall_clock_s=wall_clock_s, num_timesteps=int(model.num_timesteps))
+        if adapter_actual == "fallback" and adapter_requested != "fallback" and run_status == RunStatus.COMPLETED:
+            run_status = RunStatus.SIMULATOR_FAILURE
+        wall_clock_s = time.time() - start_time
+        _finalize_environment_json(run_path, adapter_actual=adapter_actual, wall_clock_s=wall_clock_s,
+                                   num_timesteps=int(model.num_timesteps), run_status=run_status,
+                                   monitor_summary=recorder.summary())
     return run_path, model
 
 
@@ -578,6 +671,9 @@ def _write_metadata(run_path: Path, **info) -> None:
         "action_dim": ACTION_DIM,
         "obs_encoding_version": OBS_ENCODING_VERSION,
         "action_contract_version": ACTION_CONTRACT_VERSION,
+        "arm": info.get("arm"),
+        "stage2": bool(info.get("stage2")),
+        "max_acceptable_kl": info.get("max_acceptable_kl"),
         "bc_action_std_config": info.get("bc_action_std_config"),
         "bc_report_path": info.get("bc_report_path"),
         "action_std": info.get("action_std"),
@@ -657,17 +753,20 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     lines.append(f"    checkpoint_freq={info['checkpoint_freq']}, eval_freq={info['eval_freq']},")
     lines.append("    reward_config=reward_config, env_kwargs=env_kwargs,")
     lines.append(f"    ppo_kwargs={info['ppo_kwargs']!r},")
+    lines.append(f"    arm={info.get('arm')!r}, stage2={bool(info.get('stage2'))!r}, "
+                 f"max_acceptable_kl={info.get('max_acceptable_kl')!r},")
+    std_cfg = info.get("bc_action_std_config") or {}
+    if std_cfg:
+        lines.append(f"    action_std_strategy={std_cfg.get('strategy')!r}, "
+                     f"action_std_value={std_cfg.get('value')!r},")
+        lines.append(f"    bc_action_std_min={std_cfg.get('std_min')!r}, "
+                     f"bc_action_std_max={std_cfg.get('std_max')!r}, "
+                     f"bc_log_std_fallback={std_cfg.get('log_std_fallback')!r},")
     if bc_path:
         lines.append("    bc_model_path=BC_MODEL_PATH,")
         bc_report = info.get("bc_report_path")
         if bc_report:
             lines.append(f"    bc_report_path={bc_report!r},")
-        std_cfg = info.get("bc_action_std_config") or {}
-        if std_cfg:
-            lines.append(f"    bc_action_std_mode={std_cfg.get('mode')!r}, "
-                         f"bc_action_std_min={std_cfg.get('std_min')!r}, "
-                         f"bc_action_std_max={std_cfg.get('std_max')!r}, "
-                         f"bc_log_std_fallback={std_cfg.get('log_std_fallback')!r},")
     lines.append(")")
     lines.append("PY")
     lines.append("")
@@ -676,7 +775,8 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _finalize_environment_json(run_path: Path, *, adapter_actual: str, wall_clock_s: float, num_timesteps: int) -> None:
+def _finalize_environment_json(run_path: Path, *, adapter_actual: str, wall_clock_s: float, num_timesteps: int,
+                               run_status: str = "COMPLETED", monitor_summary: Optional[Dict[str, Any]] = None) -> None:
     path = run_path / "environment.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -686,4 +786,13 @@ def _finalize_environment_json(run_path: Path, *, adapter_actual: str, wall_cloc
     data["fallback_used"] = adapter_actual == "fallback"
     data["wall_clock_s"] = round(float(wall_clock_s), 3)
     data["final_num_timesteps"] = int(num_timesteps)
+    data["run_status"] = run_status
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    # A dedicated, machine-readable run-status record (KL summary + status enum).
+    (run_path / "run_status.json").write_text(json.dumps({
+        "run_status": run_status,
+        "adapter_actual": adapter_actual,
+        "final_num_timesteps": int(num_timesteps),
+        "wall_clock_s": round(float(wall_clock_s), 3),
+        "kl_summary": monitor_summary or {},
+    }, indent=2), encoding="utf-8")
