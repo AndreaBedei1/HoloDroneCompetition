@@ -1,0 +1,60 @@
+{
+  "timesteps": 0,
+  "phase": "timestep_zero",
+  "deterministic": true,
+  "bc_initialized": false,
+  "model_initialization_source": "sb3_default",
+  "eval_seeds": [
+    1410,
+    1411,
+    1412,
+    1413,
+    1414,
+    1415,
+    1416,
+    1417,
+    1418,
+    1419,
+    15002,
+    15013,
+    15063,
+    15113
+  ],
+  "action_std": {
+    "strategy": "sb3_default",
+    "source": "sb3_default",
+    "note": "PPO keeps Stable-Baselines3's default log_std (~1.0 std).",
+    "arm": "scratch_default",
+    "bc_initialized": false,
+    "bc_report_path": null,
+    "bc_report_sha256": null,
+    "bc_model_path": null,
+    "bc_model_sha256": null
+  },
+  "n_eval": 14,
+  "completion_rate": 0.0,
+  "completion_wilson95": [
+    0.0,
+    0.2153
+  ],
+  "mean_gates": 0.0,
+  "total_collisions": 0,
+  "oob_episodes": 0,
+  "total_out_of_bounds": 0,
+  "total_wrong_direction": 0,
+  "total_missed_gate_attempts": 0,
+  "mean_time_finished": null,
+  "median_time_finished": null,
+  "mean_penalized_time": 0.0,
+  "mean_action_saturation": 0.0,
+  "mean_action_smoothness": 0.0011,
+  "mean_inference_ms": 0.7065,
+  "interior_n": 10,
+  "interior_completion": 0.0,
+  "extreme_n": 4,
+  "extreme_completion": 0.0,
+  "end_reason_counts": {
+    "MAX_STEPS": 14
+  },
+  "all_actions_finite": true
+}

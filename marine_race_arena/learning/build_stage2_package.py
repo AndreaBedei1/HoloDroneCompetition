@@ -97,6 +97,7 @@ def summarize_arm(run_dir: Path, out_sub: Path) -> Dict:
 
 
 def build_calibration_section(cal_dirs: List[Path]) -> Dict:
+    (PUB / "calibration").mkdir(parents=True, exist_ok=True)
     rows = []
     for d in cal_dirs:
         d = Path(d)

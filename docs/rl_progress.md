@@ -221,8 +221,19 @@ the heavy raw datasets/checkpoints stay under the git-ignored `results/rl/`.
   stream for training, explicit dev seeds 1410–1419 for eval); and rich interior/extreme-corner
   robustness metrics with a robustness-first best-model rule. Seeds are registered
   (`results/rl_public/seed_registry.json`); the reserved final ranges (1500–1599) stay untouched.
-- Convergence and the scientific BC-vs-scratch comparison remain the documented next step; the
-  5,000-step Stage-2 diagnostic results are published under `results/rl_public/stage2/`.
+- **Stage-2 5,000-step diagnostic result (this pass; real HoloOcean, KL-safe, dev seeds
+  1410–1419 + 4 curated extreme corners).** Calibration `kl_safe_v1` fixed the update
+  (max approx_kl **0.0018**, was 0.125). Over the full runs KL stayed safe (bcinit 0.0028,
+  scratch_controlled 1.8e-4). **bcinit_controlled**: completion 0.929 unchanged but the
+  best checkpoint (5,000, not timestep-zero) shifted robustness toward the corners
+  (**extreme-corner completion 0.75 → 1.00**, OOB episodes 1 → 0; interior 1.00 → 0.90).
+  **scratch_controlled** (same std, same hyperparameters) stayed at 0.0 — BC weights carry
+  the performance; 5,000 steps is far too few to learn from scratch. **scratch_default**
+  (SB3 ~1.0 std) also 0.0 but with **34% training action saturation** vs 0% for the
+  controlled arms — the exploration-variance effect the fixed std removes. The reward
+  passed all component checks and was **not** modified. This is a small, noisy signal on
+  few seeds — **PPO improvement is not established** until a larger held-out extreme-corner
+  evaluation on the reserved seeds confirms it. Published: `results/rl_public/stage2/ppo_diagnostic_5k/`.
 
 ### Test coverage (measured, not copied)
 

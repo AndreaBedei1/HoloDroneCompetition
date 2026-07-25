@@ -34,8 +34,12 @@ USED_SEEDS: Dict[str, List[int]] = {
 
 # --- New allocations for this Stage-2 diagnostic ------------------------------
 STAGE1_KL_CALIBRATION_SEEDS: List[int] = _r(1400, 1404)
-STAGE2_PPO_DEV_SEEDS: List[int] = _r(1410, 1419)          # checkpoint selection
+STAGE2_PPO_DEV_SEEDS: List[int] = _r(1410, 1419)          # checkpoint selection (interior-heavy)
 STAGE2_SECONDARY_DEV_SEEDS: List[int] = _r(1420, 1439)    # secondary development eval
+# Curated extreme-corner development eval seeds (|lateral| >= 0.8 m and |yaw| >= 12 deg, one
+# per sign quadrant); added to the Stage-2 checkpoint-selection set so the interior/extreme
+# split is measurable. Disjoint from all other allocations.
+STAGE2_EXTREME_EVAL_SEEDS: List[int] = [15002, 15013, 15063, 15113]
 RESERVED_FINAL_FIXED_SEEDS: List[int] = _r(1500, 1549)    # DO NOT USE this task
 RESERVED_FINAL_RANDOMIZED_SEEDS: List[int] = _r(1550, 1599)  # DO NOT USE this task
 
@@ -45,6 +49,7 @@ PPO_TRAINING_ENV_SEED: int = 9000
 NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "stage1_kl_calibration": STAGE1_KL_CALIBRATION_SEEDS,
     "stage2_ppo_dev_checkpoint": STAGE2_PPO_DEV_SEEDS,
+    "stage2_extreme_corner_eval": STAGE2_EXTREME_EVAL_SEEDS,
     "stage2_secondary_dev_eval": STAGE2_SECONDARY_DEV_SEEDS,
     "RESERVED_final_fixed_eval": RESERVED_FINAL_FIXED_SEEDS,
     "RESERVED_final_randomized_eval": RESERVED_FINAL_RANDOMIZED_SEEDS,
