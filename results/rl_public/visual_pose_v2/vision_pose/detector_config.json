@@ -1,0 +1,16 @@
+{
+  "module": "marine_race_arena.controllers.gate_pose",
+  "gate_inner_size_m": 1.5,
+  "pnp": "SOLVEPNP_IPPE",
+  "sign_disambiguation": "bar-height ratio + reprojection error",
+  "fallback": "projective + known-size distance",
+  "packages": {
+    "python": "3.9.25",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.0.2",
+    "torch": "2.8.0+cpu",
+    "gymnasium": "1.0.0",
+    "stable_baselines3": "2.7.1",
+    "holoocean": "2.3.0"
+  }
+}

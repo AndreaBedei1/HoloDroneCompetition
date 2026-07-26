@@ -1,0 +1,28 @@
+{
+  "generated_utc": "2026-07-26T07:44:31Z",
+  "commit": "b1febb8425d44bdf4919e4e209f3b9b1b43329f9",
+  "title": "Observation-v2 visual gate-pose front end -- real-HoloOcean detector validation",
+  "status": "NOT YET SUCCESSFUL (perception foundation built + tested; deterministic pose not yet reliable on real images)",
+  "delivered": [
+    "Stage-2 audit fixes (penalty naming, seed registry pairwise-disjoint)",
+    "gate_pose.py: aperture-corner detection + planar PnP (sign-disambiguated) + projective/size fallback + temporal filter (18 synthetic tests)",
+    "real-HoloOcean detector validation on the 5 yaw-rotated tracks (this package)",
+    "docs/visual_gate_pose.md"
+  ],
+  "real_detector_result": "detection_rate 0.25, pose_availability 0.10; distance error ~0.65m usable, but gate-plane yaw unreliable (median 139deg, sign 0.0) -- aperture-corner detection on real gates is the bottleneck.",
+  "not_done": [
+    "observation v2 encoder wiring into BC/PPO (blocked on a reliable detector)",
+    "pose-aware expert + hybrid controller",
+    "v2 demonstrations + BC-v2",
+    "multi-gate curriculum M1-M5",
+    "the three official circuits current-free"
+  ],
+  "next_step": "Replace/augment the deterministic corner detector with a learned corner/pose model (or further CV iteration) until real-image yaw-sign accuracy is reliable; THEN wire observation v2, collect pose-aware demos, train BC-v2, and run the multi-gate curriculum. The frozen v1 controller remains the best available (single-gate 50/50 fixed, 48/50 randomized).",
+  "frozen_unchanged": [
+    "main f4d6375",
+    "BC-v1 model hash fd6fc7e6...",
+    "frozen 78-run matrix",
+    "frozen A/B",
+    "Stage-1/2 public results"
+  ]
+}

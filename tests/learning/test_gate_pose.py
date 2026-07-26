@@ -167,3 +167,15 @@ def test_tracker_handles_angular_wrap():
     tr.update(_pose(5.0, yaw=170.0))
     out = tr.update(_pose(5.0, yaw=-170.0))  # wrap across +-180; mean should be ~180, not ~0
     assert abs(abs(out.gate_plane_yaw_deg) - 180.0) < 5.0
+
+
+def test_ground_truth_relative_pose_for_yaw_tracks():
+    """Offline GT used only to score the detector: a yaw-rotated vehicle sees a known
+    relative gate pose (distance 4 m, gate normal +x)."""
+    from marine_race_arena.learning.vision_pose_capture import gt_relative_pose
+
+    gt = gt_relative_pose([-4.0, 0.0, -4.0], 25.0, [0.0, 0.0, -4.0], [1.0, 0.0, 0.0])
+    assert gt["distance"] == pytest.approx(4.0, abs=1e-6)
+    assert gt["forward_z"] == pytest.approx(4.0 * math.cos(math.radians(25)), abs=1e-3)
+    assert gt["lateral_x"] == pytest.approx(4.0 * math.sin(math.radians(25)), abs=1e-3)
+    assert gt["gate_yaw_deg"] == pytest.approx(-25.0, abs=1e-3)  # relative gate-plane yaw

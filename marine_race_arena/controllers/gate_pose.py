@@ -152,18 +152,24 @@ def validate_quad(corners, *, image_area: float, min_area_frac: float = 0.004,
 
 
 def _bar_mask(image):
-    """Binary mask of bright/whitish gate-bar pixels (robust to water tint)."""
+    """Binary mask of gate-bar pixels.
+
+    Matches the proven per-pixel classifier used by the frozen v1 detector
+    (:func:`vision._looks_like_gate_bar_pixel`), which is validated on real HoloOcean gates:
+    a bright, *colorful* pixel (high >= 115 and high-low >= 35 -- e.g. the #00ff88 gate) OR a
+    very bright pixel (mean >= 190). The earlier whitish/low-saturation heuristic wrongly
+    rejected the saturated green gate on real images.
+    """
     arr = _np.asarray(image)
     if arr.ndim == 3 and arr.shape[2] >= 3:
         rgb = arr[:, :, :3].astype(_np.float32)
     else:
         rgb = _np.stack([arr] * 3, axis=-1).astype(_np.float32)
-    mx = rgb.max(axis=2)
-    mn = rgb.min(axis=2)
-    brightness = mx / 255.0
-    # Gate props render bright and relatively low-saturation vs the blue water.
-    sat = (mx - mn) / (mx + 1e-3)
-    mask = ((brightness > 0.45) & (sat < 0.55)).astype(_np.uint8) * 255
+    high = rgb.max(axis=2)
+    low = rgb.min(axis=2)
+    mean = rgb.mean(axis=2)
+    sat = high - low
+    mask = (((high >= 115.0) & (sat >= 35.0)) | (mean >= 190.0)).astype(_np.uint8) * 255
     return mask
 
 
