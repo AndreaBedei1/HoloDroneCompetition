@@ -68,8 +68,13 @@ To integrate the learned policy without regressing multi-gate reliability,
 and blends **BC-v1** in **only** during `VISUAL_ALIGN` (weight ramped by visual confidence,
 capped at 0.55). The backbone is the sole authority in SEARCH / APPROACH / COMMIT / VERIFY_EXIT /
 ADVANCE — the phases where BC-v1 alone fails — so the hybrid cannot do worse than the rule
-controller in the critical passage/exit. Command provenance (rule / bc / weight) is logged. This
-is the practical way BC-v1 contributes today; a genuinely pose-aware learned controller
+controller in the critical passage/exit. Command provenance (rule / bc / weight) is logged.
+
+Real-HoloOcean result (current-free): the hybrid completes the **two-gate straight 2/2**, the
+**three-gate S-curve 2/2**, and the **Horseshoe Bay circuit 2/2** (12/12 gates, 0 collisions /
+out-of-bounds) — where **BC-v1 alone completes 0/8** multi-gate. The learned visual servo is thus
+integrated without regressing multi-gate reliability. See
+`results/rl_public/visual_pose_v2/hybrid_controller/`. A genuinely pose-aware learned controller
 (observation v2) remains blocked on a reliable real-image gate-pose detector (see
 `docs/visual_gate_pose.md`).
 

@@ -1,7 +1,31 @@
 {
   "module": "marine_race_arena.controllers.gate_pose",
-  "gate_inner_size_m": 1.5,
+  "gate_apertures_m": {
+    "0": [
+      2.0,
+      2.0
+    ],
+    "25": [
+      2.0,
+      2.0
+    ],
+    "45": [
+      2.0,
+      2.0
+    ],
+    "-25": [
+      2.0,
+      2.0
+    ],
+    "-45": [
+      2.0,
+      2.0
+    ]
+  },
   "pnp": "SOLVEPNP_IPPE",
+  "yaw_convention": "canonical modulo-180 plane yaw [-90,90]",
+  "yaw_error_metric": "plane_angle_distance_deg",
+  "orientation_metric": "orientation_class",
   "sign_disambiguation": "bar-height ratio + reprojection error",
   "fallback": "projective + known-size distance",
   "packages": {
