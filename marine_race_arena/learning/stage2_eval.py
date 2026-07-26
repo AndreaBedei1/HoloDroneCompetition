@@ -92,8 +92,13 @@ def evaluate_stage2(
                 "out_of_bounds_episode": int(state.out_of_bounds_events) > 0,
                 "wrong_direction_crossings": int(state.wrong_direction_crossings),
                 "missed_gate_attempts": int(state.missed_gate_attempts),
-                "time_s": (steps * env.episode.dt if finished else None),
-                "penalized_time_s": round(float(state.penalties_s), 3),
+                # Corrected metric semantics (Section 2.1): penalty_s is the referee penalty
+                # AMOUNT (seconds), not a completion time. Penalized time is raw + penalty and
+                # is only defined for finished episodes (null otherwise).
+                "raw_completion_time_s": (round(steps * env.episode.dt, 3) if finished else None),
+                "penalty_s": round(float(state.penalties_s), 3),
+                "penalized_completion_time_s": (round(steps * env.episode.dt + float(state.penalties_s), 3) if finished else None),
+                "time_s": (steps * env.episode.dt if finished else None),  # deprecated alias of raw_completion_time_s
                 "action_saturation": float(np.mean(np.abs(acts) > 0.98)),
                 "action_smoothness": smooth,
                 "mean_abs_action": {ax: float(np.mean(np.abs(acts[:, i]))) for i, ax in enumerate(("surge", "sway", "heave", "yaw"))},
@@ -114,7 +119,8 @@ def aggregate_stage2(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     lo, hi = _wilson(rate, n)
     interior = [r for r in rows if not r["is_extreme_corner"]]
     extreme = [r for r in rows if r["is_extreme_corner"]]
-    finish_times = [r["time_s"] for r in finished if r["time_s"] is not None]
+    finish_times = [r["raw_completion_time_s"] for r in finished if r.get("raw_completion_time_s") is not None]
+    penalized_finish_times = [r["penalized_completion_time_s"] for r in finished if r.get("penalized_completion_time_s") is not None]
     end_reasons: Dict[str, int] = {}
     for r in rows:
         end_reasons[r["evaluation_end_reason"]] = end_reasons.get(r["evaluation_end_reason"], 0) + 1
@@ -134,7 +140,8 @@ def aggregate_stage2(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "total_missed_gate_attempts": int(sum(r["missed_gate_attempts"] for r in rows)),
         "mean_time_finished": round(float(np.mean(finish_times)), 4) if finish_times else None,
         "median_time_finished": round(float(statistics.median(finish_times)), 4) if finish_times else None,
-        "mean_penalized_time": round(float(np.mean([r["penalized_time_s"] for r in rows])), 4) if rows else 0.0,
+        "mean_penalty_s": round(float(np.mean([r["penalty_s"] for r in rows])), 4) if rows else 0.0,
+        "mean_penalized_time_finished": round(float(np.mean(penalized_finish_times)), 4) if penalized_finish_times else None,
         "mean_action_saturation": round(float(np.mean([r["action_saturation"] for r in rows])), 4) if rows else 0.0,
         "mean_action_smoothness": round(float(np.mean([r["action_smoothness"] for r in rows])), 4) if rows else 0.0,
         "mean_inference_ms": round(float(np.mean([r["inference_ms"] for r in rows if r["inference_ms"] is not None])), 4) if any(r["inference_ms"] is not None for r in rows) else None,
@@ -153,7 +160,7 @@ def stage2_best_metric_key(agg: Dict[str, Any]) -> Tuple:
     fewer collisions, lower penalized time. A faster but less robust policy never wins."""
     extreme = agg.get("extreme_completion")
     extreme = extreme if extreme is not None else -1.0  # no extreme samples ranks below any measured value
-    penalized = agg.get("mean_penalized_time")
+    penalty = agg.get("mean_penalty_s")
     return (
         float(agg.get("completion_rate", 0.0)),
         float(extreme),
@@ -161,7 +168,7 @@ def stage2_best_metric_key(agg: Dict[str, Any]) -> Tuple:
         -int(agg.get("oob_episodes", 0)),
         -int(agg.get("total_wrong_direction", 0)),
         -int(agg.get("total_collisions", 0)),
-        -float(penalized if penalized is not None else 0.0),
+        -float(penalty if penalty is not None else 0.0),  # fewer referee penalties is better
     )
 
 
