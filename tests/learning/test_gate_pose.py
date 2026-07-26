@@ -16,23 +16,27 @@ from marine_race_arena.controllers.gate_pose import (
     CameraIntrinsics,
     GatePoseTarget,
     GatePoseTracker,
+    canonical_gate_plane_yaw,
     detect_aperture_corners,
     estimate_gate_pose,
     estimate_pose_pnp,
     order_corners,
+    orientation_class,
+    plane_angle_distance_deg,
     projective_orientation,
     validate_quad,
+    wrap_plane_yaw_deg,
 )
 
 
-def render_gate(intr, tx, ty, tz, yaw_deg, bar_frac=0.18):
+def render_gate(intr, tx, ty, tz, yaw_deg, bar_frac=0.18, size_m=GATE_INNER_SIZE_M):
     """Render a white square gate frame at a known camera-frame pose (evaluation-only)."""
     theta = math.radians(yaw_deg)
     right = np.array([math.cos(theta), 0.0, math.sin(theta)])
     up = np.array([0.0, 1.0, 0.0])
     center = np.array([tx, ty, tz])
-    half = GATE_INNER_SIZE_M / 2.0
-    outer = half + bar_frac * GATE_INNER_SIZE_M
+    half = size_m / 2.0
+    outer = half + bar_frac * size_m
 
     def corners(hh):
         signs = [(-1, -1), (1, -1), (1, 1), (-1, 1)]  # tl, tr, br, bl
@@ -109,9 +113,73 @@ def test_pnp_yaw_sign_is_consistent(yaw):
     assert found is not None
     pose = estimate_pose_pnp(found[0], DEFAULT_INTRINSICS)
     assert pose is not None
-    # magnitude recovered within tolerance; sign monotone & opposite for opposite renders.
+    # Canonical yaw matches the render sign directly (render theta -> +theta).
     assert abs(abs(pose["yaw_deg"]) - abs(yaw)) < 10.0
-    assert math.copysign(1, pose["yaw_deg"]) == math.copysign(1, -yaw)  # render convention
+    assert math.copysign(1, pose["yaw_deg"]) == math.copysign(1, yaw)
+
+
+# --------------------------------------------------------- canonical yaw convention
+def _rmat_from_render_yaw(yaw_deg):
+    """Gate->camera rotation for the render's yaw convention (columns = right, up, normal)."""
+    theta = math.radians(yaw_deg)
+    right = np.array([math.cos(theta), 0.0, math.sin(theta)])
+    up = np.array([0.0, 1.0, 0.0])
+    normal = np.cross(right, up)  # object +z
+    return np.column_stack([right, up, normal])
+
+
+def test_canonical_yaw_is_zero_for_frontal():
+    # A frontal gate's normal faces the camera (n ~ (0,0,-1)); the naive atan2(R02,R22)
+    # would read ~180 deg. The canonical convention must read ~0.
+    assert abs(canonical_gate_plane_yaw(_rmat_from_render_yaw(0.0))) < 1e-6
+
+
+@pytest.mark.parametrize("yaw", [0.0, 10.0, -10.0, 25.0, -25.0, 45.0, -45.0, 80.0, -80.0])
+def test_canonical_yaw_matches_render_angle(yaw):
+    assert canonical_gate_plane_yaw(_rmat_from_render_yaw(yaw)) == pytest.approx(yaw, abs=1e-6)
+
+
+@pytest.mark.parametrize("yaw", [0.0, 15.0, -30.0, 60.0])
+def test_canonical_yaw_invariant_to_normal_reversal(yaw):
+    R = _rmat_from_render_yaw(yaw)
+    R_flip = R.copy()
+    R_flip[:, 2] = -R_flip[:, 2]  # reverse the plane normal (same physical plane)
+    assert canonical_gate_plane_yaw(R_flip) == pytest.approx(canonical_gate_plane_yaw(R), abs=1e-6)
+
+
+def test_wrap_plane_yaw_folds_to_interval():
+    assert wrap_plane_yaw_deg(170.0) == pytest.approx(-10.0)
+    assert wrap_plane_yaw_deg(-170.0) == pytest.approx(10.0)
+    assert wrap_plane_yaw_deg(30.0) == pytest.approx(30.0)
+
+
+def test_plane_angle_distance_is_modulo_180():
+    assert plane_angle_distance_deg(85.0, -85.0) == pytest.approx(10.0)  # not 170
+    assert plane_angle_distance_deg(20.0, -20.0) == pytest.approx(40.0)
+    assert plane_angle_distance_deg(10.0, 10.0) == pytest.approx(0.0)
+    assert plane_angle_distance_deg(0.0, 90.0) == pytest.approx(90.0)
+
+
+def test_orientation_class_labels():
+    assert orientation_class(2.0) == "frontal"
+    assert orientation_class(25.0) == "rotated_left"
+    assert orientation_class(-25.0) == "rotated_right"
+    assert orientation_class(None) == "unknown"
+
+
+@pytest.mark.parametrize("size_m", [1.5, 2.0])
+def test_pnp_distance_scales_with_gate_size(size_m):
+    # A larger aperture at the same distance projects larger; PnP must use the correct size.
+    img = render_gate(DEFAULT_INTRINSICS, 0.0, 0.0, 6.0, 0.0, size_m=size_m)
+    corners = detect_aperture_corners(img, DEFAULT_INTRINSICS)[0]
+    correct = estimate_pose_pnp(corners, DEFAULT_INTRINSICS, gate_width_m=size_m, gate_height_m=size_m)
+    assert correct is not None
+    assert correct["translation"][2] == pytest.approx(6.0, abs=0.5)
+    # Modelling the wrong size mis-scales the distance by exactly the size ratio.
+    wrong_size = 1.5 if size_m == 2.0 else 2.0
+    wrong = estimate_pose_pnp(corners, DEFAULT_INTRINSICS, gate_width_m=wrong_size, gate_height_m=wrong_size)
+    assert wrong is not None
+    assert wrong["translation"][2] == pytest.approx(6.0 * wrong_size / size_m, abs=0.5)
 
 
 def test_estimate_gate_pose_end_to_end():

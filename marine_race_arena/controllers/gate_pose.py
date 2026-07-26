@@ -7,9 +7,23 @@ degradation path. It consumes ONLY the camera image and the known public gate ap
 (1.5 x 1.5 m); it never reads the simulator gate pose or world geometry.
 
 Camera convention (OpenCV): +x right, +y down, +z forward (into the scene). The reported
-translation is (lateral_x right+, vertical_y down+, forward_z away+). Gate-plane yaw is the
-rotation of the gate about the camera vertical axis: 0 = frontal, positive = the gate's
-right edge is farther (rover must turn/strafe to face it). All angles in degrees.
+translation is (lateral_x right+, vertical_y down+, forward_z away+).
+
+Gate-plane yaw uses a single documented *canonical* convention (see
+:func:`canonical_gate_plane_yaw`). A gate is a planar square, so its orientation is defined
+only *modulo 180 deg* (the normal ``n`` and ``-n`` describe the same plane). The canonical
+yaw first orients the plane normal toward the camera and then measures its horizontal
+obliqueness from the optical axis, wrapped to ``[-90, +90]`` deg:
+
+* ``0`` == frontal (gate plane perpendicular to the line of sight);
+* ``> 0`` == the gate's left edge is nearer the camera (image left bar taller) ==
+  ``rotated_left``;
+* ``< 0`` == the gate's right edge is nearer (image right bar taller) == ``rotated_right``.
+
+This is distinct from the gate's *allowed passage direction* (an oriented ``+/-`` normal used
+by the referee), which is never inferred here. Angular error between two plane yaws must use
+:func:`plane_angle_distance_deg` (modulo-180), not a raw subtraction, and the coarse
+left/right/frontal call uses :func:`orientation_class`. All angles are in degrees.
 
 Ground truth may be used only offline to score this detector, to make synthetic labels, or
 in evaluation-only tests -- never as a runtime input or fallback.
@@ -65,6 +79,65 @@ class CameraIntrinsics:
 
 
 DEFAULT_INTRINSICS = CameraIntrinsics(640, 480, 90.0)
+
+
+# --------------------------------------------------------------- angle conventions
+def canonical_gate_plane_yaw(rotation_matrix) -> float:
+    """Canonical horizontal obliqueness of the gate plane from frontal, in ``[-90, 90]`` deg.
+
+    ``rotation_matrix`` is the gate->camera rotation ``R`` (so the gate normal, object
+    ``+z``, is ``R[:, 2]`` in camera coordinates). A gate is a plane, whose orientation is
+    defined only modulo 180 deg, so:
+
+    1. the normal is oriented consistently *toward the camera* (the camera looks along ``+z``,
+       so a normal facing it has ``n_z <= 0``); then
+    2. the yaw is the angle of the normal's horizontal projection from the optical axis.
+
+    Returns ``0`` for a frontal gate, ``> 0`` when the gate's left edge is nearer (image left
+    bar taller, ``rotated_left``) and ``< 0`` when the right edge is nearer (``rotated_right``).
+    The result lies in ``[-90, 90]`` and is invariant to reversing the normal (``n`` vs ``-n``).
+    """
+    n = _np.asarray(rotation_matrix, dtype=_np.float64)[:, 2]
+    if n[2] > 0.0:  # orient toward the camera (n_z <= 0)
+        n = -n
+    return math.degrees(math.atan2(float(n[0]), float(-n[2])))
+
+
+def canonical_gate_plane_pitch(rotation_matrix) -> float:
+    """Canonical vertical obliqueness of the gate plane, in ``[-90, 90]`` deg (0 = frontal).
+
+    Same construction as :func:`canonical_gate_plane_yaw` but for the normal's vertical
+    component (camera ``+y`` is down): ``> 0`` when the gate's top edge is farther.
+    """
+    n = _np.asarray(rotation_matrix, dtype=_np.float64)[:, 2]
+    if n[2] > 0.0:
+        n = -n
+    return math.degrees(math.atan2(float(n[1]), float(-n[2])))
+
+
+def wrap_plane_yaw_deg(yaw_deg: float) -> float:
+    """Fold an oriented yaw (any range) into the unoriented-plane interval ``[-90, 90]``."""
+    y = ((float(yaw_deg) + 90.0) % 180.0) - 90.0
+    return 90.0 if y == -90.0 else y  # keep +90 and -90 collapsed to a single endpoint
+
+
+def plane_angle_distance_deg(a: float, b: float) -> float:
+    """Angular distance between two UNORIENTED plane angles, modulo 180 deg (``0..90``).
+
+    A plane at ``+85`` deg and one at ``-85`` deg differ by only 10 deg, not 170. Use this
+    for gate-plane yaw error instead of ``abs(a - b)``.
+    """
+    d = abs((float(a) - float(b)) % 180.0)
+    return min(d, 180.0 - d)
+
+
+def orientation_class(yaw_deg: Optional[float], *, frontal_threshold_deg: float = 8.0) -> str:
+    """Coarse gate-plane orientation label from a canonical yaw: frontal/left/right/unknown."""
+    if yaw_deg is None:
+        return "unknown"
+    if abs(float(yaw_deg)) < frontal_threshold_deg:
+        return "frontal"
+    return "rotated_left" if float(yaw_deg) > 0.0 else "rotated_right"
 
 
 @dataclass
@@ -213,20 +286,28 @@ def detect_aperture_corners(image, intr: CameraIntrinsics = DEFAULT_INTRINSICS):
 
 
 # --------------------------------------------------------------------------- pose
-def _gate_object_points():
-    half = GATE_INNER_SIZE_M / 2.0
+def _gate_object_points(width_m: float = GATE_INNER_SIZE_M, height_m: Optional[float] = None):
+    """Object-frame aperture corners (tl, tr, br, bl) for a ``width_m`` x ``height_m`` gate.
+
+    The gate aperture size is a *public* competition constant per track (not privileged pose
+    information); pass the track's declared ``inner_width_m`` / ``inner_height_m``.
+    """
+    hw = float(width_m) / 2.0
+    hh = float(height_m if height_m is not None else width_m) / 2.0
     # tl, tr, br, bl in the gate plane (x right, y down, z=0), matching order_corners.
-    return _np.array([[-half, -half, 0.0], [half, -half, 0.0], [half, half, 0.0], [-half, half, 0.0]],
+    return _np.array([[-hw, -hh, 0.0], [hw, -hh, 0.0], [hw, hh, 0.0], [-hw, hh, 0.0]],
                      dtype=_np.float64)
 
 
-def estimate_pose_pnp(corners_px, intr: CameraIntrinsics = DEFAULT_INTRINSICS, *, yaw_sign_hint: int = 0):
+def estimate_pose_pnp(corners_px, intr: CameraIntrinsics = DEFAULT_INTRINSICS, *, yaw_sign_hint: int = 0,
+                      gate_width_m: float = GATE_INNER_SIZE_M, gate_height_m: Optional[float] = None):
     """Estimate gate pose from 4 aperture corners via planar PnP; select the best of the
     (up to two) solutions. The square-planar sign ambiguity is resolved with
-    ``yaw_sign_hint`` (the unambiguous image bar-height ratio: -1/0/+1). Returns a dict or None."""
+    ``yaw_sign_hint`` (the unambiguous image bar-height ratio: -1/0/+1). ``gate_width_m`` /
+    ``gate_height_m`` are the track's public aperture size. Returns a dict or None."""
     if _cv2 is None:
         return None
-    obj = _gate_object_points()
+    obj = _gate_object_points(gate_width_m, gate_height_m)
     img = _np.asarray(corners_px, dtype=_np.float64).reshape(-1, 1, 2)
     K = intr.matrix()
     dist = _np.zeros((4, 1))
@@ -251,8 +332,9 @@ def estimate_pose_pnp(corners_px, intr: CameraIntrinsics = DEFAULT_INTRINSICS, *
         normal_cam = R[:, 2]
         # A visible gate faces roughly toward the camera: its normal has negative z.
         facing = -float(normal_cam[2])
-        yaw = math.degrees(math.atan2(R[0, 2], R[2, 2]))   # rotation about camera vertical
-        pitch = math.degrees(math.atan2(-R[1, 2], math.hypot(R[0, 2], R[2, 2])))
+        # Canonical, normal-reversal-invariant plane obliqueness (0 = frontal, +/-90 wrap).
+        yaw = canonical_gate_plane_yaw(R)
+        pitch = canonical_gate_plane_pitch(R)
         roll = math.degrees(math.atan2(R[1, 0], R[1, 1]))
         cand = {
             "translation": (float(t[0]), float(t[1]), float(t[2])),
@@ -304,10 +386,16 @@ def _normalize_point(px, py, w, h):
 
 def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
                        beacon_bearing_deg: Optional[float] = None,
-                       max_reprojection_px: float = 8.0) -> Optional[GatePoseTarget]:
+                       max_reprojection_px: float = 8.0,
+                       gate_width_m: float = GATE_INNER_SIZE_M,
+                       gate_height_m: Optional[float] = None) -> Optional[GatePoseTarget]:
     """Full onboard estimate: aperture corners -> PnP (with projective fallback). Returns a
     :class:`GatePoseTarget` or None if no gate quadrilateral is found (callers should then
-    fall back to the center-only :class:`vision.VisionTarget`)."""
+    fall back to the center-only :class:`vision.VisionTarget`).
+
+    ``gate_width_m`` / ``gate_height_m`` are the track's *public* aperture dimensions (default
+    the 1.5 m official gate). Passing the correct size is required for a correct metric scale:
+    modelling a 2.0 m aperture as 1.5 m scales every PnP/size distance by 0.75."""
     if _cv2 is None or _np is None:
         return None
     h, w = int(image.shape[0]), int(image.shape[1])
@@ -333,10 +421,12 @@ def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
         quadrilateral_skew=proj["quadrilateral_skew"], orientation_hint=proj["orientation_hint"],
     )
     # The bar-height ratio is an unambiguous image cue for the yaw sign; use it to resolve
-    # the square-planar PnP ambiguity. ratio>0 (left bar taller) => PnP yaw is negative.
+    # the square-planar PnP ambiguity. In the canonical convention a taller LEFT bar
+    # (ratio > 0) means the gate's left edge is nearer == positive canonical yaw.
     ratio = proj["left_right_height_ratio"]
-    yaw_sign_hint = int(-math.copysign(1, ratio)) if abs(ratio) > 0.06 else 0
-    pose = estimate_pose_pnp(corners_px, intr, yaw_sign_hint=yaw_sign_hint)
+    yaw_sign_hint = int(math.copysign(1, ratio)) if abs(ratio) > 0.06 else 0
+    pose = estimate_pose_pnp(corners_px, intr, yaw_sign_hint=yaw_sign_hint,
+                             gate_width_m=gate_width_m, gate_height_m=gate_height_m)
     beacon_ok = True
     if pose is not None and beacon_bearing_deg is not None:
         # Bearing consistency: PnP lateral sign should agree with the beacon bearing sign.
@@ -352,21 +442,19 @@ def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
         target.reprojection_error_px = pose["reprojection_error_px"]
         target.pose_confidence = float(max(0.0, min(1.0, 1.0 - (pose["reprojection_error_px"] or 0.0) / max_reprojection_px)))
         target.detection_source = "pnp"
-        # Refine the orientation hint from metric yaw when available.
+        # Refine the orientation hint from the canonical metric yaw when available.
         if pose["yaw_deg"] is not None:
-            if abs(pose["yaw_deg"]) < 5.0:
-                target.orientation_hint = "frontal"
-            else:
-                target.orientation_hint = "rotated_left" if pose["yaw_deg"] > 0 else "rotated_right"
+            target.orientation_hint = orientation_class(pose["yaw_deg"], frontal_threshold_deg=5.0)
     else:
         target.detection_source = "projective"
         target.gate_plane_yaw_deg = proj["yaw_proxy_deg"]  # soft projective yaw
         target.pose_confidence = 0.3
-        # Size-based metric fallback: the aperture is a known GATE_INNER_SIZE_M square, so its
+        # Size-based metric fallback: the aperture is a known gate_height_m tall square, so its
         # apparent pixel height gives forward distance without PnP (onboard-legal: known gate
         # size + image only). Lateral/vertical follow from the center offset at that distance.
         pixel_h = max(1.0, height_frac * h)
-        z_est = intr.fy * GATE_INNER_SIZE_M / pixel_h
+        aperture_h_m = float(gate_height_m if gate_height_m is not None else gate_width_m)
+        z_est = intr.fy * aperture_h_m / pixel_h
         if math.isfinite(z_est) and 0.3 < z_est < 60.0:
             lateral = (cx - intr.cx) / intr.fx * z_est
             vertical = (cy - intr.cy) / intr.fy * z_est
