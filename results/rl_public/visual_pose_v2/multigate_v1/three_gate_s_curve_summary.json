@@ -1,0 +1,78 @@
+{
+  "generated_utc": "2026-07-26T18:05:00Z",
+  "git_sha": "6b90399d4684c36dc0c0f47820f52849874dd64e",
+  "track": "marine_race_arena/tracks/tests/three_gate_s_curve.json",
+  "track_sha256": "ce12d344c68d9fe0ab1d08a69c1a107f4abb49b3c3d3e51dd5dcd5cb54244452",
+  "controller": "rl_gate_controller",
+  "model": "results/rl_public/stage1/bc/model/best_model.pt",
+  "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+  "adapter_requested": "holoocean",
+  "adapter_actual": "holoocean",
+  "fallback_used": false,
+  "current_profile": "none",
+  "benchmark_task_override": null,
+  "currents": {
+    "current_profile_requested": "none",
+    "selected_current_profile": "none",
+    "currents_actual": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "n_currents": 0,
+    "current_descriptors": [],
+    "currents_are_zero": true
+  },
+  "n_seeds": 3,
+  "seeds": [
+    1765,
+    1766,
+    1767
+  ],
+  "expected_gates": 3,
+  "max_gates_reached": 1,
+  "completions": 0,
+  "mean_gates": 1.0,
+  "first_failure_counts": {
+    "COLLISION": 2,
+    "RETURN_TO_PREVIOUS_GATE": 1
+  },
+  "per_seed": [
+    {
+      "seed": 1765,
+      "completed_gates": 1,
+      "tracker_local_completed": 0,
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "MAX_STEPS",
+      "out_of_bounds_events": 128,
+      "wrong_direction_crossings": 1,
+      "collision_events": 1,
+      "wall_s": 218.6,
+      "failure": "COLLISION"
+    },
+    {
+      "seed": 1766,
+      "completed_gates": 1,
+      "tracker_local_completed": 1,
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "MAX_STEPS",
+      "out_of_bounds_events": 15,
+      "wrong_direction_crossings": 2,
+      "collision_events": 0,
+      "wall_s": 206.4,
+      "failure": "RETURN_TO_PREVIOUS_GATE"
+    },
+    {
+      "seed": 1767,
+      "completed_gates": 1,
+      "tracker_local_completed": 1,
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "MAX_STEPS",
+      "out_of_bounds_events": 0,
+      "wrong_direction_crossings": 0,
+      "collision_events": 168,
+      "wall_s": 214.7,
+      "failure": "COLLISION"
+    }
+  ]
+}
