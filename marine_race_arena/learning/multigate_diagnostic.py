@@ -53,7 +53,10 @@ def _parse_seeds(spec: str) -> List[int]:
 
 def _tracker_of(controller):
     src = getattr(controller, "_ctx_source", None)
-    return getattr(src, "tracker", None) if src is not None else None
+    if src is not None and getattr(src, "tracker", None) is not None:
+        return src.tracker
+    # Rule / hybrid controllers expose their LocalCourseTracker directly as `.tracker`.
+    return getattr(controller, "tracker", None)
 
 
 def _classify_first_failure(*, finished: bool, end_reason: str, gates: int, expected_gates: int,

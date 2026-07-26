@@ -42,6 +42,12 @@ class ControllerLoader:
             "marine_race_arena.learning.rl_controller",
             "RLGateController",
         ),
+        # Hybrid: deterministic rule backbone + BC-v1 visual servo blended in VISUAL_ALIGN.
+        # Requires the RL dependencies and a trained model via model_path / $MARINE_RACE_RL_MODEL.
+        "hybrid_gate_controller": (
+            "marine_race_arena.controllers.hybrid_gate_controller",
+            "HybridGateController",
+        ),
         "keyboard": (
             "marine_race_arena.controllers.keyboard_manual",
             "KeyboardManualController",
