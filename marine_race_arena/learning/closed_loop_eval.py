@@ -45,6 +45,7 @@ _IDENTITY_FIELDS = (
     "track_sha256",
     "adapter_requested",
     "fallback_allowed",
+    "current_profile",
     "randomization_enabled",
     "randomization_spec",
     "dt",
@@ -97,6 +98,35 @@ def _wilson(p: float, n: int, z: float = 1.96):
     return (max(0.0, centre - half), min(1.0, centre + half))
 
 
+def currents_summary(track: str, current_profile: Optional[str],
+                     benchmark_task: Optional[str] = None) -> Dict:
+    """Describe the currents actually applied after resolving ``current_profile``.
+
+    Returns the resolved net current vector and per-current descriptors so a run manifest can
+    prove ``--current-profile none`` produced zero applied current (``currents_actual`` all 0),
+    without modifying the official JSON track (a runtime override only). ``benchmark_task`` may
+    be overridden (e.g. a ``current_gate`` circuit run current-free becomes ``clean_gate``);
+    the geometry, gate order, laps and referee are unchanged by this validation-mode override.
+    """
+    from marine_race_arena.config.loader import describe_current_profile, load_track_config
+
+    config = load_track_config(track, current_profile=current_profile, benchmark_task=benchmark_task)
+    net = [0.0, 0.0, 0.0]
+    for current in config.currents:
+        if current.type == "constant":
+            vel = current.params.get("velocity", [0.0, 0.0, 0.0])
+            for i in range(3):
+                net[i] += float(vel[i]) if i < len(vel) else 0.0
+    return {
+        "current_profile_requested": current_profile,
+        "selected_current_profile": config.selected_current_profile,
+        "currents_actual": [round(v, 6) for v in net],
+        "n_currents": len(config.currents),
+        "current_descriptors": describe_current_profile(config),
+        "currents_are_zero": (len(config.currents) == 0 and net == [0.0, 0.0, 0.0]),
+    }
+
+
 def build_requested_config(args, *, model_sha256, randomization_spec) -> Dict:
     """The experiment-identity + provenance fields captured in the manifest."""
     return {
@@ -107,6 +137,8 @@ def build_requested_config(args, *, model_sha256, randomization_spec) -> Dict:
         "track_sha256": sha256_file(args.track),
         "adapter_requested": args.adapter,
         "fallback_allowed": bool(args.allow_fallback),
+        "current_profile": args.current_profile,
+        "benchmark_task_override": args.benchmark_task,
         "randomization_enabled": bool(args.randomize),
         "randomization_spec": randomization_spec,
         "dt": float(args.dt),
@@ -143,6 +175,12 @@ def main(argv=None) -> int:
     parser.add_argument("--controller", default="rl_gate_controller")
     parser.add_argument("--adapter", default="holoocean")
     parser.add_argument("--allow-fallback", action="store_true")
+    parser.add_argument("--current-profile", default=None,
+                        help="Runtime current override (none|medium|strong). 'none' disables all "
+                             "currents; the manifest records currents_actual and asserts they are zero.")
+    parser.add_argument("--benchmark-task", default=None,
+                        help="Runtime benchmark-task validation override (e.g. clean_gate). Needed to "
+                             "run a current_gate circuit current-free; geometry/gates/laps/referee unchanged.")
     parser.add_argument("--dt", type=float, default=0.1)
     parser.add_argument("--duration", type=float, default=None)
     parser.add_argument("--randomize", action="store_true", help="Apply Stage-2 start randomization (held-out seeds).")
@@ -160,6 +198,15 @@ def main(argv=None) -> int:
 
     model_sha256 = sha256_file(args.model) if args.model else None
     requested = build_requested_config(args, model_sha256=model_sha256, randomization_spec=randomization_spec)
+
+    # Resolve + verify the applied currents. A current-free run MUST prove currents_actual == 0.
+    currents = currents_summary(args.track, args.current_profile, args.benchmark_task)
+    if args.current_profile is not None and str(args.current_profile).strip().lower() == "none" \
+            and not currents["currents_are_zero"]:
+        print(f"[eval] ABORT: --current-profile none did not disable currents: {currents}")
+        return 3
+    print(f"[eval] currents: profile={args.current_profile!r} -> actual={currents['currents_actual']} "
+          f"(n={currents['n_currents']}, zero={currents['currents_are_zero']})")
 
     out_dir = Path(args.out)
     results_path = out_dir / "eval_results.json"
@@ -203,6 +250,7 @@ def main(argv=None) -> int:
         "git_sha": git_sha(),
         **requested,
         "model_bytes": (Path(args.model).stat().st_size if args.model and Path(args.model).exists() else None),
+        "currents": currents,
         "adapter_actual": (existing_manifest or {}).get("adapter_actual"),
         "requested_seeds": sorted(set(_parse_seeds(args.seeds)) | set((existing_manifest or {}).get("requested_seeds", []))),
         "completed_seeds": sorted(existing.keys()),
@@ -232,6 +280,8 @@ def main(argv=None) -> int:
             allow_fallback=args.allow_fallback,
             duration_s=args.duration,
             dt=args.dt,
+            current_profile=args.current_profile,
+            benchmark_task=args.benchmark_task,
             start_randomization=start_randomization,
         )
         r = report.results[0]

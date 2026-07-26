@@ -214,6 +214,7 @@ def evaluate_controller(
     duration_s: Optional[float] = None,
     dt: float = 0.1,
     current_profile: Optional[str] = None,
+    benchmark_task: Optional[str] = None,
     obstacles: Optional[str] = None,
     start_randomization=None,
 ) -> EvalReport:
@@ -230,6 +231,7 @@ def evaluate_controller(
             official=official,
             duration_s=duration_s,
             current_profile=current_profile,
+            benchmark_task=benchmark_task,
             obstacles=obstacles,
             controller=controller,
             start_randomization=start_randomization,
