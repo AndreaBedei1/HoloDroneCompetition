@@ -22,7 +22,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from marine_race_arena.learning.config import ACTION_DIM, OBS_DIM
+from marine_race_arena.learning.config import ACTION_DIM, OBS_DIM, OBS_ENCODING_VERSION
 
 
 @dataclass
@@ -171,15 +171,25 @@ def _write_csv(path: str, history: List[Dict[str, float]]) -> None:
         writer.writerows(history)
 
 
-def save_policy(policy: BCPolicy, path) -> None:
+def save_policy(
+    policy: BCPolicy,
+    path,
+    *,
+    obs_encoding_version: Optional[str] = None,
+    feature_names: Optional[Sequence[str]] = None,
+) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if obs_encoding_version is None and policy.obs_dim == OBS_DIM:
+        obs_encoding_version = OBS_ENCODING_VERSION
     torch.save(
         {
             "kind": "bc",
             "obs_dim": policy.obs_dim,
             "act_dim": policy.act_dim,
             "hidden_sizes": list(policy.hidden_sizes),
+            "obs_encoding_version": obs_encoding_version,
+            "feature_names": list(feature_names) if feature_names is not None else None,
             "state_dict": policy.state_dict(),
         },
         path,

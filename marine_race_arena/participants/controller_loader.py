@@ -42,6 +42,12 @@ class ControllerLoader:
             "marine_race_arena.learning.rl_controller",
             "RLGateController",
         ),
+        # Observation-v3 controller: every runtime action comes from the learned
+        # policy; deterministic logic only tracks expected-beacon progression.
+        "rl_multigate_controller": (
+            "marine_race_arena.learning.rl_multigate_controller",
+            "RLMultigateController",
+        ),
         # Hybrid: deterministic rule backbone + BC-v1 visual servo blended in VISUAL_ALIGN.
         # Requires the RL dependencies and a trained model via model_path / $MARINE_RACE_RL_MODEL.
         "hybrid_gate_controller": (

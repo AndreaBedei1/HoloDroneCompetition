@@ -62,6 +62,7 @@ class OnboardMultiGateContextTracker:
         self._tracker: Optional[LocalCourseTracker] = None
         self._depth_ref: Optional[float] = None
         self._step = 0
+        self._last_local_time_s: Optional[float] = None
         self._last_seen_step: Optional[int] = None
         self._last_seen = None
         self._visual_history: Deque[tuple[bool, bool]] = deque(maxlen=RECENT_GATE_HISTORY_STEPS)
@@ -85,6 +86,7 @@ class OnboardMultiGateContextTracker:
         sensors = (first_observation or {}).get("sensors") or {}
         self._depth_ref = _depth_m(sensors)
         self._step = 0
+        self._last_local_time_s = None
         self._last_seen_step = None
         self._last_seen = None
         self._visual_history.clear()
@@ -126,9 +128,19 @@ class OnboardMultiGateContextTracker:
         camera_image = sensors.get("FrontCamera")
         camera_present = _camera_present(camera_image)
         expected_before = tracker.expected_beacon_id
+        local_time_s = _finite(obs.get("local_time_s"), 0.0)
+        if dt is None:
+            effective_dt = (
+                max(0.0, local_time_s - self._last_local_time_s)
+                if self._last_local_time_s is not None
+                else 0.0
+            )
+        else:
+            effective_dt = max(0.0, _finite(dt, 0.0))
+        self._last_local_time_s = local_time_s
 
         tracker.update(
-            local_time_s=_finite(obs.get("local_time_s"), 0.0),
+            local_time_s=local_time_s,
             beacons=obs.get("beacons") or [],
             camera_image=camera_image,
             dvl_velocity=sensors.get("DVLSensor"),
@@ -168,7 +180,6 @@ class OnboardMultiGateContextTracker:
                 dvl = _dvl_body_velocity(sensors)
                 if dvl is not None:
                     self._loss_dvl_present = True
-                    effective_dt = max(0.0, _finite(dt, 0.0))
                     self._loss_displacement_m += max(0.0, dvl[0]) * effective_dt
 
         packet = _select_beacon_packet(obs.get("beacons") or [], expected_after)
