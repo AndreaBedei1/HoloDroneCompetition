@@ -64,6 +64,15 @@ MULTIGATE_V3_FINAL_OFFICIAL_SEEDS: List[int] = _r(21400, 21499)
 # The PPO rollout-env seed (separate namespace; disjoint from all eval/test ranges).
 PPO_TRAINING_ENV_SEED: int = 9000
 
+# --- Multi-day observation-v3 long-run forward allocations -------------------
+# These ranges are disjoint from the completed 5k experiment and its final seeds.
+MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS: List[int] = _r(22000, 22999)
+MULTIGATE_LONGRUN_DEV_EVAL_SEEDS: List[int] = _r(25000, 25099)
+MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS: List[int] = _r(25100, 25199)
+MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS: List[int] = _r(26000, 26999)
+MULTIGATE_LONGRUN_BC_TRAINING_SEEDS: List[int] = _r(28000, 28199)
+MULTIGATE_LONGRUN_BC_EVAL_SEEDS: List[int] = _r(28200, 28299)
+
 NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "stage2_secondary_dev_eval": STAGE2_SECONDARY_DEV_SEEDS,
     "visual_pose_dataset_v2": VISUAL_POSE_DATASET_V2_SEEDS,
@@ -80,6 +89,12 @@ NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "multigate_v3_FINAL_two_gate": MULTIGATE_V3_FINAL_TWO_GATE_SEEDS,
     "multigate_v3_FINAL_three_gate": MULTIGATE_V3_FINAL_THREE_GATE_SEEDS,
     "multigate_v3_FINAL_official": MULTIGATE_V3_FINAL_OFFICIAL_SEEDS,
+    "multigate_longrun_ppo_training": MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS,
+    "multigate_longrun_dev_eval": MULTIGATE_LONGRUN_DEV_EVAL_SEEDS,
+    "multigate_longrun_checkpoint_selection": MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS,
+    "multigate_longrun_demonstrations": MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS,
+    "multigate_longrun_bc_training": MULTIGATE_LONGRUN_BC_TRAINING_SEEDS,
+    "multigate_longrun_bc_eval": MULTIGATE_LONGRUN_BC_EVAL_SEEDS,
 }
 
 # Mutually-exclusive roles that must be pairwise disjoint (training/selection vs held-out).
@@ -102,6 +117,12 @@ ROLE_SEED_SETS: Dict[str, Set[int]] = {
     "multigate_v3_final_two_gate": set(MULTIGATE_V3_FINAL_TWO_GATE_SEEDS),
     "multigate_v3_final_three_gate": set(MULTIGATE_V3_FINAL_THREE_GATE_SEEDS),
     "multigate_v3_final_official": set(MULTIGATE_V3_FINAL_OFFICIAL_SEEDS),
+    "multigate_longrun_ppo_training": set(MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS),
+    "multigate_longrun_dev_eval": set(MULTIGATE_LONGRUN_DEV_EVAL_SEEDS),
+    "multigate_longrun_checkpoint_selection": set(MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS),
+    "multigate_longrun_demonstrations": set(MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS),
+    "multigate_longrun_bc_training": set(MULTIGATE_LONGRUN_BC_TRAINING_SEEDS),
+    "multigate_longrun_bc_eval": set(MULTIGATE_LONGRUN_BC_EVAL_SEEDS),
 }
 
 # Ranges that must never be used for training, checkpoint selection, reward or
@@ -159,6 +180,12 @@ def development_and_final_are_disjoint() -> bool:
         | set(MULTIGATE_V3_PPO_TRAINING_SEEDS)
         | set(MULTIGATE_V3_DEV_EVAL_SEEDS)
         | set(MULTIGATE_V3_CHECKPOINT_SELECTION_SEEDS)
+        | set(MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS)
+        | set(MULTIGATE_LONGRUN_DEV_EVAL_SEEDS)
+        | set(MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS)
+        | set(MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS)
+        | set(MULTIGATE_LONGRUN_BC_TRAINING_SEEDS)
+        | set(MULTIGATE_LONGRUN_BC_EVAL_SEEDS)
     )
     return dev.isdisjoint(final)
 

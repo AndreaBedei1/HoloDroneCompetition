@@ -43,6 +43,11 @@ def test_v3_gym_space_context_and_reward_components():
         assert abs(reward) <= config.total_abs_bound
         assert info["reward_components"]
         assert "next_beacon_alignment" in info["reward_components"]
+        assert "signed_turn" in info["reward_components"]
+        assert "next_gate_stable_visual" in info["reward_components"]
+        # A tracker/vision update cannot mint the authoritative crossing bonus.
+        assert info["reward_components"]["gate_crossing"] == 0.0
+        assert info["reward_components"]["completion"] == 0.0
         assert all(
             math.isfinite(value) and abs(value) <= config.component_abs_bound
             for value in info["reward_components"].values()
@@ -56,6 +61,9 @@ def test_turn_reward_defaults_match_measured_r2_failure():
     assert config.offcenter_surge_threshold < 0.2
     assert config.post_gate_window_steps >= 50
     assert config.next_beacon_alignment_scale > 0
+    assert config.signed_turn_scale > 0
+    assert config.next_gate_stable_visual_bonus > 0
+    assert config.stationary_post_gate_penalty > 0
 
 
 def test_non_finished_truncation_has_large_terminal_penalty():

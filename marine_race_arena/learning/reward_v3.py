@@ -40,10 +40,17 @@ class MultiGateRewardConfig:
     action_saturation_penalty: float = 0.10
     gate_crossing_bonus: float = 20.0
     post_gate_forward_scale: float = 0.3
+    post_acquisition_forward_scale: float = 0.2
+    signed_turn_scale: float = 0.5
+    previous_gate_behind_bonus: float = 0.15
+    previous_gate_range_progress_scale: float = 0.25
+    stationary_post_gate_penalty: float = 0.05
     previous_gate_return_penalty: float = 1.0
     next_beacon_acquisition_bonus: float = 1.0
     next_beacon_alignment_scale: float = 1.0
     next_gate_visual_acquisition_bonus: float = 2.0
+    next_gate_stable_visual_bonus: float = 1.0
+    stable_visual_frames: int = 3
     completion_bonus: float = 50.0
     time_cost: float = 0.01
     collision_penalty: float = 8.0
@@ -72,6 +79,9 @@ class _RewardState:
     next_beacon_bonus_paid: bool = False
     best_next_beacon_abs_bearing: Optional[float] = None
     next_gate_visual_bonus_paid: bool = False
+    next_gate_stable_visual_bonus_paid: bool = False
+    next_gate_visible_streak: int = 0
+    previous_gate_range_m: Optional[float] = None
     terminal_paid: bool = False
 
 
@@ -124,10 +134,16 @@ class MultiGateTrainingReward:
             "action_saturation_penalty": 0.0,
             "gate_crossing": 0.0,
             "post_gate_forward": 0.0,
+            "post_acquisition_forward": 0.0,
+            "signed_turn": 0.0,
+            "previous_gate_behind": 0.0,
+            "previous_gate_range_progress": 0.0,
+            "stationary_post_gate_penalty": 0.0,
             "previous_gate_return_penalty": 0.0,
             "next_beacon_acquisition": 0.0,
             "next_beacon_alignment": 0.0,
             "next_gate_visual_acquisition": 0.0,
+            "next_gate_stable_visual": 0.0,
             "completion": 0.0,
             "time_cost": -abs(cfg.time_cost),
             "collision_penalty": 0.0,
@@ -152,6 +168,9 @@ class MultiGateTrainingReward:
             state.next_beacon_bonus_paid = False
             state.best_next_beacon_abs_bearing = None
             state.next_gate_visual_bonus_paid = False
+            state.next_gate_stable_visual_bonus_paid = False
+            state.next_gate_visible_streak = 0
+            state.previous_gate_range_m = None
 
         observation = step.observation if isinstance(step.observation, Mapping) else {}
         sensors = observation.get("sensors")
@@ -189,6 +208,16 @@ class MultiGateTrainingReward:
                 abs_bearing = abs(float(bearing))
                 if state.best_next_beacon_abs_bearing is None:
                     state.best_next_beacon_abs_bearing = abs_bearing
+                if abs_bearing > 5.0:
+                    # Positive beacon bearing requires positive yaw in the
+                    # official high-level action convention. This rewards
+                    # beginning the correct signed turn and penalizes reversal.
+                    signed_yaw = float(action_array[3]) * math.copysign(
+                        1.0, float(bearing)
+                    )
+                    components["signed_turn"] = cfg.signed_turn_scale * float(
+                        np.clip(signed_yaw / 0.15, -1.0, 1.0)
+                    )
                 elif abs_bearing < state.best_next_beacon_abs_bearing:
                     improvement = state.best_next_beacon_abs_bearing - abs_bearing
                     components["next_beacon_alignment"] = (
@@ -240,8 +269,20 @@ class MultiGateTrainingReward:
                     cfg.next_gate_visual_acquisition_bonus
                 )
                 state.next_gate_visual_bonus_paid = True
+            if state.previous_beacon_id is not None:
+                state.next_gate_visible_streak += 1
+                if (
+                    state.next_gate_visible_streak >= cfg.stable_visual_frames
+                    and not state.next_gate_stable_visual_bonus_paid
+                ):
+                    components["next_gate_stable_visual"] = (
+                        cfg.next_gate_stable_visual_bonus
+                    )
+                    state.next_gate_stable_visual_bonus_paid = True
             state.previous_center_error = center_error
             state.previous_area = area
+        elif state.previous_beacon_id is not None:
+            state.next_gate_visible_streak = 0
         state.previous_visual_present = target is not None
 
         if gate_delta > 0:
@@ -259,6 +300,15 @@ class MultiGateTrainingReward:
                 components["post_gate_forward"] = cfg.post_gate_forward_scale * float(
                     np.clip(dvl[0], -1.0, 1.0)
                 )
+                if state.next_gate_visual_bonus_paid:
+                    components["post_acquisition_forward"] = (
+                        cfg.post_acquisition_forward_scale
+                        * float(np.clip(dvl[0], 0.0, 1.0))
+                    )
+                if abs(float(dvl[0])) < 0.02:
+                    components["stationary_post_gate_penalty"] = (
+                        -cfg.stationary_post_gate_penalty
+                    )
             if state.previous_beacon_id:
                 previous_packet = _select_beacon_packet(
                     beacons, state.previous_beacon_id
@@ -272,6 +322,25 @@ class MultiGateTrainingReward:
                             -cfg.previous_gate_return_penalty
                             * (1.0 - previous_bearing / 80.0)
                         )
+                    elif previous_bearing >= 100.0:
+                        components["previous_gate_behind"] = (
+                            cfg.previous_gate_behind_bonus
+                        )
+                    previous_range = max(
+                        0.0, _finite(previous_packet.get("range_m"), 0.0)
+                    )
+                    if state.previous_gate_range_m is not None:
+                        components["previous_gate_range_progress"] = (
+                            cfg.previous_gate_range_progress_scale
+                            * float(
+                                np.clip(
+                                    previous_range - state.previous_gate_range_m,
+                                    -1.0,
+                                    1.0,
+                                )
+                            )
+                        )
+                    state.previous_gate_range_m = previous_range
 
         components["yaw_sway_coupling_penalty"] = (
             -cfg.yaw_sway_coupling_penalty
