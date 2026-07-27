@@ -108,7 +108,36 @@ scripts\resume_stage2_ppo.bat results\rl\stage2\<run-directory> --steps 6000
   `results/rl_public/seed_registry.json`. The final scientific evaluation must use the
   reserved unseen seeds **1500–1549 / 1550–1599**, which remain untouched (see
   `docs/ppo_plan.md`).
+
 - Persistent reset is experimental and **not** used here — see
   `results/rl_public/reset_benchmark/`.
 - The 5k/10k/50k stages are **not** started automatically; the exact next commands are in
   `docs/ppo_plan.md`.
+
+## Observation-v3 multi-gate policy
+
+The selected multi-gate model exists for the straight two-gate R1 stage only.
+It is a feed-forward PPO policy with a 59-feature onboard temporal observation;
+there is no runtime rule-action blend.
+
+```bat
+REM New timestamped R1 run from the successful BC-v3 warm-start:
+scripts\train_rl_multigate_two_gate.bat
+
+REM Resume an existing run to a total step target:
+scripts\resume_rl_multigate_two_gate.bat results\rl\multigate_v3\r1\ppo_multigate_v3\<timestamp> 10000
+
+REM Reproduce the locked 10-seed current-free evaluation:
+scripts\eval_rl_multigate_two_gate.bat
+
+REM Same-seed rule/hybrid/RL comparison:
+scripts\compare_rule_hybrid_rl.bat
+```
+
+Each script uses `marine_race_rl`, real HoloOcean, `--current-profile none`,
+no fallback flag, model-contract validation, and timestamped non-overwriting
+outputs. Three-gate and official RL launchers are deliberately absent because
+R2 did not pass and no selected model exists for those stages.
+
+See `docs/rl_multigate_policy.md` for the 9/10 R1 result, the R2 stopping
+decision, selected model SHA-256, and exact paired metrics.

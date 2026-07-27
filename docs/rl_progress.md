@@ -356,3 +356,20 @@ env, `87016ad` reward, `1d41141` recorder/dataset, `6c50ede` BC/PPO/controller,
 `9ef2a4a` curriculum/eval/docs. Foundation fixes: `40e5672` temporal alignment,
 `7bbcec9` normalization-aware transfer, `7364d52` model-path CLI, `51678bd` referee
 margin, `37693ab` directional reward, `5d27209` curriculum, `d42182f` PPO workflow.
+
+## Learned multi-gate observation-v3 follow-up
+
+`feature/rl-multigate-policy` continues from the successful visual-pose
+multi-gate baseline without modifying the frozen BC-v1 or prior result packages.
+It adds a 59-feature onboard temporal observation, exact v1→v3 transfer,
+training-only multi-gate DAgger labels, bounded gate-to-gate reward, KL-safe PPO,
+PPO-to-PPO curriculum transfer, and `rl_multigate_controller`.
+
+The selected feed-forward PPO model completed `two_gate_straight.json` on 9/10
+reserved current-free real-HoloOcean seeds. No runtime rule controller was
+instantiated and all four actions came from the policy. Balanced-turn R2 did not
+reach criterion after two bounded 5k corrective runs, so R3 and official RL
+evaluation were not claimed. The honest verdict is **PARTIAL RL SUCCESS**.
+
+Full details: `docs/rl_multigate_policy.md`; compact results:
+`results/rl_public/multigate_rl_v3/`.

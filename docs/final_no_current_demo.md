@@ -63,3 +63,17 @@ scripts\run_official_mixed_no_current.bat    # adds --benchmark-task clean_gate
 Every run uses real HoloOcean (`--adapter holoocean`, no `--allow-fallback`), disables currents,
 and writes a manifest proving `currents_actual == [0,0,0]`. Use the dedicated `marine_race_rl`
 conda environment.
+
+## Learned-policy status (observation v3)
+
+The rule/hybrid official results above remain frozen and unchanged. A separate
+mostly learned controller was evaluated on the new branch:
+
+- two-gate straight: 9/10 reserved seeds, real HoloOcean, current-free;
+- runtime rule-action weight 0, no hybrid blend, no rule-controller instance;
+- balanced-turn R2 did not meet criterion;
+- three-gate and official learned-policy runs were therefore not executed.
+
+No claim is made that the learned policy completes an official circuit. The
+result category is **PARTIAL RL SUCCESS**. See
+`docs/rl_multigate_policy.md` and `results/rl_public/multigate_rl_v3/`.

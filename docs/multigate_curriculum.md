@@ -96,3 +96,27 @@ scripts\run_three_gate_hybrid.bat
 # Current-free official circuits (best controller):
 scripts\run_all_official_no_current.bat
 ```
+
+## Observation-v3 learned-policy experiment
+
+Branch `feature/rl-multigate-policy` adds a distinct experiment whose actions are
+not produced or blended by the rule controller. Its feed-forward PPO policy
+controls surge/sway/heave/yaw throughout the mission; deterministic runtime
+logic is limited to onboard observation preprocessing, expected-beacon indexing,
+robust passage confirmation, action clipping, and finished-state stop.
+
+Measured current-free real-HoloOcean progression:
+
+- R0 transfer regression: 10/10 single-gate.
+- R1 checkpoint selection: 10/10 two-gate straight.
+- R1 locked final: **9/10** reserved seeds, zero collision/OOB/wrong direction,
+  and zero runtime interventions.
+- R2: left was unreliable; right finished one probe but with wrong-direction
+  crossings/return indications. Two bounded 5k continuations did not meet the
+  balanced 8/10 criterion.
+- R3 and official circuits were not run; the curriculum correctly held at R2.
+
+This is **PARTIAL RL SUCCESS**, not an official-circuit learned-control result.
+See `docs/rl_multigate_policy.md` and
+`results/rl_public/multigate_rl_v3/` for model hashes, per-seed rows, failure
+evidence, KL/reward histories, and the paired rule/hybrid/RL comparison.

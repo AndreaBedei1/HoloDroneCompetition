@@ -1,0 +1,36 @@
+{
+  "n_eval": 10,
+  "failures": [
+    {
+      "seed": 21202,
+      "status": "RUNNING",
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "TIME_LIMIT",
+      "finished": false,
+      "completed_gates": 1,
+      "expected_gates": 2,
+      "official_time_s": null,
+      "penalized_time_s": null,
+      "collision_events": 0,
+      "obstacle_collision_events": 0,
+      "out_of_bounds_events": 0,
+      "stuck_events": 0,
+      "missed_gate_attempts": 0,
+      "wrong_direction_crossings": 0,
+      "inference_time_ms": 42.9778,
+      "wall_s": 193.189,
+      "adapter_used": "holoocean",
+      "applied_randomization": null,
+      "mean_abs_sway_action": 0.05547792837023735,
+      "mean_abs_yaw_action": 0.012473076581954956,
+      "mean_action_jerk": 0.03966309130191803,
+      "action_oscillation_rate": 0.0,
+      "deterministic_runtime_intervention_count": 0,
+      "previous_gate_returns": 0
+    }
+  ],
+  "first_failure_counts": {
+    "NEXT_GATE_NOT_ACQUIRED": 1
+  },
+  "diagnosis": "The lone reserved failure crossed gate 1 but timed out before gate 2; no collision, OOB, wrong-direction crossing, or runtime intervention occurred in that episode."
+}

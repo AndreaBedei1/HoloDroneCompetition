@@ -1,0 +1,20 @@
+{
+  "paired_seeds": [
+    21200,
+    21201,
+    21202,
+    21203,
+    21204
+  ],
+  "finished_episode_mean_official_time_s": {
+    "rule_gate_center_then_commit": 8.5,
+    "hybrid_gate_controller": 8.48,
+    "rl_multigate_controller": 11.25
+  },
+  "mean_penalized_time_s_with_150s_dnf": {
+    "rule_gate_center_then_commit": 8.5,
+    "hybrid_gate_controller": 8.48,
+    "rl_multigate_controller": 39.0
+  },
+  "conclusion": "On the paired subset RL completed 4/5 and was slower and less smooth than both deterministic-runtime baselines."
+}

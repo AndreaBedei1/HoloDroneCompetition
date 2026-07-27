@@ -1,0 +1,249 @@
+{
+  "schema_version": "multigate_rl_v3_public_v1",
+  "generated_utc": "2026-07-27T13:24:02Z",
+  "generated_at_code_sha": "e6b47f5e4e29c8667614208580da18ca3114d346",
+  "starting_sha": "0b24d003e60dc47ef7269645eb9648fd9ead255f",
+  "branch": "feature/rl-multigate-policy",
+  "experiment_code_sha": "fdb0ef00052adf732c93f513a503b990229d8888",
+  "result_category": "PARTIAL RL SUCCESS",
+  "conclusion": "The learned controller reliably progressed beyond frozen BC-v1 and met the straight two-gate criterion (9/10), but balanced turns were unreliable and three-gate/official evaluation was not claimed.",
+  "runtime_architecture": {
+    "description": "Onboard multi-sensor RL with minimal deterministic gate index and passage confirmation",
+    "policy": "feed-forward PPO MLP [256, 256]",
+    "actions": [
+      "surge",
+      "sway",
+      "heave",
+      "yaw"
+    ],
+    "rule_action_weight": 0,
+    "hybrid_blending": false,
+    "rule_controller_instantiated": false,
+    "deterministic_runtime_interventions_final": 0,
+    "recurrence_used": false
+  },
+  "frozen_baselines": {
+    "bc_v1_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+    "main_sha": "f4d63751fd935f724a9dce3ea802f76e1e27d45f",
+    "feature_rl_controller_sha": "5a02838e24fec21c3fc540102beb9c13e942f0ac",
+    "feature_visual_pose_multigate_sha": "0b24d003e60dc47ef7269645eb9648fd9ead255f"
+  },
+  "selected_model": {
+    "path": "results\\rl\\multigate_v3\\r1\\ppo_multigate_v3\\20260727_133031\\best_model\\best_model.zip",
+    "sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b"
+  },
+  "final_two_gate": {
+    "summary": {
+      "controller": "rl_multigate_controller",
+      "model": "results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip",
+      "track": "marine_race_arena/tracks/tests/two_gate_straight.json",
+      "adapter": "holoocean",
+      "randomized": false,
+      "n_eval": 10,
+      "completions": 9,
+      "completion_rate": 0.9,
+      "completion_rate_wilson95_low": 0.5958,
+      "completion_rate_wilson95_high": 0.9821,
+      "mean_gates": 1.9,
+      "total_collisions": 0,
+      "total_out_of_bounds": 0,
+      "total_stuck": 0,
+      "total_missed_gate_attempts": 0,
+      "total_wrong_direction_crossings": 0,
+      "mean_inference_time_ms": 42.1426,
+      "mean_abs_sway_action": 0.0409,
+      "mean_abs_yaw_action": 0.0174,
+      "mean_action_jerk": 0.0388,
+      "mean_action_oscillation_rate": 0.0,
+      "total_deterministic_runtime_interventions": 0,
+      "total_previous_gate_returns": 1,
+      "end_reason_counts": {
+        "FINISHED": 9,
+        "TIME_LIMIT": 1
+      },
+      "referee_status_counts": {
+        "FINISHED": 9,
+        "RUNNING": 1
+      },
+      "seeds": [
+        21200,
+        21201,
+        21202,
+        21203,
+        21204,
+        21205,
+        21206,
+        21207,
+        21208,
+        21209
+      ]
+    },
+    "manifest": {
+      "schema_version": "eval_manifest_v1",
+      "git_sha": "fdb0ef00052adf732c93f513a503b990229d8888",
+      "code_sha": "fdb0ef00052adf732c93f513a503b990229d8888",
+      "controller_name": "rl_multigate_controller",
+      "model_path": "results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip",
+      "model_sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+      "track_path": "marine_race_arena/tracks/tests/two_gate_straight.json",
+      "track_sha256": "b9496e55c3f1532fb18bcd132b6f9bac066eaf9f9812e53c1c091df3fd0caae6",
+      "adapter_requested": "holoocean",
+      "fallback_allowed": false,
+      "current_profile": "none",
+      "benchmark_task_override": null,
+      "randomization_enabled": false,
+      "randomization_spec": null,
+      "dt": 0.1,
+      "duration_s": null,
+      "max_steps": null,
+      "observation_encoding_version": "onboard_multigate_rl_v3",
+      "action_contract_version": "surge_sway_heave_yaw_pm1_v1",
+      "model_bytes": 1995567,
+      "currents": {
+        "current_profile_requested": "none",
+        "selected_current_profile": "none",
+        "currents_actual": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "n_currents": 0,
+        "current_descriptors": [],
+        "currents_are_zero": true
+      },
+      "currents_actual": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "adapter_actual": "holoocean",
+      "fallback_used": false,
+      "runtime_constraints": {
+        "rule_action_weight": 0,
+        "hybrid_blending": false,
+        "rule_controller_not_instantiated": true
+      },
+      "requested_seeds": [
+        21200,
+        21201,
+        21202,
+        21203,
+        21204,
+        21205,
+        21206,
+        21207,
+        21208,
+        21209
+      ],
+      "completed_seeds": [
+        21200,
+        21201,
+        21202,
+        21203,
+        21204,
+        21205,
+        21206,
+        21207,
+        21208,
+        21209
+      ],
+      "created_utc": "2026-07-27T11:58:02Z",
+      "updated_utc": "2026-07-27T12:07:49Z"
+    }
+  },
+  "r2_status": "HOLD",
+  "three_gate_status": "NOT_RUN",
+  "official_status": "NOT_RUN",
+  "paired_comparison": {
+    "paired_seeds": [
+      21200,
+      21201,
+      21202,
+      21203,
+      21204
+    ],
+    "track": "marine_race_arena/tracks/tests/two_gate_straight.json",
+    "adapter_actual": "holoocean",
+    "fallback_used": false,
+    "current_profile": "none",
+    "currents_actual": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "controllers": {
+      "rule_gate_center_then_commit": {
+        "controller": "rule_gate_center_then_commit",
+        "n_eval": 5,
+        "completions": 5,
+        "completion_rate": 1.0,
+        "mean_gates": 2.0,
+        "mean_official_time_finished_s": 8.5,
+        "mean_penalized_time_s": 8.5,
+        "dnf_penalty_s": 150.0,
+        "mean_time_per_completed_gate_s": 4.25,
+        "collisions": 0,
+        "out_of_bounds": 0,
+        "wrong_direction": 0,
+        "previous_gate_returns": 0,
+        "mean_abs_sway_action": 0.0007,
+        "mean_abs_yaw_action": 0.0,
+        "mean_action_jerk": 0.0079,
+        "mean_action_oscillation_rate": 0.0,
+        "mean_inference_time_ms": 20.1057,
+        "mean_wall_s": 37.1528,
+        "deterministic_runtime_interventions": 0
+      },
+      "hybrid_gate_controller": {
+        "controller": "hybrid_gate_controller",
+        "n_eval": 5,
+        "completions": 5,
+        "completion_rate": 1.0,
+        "mean_gates": 2.0,
+        "mean_official_time_finished_s": 8.48,
+        "mean_penalized_time_s": 8.48,
+        "dnf_penalty_s": 150.0,
+        "mean_time_per_completed_gate_s": 4.24,
+        "collisions": 0,
+        "out_of_bounds": 0,
+        "wrong_direction": 0,
+        "previous_gate_returns": 0,
+        "mean_abs_sway_action": 0.0059,
+        "mean_abs_yaw_action": 0.0006,
+        "mean_action_jerk": 0.0095,
+        "mean_action_oscillation_rate": 0.0,
+        "mean_inference_time_ms": 60.5491,
+        "mean_wall_s": 40.3292,
+        "deterministic_runtime_interventions": 0
+      },
+      "rl_multigate_controller": {
+        "controller": "rl_multigate_controller",
+        "n_eval": 5,
+        "completions": 4,
+        "completion_rate": 0.8,
+        "mean_gates": 1.8,
+        "mean_official_time_finished_s": 11.25,
+        "mean_penalized_time_s": 39.0,
+        "dnf_penalty_s": 150.0,
+        "mean_time_per_completed_gate_s": 5.625,
+        "collisions": 0,
+        "out_of_bounds": 0,
+        "wrong_direction": 0,
+        "previous_gate_returns": 0,
+        "mean_abs_sway_action": 0.0416,
+        "mean_abs_yaw_action": 0.0166,
+        "mean_action_jerk": 0.0395,
+        "mean_action_oscillation_rate": 0.0,
+        "mean_inference_time_ms": 42.4077,
+        "mean_wall_s": 73.032,
+        "deterministic_runtime_interventions": 0
+      }
+    }
+  },
+  "reproduce_commands": {
+    "train_two_gate": "scripts\\train_rl_multigate_two_gate.bat",
+    "resume_two_gate": "scripts\\resume_rl_multigate_two_gate.bat <run-dir> 5000",
+    "eval_two_gate": "scripts\\eval_rl_multigate_two_gate.bat",
+    "paired_comparison": "scripts\\compare_rule_hybrid_rl.bat"
+  }
+}
