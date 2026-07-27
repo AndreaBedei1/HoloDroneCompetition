@@ -130,6 +130,8 @@ def main(argv=None) -> int:
             "ppo_curriculum_transfer"
             if args.ppo_model is not None
             else "bc_v1_transfer_v3"
+            if bc_model == DEFAULT_BC_V1
+            else "bc_v3_warm_start"
         ),
         action_std_strategy=(
             "preserve_checkpoint" if args.ppo_model is not None else "fixed"
