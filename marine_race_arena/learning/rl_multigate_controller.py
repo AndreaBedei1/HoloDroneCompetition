@@ -65,6 +65,13 @@ def _load_v3_inference(model_path: str) -> _Inference:
                 f"controller={(OBS_DIM_V3,)}"
             )
         return _Inference("ppo", model)
+    import torch
+
+    checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+    if checkpoint.get("kind") == "bc_v3_gated":
+        from marine_race_arena.learning.gated_bc_v3 import load_gated_policy
+
+        return _Inference("bc", load_gated_policy(path))
     return _Inference("bc", load_v3_policy(path))
 
 

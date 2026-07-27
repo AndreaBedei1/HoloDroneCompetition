@@ -62,10 +62,23 @@ def validate_v3_model(path: Any) -> Dict[str, Any]:
             )
         kind = "ppo"
     else:
-        policy = load_v3_policy(model_path)
+        import torch
+
+        checkpoint = torch.load(
+            model_path, map_location="cpu", weights_only=False
+        )
+        if checkpoint.get("kind") == "bc_v3_gated":
+            from marine_race_arena.learning.gated_bc_v3 import (
+                load_gated_policy,
+            )
+
+            policy = load_gated_policy(model_path)
+            kind = "bc_v3_gated"
+        else:
+            policy = load_v3_policy(model_path)
+            kind = "bc"
         if policy.obs_dim != OBS_DIM_V3:
             raise ValueError("v3 BC model dimension mismatch")
-        kind = "bc"
     return {
         "kind": kind,
         "path": str(model_path),
