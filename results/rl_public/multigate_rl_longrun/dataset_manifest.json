@@ -1,0 +1,27 @@
+{
+  "schema_version": "multigate_longrun_dataset_summary_v1",
+  "r1_original": {
+    "path": "datasets/multigate_v3/r1_original/manifest.json",
+    "raw_sha256": "3043bc46a732999fbc21875f952ed6ca35ef03794d6a92890958834fe5d50f83",
+    "successful_episodes_used": 3,
+    "steps_used": 597
+  },
+  "balanced_turns": {
+    "path": "datasets/multigate_v3/r2_balanced_turns_v1/manifest.json",
+    "status": "collection plan ready",
+    "planned_straight": 30,
+    "planned_left": 50,
+    "planned_right": 50,
+    "collected_straight": 0,
+    "collected_left": 0,
+    "collected_right": 0,
+    "dataset_sha256": null
+  },
+  "dagger_corrections": {
+    "path": "datasets/multigate_v3/r2_dagger_corrections_v1/manifest.json",
+    "status": "collector ready",
+    "correction_samples": 0,
+    "dataset_sha256": null
+  },
+  "large_data_git_ignored": true
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": "multigate_longrun_smoke_v1",
+  "status": "BOUNDED_VALIDATION_IN_PROGRESS",
+  "fallback_infrastructure_smoke": {
+    "run_dir": "results/rl/multigate_longrun/infra_smoke_dirty_20260727",
+    "first_segment_steps": 512,
+    "resumed_additional_steps": 256,
+    "final_total_timesteps": 768,
+    "timestep_continuity": true,
+    "optimizer_update_counter_continued": true,
+    "tensorboard_step_continuity": true,
+    "final_approx_kl": 0.0012517585419118404,
+    "nan_count": 0,
+    "simulator_restarts": 0,
+    "atomic_checkpoints_verified": true,
+    "note": "Fallback was used only for plumbing validation and is not learning evidence."
+  },
+  "real_holoocean_infrastructure_smoke": null,
+  "short_learning_test": null,
+  "full_multiday_run_started": false
+}

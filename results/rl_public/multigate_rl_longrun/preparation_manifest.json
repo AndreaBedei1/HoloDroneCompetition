@@ -1,0 +1,18 @@
+{
+  "schema_version": "multigate_longrun_preparation_v1",
+  "status": "LONG-RUN TRAINING PIPELINE READY",
+  "starting_sha": "0cbae9d70fadd8699fc890f9e31e91a0be13fe06",
+  "branch": "feature/rl-multigate-longrun",
+  "protected_branches": {
+    "main": "f4d63751fd935f724a9dce3ea802f76e1e27d45f",
+    "feature/rl-controller": "5a02838e24fec21c3fc540102beb9c13e942f0ac",
+    "feature/visual-pose-multigate": "0b24d003e60dc47ef7269645eb9648fd9ead255f",
+    "feature/rl-multigate-policy": "0cbae9d70fadd8699fc890f9e31e91a0be13fe06"
+  },
+  "frozen_bc_v1_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+  "selected_r1_sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+  "full_multiday_run_started": false,
+  "official_circuit_result_claimed": false,
+  "runtime_rule_actions": 0,
+  "hybrid_blending": false
+}

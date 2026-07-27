@@ -1,0 +1,38 @@
+{
+  "source": "configs/rl_multigate_longrun.json",
+  "default_total_environment_timesteps": 1000000,
+  "supported_targets": [100000, 250000, 500000, 1000000, 2000000],
+  "default_policy_mode": "feedforward",
+  "default_frame_stack": 1,
+  "experimental_frame_stack_config": "configs/rl_multigate_longrun_frame_stack.json",
+  "initialization": {
+    "path": "results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip",
+    "sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+    "mode": "policy/value weights copied into a new long-run optimizer"
+  },
+  "ppo": {
+    "policy": "MLP [256, 256]",
+    "learning_rate": 0.00003,
+    "final_learning_rate": 0.000005,
+    "schedule": "linear",
+    "n_steps": 2048,
+    "batch_size": 256,
+    "n_epochs": 4,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "clip_range": 0.1,
+    "target_kl": 0.01,
+    "high_kl": 0.02,
+    "absolute_kl_stop": 0.03,
+    "ent_coef": 0.001,
+    "vf_coef": 0.5,
+    "max_grad_norm": 0.5,
+    "initial_action_std_range": [0.1, 0.15]
+  },
+  "checkpoint_frequency": 10000,
+  "light_evaluation_frequency": 10000,
+  "full_evaluation_frequency": 50000,
+  "adapter": "holoocean",
+  "fallback_allowed": false,
+  "currents": "disabled"
+}
