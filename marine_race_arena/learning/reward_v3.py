@@ -51,7 +51,7 @@ class MultiGateRewardConfig:
     out_of_bounds_penalty: float = 15.0
     wrong_direction_penalty: float = 12.0
     missed_gate_penalty: float = 8.0
-    timeout_penalty: float = 10.0
+    timeout_penalty: float = 30.0
     post_gate_window_steps: int = 50
     component_abs_bound: float = 50.0
     total_abs_bound: float = 100.0
@@ -315,7 +315,14 @@ class MultiGateTrainingReward:
             state.terminal_paid = True
             if step.terminated and terminal_status == "FINISHED":
                 components["completion"] = cfg.completion_bonus
-            elif step.truncated or terminal_status == "TIMEOUT":
+            elif (
+                step.truncated
+                or terminal_status == "TIMEOUT"
+                or step.terminated
+            ):
+                # Any terminal state other than FINISHED is a failed episode.
+                # Referee statuses such as DNF must not retain a positive return
+                # merely because they are terminal rather than time-truncated.
                 components["timeout_penalty"] = -cfg.timeout_penalty
 
         for key, value in tuple(components.items()):

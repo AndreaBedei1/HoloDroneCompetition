@@ -58,6 +58,28 @@ def test_turn_reward_defaults_match_measured_r2_failure():
     assert config.next_beacon_alignment_scale > 0
 
 
+def test_non_finished_truncation_has_large_terminal_penalty():
+    config = MultiGateRewardConfig()
+    env = MarineRaceGymEnv(
+        TRACK,
+        seed=7,
+        adapter="fallback",
+        allow_fallback=True,
+        max_steps=1,
+        observation_encoding_version=OBS_ENCODING_VERSION_V3,
+        reward_fn=MultiGateTrainingReward(config),
+    )
+    try:
+        env.reset(seed=7)
+        _, _, terminated, truncated, info = env.step(
+            np.zeros(4, dtype=np.float32)
+        )
+        assert truncated and not terminated
+        assert info["reward_components"]["timeout_penalty"] == -30.0
+    finally:
+        env.close()
+
+
 def test_unknown_observation_version_is_rejected():
     with pytest.raises(ValueError, match="unsupported observation encoding"):
         MarineRaceGymEnv(
