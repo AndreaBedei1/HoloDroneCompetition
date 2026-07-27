@@ -58,6 +58,7 @@ def _run_signature(args, track_hash: str, randomization) -> Dict:
         "track": args.track,
         "track_sha256": track_hash,
         "controller": args.controller,
+        "model_sha256": sha256_file(args.model) if args.model else None,
         "adapter": args.adapter,
         "allow_fallback": bool(args.allow_fallback),
         "randomized": bool(args.randomize),
@@ -71,7 +72,7 @@ def _run_signature(args, track_hash: str, randomization) -> Dict:
 
 
 def _incompatibilities(existing: Dict, current: Dict) -> List[str]:
-    keys = ["track", "track_sha256", "controller", "adapter", "allow_fallback",
+    keys = ["track", "track_sha256", "controller", "model_sha256", "adapter", "allow_fallback",
             "randomized", "randomization_spec", "obs_encoding_version",
             "action_contract_version", "dt", "max_steps", "official"]
     return [k for k in keys if existing.get(k) != current.get(k)]
@@ -110,6 +111,7 @@ def main(argv=None) -> int:
     parser.add_argument("--seeds", required=True, help="e.g. 0-29 or 0,1,2")
     parser.add_argument("--out", required=True)
     parser.add_argument("--controller", default="rule_gate_center_then_commit")
+    parser.add_argument("--model", default=None)
     parser.add_argument("--adapter", default="holoocean")
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--dt", type=float, default=0.1)
@@ -255,6 +257,7 @@ def main(argv=None) -> int:
                 current_profile=args.current_profile,
                 observation_encoding_version=args.observation_version,
                 benchmark_task=args.benchmark_task,
+                model_path=args.model,
             )
         except Exception as exc:  # pragma: no cover - engine/adapter failure path
             failed_seeds.append(int(seed))

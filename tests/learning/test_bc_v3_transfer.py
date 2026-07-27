@@ -109,6 +109,16 @@ def test_controller_loader_alias():
     )
 
 
+def test_dagger_expert_is_explicitly_training_only():
+    from marine_race_arena.learning.multigate_dagger_expert import (
+        MultigateDAggerExpertController,
+    )
+
+    assert MultigateDAggerExpertController.training_only is True
+    assert MultigateDAggerExpertController.debug_only is True
+    assert "multigate_dagger_expert" in ControllerLoader.BUILT_INS
+
+
 def test_ppo_v3_transfer_and_compatibility_stamp():
     gym = pytest.importorskip("gymnasium")
     pytest.importorskip("stable_baselines3")

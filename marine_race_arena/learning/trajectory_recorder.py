@@ -151,6 +151,7 @@ def record_episode(
     start_randomization=None,
     observation_encoding_version: str = OBS_ENCODING_VERSION,
     benchmark_task: Optional[str] = None,
+    model_path: Optional[str] = None,
 ) -> EpisodeRecord:
     """Record one expert episode. The expert sees the raw official observation."""
     episode = RaceEpisode(
@@ -172,7 +173,10 @@ def record_episode(
     total_beacons = max(1, len(cfg.track.gate_sequence))
     laps = max(1, int(cfg.race.laps))
 
-    expert = ControllerLoader().load(controller)
+    expert = ControllerLoader().load(
+        controller,
+        constructor_kwargs={"model_path": model_path} if model_path else None,
+    )
     expert.reset(_mission_info(cfg, episode.participant_id))
     if observation_encoding_version == OBS_ENCODING_VERSION:
         context_type = OnboardContextTracker
@@ -307,6 +311,7 @@ def collect_dataset(
     start_randomization=None,
     observation_encoding_version: str = OBS_ENCODING_VERSION,
     benchmark_task: Optional[str] = None,
+    model_path: Optional[str] = None,
 ) -> List[EpisodeRecord]:
     """Record one episode per seed. Episode ids are the seed order index."""
     records: List[EpisodeRecord] = []
@@ -327,6 +332,7 @@ def collect_dataset(
                 start_randomization=start_randomization,
                 observation_encoding_version=observation_encoding_version,
                 benchmark_task=benchmark_task,
+                model_path=model_path,
             )
         )
     return records

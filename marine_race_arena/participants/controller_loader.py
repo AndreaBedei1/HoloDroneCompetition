@@ -48,6 +48,11 @@ class ControllerLoader:
             "marine_race_arena.learning.rl_multigate_controller",
             "RLMultigateController",
         ),
+        # Training-only DAgger collector; never a scored runtime controller.
+        "multigate_dagger_expert": (
+            "marine_race_arena.learning.multigate_dagger_expert",
+            "MultigateDAggerExpertController",
+        ),
         # Hybrid: deterministic rule backbone + BC-v1 visual servo blended in VISUAL_ALIGN.
         # Requires the RL dependencies and a trained model via model_path / $MARINE_RACE_RL_MODEL.
         "hybrid_gate_controller": (
