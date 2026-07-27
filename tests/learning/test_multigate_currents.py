@@ -75,13 +75,13 @@ def test_classify_return_to_previous_gate():
     events = [_ev(gates=1, wrong_dir_delta=True)]
     c = _classify_first_failure(finished=False, end_reason="TIME_LIMIT", gates=1,
                                 expected_gates=2, events=events, tracker_completed=1)
-    assert c["failure"] == "RETURN_TO_PREVIOUS_GATE"
+    assert c["failure"] == "WRONG_DIRECTION"
 
 
 def test_classify_never_reached_gate_one():
     c = _classify_first_failure(finished=False, end_reason="TIME_LIMIT", gates=0,
                                 expected_gates=2, events=[_ev()], tracker_completed=0)
-    assert c["failure"] == "FAILED_GATE_ALIGNMENT"
+    assert c["failure"] == "GATE_NOT_ACQUIRED"
 
 
 def test_classify_next_gate_turn_failed():
@@ -95,7 +95,7 @@ def test_classify_alignment_when_engaged_next_gate():
     events = [_ev(phase="VISUAL_ALIGN", gates=1) for _ in range(10)]
     c = _classify_first_failure(finished=False, end_reason="TIME_LIMIT", gates=1,
                                 expected_gates=2, events=events, tracker_completed=1)
-    assert c["failure"] == "FAILED_GATE_ALIGNMENT"
+    assert c["failure"] == "FAILED_VISUAL_ALIGNMENT"
 
 
 # --------------------------------------------------------- per-track aperture size

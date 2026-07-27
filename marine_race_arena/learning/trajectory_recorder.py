@@ -149,6 +149,8 @@ def record_episode(
     obstacles: Optional[str] = None,
     duration_s: Optional[float] = None,
     start_randomization=None,
+    observation_encoding_version: str = OBS_ENCODING_VERSION,
+    benchmark_task: Optional[str] = None,
 ) -> EpisodeRecord:
     """Record one expert episode. The expert sees the raw official observation."""
     episode = RaceEpisode(
@@ -160,6 +162,7 @@ def record_episode(
         max_steps=max_steps,
         official=official,
         duration_s=duration_s,
+        benchmark_task=benchmark_task,
         current_profile=current_profile,
         obstacles=obstacles,
         start_randomization=start_randomization,
@@ -171,7 +174,30 @@ def record_episode(
 
     expert = ControllerLoader().load(controller)
     expert.reset(_mission_info(cfg, episode.participant_id))
-    ctx_source = OnboardContextTracker(total_beacons=total_beacons, laps=laps)
+    if observation_encoding_version == OBS_ENCODING_VERSION:
+        context_type = OnboardContextTracker
+        encoder = encode_observation
+        obs_dim = OBS_DIM
+    else:
+        from marine_race_arena.learning.config_v3 import (
+            OBS_DIM_V3,
+            OBS_ENCODING_VERSION_V3,
+        )
+        from marine_race_arena.learning.observation_encoder_v3 import (
+            encode_observation_v3,
+        )
+        from marine_race_arena.learning.tracker_context_v3 import (
+            OnboardMultiGateContextTracker,
+        )
+
+        if observation_encoding_version != OBS_ENCODING_VERSION_V3:
+            raise ValueError(
+                f"unsupported observation encoding {observation_encoding_version!r}"
+            )
+        context_type = OnboardMultiGateContextTracker
+        encoder = encode_observation_v3
+        obs_dim = OBS_DIM_V3
+    ctx_source = context_type(total_beacons=total_beacons, laps=laps)
     ctx_source.reset(obs)
 
     observations: List[np.ndarray] = []
@@ -189,7 +215,7 @@ def record_episode(
     try:
         while True:
             context = ctx_source.context(obs, dt=dt, prev_action=prev_action.tolist())
-            encoded = encode_observation(obs, context)
+            encoded = encoder(obs, context)
             command = expert.step(copy.deepcopy(obs))
             raw_action = _command_to_vector(command)
             applied_action = np.clip(raw_action, -1.0, 1.0)
@@ -235,7 +261,7 @@ def record_episode(
         "adapter_actual": adapter_actual,
         "fallback_allowed": bool(allow_fallback),
         "fallback_used": (adapter_actual == "fallback"),
-        "obs_encoding_version": OBS_ENCODING_VERSION,
+        "obs_encoding_version": observation_encoding_version,
         "action_contract_version": ACTION_CONTRACT_VERSION,
         "applied_randomization": applied_randomization,
         "dt": float(dt),
@@ -249,7 +275,7 @@ def record_episode(
         seed=seed,
         track=track,
         controller=controller,
-        observations=np.asarray(observations, dtype=np.float32).reshape(-1, OBS_DIM),
+        observations=np.asarray(observations, dtype=np.float32).reshape(-1, obs_dim),
         expert_actions_raw=np.asarray(expert_raw, dtype=np.float32).reshape(-1, ACTION_DIM),
         actions=np.asarray(applied, dtype=np.float32).reshape(-1, ACTION_DIM),
         dones=np.asarray(dones, dtype=bool),
@@ -279,6 +305,8 @@ def collect_dataset(
     current_profile: Optional[str] = None,
     obstacles: Optional[str] = None,
     start_randomization=None,
+    observation_encoding_version: str = OBS_ENCODING_VERSION,
+    benchmark_task: Optional[str] = None,
 ) -> List[EpisodeRecord]:
     """Record one episode per seed. Episode ids are the seed order index."""
     records: List[EpisodeRecord] = []
@@ -297,6 +325,8 @@ def collect_dataset(
                 current_profile=current_profile,
                 obstacles=obstacles,
                 start_randomization=start_randomization,
+                observation_encoding_version=observation_encoding_version,
+                benchmark_task=benchmark_task,
             )
         )
     return records

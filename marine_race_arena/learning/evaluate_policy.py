@@ -17,6 +17,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence
 
+import numpy as np
+
+from marine_race_arena.learning.config import ACTION_AXES
+
 from marine_race_arena.learning.episode import build_single_vehicle_race
 from marine_race_arena.participants.controller_interface import BaseController
 from marine_race_arena.scripts.run_marine_race import _mission_info, _run_race_loop
@@ -75,6 +79,7 @@ class _StepTimer:
     def __init__(self, controller: BaseController) -> None:
         self._total_s = 0.0
         self._count = 0
+        self._actions: List[np.ndarray] = []
         self._original = controller.step
 
         def timed_step(observation):
@@ -82,6 +87,13 @@ class _StepTimer:
             command = self._original(observation)
             self._total_s += time.perf_counter() - start
             self._count += 1
+            if isinstance(command, dict):
+                self._actions.append(
+                    np.asarray(
+                        [float(command.get(axis, 0.0)) for axis in ACTION_AXES],
+                        dtype=np.float32,
+                    )
+                )
             return command
 
         controller.step = timed_step  # type: ignore[method-assign]
@@ -90,6 +102,41 @@ class _StepTimer:
         if self._count == 0:
             return None
         return round(1000.0 * self._total_s / self._count, 4)
+
+    def action_metrics(self) -> Dict[str, float]:
+        if not self._actions:
+            return {
+                "mean_abs_sway_action": 0.0,
+                "mean_abs_yaw_action": 0.0,
+                "mean_action_jerk": 0.0,
+                "action_oscillation_rate": 0.0,
+            }
+        actions = np.stack(self._actions)
+        changes = np.diff(actions, axis=0)
+        oscillations = 0
+        opportunities = 0
+        for axis in (1, 3):
+            values = actions[:, axis]
+            if len(values) > 1:
+                active = (np.abs(values[1:]) > 0.05) & (
+                    np.abs(values[:-1]) > 0.05
+                )
+                oscillations += int(
+                    np.sum(active & (np.sign(values[1:]) != np.sign(values[:-1])))
+                )
+                opportunities += int(np.sum(active))
+        return {
+            "mean_abs_sway_action": float(np.mean(np.abs(actions[:, 1]))),
+            "mean_abs_yaw_action": float(np.mean(np.abs(actions[:, 3]))),
+            "mean_action_jerk": (
+                float(np.mean(np.linalg.norm(changes, axis=1)))
+                if len(changes)
+                else 0.0
+            ),
+            "action_oscillation_rate": (
+                float(oscillations / opportunities) if opportunities else 0.0
+            ),
+        }
 
 
 @dataclass
@@ -114,6 +161,12 @@ class EvalResult:
     # The referee's own participant status vs. why the evaluation runner stopped.
     referee_status: str = ""
     evaluation_end_reason: str = "UNKNOWN"
+    mean_abs_sway_action: float = 0.0
+    mean_abs_yaw_action: float = 0.0
+    mean_action_jerk: float = 0.0
+    action_oscillation_rate: float = 0.0
+    deterministic_runtime_intervention_count: Optional[int] = None
+    previous_gate_returns: Optional[int] = None
 
     def __post_init__(self) -> None:
         # ``status`` is the historical field name; keep both consistent so old
@@ -197,6 +250,12 @@ class EvalReport:
             "mean_missed_gate_attempts": self._mean("missed_gate_attempts"),
             "mean_wrong_direction_crossings": self._mean("wrong_direction_crossings"),
             "mean_inference_time_ms": self._mean("inference_time_ms"),
+            "mean_abs_sway_action": self._mean("mean_abs_sway_action"),
+            "mean_abs_yaw_action": self._mean("mean_abs_yaw_action"),
+            "mean_action_jerk": self._mean("mean_action_jerk"),
+            "mean_action_oscillation_rate": self._mean(
+                "action_oscillation_rate"
+            ),
             "end_reason_counts": self.end_reason_counts(),
             "referee_status_counts": self.referee_status_counts(),
         }
@@ -253,6 +312,7 @@ def evaluate_controller(
             # The runner (``_run_race_loop``) is time-deadline based, so a
             # non-terminal referee status means the race duration expired.
             end_reason = derive_evaluation_end_reason(status, truncated_by_max_steps=False)
+            action_metrics = timer.action_metrics()
             report.results.append(
                 EvalResult(
                     seed=int(seed),
@@ -274,6 +334,15 @@ def evaluate_controller(
                     wall_s=round(time.time() - wall_start, 3),
                     adapter_used=ctx.adapter.name,
                     applied_randomization=ctx.applied_randomization,
+                    deterministic_runtime_intervention_count=getattr(
+                        controller,
+                        "deterministic_runtime_intervention_count",
+                        None,
+                    ),
+                    previous_gate_returns=getattr(
+                        controller, "previous_gate_return_count", None
+                    ),
+                    **action_metrics,
                 )
             )
         finally:

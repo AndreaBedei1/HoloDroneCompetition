@@ -48,12 +48,37 @@ from marine_race_arena.learning.stage2_eval import (
 )
 
 
+def _observation_contract(env_kwargs: Optional[Dict[str, Any]]) -> Tuple[str, int]:
+    version = str((env_kwargs or {}).get("observation_encoding_version", OBS_ENCODING_VERSION))
+    if version == OBS_ENCODING_VERSION:
+        return version, OBS_DIM
+    from marine_race_arena.learning.config_v3 import OBS_DIM_V3, OBS_ENCODING_VERSION_V3
+
+    if version == OBS_ENCODING_VERSION_V3:
+        return version, OBS_DIM_V3
+    raise ValueError(f"unsupported observation encoding {version!r}")
+
+
+def _make_reward(reward_config, env_kwargs: Optional[Dict[str, Any]]):
+    version, _ = _observation_contract(env_kwargs)
+    if version == OBS_ENCODING_VERSION:
+        return TrainingReward(reward_config)
+    from marine_race_arena.learning.reward_v3 import MultiGateTrainingReward
+
+    return MultiGateTrainingReward(reward_config)
+
+
 def evaluate_completion(model, track, eval_seeds, *, env_kwargs, reward_config) -> Dict[str, Any]:
     """Deterministic held-out completion metrics for a policy (shared by the eval
     callback and the timestep-zero evaluation). Never uses privileged state for control."""
     completions, gates, collisions, finished_times, oob, wrongdir = 0, [], [], [], [], []
     for seed in eval_seeds:
-        env = MarineRaceGymEnv(track, seed=int(seed), reward_fn=TrainingReward(reward_config), **dict(env_kwargs or {}))
+        env = MarineRaceGymEnv(
+            track,
+            seed=int(seed),
+            reward_fn=_make_reward(reward_config, env_kwargs),
+            **dict(env_kwargs or {}),
+        )
         try:
             obs, _ = env.reset(seed=int(seed))
             done = False
@@ -385,7 +410,7 @@ def run_ppo_training(
     stage2: bool = False,
     initial_eval: bool = True,
     min_initial_completion: Optional[float] = None,
-    reward_config: Optional[RewardConfig] = None,
+    reward_config: Optional[Any] = None,
     env_kwargs: Optional[Dict[str, Any]] = None,
     hidden_sizes: Sequence[int] = (256, 256),
     checkpoint_freq: int = 5000,
@@ -402,8 +427,15 @@ def run_ppo_training(
     from stable_baselines3.common.callbacks import CheckpointCallback
     from stable_baselines3.common.logger import configure
 
-    reward_config = reward_config or RewardConfig()
     env_kwargs = dict(env_kwargs or {})
+    obs_encoding_version, obs_dim = _observation_contract(env_kwargs)
+    if reward_config is None:
+        if obs_encoding_version == OBS_ENCODING_VERSION:
+            reward_config = RewardConfig()
+        else:
+            from marine_race_arena.learning.reward_v3 import MultiGateRewardConfig
+
+            reward_config = MultiGateRewardConfig()
     ppo_kwargs = dict(ppo_kwargs or {})
     # Exploration-std strategy: BC-init defaults to residual-derived; scratch defaults to
     # SB3's own init. An explicit strategy (e.g. a fixed 0.10 for the controlled arms) wins.
@@ -443,7 +475,7 @@ def run_ppo_training(
                 "adapter_requested": env_kwargs.get("adapter", "fallback"),
                 "current_profile": env_kwargs.get("current_profile"),
                 "randomized": env_kwargs.get("start_randomization") is not None,
-                "obs_encoding_version": OBS_ENCODING_VERSION,
+                "obs_encoding_version": obs_encoding_version,
                 "action_dim": ACTION_DIM,
                 "reward_config": asdict(reward_config),
                 "ppo_kwargs": ppo_kwargs,
@@ -466,13 +498,24 @@ def run_ppo_training(
     train_env_kwargs = dict(env_kwargs)
     if stage2 and env_kwargs.get("start_randomization") is not None:
         train_env_kwargs["episode_seed_stream"] = int(train_seed)
-    env = MarineRaceGymEnv(track, seed=train_seed, reward_fn=TrainingReward(reward_config), **train_env_kwargs)
+    env = MarineRaceGymEnv(
+        track,
+        seed=train_seed,
+        reward_fn=_make_reward(reward_config, train_env_kwargs),
+        **train_env_kwargs,
+    )
 
     start_time = time.time()
     action_std_info: Dict[str, Any]
     if resuming:
         checkpoint = latest_checkpoint(run_path)
         model = PPO.load(str(checkpoint), env=env, device="cpu")
+        model_version = getattr(model, "obs_encoding_version", OBS_ENCODING_VERSION)
+        if model_version != obs_encoding_version:
+            raise ValueError(
+                f"checkpoint observation encoding {model_version!r} != "
+                f"requested {obs_encoding_version!r}"
+            )
         remaining = max(0, total_timesteps - int(model.num_timesteps))
         reset_num_timesteps = False
         # The learned log_std is restored from the checkpoint; keep the recorded
@@ -482,7 +525,24 @@ def run_ppo_training(
         model = build_ppo(env, hidden_sizes=hidden_sizes, seed=train_seed, **ppo_kwargs)
         bc_report_used = None
         if bc_policy is not None:
-            transfer_bc_to_ppo(bc_policy, model)
+            if obs_encoding_version == OBS_ENCODING_VERSION:
+                transfer_bc_to_ppo(bc_policy, model)
+            else:
+                from marine_race_arena.learning.bc_v3_transfer import (
+                    transfer_bc_v1_to_v3_ppo,
+                )
+                from marine_race_arena.learning.config_v3 import OBS_DIM_V3
+
+                if int(bc_policy.obs_dim) == OBS_DIM:
+                    transfer_bc_v1_to_v3_ppo(bc_policy, model)
+                elif int(bc_policy.obs_dim) == OBS_DIM_V3:
+                    transfer_bc_to_ppo(bc_policy, model)
+                else:
+                    raise ValueError(
+                        f"cannot initialize v3 PPO from BC obs_dim={bc_policy.obs_dim}"
+                    )
+        model.obs_encoding_version = obs_encoding_version
+        model.action_contract_version = ACTION_CONTRACT_VERSION
         # Install the resolved exploration std (residual/fixed for the controlled arms;
         # sb3_default leaves SB3's own init). Fixed applies to scratch_controlled too.
         bc_report = None
@@ -540,6 +600,8 @@ def run_ppo_training(
         arm=arm,
         stage2=stage2,
         max_acceptable_kl=max_acceptable_kl,
+        obs_encoding_version=obs_encoding_version,
+        obs_dim=obs_dim,
         output_root=output_root,
         run_dir=str(run_path),
     )
@@ -667,9 +729,9 @@ def _write_metadata(run_path: Path, **info) -> None:
         "resuming": info["resuming"],
         "ppo_kwargs": info["ppo_kwargs"],
         "env_kwargs": _serializable_env_kwargs(info["env_kwargs"]),
-        "obs_dim": OBS_DIM,
+        "obs_dim": info["obs_dim"],
         "action_dim": ACTION_DIM,
-        "obs_encoding_version": OBS_ENCODING_VERSION,
+        "obs_encoding_version": info["obs_encoding_version"],
         "action_contract_version": ACTION_CONTRACT_VERSION,
         "arm": info.get("arm"),
         "stage2": bool(info.get("stage2")),
@@ -689,7 +751,7 @@ def _write_metadata(run_path: Path, **info) -> None:
         "git_sha": _git_sha(),
         "adapter_requested": info["adapter_requested"],
         "allow_fallback": info["allow_fallback"],
-        "obs_encoding_version": OBS_ENCODING_VERSION,
+        "obs_encoding_version": info["obs_encoding_version"],
         "adapter_actual": None,
         "fallback_used": None,
         "wall_clock_s": None,
@@ -712,6 +774,9 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     bc_path = info.get("bc_model_path")
     bc_sha = info.get("bc_model_sha256")
     randomized = bool(env_kwargs.get("start_randomization"))
+    obs_encoding_version = info.get(
+        "obs_encoding_version", OBS_ENCODING_VERSION
+    )
 
     lines: List[str] = []
     lines.append("# Reproduce this PPO run. Machine-specific paths are variables below.")
@@ -719,13 +784,18 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     lines.append("# git checkout " + (commit or "<commit>"))
     lines.append("# conda activate marine_race_rl")
     lines.append(f"# adapter={info['adapter_requested']}  fallback_allowed={info['allow_fallback']}  "
-                 f"obs_encoding={OBS_ENCODING_VERSION}  bc_initialized={info['bc_initialized']}")
+                 f"obs_encoding={obs_encoding_version}  bc_initialized={info['bc_initialized']}")
     if bc_path:
         lines.append(f"# BC model: {bc_path}  (sha256 {bc_sha})")
     lines.append("python - <<'PY'")
     lines.append("import os")
     lines.append("from marine_race_arena.learning.train_workflow import run_ppo_training")
-    lines.append("from marine_race_arena.learning.reward import RewardConfig")
+    if obs_encoding_version == OBS_ENCODING_VERSION:
+        lines.append("from marine_race_arena.learning.reward import RewardConfig")
+        reward_config_name = "RewardConfig"
+    else:
+        lines.append("from marine_race_arena.learning.reward_v3 import MultiGateRewardConfig")
+        reward_config_name = "MultiGateRewardConfig"
     if randomized:
         lines.append("from marine_race_arena.learning.randomization import StartRandomization")
     lines.append("")
@@ -734,7 +804,7 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     if bc_path:
         lines.append(f"BC_MODEL_PATH = {bc_path!r}  # sha256 {bc_sha}")
     lines.append("")
-    lines.append(f"reward_config = RewardConfig(**{reward_dict!r})")
+    lines.append(f"reward_config = {reward_config_name}(**{reward_dict!r})")
     env_literal = dict(env_kwargs)
     if randomized:
         rspec = env_literal.pop("start_randomization")

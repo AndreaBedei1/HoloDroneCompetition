@@ -20,7 +20,11 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from marine_race_arena.learning.config import ACTION_DIM, OBS_DIM
+from marine_race_arena.learning.config import (
+    ACTION_DIM,
+    OBS_DIM,
+    OBS_ENCODING_VERSION,
+)
 
 
 class DatasetIntegrityError(ValueError):
@@ -53,6 +57,7 @@ class BCDataset:
         dones: np.ndarray,
         truncated: np.ndarray,
         episodes: Sequence[EpisodeMeta],
+        observation_encoding_version: str = OBS_ENCODING_VERSION,
     ) -> None:
         self.observations = np.asarray(observations, dtype=np.float32)
         self.actions = np.asarray(actions, dtype=np.float32)
@@ -63,12 +68,41 @@ class BCDataset:
         self.dones = np.asarray(dones, dtype=bool)
         self.truncated = np.asarray(truncated, dtype=bool)
         self.episodes = list(episodes)
+        self.observation_encoding_version = str(observation_encoding_version)
+        if self.observation_encoding_version == OBS_ENCODING_VERSION:
+            self.expected_obs_dim = OBS_DIM
+        else:
+            from marine_race_arena.learning.config_v3 import (
+                OBS_DIM_V3,
+                OBS_ENCODING_VERSION_V3,
+            )
+
+            if self.observation_encoding_version != OBS_ENCODING_VERSION_V3:
+                raise DatasetIntegrityError(
+                    f"unsupported observation encoding "
+                    f"{self.observation_encoding_version!r}"
+                )
+            self.expected_obs_dim = OBS_DIM_V3
 
     # ------------------------------------------------------------------ build
     @classmethod
     def from_records(cls, records: Sequence["EpisodeRecordLike"]) -> "BCDataset":
         obs, act, gid, seeds, eids, sids, dones, truncs = [], [], [], [], [], [], [], []
         episodes: List[EpisodeMeta] = []
+        versions = {
+            str((getattr(rec, "metadata", {}) or {}).get(
+                "obs_encoding_version", OBS_ENCODING_VERSION
+            ))
+            for rec in records
+            if int(rec.observations.shape[0]) > 0
+        }
+        if len(versions) > 1:
+            raise DatasetIntegrityError(
+                f"mixed observation encodings in records: {sorted(versions)}"
+            )
+        observation_encoding_version = (
+            next(iter(versions)) if versions else OBS_ENCODING_VERSION
+        )
         for group_id, rec in enumerate(records):
             n = int(rec.observations.shape[0])
             if n == 0:
@@ -105,6 +139,7 @@ class BCDataset:
             np.concatenate(dones),
             np.concatenate(truncs),
             episodes,
+            observation_encoding_version=observation_encoding_version,
         )
 
     # ------------------------------------------------------------------ props
@@ -120,8 +155,11 @@ class BCDataset:
         n = len(self)
         if n == 0:
             raise DatasetIntegrityError("dataset is empty")
-        if self.observations.shape[1] != OBS_DIM:
-            raise DatasetIntegrityError(f"observation dim {self.observations.shape[1]} != {OBS_DIM}")
+        if self.observations.shape[1] != self.expected_obs_dim:
+            raise DatasetIntegrityError(
+                f"observation dim {self.observations.shape[1]} != "
+                f"{self.expected_obs_dim} for {self.observation_encoding_version}"
+            )
         if self.actions.shape[1] != ACTION_DIM:
             raise DatasetIntegrityError(f"action dim {self.actions.shape[1]} != {ACTION_DIM}")
         for name, arr in (("observations", self.observations), ("actions", self.actions)):
@@ -176,6 +214,7 @@ class BCDataset:
             self.dones[mask],
             self.truncated[mask],
             episodes,
+            observation_encoding_version=self.observation_encoding_version,
         )
 
     def normalization_stats(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -201,6 +240,9 @@ class BCDataset:
             dones=self.dones,
             truncated=self.truncated,
             episodes_json=np.array(json.dumps(meta)),
+            observation_encoding_version=np.array(
+                self.observation_encoding_version
+            ),
         )
 
     @classmethod
@@ -210,6 +252,12 @@ class BCDataset:
         datasets = [d for d in datasets if len(d) > 0]
         if not datasets:
             raise DatasetIntegrityError("no non-empty datasets to combine")
+        versions = {d.observation_encoding_version for d in datasets}
+        if len(versions) != 1:
+            raise DatasetIntegrityError(
+                f"cannot combine dataset encodings: {sorted(versions)}"
+            )
+        observation_encoding_version = next(iter(versions))
         obs, act, gid, seeds, eids, sids, dones, truncs = [], [], [], [], [], [], [], []
         episodes: List[EpisodeMeta] = []
         offset = 0
@@ -241,6 +289,7 @@ class BCDataset:
         return cls(
             np.concatenate(obs), np.concatenate(act), np.concatenate(gid), np.concatenate(seeds),
             np.concatenate(eids), np.concatenate(sids), np.concatenate(dones), np.concatenate(truncs), episodes,
+            observation_encoding_version=observation_encoding_version,
         )
 
     @classmethod
@@ -248,6 +297,11 @@ class BCDataset:
         data = np.load(Path(path), allow_pickle=False)
         meta = json.loads(str(data["episodes_json"]))
         episodes = [EpisodeMeta(**m) for m in meta]
+        observation_encoding_version = (
+            str(data["observation_encoding_version"])
+            if "observation_encoding_version" in data.files
+            else OBS_ENCODING_VERSION
+        )
         return cls(
             data["observations"],
             data["actions"],
@@ -258,6 +312,7 @@ class BCDataset:
             data["dones"],
             data["truncated"],
             episodes,
+            observation_encoding_version=observation_encoding_version,
         )
 
 

@@ -174,3 +174,33 @@ def test_v3_encoder_ignores_privileged_observation_keys():
     clean = encode_observation_v3(_obs(2, camera=False), context)
     poisoned = encode_observation_v3(_obs(2, camera=False, privileged=True), context)
     assert np.array_equal(clean, poisoned)
+
+
+def test_v3_dataset_preserves_version_and_dimension(tmp_path):
+    from marine_race_arena.learning.dataset import BCDataset
+    from marine_race_arena.learning.trajectory_recorder import EpisodeRecord
+
+    record = EpisodeRecord(
+        episode_id=0,
+        seed=20000,
+        track="two_gate",
+        controller="rule_gate_center_then_commit",
+        observations=np.zeros((2, OBS_DIM_V3), dtype=np.float32),
+        expert_actions_raw=np.zeros((2, 4), dtype=np.float32),
+        actions=np.zeros((2, 4), dtype=np.float32),
+        dones=np.array([False, True]),
+        truncated=np.array([False, False]),
+        step_ids=np.array([0, 1]),
+        phase_ids=np.array([0, 1]),
+        final_status="FINISHED",
+        gate_crossings=2,
+        metadata={"obs_encoding_version": OBS_ENCODING_VERSION_V3},
+    )
+    dataset = BCDataset.from_records([record])
+    dataset.check_integrity()
+    assert dataset.expected_obs_dim == OBS_DIM_V3
+    path = tmp_path / "v3.npz"
+    dataset.save(path)
+    loaded = BCDataset.load(path)
+    loaded.check_integrity()
+    assert loaded.observation_encoding_version == OBS_ENCODING_VERSION_V3

@@ -38,6 +38,7 @@ from marine_race_arena.learning.config import (
     ACTION_DIM,
     FEATURE_BOUNDS,
     OBS_DIM,
+    OBS_ENCODING_VERSION,
 )
 from marine_race_arena.learning.episode import EpisodeStep, RaceEpisode
 from marine_race_arena.learning.observation_encoder import encode_observation
@@ -65,12 +66,14 @@ class MarineRaceGymEnv(_GYM_BASE):
         max_steps: int = 2000,
         official: bool = True,
         duration_s: Optional[float] = None,
+        benchmark_task: Optional[str] = None,
         current_profile: Optional[str] = None,
         obstacles: Optional[str] = None,
         obstacle_density: Optional[str] = None,
         reward_fn: Optional[RewardFn] = None,
         start_randomization=None,
         episode_seed_stream: Optional[int] = None,
+        observation_encoding_version: str = OBS_ENCODING_VERSION,
     ) -> None:
         if gym is None:  # pragma: no cover - only without gymnasium installed
             raise ImportError(
@@ -86,13 +89,45 @@ class MarineRaceGymEnv(_GYM_BASE):
             max_steps=max_steps,
             official=official,
             duration_s=duration_s,
+            benchmark_task=benchmark_task,
             current_profile=current_profile,
             obstacles=obstacles,
             obstacle_density=obstacle_density,
             start_randomization=start_randomization,
         )
-        self._reward_fn: RewardFn = reward_fn or TrainingReward()
-        self._ctx_source: Optional[OnboardContextTracker] = None
+        self.observation_encoding_version = str(observation_encoding_version)
+        if self.observation_encoding_version == OBS_ENCODING_VERSION:
+            self._feature_bounds = FEATURE_BOUNDS
+            self._obs_dim = OBS_DIM
+            self._context_type = OnboardContextTracker
+            self._encoder = encode_observation
+            default_reward = TrainingReward()
+        else:
+            from marine_race_arena.learning.config_v3 import (
+                FEATURE_BOUNDS_V3,
+                OBS_DIM_V3,
+                OBS_ENCODING_VERSION_V3,
+            )
+
+            if self.observation_encoding_version != OBS_ENCODING_VERSION_V3:
+                raise ValueError(
+                    f"unsupported observation encoding {self.observation_encoding_version!r}"
+                )
+            from marine_race_arena.learning.observation_encoder_v3 import (
+                encode_observation_v3,
+            )
+            from marine_race_arena.learning.reward_v3 import MultiGateTrainingReward
+            from marine_race_arena.learning.tracker_context_v3 import (
+                OnboardMultiGateContextTracker,
+            )
+
+            self._feature_bounds = FEATURE_BOUNDS_V3
+            self._obs_dim = OBS_DIM_V3
+            self._context_type = OnboardMultiGateContextTracker
+            self._encoder = encode_observation_v3
+            default_reward = MultiGateTrainingReward()
+        self._reward_fn: RewardFn = reward_fn or default_reward
+        self._ctx_source = None
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._last_gates = 0
         # Training-only: when set and reset() is called without an explicit seed, vary the
@@ -101,9 +136,11 @@ class MarineRaceGymEnv(_GYM_BASE):
         self._episode_seed_stream = episode_seed_stream
         self._episode_counter = 0
 
-        low = np.array([b[0] for b in FEATURE_BOUNDS], dtype=np.float32)
-        high = np.array([b[1] for b in FEATURE_BOUNDS], dtype=np.float32)
-        self.observation_space = spaces.Box(low=low, high=high, shape=(OBS_DIM,), dtype=np.float32)
+        low = np.array([b[0] for b in self._feature_bounds], dtype=np.float32)
+        high = np.array([b[1] for b in self._feature_bounds], dtype=np.float32)
+        self.observation_space = spaces.Box(
+            low=low, high=high, shape=(self._obs_dim,), dtype=np.float32
+        )
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(ACTION_DIM,), dtype=np.float32)
 
     # ------------------------------------------------------------------ props
@@ -128,7 +165,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         ctx_cfg = self._episode.context.config
         total_beacons = max(1, len(ctx_cfg.track.gate_sequence))
         laps = max(1, int(ctx_cfg.race.laps))
-        self._ctx_source = OnboardContextTracker(total_beacons=total_beacons, laps=laps)
+        self._ctx_source = self._context_type(total_beacons=total_beacons, laps=laps)
         self._ctx_source.reset(obs_dict)
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._last_gates = self._episode.referee_progress()["valid_gate_crossings"]
@@ -164,7 +201,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         context = self._ctx_source.context(
             obs_dict, dt=self._episode.dt, prev_action=self._prev_action.tolist()
         )
-        return encode_observation(obs_dict, context)
+        return self._encoder(obs_dict, context)
 
     def _info(self, terminated: bool, truncated: bool, components: Mapping[str, float]) -> Dict[str, Any]:
         return {

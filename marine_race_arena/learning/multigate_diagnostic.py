@@ -32,10 +32,25 @@ from marine_race_arena.participants.controller_loader import ControllerLoader
 from marine_race_arena.scripts.run_marine_race import _mission_info
 
 FAILURE_TAXONOMY = (
-    "VISION_NOT_FOUND", "WRONG_VISUAL_GATE", "BEACON_ASSOCIATION_ERROR", "FAILED_GATE_ALIGNMENT",
-    "COMMIT_TOO_EARLY", "COMMIT_TOO_LATE", "TRACKER_FALSE_ADVANCE", "TRACKER_NO_ADVANCE",
-    "RETURN_TO_PREVIOUS_GATE", "NEXT_GATE_TURN_FAILED", "COLLISION", "OUT_OF_BOUNDS",
-    "TIME_LIMIT", "SIMULATOR_ERROR", "FINISHED",
+    "GATE_NOT_ACQUIRED",
+    "FAILED_LONG_RANGE_BEACON_FOLLOWING",
+    "FAILED_VISUAL_ALIGNMENT",
+    "COMMIT_TOO_EARLY",
+    "COMMIT_TOO_LATE",
+    "FAILED_POST_GATE_FORWARD",
+    "TRACKER_NO_ADVANCE",
+    "TRACKER_FALSE_ADVANCE",
+    "RETURN_TO_PREVIOUS_GATE",
+    "NEXT_GATE_NOT_ACQUIRED",
+    "NEXT_GATE_TURN_FAILED",
+    "DEPTH_DRIFT",
+    "COLLISION",
+    "OUT_OF_BOUNDS",
+    "WRONG_DIRECTION",
+    "TIMEOUT",
+    "POLICY_NUMERICAL_ERROR",
+    "SIMULATOR_ERROR",
+    "FINISHED",
 )
 
 
@@ -49,6 +64,14 @@ def _parse_seeds(spec: str) -> List[int]:
         elif part:
             seeds.append(int(part))
     return seeds
+
+
+def _json_list(value) -> List:
+    if value is None:
+        return []
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    return list(value) if isinstance(value, (list, tuple)) else []
 
 
 def _tracker_of(controller):
@@ -75,15 +98,25 @@ def _classify_first_failure(*, finished: bool, end_reason: str, gates: int, expe
         return {"failure": "TRACKER_FALSE_ADVANCE",
                 "detail": f"tracker advanced {tracker_completed} but referee validated {gates} gates"}
     if any(e.get("wrong_dir_delta") for e in events):
-        return {"failure": "RETURN_TO_PREVIOUS_GATE",
-                "detail": "wrong-direction crossing (re-crossed a passed gate / backwards)"}
+        return {"failure": "WRONG_DIRECTION",
+                "detail": "referee recorded a wrong-direction crossing"}
     if last.get("out_of_bounds", 0) > 0:
         return {"failure": "OUT_OF_BOUNDS",
                 "detail": f"{last.get('out_of_bounds')} out-of-bounds events; drifted outside the arena"}
     # Non-terminal end (ran out of time) -> where did progress stall?
     if end_reason in ("TIME_LIMIT", "MAX_STEPS"):
         if gates == 0:
-            return {"failure": "FAILED_GATE_ALIGNMENT", "detail": "never completed gate 1 within the time limit"}
+            saw_visual = any(
+                e.get("visual_detected")
+                or e.get("phase") in ("VISUAL_ALIGN", "COMMIT", "VERIFY_EXIT")
+                for e in events
+            )
+            return {
+                "failure": (
+                    "FAILED_VISUAL_ALIGNMENT" if saw_visual else "GATE_NOT_ACQUIRED"
+                ),
+                "detail": "never completed gate 1 within the time limit",
+            }
         if gates >= 1 and gates < expected_gates:
             # Reached >=1 gate but stalled before the next: was it turning or not advancing?
             phase_after = [e.get("phase") for e in events if e.get("gates") == gates]
@@ -92,9 +125,23 @@ def _classify_first_failure(*, finished: bool, end_reason: str, gates: int, expe
             if searched > 4 * max(1, aligned):
                 return {"failure": "NEXT_GATE_TURN_FAILED",
                         "detail": f"reached gate {gates}; then mostly SEARCH/APPROACH toward the next beacon"}
-            return {"failure": "FAILED_GATE_ALIGNMENT",
+            if not any(
+                e.get("gates") == gates
+                and (
+                    e.get("visual_detected")
+                    or e.get("phase")
+                    in ("VISUAL_ALIGN", "COMMIT", "VERIFY_EXIT")
+                )
+                for e in events
+            ):
+                return {
+                    "failure": "NEXT_GATE_NOT_ACQUIRED",
+                    "detail": f"reached gate {gates}; next gate was never detected",
+                }
+            return {"failure": "FAILED_VISUAL_ALIGNMENT",
                     "detail": f"reached gate {gates}; engaged the next gate but never completed the crossing"}
-    return {"failure": end_reason or "TIME_LIMIT", "detail": "see timeline"}
+    return {"failure": "TIMEOUT" if end_reason in ("TIME_LIMIT", "MAX_STEPS") else end_reason,
+            "detail": "see timeline"}
 
 
 def run_diagnostic(track: str, model: Optional[str], seed: int, *, controller_name: str = "rl_gate_controller",
@@ -126,6 +173,8 @@ def run_diagnostic(track: str, model: Optional[str], seed: int, *, controller_na
         if tracker is None:
             tracker = _tracker_of(controller)
         tdiag = tracker.diagnostics() if tracker is not None else {}
+        source = getattr(controller, "_context_source", None)
+        temporal = getattr(source, "last_context", None)
         step = ep.step(command)
         step_idx += 1
         terminated, truncated = step.terminated, step.truncated
@@ -151,6 +200,35 @@ def run_diagnostic(track: str, model: Optional[str], seed: int, *, controller_na
                 "filtered_range_m": tdiag.get("filtered_range_m"),
                 "visual_detected": tdiag.get("visual_detected"),
                 "visual_center_x": tdiag.get("visual_center_x"),
+                "visual_center_y": tdiag.get("visual_center_y"),
+                "visual_area_fraction": tdiag.get("visual_area_fraction"),
+                "steps_since_gate_seen": (
+                    getattr(temporal, "steps_since_gate_seen", None)
+                ),
+                "vision_recently_lost": (
+                    getattr(temporal, "vision_recently_lost", None)
+                ),
+                "forward_displacement_since_visual_loss_m": (
+                    getattr(
+                        temporal,
+                        "forward_displacement_since_visual_loss_m",
+                        None,
+                    )
+                ),
+                "beacon_range_delta_m": (
+                    getattr(temporal, "beacon_range_delta_m", None)
+                ),
+                "expected_beacon_changed": (
+                    getattr(temporal, "expected_beacon_changed", None)
+                ),
+                "previous_gate_in_rear_sector": (
+                    getattr(temporal, "previous_gate_in_rear_sector", None)
+                ),
+                "dvl_velocity": _json_list(
+                    (obs.get("sensors") or {}).get("DVLSensor")
+                    if isinstance(obs, dict)
+                    else None
+                ),
                 "commit_displacement_m": tdiag.get("commit_displacement_m"),
                 "out_of_bounds": oob, "collisions": coll, "wrong_dir": wrong, "missed": missed,
                 "gate_crossed": crossing, "wrong_dir_delta": wrong != prev["wrong"],
@@ -206,6 +284,11 @@ def main(argv=None) -> int:
     parser.add_argument("--heartbeat", type=int, default=15)
     args = parser.parse_args(argv)
 
+    if args.controller == "rl_multigate_controller":
+        from marine_race_arena.learning.model_contract_v3 import validate_v3_model
+
+        validate_v3_model(args.model)
+
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     currents = currents_summary(args.track, args.current_profile, args.benchmark_task)
@@ -239,7 +322,10 @@ def main(argv=None) -> int:
         "track_sha256": sha256_file(args.track), "controller": args.controller,
         "model": args.model, "model_sha256": (sha256_file(args.model) if args.model else None),
         "adapter_requested": args.adapter, "adapter_actual": (runs[0]["adapter_used"] if runs else None),
-        "fallback_used": any(r["adapter_used"] == "fallback" for r in runs),
+        "fallback_used": (
+            args.adapter != "fallback"
+            and any(r["adapter_used"] == "fallback" for r in runs)
+        ),
         "current_profile": args.current_profile, "benchmark_task_override": args.benchmark_task,
         "currents": currents, "n_seeds": len(runs), "seeds": seeds,
         "expected_gates": (runs[0]["expected_gates"] if runs else None),

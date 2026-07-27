@@ -102,7 +102,12 @@ def train_bc(
 
     train_ds, val_ds = dataset.train_val_split(config.val_fraction, seed=config.seed)
     mean, std = train_ds.normalization_stats()
-    policy = BCPolicy(hidden_sizes=config.hidden_sizes, obs_mean=mean, obs_std=std)
+    policy = BCPolicy(
+        obs_dim=int(train_ds.observations.shape[1]),
+        hidden_sizes=config.hidden_sizes,
+        obs_mean=mean,
+        obs_std=std,
+    )
 
     x_tr = torch.as_tensor(train_ds.observations, dtype=torch.float32)
     y_tr = torch.as_tensor(train_ds.actions, dtype=torch.float32)

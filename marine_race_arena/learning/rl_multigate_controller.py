@@ -87,6 +87,9 @@ class RLMultigateController(BaseController):
         self._finished = False
         self._last_encoded_observation = None
         self.deterministic_runtime_intervention_count = 0
+        self.previous_gate_return_count = 0
+        self._previous_gate_forward_streak = 0
+        self._previous_gate_return_latched = False
 
     @property
     def tracker(self):
@@ -118,6 +121,9 @@ class RLMultigateController(BaseController):
         self._finished = False
         self._last_encoded_observation = None
         self.deterministic_runtime_intervention_count = 0
+        self.previous_gate_return_count = 0
+        self._previous_gate_forward_streak = 0
+        self._previous_gate_return_latched = False
 
     def step(self, observation: Mapping[str, Any]) -> dict:
         if self._context_source is None or self._inference is None:
@@ -131,6 +137,21 @@ class RLMultigateController(BaseController):
             dt=None,
             prev_action=self._prev_action.tolist(),
         )
+        if (
+            context.previous_gate_bearing_present
+            and not context.previous_gate_in_rear_sector
+        ):
+            self._previous_gate_forward_streak += 1
+            if (
+                self._previous_gate_forward_streak >= 3
+                and not self._previous_gate_return_latched
+            ):
+                self.previous_gate_return_count += 1
+                self._previous_gate_return_latched = True
+        else:
+            self._previous_gate_forward_streak = 0
+            if context.previous_gate_in_rear_sector:
+                self._previous_gate_return_latched = False
         if self._finished or self._context_source.tracker.finished:
             self._finished = True
             self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)

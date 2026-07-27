@@ -46,6 +46,7 @@ _IDENTITY_FIELDS = (
     "adapter_requested",
     "fallback_allowed",
     "current_profile",
+    "benchmark_task_override",
     "randomization_enabled",
     "randomization_spec",
     "dt",
@@ -129,6 +130,11 @@ def currents_summary(track: str, current_profile: Optional[str],
 
 def build_requested_config(args, *, model_sha256, randomization_spec) -> Dict:
     """The experiment-identity + provenance fields captured in the manifest."""
+    observation_version = OBS_ENCODING_VERSION
+    if args.controller == "rl_multigate_controller":
+        from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
+
+        observation_version = OBS_ENCODING_VERSION_V3
     return {
         "controller_name": args.controller,
         "model_path": args.model,
@@ -144,7 +150,7 @@ def build_requested_config(args, *, model_sha256, randomization_spec) -> Dict:
         "dt": float(args.dt),
         "duration_s": (float(args.duration) if args.duration is not None else None),
         "max_steps": None,  # the race runner is time-deadline based, not step-capped
-        "observation_encoding_version": OBS_ENCODING_VERSION,
+        "observation_encoding_version": observation_version,
         "action_contract_version": ACTION_CONTRACT_VERSION,
     }
 
@@ -187,6 +193,13 @@ def main(argv=None) -> int:
     parser.add_argument("--force-new", action="store_true",
                         help="Start a fresh experiment; an existing output directory is moved to a timestamped backup.")
     args = parser.parse_args(argv)
+
+    if args.controller == "rl_multigate_controller":
+        if not args.model:
+            parser.error("--controller rl_multigate_controller requires --model")
+        from marine_race_arena.learning.model_contract_v3 import validate_v3_model
+
+        validate_v3_model(args.model)
 
     start_randomization = None
     randomization_spec = None
@@ -248,10 +261,24 @@ def main(argv=None) -> int:
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "git_sha": git_sha(),
+        "code_sha": git_sha(),
         **requested,
         "model_bytes": (Path(args.model).stat().st_size if args.model and Path(args.model).exists() else None),
         "currents": currents,
+        "currents_actual": currents["currents_actual"],
         "adapter_actual": (existing_manifest or {}).get("adapter_actual"),
+        "fallback_used": (existing_manifest or {}).get("fallback_used"),
+        "runtime_constraints": {
+            "rule_action_weight": (
+                0 if args.controller == "rl_multigate_controller" else None
+            ),
+            "hybrid_blending": (
+                False if args.controller == "rl_multigate_controller" else None
+            ),
+            "rule_controller_not_instantiated": (
+                True if args.controller == "rl_multigate_controller" else None
+            ),
+        },
         "requested_seeds": sorted(set(_parse_seeds(args.seeds)) | set((existing_manifest or {}).get("requested_seeds", []))),
         "completed_seeds": sorted(existing.keys()),
         "created_utc": created_utc,
@@ -306,6 +333,14 @@ def main(argv=None) -> int:
             "wall_s": round(wall, 3),
             "adapter_used": r.adapter_used,
             "applied_randomization": r.applied_randomization,
+            "mean_abs_sway_action": r.mean_abs_sway_action,
+            "mean_abs_yaw_action": r.mean_abs_yaw_action,
+            "mean_action_jerk": r.mean_action_jerk,
+            "action_oscillation_rate": r.action_oscillation_rate,
+            "deterministic_runtime_intervention_count": (
+                r.deterministic_runtime_intervention_count
+            ),
+            "previous_gate_returns": r.previous_gate_returns,
         }
         rows.append(row)
         print(f"[eval] seed={seed:>3} referee={r.referee_status:<9} end={r.evaluation_end_reason:<16} "
@@ -317,6 +352,9 @@ def main(argv=None) -> int:
         # Keep the manifest's completed set + adapter-actual current after every seed.
         manifest["completed_seeds"] = [x["seed"] for x in rows_sorted]
         manifest["adapter_actual"] = r.adapter_used
+        manifest["fallback_used"] = (
+            args.adapter != "fallback" and r.adapter_used == "fallback"
+        )
         manifest["updated_utc"] = now_utc()
         _atomic_write(manifest_path, json.dumps(manifest, indent=2))
 
@@ -350,6 +388,27 @@ def main(argv=None) -> int:
         "total_missed_gate_attempts": int(sum(r["missed_gate_attempts"] for r in evaluated)),
         "total_wrong_direction_crossings": int(sum(r["wrong_direction_crossings"] for r in evaluated)),
         "mean_inference_time_ms": round(float(np.mean([r["inference_time_ms"] for r in evaluated if r["inference_time_ms"] is not None])), 4) if any(r["inference_time_ms"] is not None for r in evaluated) else None,
+        "mean_abs_sway_action": round(
+            float(np.mean([r.get("mean_abs_sway_action", 0.0) for r in evaluated])), 4
+        ) if evaluated else 0.0,
+        "mean_abs_yaw_action": round(
+            float(np.mean([r.get("mean_abs_yaw_action", 0.0) for r in evaluated])), 4
+        ) if evaluated else 0.0,
+        "mean_action_jerk": round(
+            float(np.mean([r.get("mean_action_jerk", 0.0) for r in evaluated])), 4
+        ) if evaluated else 0.0,
+        "mean_action_oscillation_rate": round(
+            float(np.mean([r.get("action_oscillation_rate", 0.0) for r in evaluated])), 4
+        ) if evaluated else 0.0,
+        "total_deterministic_runtime_interventions": int(
+            sum(
+                    r.get("deterministic_runtime_intervention_count") or 0
+                for r in evaluated
+            )
+        ),
+        "total_previous_gate_returns": int(
+            sum(r.get("previous_gate_returns") or 0 for r in evaluated)
+        ),
         "end_reason_counts": end_reason_counts,
         "referee_status_counts": referee_status_counts,
         "seeds": sorted(r["seed"] for r in evaluated),

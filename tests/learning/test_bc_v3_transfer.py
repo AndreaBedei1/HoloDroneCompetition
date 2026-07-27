@@ -142,3 +142,49 @@ def test_ppo_v3_transfer_and_compatibility_stamp():
         )
         ppo_action, _ = ppo.predict(v3_obs, deterministic=True)
         np.testing.assert_allclose(ppo_action, v1.act(base), atol=1e-4)
+
+
+def test_v3_zero_step_workflow_records_contract(tmp_path):
+    pytest.importorskip("gymnasium")
+    pytest.importorskip("stable_baselines3")
+    import json
+
+    from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
+    from marine_race_arena.learning.reward_v3 import MultiGateRewardConfig
+    from marine_race_arena.learning.train_workflow import run_ppo_training
+
+    source = tmp_path / "v1.pt"
+    save_policy(_v1_policy(), source)
+    run_dir = tmp_path / "run"
+    path, model = run_ppo_training(
+        "marine_race_arena/tracks/tests/two_gate_straight.json",
+        total_timesteps=0,
+        train_seed=20100,
+        eval_seeds=[21000],
+        run_dir=str(run_dir),
+        bc_model_path=str(source),
+        action_std_strategy="fixed",
+        action_std_value=0.10,
+        max_acceptable_kl=0.02,
+        reward_config=MultiGateRewardConfig(),
+        hidden_sizes=(32, 32),
+        env_kwargs={
+            "adapter": "fallback",
+            "allow_fallback": True,
+            "max_steps": 2,
+            "observation_encoding_version": OBS_ENCODING_VERSION_V3,
+        },
+        initial_eval=False,
+        ppo_kwargs={
+            "n_steps": 10,
+            "batch_size": 5,
+            "n_epochs": 1,
+            "learning_rate": 1e-5,
+            "clip_range": 0.05,
+            "target_kl": 0.01,
+        },
+    )
+    config = json.loads((path / "run_config.json").read_text(encoding="utf-8"))
+    assert config["obs_encoding_version"] == OBS_ENCODING_VERSION_V3
+    assert config["obs_dim"] == OBS_DIM_V3
+    assert model.obs_encoding_version == OBS_ENCODING_VERSION_V3

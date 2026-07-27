@@ -51,6 +51,16 @@ RESERVED_FINAL_FIXED_SEEDS: List[int] = _r(1500, 1549)    # DO NOT USE until the
 RESERVED_FINAL_RANDOMIZED_SEEDS: List[int] = _r(1550, 1599)  # DO NOT USE until the final stage
 RESERVED_FINAL_MULTIGATE_SEEDS: List[int] = _r(1800, 1899)  # DO NOT USE until the final multi-gate eval
 
+# --- Observation-v3 learned multi-gate experiment ----------------------------
+# Every role is intentionally disjoint, including the three final task families.
+MULTIGATE_V3_DEMONSTRATION_SEEDS: List[int] = _r(20000, 20099)
+MULTIGATE_V3_PPO_TRAINING_SEEDS: List[int] = _r(20100, 20999)
+MULTIGATE_V3_DEV_EVAL_SEEDS: List[int] = _r(21000, 21049)
+MULTIGATE_V3_CHECKPOINT_SELECTION_SEEDS: List[int] = _r(21100, 21149)
+MULTIGATE_V3_FINAL_TWO_GATE_SEEDS: List[int] = _r(21200, 21249)
+MULTIGATE_V3_FINAL_THREE_GATE_SEEDS: List[int] = _r(21300, 21349)
+MULTIGATE_V3_FINAL_OFFICIAL_SEEDS: List[int] = _r(21400, 21499)
+
 # The PPO rollout-env seed (separate namespace; disjoint from all eval/test ranges).
 PPO_TRAINING_ENV_SEED: int = 9000
 
@@ -63,6 +73,13 @@ NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "RESERVED_final_fixed_eval": RESERVED_FINAL_FIXED_SEEDS,
     "RESERVED_final_randomized_eval": RESERVED_FINAL_RANDOMIZED_SEEDS,
     "RESERVED_final_multigate_eval": RESERVED_FINAL_MULTIGATE_SEEDS,
+    "multigate_v3_demonstrations": MULTIGATE_V3_DEMONSTRATION_SEEDS,
+    "multigate_v3_ppo_training": MULTIGATE_V3_PPO_TRAINING_SEEDS,
+    "multigate_v3_dev_eval": MULTIGATE_V3_DEV_EVAL_SEEDS,
+    "multigate_v3_checkpoint_selection": MULTIGATE_V3_CHECKPOINT_SELECTION_SEEDS,
+    "multigate_v3_FINAL_two_gate": MULTIGATE_V3_FINAL_TWO_GATE_SEEDS,
+    "multigate_v3_FINAL_three_gate": MULTIGATE_V3_FINAL_THREE_GATE_SEEDS,
+    "multigate_v3_FINAL_official": MULTIGATE_V3_FINAL_OFFICIAL_SEEDS,
 }
 
 # Mutually-exclusive roles that must be pairwise disjoint (training/selection vs held-out).
@@ -78,6 +95,13 @@ ROLE_SEED_SETS: Dict[str, Set[int]] = {
     "reserved_final_fixed": set(RESERVED_FINAL_FIXED_SEEDS),
     "reserved_final_randomized": set(RESERVED_FINAL_RANDOMIZED_SEEDS),
     "reserved_final_multigate": set(RESERVED_FINAL_MULTIGATE_SEEDS),
+    "multigate_v3_demonstrations": set(MULTIGATE_V3_DEMONSTRATION_SEEDS),
+    "multigate_v3_ppo_training": set(MULTIGATE_V3_PPO_TRAINING_SEEDS),
+    "multigate_v3_dev_eval": set(MULTIGATE_V3_DEV_EVAL_SEEDS),
+    "multigate_v3_checkpoint_selection": set(MULTIGATE_V3_CHECKPOINT_SELECTION_SEEDS),
+    "multigate_v3_final_two_gate": set(MULTIGATE_V3_FINAL_TWO_GATE_SEEDS),
+    "multigate_v3_final_three_gate": set(MULTIGATE_V3_FINAL_THREE_GATE_SEEDS),
+    "multigate_v3_final_official": set(MULTIGATE_V3_FINAL_OFFICIAL_SEEDS),
 }
 
 # Ranges that must never be used for training, checkpoint selection, reward or
@@ -88,6 +112,9 @@ DO_NOT_TRAIN_ON: Dict[str, List[int]] = {
     "RESERVED_final_fixed_eval": RESERVED_FINAL_FIXED_SEEDS,
     "RESERVED_final_randomized_eval": RESERVED_FINAL_RANDOMIZED_SEEDS,
     "RESERVED_final_multigate_eval": RESERVED_FINAL_MULTIGATE_SEEDS,
+    "multigate_v3_FINAL_two_gate": MULTIGATE_V3_FINAL_TWO_GATE_SEEDS,
+    "multigate_v3_FINAL_three_gate": MULTIGATE_V3_FINAL_THREE_GATE_SEEDS,
+    "multigate_v3_FINAL_official": MULTIGATE_V3_FINAL_OFFICIAL_SEEDS,
 }
 
 
@@ -123,7 +150,16 @@ def development_and_final_are_disjoint() -> bool:
            | set(VISUAL_POSE_DATASET_V2_SEEDS) | set(BC_V2_DEV_EVAL_SEEDS) | set(PPO_V2_DEV_SEEDS)
            | set(MULTIGATE_DEV_SEEDS))
     final = (set(RESERVED_FINAL_FIXED_SEEDS) | set(RESERVED_FINAL_RANDOMIZED_SEEDS)
-             | set(RESERVED_FINAL_MULTIGATE_SEEDS))
+             | set(RESERVED_FINAL_MULTIGATE_SEEDS)
+             | set(MULTIGATE_V3_FINAL_TWO_GATE_SEEDS)
+             | set(MULTIGATE_V3_FINAL_THREE_GATE_SEEDS)
+             | set(MULTIGATE_V3_FINAL_OFFICIAL_SEEDS))
+    dev |= (
+        set(MULTIGATE_V3_DEMONSTRATION_SEEDS)
+        | set(MULTIGATE_V3_PPO_TRAINING_SEEDS)
+        | set(MULTIGATE_V3_DEV_EVAL_SEEDS)
+        | set(MULTIGATE_V3_CHECKPOINT_SELECTION_SEEDS)
+    )
     return dev.isdisjoint(final)
 
 

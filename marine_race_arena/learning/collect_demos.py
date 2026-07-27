@@ -62,7 +62,7 @@ def _run_signature(args, track_hash: str, randomization) -> Dict:
         "allow_fallback": bool(args.allow_fallback),
         "randomized": bool(args.randomize),
         "randomization_spec": (dataclasses.asdict(randomization) if randomization is not None else None),
-        "obs_encoding_version": OBS_ENCODING_VERSION,
+        "obs_encoding_version": args.observation_version,
         "action_contract_version": ACTION_CONTRACT_VERSION,
         "dt": float(args.dt),
         "max_steps": int(args.max_steps),
@@ -114,6 +114,13 @@ def main(argv=None) -> int:
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--dt", type=float, default=0.1)
     parser.add_argument("--max-steps", type=int, default=800)
+    parser.add_argument(
+        "--observation-version",
+        default=OBS_ENCODING_VERSION,
+        choices=(OBS_ENCODING_VERSION, "onboard_multigate_rl_v3"),
+    )
+    parser.add_argument("--current-profile", default=None)
+    parser.add_argument("--benchmark-task", default=None)
     parser.add_argument("--randomize", action="store_true",
                         help="Apply the Stage-2 seeded start-pose/beacon-noise randomization for diversity.")
     parser.add_argument("--force-new", action="store_true",
@@ -131,7 +138,11 @@ def main(argv=None) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     episodes_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = out_dir / MANIFEST_NAME
-    dataset_path = out_dir / DATASET_NAME
+    dataset_path = out_dir / (
+        "multigate_v3_demos.npz"
+        if args.observation_version == "onboard_multigate_rl_v3"
+        else DATASET_NAME
+    )
 
     track_hash = sha256_file(args.track)
     signature = _run_signature(args, track_hash, start_randomization)
@@ -161,6 +172,18 @@ def main(argv=None) -> int:
 
     done_seeds = set(records)
     requested = _parse_seeds(args.seeds)
+    if args.observation_version == "onboard_multigate_rl_v3":
+        from marine_race_arena.learning.model_contract_v3 import (
+            assert_clean_worktree,
+        )
+        from marine_race_arena.learning.seed_registry import (
+            MULTIGATE_V3_DEMONSTRATION_SEEDS,
+        )
+
+        assert_clean_worktree()
+        if not set(requested) <= set(MULTIGATE_V3_DEMONSTRATION_SEEDS):
+            print("[collect] ERROR v3 demonstrations must use the allocated v3 demo seed range.")
+            return 2
     print(f"[collect] {len(requested)} requested, {len(done_seeds)} already recorded; "
           f"track={args.track} adapter={args.adapter} randomize={args.randomize}")
 
@@ -197,7 +220,7 @@ def main(argv=None) -> int:
             "any_fallback_occurred": any_fallback,
             "randomization_enabled": bool(args.randomize),
             "randomization_spec": signature["randomization_spec"],
-            "obs_encoding_version": OBS_ENCODING_VERSION,
+            "obs_encoding_version": args.observation_version,
             "action_contract_version": ACTION_CONTRACT_VERSION,
             "dt": float(args.dt),
             "max_steps": int(args.max_steps),
@@ -229,6 +252,9 @@ def main(argv=None) -> int:
                 args.track, args.controller, seed=int(seed), dt=args.dt, adapter=args.adapter,
                 allow_fallback=args.allow_fallback, max_steps=args.max_steps, official=True,
                 episode_id=len(records), start_randomization=start_randomization,
+                current_profile=args.current_profile,
+                observation_encoding_version=args.observation_version,
+                benchmark_task=args.benchmark_task,
             )
         except Exception as exc:  # pragma: no cover - engine/adapter failure path
             failed_seeds.append(int(seed))
