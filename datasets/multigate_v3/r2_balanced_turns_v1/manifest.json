@@ -1,0 +1,32 @@
+{
+  "schema_version": "multigate_dataset_manifest_v1",
+  "status": "COLLECTION_PLAN_READY",
+  "raw_dataset_path": "datasets/multigate_v3/r2_balanced_turns_v1/dataset.npz",
+  "collection_plan": "datasets/multigate_v3/r2_balanced_turns_v1/collection_plan.json",
+  "observation_version": "onboard_multigate_rl_v3",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "adapter_required": "holoocean",
+  "fallback_allowed": false,
+  "training_only_expert": "rule_gate_center_then_commit",
+  "runtime_expert_allowed": false,
+  "targets": {
+    "straight_successful_trajectories": 30,
+    "left_successful_trajectories": 50,
+    "right_successful_trajectories": 50
+  },
+  "planned_trajectories": {
+    "straight": 30,
+    "left": 50,
+    "right": 50,
+    "total": 130
+  },
+  "collected_trajectories": {
+    "straight": 0,
+    "left": 0,
+    "right": 0,
+    "total": 0
+  },
+  "angle_bands_deg": [0, 5, 10, 15, 20, 30, 40, 45],
+  "split_policy": "Whole geometry groups are assigned to train, validation, or test; adjacent frames never cross a split.",
+  "large_files_git_ignored": true
+}

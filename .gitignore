@@ -42,6 +42,9 @@ output/
 # to descend so results/rl_public/ can be re-included (see end of file).
 /results/*
 !/results/rl_public/
+/datasets/multigate_v3/**/episodes/
+/datasets/multigate_v3/**/tracks/
+/datasets/multigate_v3/**/*.npz
 logs/
 runs/
 /diagnostics/

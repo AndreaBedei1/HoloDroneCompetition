@@ -1,0 +1,17 @@
+{
+  "schema_version": "multigate_dataset_manifest_v1",
+  "status": "COLLECTOR_READY_NO_CORRECTIONS_COLLECTED",
+  "raw_dataset_path": "datasets/multigate_v3/r2_dagger_corrections_v1/dataset.npz",
+  "observation_version": "onboard_multigate_rl_v3",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "rollout_checkpoint": "results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip",
+  "rollout_checkpoint_sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+  "runtime_actions": "learned policy only",
+  "labels": "training-only shadow deterministic expert",
+  "expert_labels_applied_to_environment": false,
+  "selection_window": "40 steps before the first authoritative crossing through termination; last 160 states on pre-crossing failures",
+  "corrective_samples": 0,
+  "successful_rollouts": 0,
+  "failed_rollouts": 0,
+  "large_files_git_ignored": true
+}

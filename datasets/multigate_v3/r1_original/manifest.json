@@ -1,0 +1,15 @@
+{
+  "schema_version": "multigate_dataset_manifest_v1",
+  "status": "FROZEN_EXISTING_DATASET",
+  "original_path": "results/rl/multigate_v3/demos/two_gate_dagger/multigate_v3_demos.npz",
+  "sha256": "3043bc46a732999fbc21875f952ed6ca35ef03794d6a92890958834fe5d50f83",
+  "observation_version": "onboard_multigate_rl_v3",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "adapter": "holoocean",
+  "fallback_used": false,
+  "episodes_recorded": 5,
+  "successful_episodes_used_for_original_bc": 3,
+  "steps_used_for_original_bc": 597,
+  "track": "marine_race_arena/tracks/tests/two_gate_straight.json",
+  "note": "Read-only pointer to the dataset used by the previous R1 warm-start. The raw file and its original result package are unchanged."
+}
