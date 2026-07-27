@@ -1,5 +1,9 @@
 # Learning-Based Controller — Progress (feature/rl-controller)
 
+> This is the historical Stage-1 progress record. The current multi-gate
+> manual is [`rl_multigate_longrun.md`](rl_multigate_longrun.md); it honestly
+> reports **LONG-RUN TRAINING PIPELINE READY**, not a completed long-run result.
+
 Status of the imitation- and reinforcement-learning extension. This work lives
 **only** on `feature/rl-controller`. It does not modify the official observation
 contract, the independent referee, gate validation, official scoring, the official

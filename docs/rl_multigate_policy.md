@@ -1,5 +1,10 @@
 # Learned multi-gate policy (observation v3)
 
+> Long-run continuation: the crash-safe, resumable C0-C7 training workflow is
+> documented in [`rl_multigate_longrun.md`](rl_multigate_longrun.md). This page
+> remains the frozen 5,000-step R0-R2 result and is not rewritten as a long-run
+> success.
+
 ## Result
 
 **PARTIAL RL SUCCESS.** The new feed-forward policy completed the straight

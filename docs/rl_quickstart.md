@@ -1,5 +1,9 @@
 # Stage-1 PPO Quickstart (real HoloOcean)
 
+> For the observation-v3 multi-gate million-step workflow, use
+> [`rl_multigate_longrun.md`](rl_multigate_longrun.md). The commands below
+> remain the Stage-1 single-gate smoke workflow.
+
 This is the practical workflow for running the safe, reproducible Stage-1 PPO smoke
 experiments on Windows. It assumes the documented HoloOcean install and the dedicated
 `marine_race_rl` Conda environment (see `README.md` / `docs/rl_progress.md`).
