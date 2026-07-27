@@ -390,6 +390,70 @@ def _make_completion_eval_callback():
     return CompletionEvalCallback
 
 
+def _make_reward_component_callback(output_csv: Path):
+    """Persist a per-rollout mean for every separately named reward component."""
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    class RewardComponentCallback(BaseCallback):
+        def __init__(self):
+            super().__init__(verbose=0)
+            self._sums: Dict[str, float] = {}
+            self._samples = 0
+            self._rows: List[Dict[str, Any]] = []
+
+        def _init_callback(self) -> None:
+            output_csv.parent.mkdir(parents=True, exist_ok=True)
+            if output_csv.exists():
+                try:
+                    with output_csv.open(newline="", encoding="utf-8") as handle:
+                        self._rows = [
+                            _coerce_eval_row(row) for row in csv.DictReader(handle)
+                        ]
+                except Exception:  # pragma: no cover - tolerate partial logs
+                    self._rows = []
+
+        def _on_step(self) -> bool:
+            for info in self.locals.get("infos", []) or []:
+                components = info.get("reward_components", {})
+                if not components:
+                    continue
+                self._samples += 1
+                for name, value in components.items():
+                    self._sums[name] = self._sums.get(name, 0.0) + float(value)
+            return True
+
+        def _on_rollout_end(self) -> None:
+            if self._samples <= 0:
+                return
+            row: Dict[str, Any] = {
+                "num_timesteps": int(self.num_timesteps),
+                "component_samples": int(self._samples),
+            }
+            row.update(
+                {
+                    name: total / self._samples
+                    for name, total in sorted(self._sums.items())
+                }
+            )
+            self._rows.append(row)
+            fields = ["num_timesteps", "component_samples"]
+            for existing in self._rows:
+                for name in existing:
+                    if name not in fields:
+                        fields.append(name)
+            with output_csv.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields)
+                writer.writeheader()
+                for existing in self._rows:
+                    writer.writerow(
+                        {name: existing.get(name) for name in fields}
+                    )
+            self._sums = {}
+            self._samples = 0
+
+    return RewardComponentCallback()
+
+
 # --------------------------------------------------------------- main workflow
 def run_ppo_training(
     track: str,
@@ -632,6 +696,9 @@ def run_ppo_training(
         CheckpointCallback(save_freq=checkpoint_freq, save_path=str(run_path / "checkpoints"), name_prefix="ppo"),
         eval_cb_cls(track, eval_seeds, eval_freq, run_path / "best_model", run_path / "evaluation" / "eval.csv",
                     env_kwargs, reward_config, stage2=stage2),
+        _make_reward_component_callback(
+            run_path / "training" / "reward_components.csv"
+        ),
     ]
 
     _write_metadata(

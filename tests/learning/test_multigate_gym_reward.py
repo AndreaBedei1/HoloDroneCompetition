@@ -42,12 +42,20 @@ def test_v3_gym_space_context_and_reward_components():
         assert math.isfinite(reward)
         assert abs(reward) <= config.total_abs_bound
         assert info["reward_components"]
+        assert "next_beacon_alignment" in info["reward_components"]
         assert all(
             math.isfinite(value) and abs(value) <= config.component_abs_bound
             for value in info["reward_components"].values()
         )
     finally:
         env.close()
+
+
+def test_turn_reward_defaults_match_measured_r2_failure():
+    config = MultiGateRewardConfig()
+    assert config.offcenter_surge_threshold < 0.2
+    assert config.post_gate_window_steps >= 50
+    assert config.next_beacon_alignment_scale > 0
 
 
 def test_unknown_observation_version_is_rejected():

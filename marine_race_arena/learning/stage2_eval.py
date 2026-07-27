@@ -182,8 +182,21 @@ def log_reward_components(model, track: str, eval_seeds, *, env_kwargs, reward_c
     """Aggregate training-reward components by episode outcome (diagnostic; does NOT modify
     the reward). Verifies gate/progress dominate successes and failures are penalized."""
     categories: Dict[str, Dict[str, Any]] = {}
+    from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
+
+    if (env_kwargs or {}).get("observation_encoding_version") == OBS_ENCODING_VERSION_V3:
+        from marine_race_arena.learning.reward_v3 import MultiGateTrainingReward
+
+        reward_factory = MultiGateTrainingReward
+    else:
+        reward_factory = TrainingReward
     for seed in eval_seeds:
-        env = MarineRaceGymEnv(track, seed=int(seed), reward_fn=TrainingReward(reward_config), **dict(env_kwargs or {}))
+        env = MarineRaceGymEnv(
+            track,
+            seed=int(seed),
+            reward_fn=reward_factory(reward_config),
+            **dict(env_kwargs or {}),
+        )
         try:
             obs, _ = env.reset(seed=int(seed))
             done, ret, comp_sum = False, 0.0, {}
@@ -231,11 +244,28 @@ def log_reward_components(model, track: str, eval_seeds, *, env_kwargs, reward_c
     tl = per_cat.get("failure_time_limit")
     checks = {
         "gate_completion_dominates_success": (succ is not None and
-            (succ["mean_components"].get("gate_bonus", 0) + succ["mean_components"].get("completion_bonus", 0)) > 0),
-        "forward_progress_rewarded_in_success": (succ is not None and succ["mean_components"].get("progress", 0) >= 0),
+            (
+                succ["mean_components"].get("gate_bonus", 0)
+                + succ["mean_components"].get("gate_crossing", 0)
+                + succ["mean_components"].get("completion_bonus", 0)
+                + succ["mean_components"].get("completion", 0)
+            ) > 0),
+        "forward_progress_rewarded_in_success": (
+            succ is not None
+            and (
+                succ["mean_components"].get("progress", 0)
+                + succ["mean_components"].get("beacon_progress", 0)
+            ) >= 0
+        ),
         "oob_penalized": (oob is None or oob["mean_components"].get("out_of_bounds_penalty", 0) < 0),
         "wrong_direction_penalized": (wrong is None or wrong["mean_components"].get("wrong_direction_penalty", 0) < 0),
-        "action_magnitude_not_rewarded": (succ is None or succ["mean_components"].get("action_magnitude_penalty", 0) <= 0),
+        "action_magnitude_not_rewarded": (
+            succ is None
+            or (
+                succ["mean_components"].get("action_magnitude_penalty", 0)
+                + succ["mean_components"].get("action_saturation_penalty", 0)
+            ) <= 0
+        ),
         "time_limit_return_not_large_positive": (tl is None or tl["mean_return"] <= (succ["mean_return"] if succ else 0.0)),
     }
     return {"by_outcome": per_cat, "checks": checks,

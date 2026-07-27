@@ -29,18 +29,20 @@ from marine_race_arena.learning.observation_encoder import (
 @dataclass
 class MultiGateRewardConfig:
     beacon_progress_scale: float = 1.0
-    bearing_penalty_scale: float = 0.05
+    bearing_penalty_scale: float = 0.15
     visual_acquisition_bonus: float = 0.35
     visual_centering_scale: float = 0.8
     visual_area_scale: float = 0.4
-    offcenter_speed_penalty: float = 0.25
+    offcenter_speed_penalty: float = 0.60
+    offcenter_surge_threshold: float = 0.12
     yaw_sway_coupling_penalty: float = 0.03
     action_change_penalty: float = 0.04
     action_saturation_penalty: float = 0.10
     gate_crossing_bonus: float = 20.0
     post_gate_forward_scale: float = 0.3
-    previous_gate_return_penalty: float = 0.5
+    previous_gate_return_penalty: float = 1.0
     next_beacon_acquisition_bonus: float = 1.0
+    next_beacon_alignment_scale: float = 1.0
     next_gate_visual_acquisition_bonus: float = 2.0
     completion_bonus: float = 50.0
     time_cost: float = 0.01
@@ -50,7 +52,7 @@ class MultiGateRewardConfig:
     wrong_direction_penalty: float = 12.0
     missed_gate_penalty: float = 8.0
     timeout_penalty: float = 10.0
-    post_gate_window_steps: int = 20
+    post_gate_window_steps: int = 50
     component_abs_bound: float = 50.0
     total_abs_bound: float = 100.0
 
@@ -68,6 +70,7 @@ class _RewardState:
     )
     steps_since_referee_crossing: Optional[int] = None
     next_beacon_bonus_paid: bool = False
+    best_next_beacon_abs_bearing: Optional[float] = None
     next_gate_visual_bonus_paid: bool = False
     terminal_paid: bool = False
 
@@ -123,6 +126,7 @@ class MultiGateTrainingReward:
             "post_gate_forward": 0.0,
             "previous_gate_return_penalty": 0.0,
             "next_beacon_acquisition": 0.0,
+            "next_beacon_alignment": 0.0,
             "next_gate_visual_acquisition": 0.0,
             "completion": 0.0,
             "time_cost": -abs(cfg.time_cost),
@@ -146,6 +150,7 @@ class MultiGateTrainingReward:
             state.previous_center_error = None
             state.previous_area = None
             state.next_beacon_bonus_paid = False
+            state.best_next_beacon_abs_bearing = None
             state.next_gate_visual_bonus_paid = False
 
         observation = step.observation if isinstance(step.observation, Mapping) else {}
@@ -180,6 +185,18 @@ class MultiGateTrainingReward:
                     cfg.next_beacon_acquisition_bonus
                 )
                 state.next_beacon_bonus_paid = True
+            if state.previous_beacon_id is not None:
+                abs_bearing = abs(float(bearing))
+                if state.best_next_beacon_abs_bearing is None:
+                    state.best_next_beacon_abs_bearing = abs_bearing
+                elif abs_bearing < state.best_next_beacon_abs_bearing:
+                    improvement = state.best_next_beacon_abs_bearing - abs_bearing
+                    components["next_beacon_alignment"] = (
+                        cfg.next_beacon_alignment_scale
+                        * min(1.0, improvement / 45.0)
+                    )
+                    # A ratchet makes the component non-farmable by oscillation.
+                    state.best_next_beacon_abs_bearing = abs_bearing
 
         target = None
         image = sensors.get("FrontCamera")
@@ -208,9 +225,12 @@ class MultiGateTrainingReward:
                 components["visual_area_progress"] = cfg.visual_area_scale * max(
                     0.0, min(0.25, area - state.previous_area)
                 )
-            if center_error > 0.45 and action_array[0] > 0.35:
+            if (
+                center_error > 0.45
+                and action_array[0] > cfg.offcenter_surge_threshold
+            ):
                 components["offcenter_speed_penalty"] = -cfg.offcenter_speed_penalty * float(
-                    action_array[0] - 0.35
+                    action_array[0] - cfg.offcenter_surge_threshold
                 )
             if (
                 state.previous_beacon_id is not None

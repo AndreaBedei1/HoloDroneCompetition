@@ -63,6 +63,9 @@ def test_run_produces_full_metadata_and_artifacts(tmp_path):
     # Checkpoints + evaluation + final model.
     assert latest_checkpoint(run_dir) is not None
     assert (run_dir / "evaluation" / "eval.csv").exists()
+    reward_log = run_dir / "training" / "reward_components.csv"
+    assert reward_log.exists()
+    assert "num_timesteps" in reward_log.read_text(encoding="utf-8").splitlines()[0]
     assert (run_dir / "final_model.zip").exists()
     assert "completion_rate" in (run_dir / "evaluation" / "eval.csv").read_text(encoding="utf-8").splitlines()[0]
 
