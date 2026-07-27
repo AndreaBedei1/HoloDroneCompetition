@@ -30,6 +30,13 @@ from marine_race_arena.learning.model_contract_v3 import (
 )
 from marine_race_arena.learning.provenance import git_sha, now_utc, sha256_file
 
+TRANSITION_FEATURE_NAMES = (
+    "expected_beacon_changed",
+    "steps_since_beacon_change_norm",
+    "previous_gate_in_rear_sector",
+    "previous_gate_bearing_present",
+)
+
 
 @dataclass
 class BCV3Config:
@@ -105,6 +112,14 @@ def fine_tune_bc_v3(
     )
     policy = expand_bc_v1_to_v3(source_v1)
     mean, std = train_set.normalization_stats()
+    transition_indices = [
+        FEATURE_NAMES_V3.index(name) for name in TRANSITION_FEATURE_NAMES
+    ]
+    if config.transition_columns_only:
+        # Raw zeros must stay normalized zeros before the first beacon change;
+        # otherwise learned transition weights would perturb the frozen v1 path.
+        mean[transition_indices] = 0.0
+        std[transition_indices] = 1.0
     rebase_observation_normalization(policy, mean, std)
     anchor = {
         name: parameter.detach().clone()
@@ -121,15 +136,6 @@ def fine_tune_bc_v3(
             for module in policy.extractor
             if isinstance(module, nn.Linear)
         )
-        transition_names = (
-            "expected_beacon_changed",
-            "steps_since_beacon_change_norm",
-            "previous_gate_in_rear_sector",
-            "previous_gate_bearing_present",
-        )
-        transition_indices = [
-            FEATURE_NAMES_V3.index(name) for name in transition_names
-        ]
         for parameter in policy.parameters():
             parameter.requires_grad_(False)
         first.weight.requires_grad_(True)

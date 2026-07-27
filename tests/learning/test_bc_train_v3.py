@@ -52,6 +52,17 @@ def test_transition_only_training_preserves_prechange_function():
     ):
         observations[:, FEATURE_NAMES_V3.index(name)] = 0.0
     actions = rng.uniform(-0.5, 0.5, size=(8, 4)).astype(np.float32)
+    # Later rows contain real transition values, so their dataset mean is not
+    # zero; prechange rows must nevertheless remain exactly neutral.
+    for name in (
+        "expected_beacon_changed",
+        "steps_since_beacon_change_norm",
+        "previous_gate_in_rear_sector",
+        "previous_gate_bearing_present",
+    ):
+        observations[4:, FEATURE_NAMES_V3.index(name)] = rng.uniform(
+            0.2, 1.0, size=4
+        )
     groups = np.repeat(np.arange(4), 2)
     dataset = BCDataset(
         observations,
@@ -69,11 +80,11 @@ def test_transition_only_training_preserves_prechange_function():
         observation_encoding_version=OBS_ENCODING_VERSION_V3,
     )
     baseline = expand_bc_v1_to_v3(source)
-    expected = np.stack([baseline.act(row) for row in observations])
+    expected = np.stack([baseline.act(row) for row in observations[:4]])
     trained, _ = fine_tune_bc_v3(
         dataset,
         source,
         BCV3Config(max_epochs=2, patience=2, batch_size=4, seed=2),
     )
-    actual = np.stack([trained.act(row) for row in observations])
+    actual = np.stack([trained.act(row) for row in observations[:4]])
     np.testing.assert_allclose(actual, expected, atol=3e-6)
