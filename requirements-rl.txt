@@ -16,7 +16,5 @@ gymnasium==1.0.0            # step-wise environment API
 torch==2.8.0               # policy network (CPU wheel; a CUDA build also works)
 stable-baselines3==2.7.1   # PPO reinforcement learning
 
-# Optional: TensorBoard training curves. SB3 also logs to CSV without it, which is
-# the default used by the training scripts, so this is left optional to keep the
-# environment lean.
-# tensorboard
+# Required by the multi-day launcher; CSV/JSONL remain the authoritative logs.
+tensorboard==2.20.0
