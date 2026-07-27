@@ -1,0 +1,114 @@
+{
+  "schema_version": "multigate_dataset_manifest_v1",
+  "created_utc": "2026-07-27T21:47:48Z",
+  "code_sha": "f3a3647e79f50c324d370315a09aeeb82012dfa4",
+  "adapter": "holoocean",
+  "fallback_allowed": false,
+  "controller": "training-only deterministic expert",
+  "dagger_model": null,
+  "runtime_expert_allowed": false,
+  "observation_version": "onboard_multigate_rl_v3",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "directions": {
+    "straight": {
+      "episodes": 2,
+      "successful": 2,
+      "steps": 736
+    },
+    "right": {
+      "episodes": 5,
+      "successful": 5,
+      "steps": 1667
+    }
+  },
+  "split_counts": {
+    "test": 1,
+    "validation": 3,
+    "train": 3
+  },
+  "geometry_groups_disjoint_by_split": true,
+  "dagger_correction_samples": 0,
+  "dataset_path": "datasets\\multigate_v3\\r2_balanced_turns_v1\\supplement_v1\\dataset.npz",
+  "dataset_sha256": "8ac2c042c42bf3a0a4bb23d3f050acad15a9ab6b94b9cd0e0f2e0162243b0408",
+  "episodes": 7,
+  "steps": 2403,
+  "episode_rows": [
+    {
+      "seed": 26300,
+      "split": "test",
+      "geometry_group": "straight:a0:d4:z-0.5",
+      "direction": "straight",
+      "angle_deg": 0.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 452,
+      "episode_sha256": "e3f59ada53c17ead243f466f4d8b7dc9afdfb9c00c26623ea8a83aeeea260685"
+    },
+    {
+      "seed": 26301,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z-0.5",
+      "direction": "straight",
+      "angle_deg": 5.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 284,
+      "episode_sha256": "d10cee8959b8f256137f0d552ee370a22aad6645711ccc1d1dfe24ed7a9b4d65"
+    },
+    {
+      "seed": 26302,
+      "split": "train",
+      "geometry_group": "right:a10:d4:z-0.5",
+      "direction": "right",
+      "angle_deg": -10.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 286,
+      "episode_sha256": "efe9278fe178a6175d7c91d97a49d63d812175849b5c55b7a778f81a025ffdfa"
+    },
+    {
+      "seed": 26303,
+      "split": "train",
+      "geometry_group": "right:a15:d4:z-0.5",
+      "direction": "right",
+      "angle_deg": -15.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 328,
+      "episode_sha256": "91d510e419425c94f9b4bf7b5bd5548a7c39c5d345d1c8cfdcc1a847dc1fa5d1"
+    },
+    {
+      "seed": 26304,
+      "split": "validation",
+      "geometry_group": "right:a20:d6:z-0.5",
+      "direction": "right",
+      "angle_deg": -20.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 331,
+      "episode_sha256": "22262dbde897cffcc731e455f81f52785a5bf0d4d84aa0b52258db76bcd19260"
+    },
+    {
+      "seed": 26305,
+      "split": "validation",
+      "geometry_group": "right:a30:d6:z+0",
+      "direction": "right",
+      "angle_deg": -30.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 453,
+      "episode_sha256": "b8af8a53660150814ee0b3b0e6bad935f1d73dec2a248d50a2b2734650e193b9"
+    },
+    {
+      "seed": 26306,
+      "split": "train",
+      "geometry_group": "right:a40:d4:z+0",
+      "direction": "right",
+      "angle_deg": -40.0,
+      "status": "FINISHED",
+      "gates": 2,
+      "steps": 269,
+      "episode_sha256": "135e66405e1d992664a96e9af4efee6984f76edd5fe3760669ce39c551bd08be"
+    }
+  ]
+}
