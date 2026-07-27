@@ -51,7 +51,13 @@ def main(argv=None) -> int:
         "--eval-seeds",
         default=f"{MULTIGATE_V3_DEV_EVAL_SEEDS[0]}-{MULTIGATE_V3_DEV_EVAL_SEEDS[4]}",
     )
-    parser.add_argument("--bc-model", default=DEFAULT_BC_V1)
+    initialization = parser.add_mutually_exclusive_group()
+    initialization.add_argument("--bc-model", default=None)
+    initialization.add_argument(
+        "--ppo-model",
+        default=None,
+        help="selected observation-v3 PPO checkpoint for curriculum continuation",
+    )
     parser.add_argument("--output-root", default="results/rl/multigate_v3")
     parser.add_argument("--run-dir", default=None)
     parser.add_argument("--resume", action="store_true")
@@ -86,6 +92,15 @@ def main(argv=None) -> int:
         raise ValueError("development evaluation seeds must use the allocated v3 dev range")
     if args.resume and not args.run_dir:
         raise ValueError("--resume requires --run-dir")
+    bc_model = args.bc_model
+    if bc_model is None and args.ppo_model is None:
+        bc_model = DEFAULT_BC_V1
+    if args.ppo_model is not None:
+        from marine_race_arena.learning.model_contract_v3 import validate_v3_model
+
+        contract = validate_v3_model(args.ppo_model)
+        if contract["kind"] != "ppo":
+            raise ValueError("--ppo-model must point to an observation-v3 PPO ZIP")
 
     benchmark_task = args.benchmark_task
     if Path(track).name == "marine_race_mixed_endurance.json" and benchmark_task is None:
@@ -109,10 +124,17 @@ def main(argv=None) -> int:
         output_root=args.output_root,
         run_dir=args.run_dir,
         resume=args.resume,
-        bc_model_path=args.bc_model,
-        arm="bc_v1_transfer_v3",
-        action_std_strategy="fixed",
-        action_std_value=0.10,
+        bc_model_path=bc_model,
+        initial_ppo_model_path=args.ppo_model,
+        arm=(
+            "ppo_curriculum_transfer"
+            if args.ppo_model is not None
+            else "bc_v1_transfer_v3"
+        ),
+        action_std_strategy=(
+            "preserve_checkpoint" if args.ppo_model is not None else "fixed"
+        ),
+        action_std_value=(None if args.ppo_model is not None else 0.10),
         max_acceptable_kl=0.02,
         reward_config=MultiGateRewardConfig(),
         env_kwargs=env_kwargs,

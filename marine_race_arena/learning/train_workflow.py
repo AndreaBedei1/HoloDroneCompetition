@@ -29,7 +29,13 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from marine_race_arena.learning.bc_ppo_init import initialize_action_std
-from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION, ACTION_DIM, OBS_DIM, OBS_ENCODING_VERSION
+from marine_race_arena.learning.config import (
+    ACTION_AXES,
+    ACTION_CONTRACT_VERSION,
+    ACTION_DIM,
+    OBS_DIM,
+    OBS_ENCODING_VERSION,
+)
 from marine_race_arena.learning.gym_env import MarineRaceGymEnv
 from marine_race_arena.learning.ppo_monitor import (
     PPOUpdateRecorder,
@@ -398,6 +404,7 @@ def run_ppo_training(
     run_dir: Optional[str] = None,
     bc_policy=None,
     bc_model_path: Optional[str] = None,
+    initial_ppo_model_path: Optional[str] = None,
     bc_report_path: Optional[str] = None,
     arm: str = "bcinit",
     action_std_strategy: Optional[str] = None,
@@ -437,9 +444,21 @@ def run_ppo_training(
 
             reward_config = MultiGateRewardConfig()
     ppo_kwargs = dict(ppo_kwargs or {})
+    if initial_ppo_model_path is not None and (
+        bc_policy is not None or bc_model_path is not None
+    ):
+        raise ValueError(
+            "initial_ppo_model_path is mutually exclusive with BC initialization"
+        )
     # Exploration-std strategy: BC-init defaults to residual-derived; scratch defaults to
     # SB3's own init. An explicit strategy (e.g. a fixed 0.10 for the controlled arms) wins.
-    effective_std_strategy = action_std_strategy or ("residual" if (bc_policy is not None or bc_model_path) else "sb3_default")
+    effective_std_strategy = action_std_strategy or (
+        "preserve_checkpoint"
+        if initial_ppo_model_path is not None
+        else "residual"
+        if (bc_policy is not None or bc_model_path)
+        else "sb3_default"
+    )
     target_kl = ppo_kwargs.get("target_kl")
     std_config = {"strategy": effective_std_strategy, "value": action_std_value,
                   "std_min": bc_action_std_min, "std_max": bc_action_std_max, "log_std_fallback": bc_log_std_fallback}
@@ -452,6 +471,11 @@ def run_ppo_training(
             from marine_race_arena.learning.bc_train import load_policy
 
             bc_policy = load_policy(bc_model_path)
+    initial_ppo_model_sha256 = (
+        _sha256(initial_ppo_model_path)
+        if initial_ppo_model_path is not None
+        else None
+    )
 
     # Resolve the run directory (timestamped, never overwritten unless resuming).
     if run_dir is not None:
@@ -521,6 +545,42 @@ def run_ppo_training(
         # The learned log_std is restored from the checkpoint; keep the recorded
         # action-std provenance (do not re-initialize on resume).
         action_std_info = _load_action_std(run_path)
+    elif initial_ppo_model_path is not None:
+        model = PPO.load(str(initial_ppo_model_path), env=env, device="cpu")
+        model_version = getattr(model, "obs_encoding_version", None)
+        model_shape = tuple(getattr(model.observation_space, "shape", ()) or ())
+        if model_version != obs_encoding_version or model_shape != (obs_dim,):
+            raise ValueError(
+                "initial PPO checkpoint is incompatible: "
+                f"version={model_version!r}, shape={model_shape}; "
+                f"expected version={obs_encoding_version!r}, shape={(obs_dim,)}"
+            )
+        model_action_contract = getattr(model, "action_contract_version", None)
+        if model_action_contract != ACTION_CONTRACT_VERSION:
+            raise ValueError(
+                "initial PPO action contract is incompatible: "
+                f"{model_action_contract!r} != {ACTION_CONTRACT_VERSION!r}"
+            )
+        _validate_loaded_ppo_hyperparameters(model, ppo_kwargs)
+        std = np.asarray(
+            model.policy.log_std.detach().cpu().exp().numpy(),
+            dtype=float,
+        ).reshape(-1)
+        action_std_info = {
+            "strategy": "preserve_checkpoint",
+            "source": "ppo_curriculum_checkpoint",
+            "std_per_axis": {
+                axis: float(std[index])
+                for index, axis in enumerate(ACTION_AXES)
+            },
+            "initial_ppo_model_path": str(initial_ppo_model_path),
+            "initial_ppo_model_sha256": initial_ppo_model_sha256,
+        }
+        remaining = int(total_timesteps)
+        reset_num_timesteps = True
+        (run_path / "action_std.json").write_text(
+            json.dumps(action_std_info, indent=2), encoding="utf-8"
+        )
     else:
         model = build_ppo(env, hidden_sizes=hidden_sizes, seed=train_seed, **ppo_kwargs)
         bc_report_used = None
@@ -594,6 +654,8 @@ def run_ppo_training(
         env_kwargs=env_kwargs,
         bc_model_path=bc_model_path,
         bc_model_sha256=bc_model_sha256,
+        initial_ppo_model_path=initial_ppo_model_path,
+        initial_ppo_model_sha256=initial_ppo_model_sha256,
         action_std=action_std_info,
         bc_action_std_config=std_config,
         bc_report_path=bc_report_path,
@@ -647,6 +709,37 @@ def run_ppo_training(
                                    num_timesteps=int(model.num_timesteps), run_status=run_status,
                                    monitor_summary=recorder.summary())
     return run_path, model
+
+
+def _validate_loaded_ppo_hyperparameters(model, requested: Dict[str, Any]) -> None:
+    """Refuse a curriculum transfer whose optimizer contract silently changes."""
+    checks = {
+        "n_steps": int(model.n_steps),
+        "batch_size": int(model.batch_size),
+        "n_epochs": int(model.n_epochs),
+        "target_kl": (
+            None if model.target_kl is None else float(model.target_kl)
+        ),
+        "learning_rate": float(model.learning_rate),
+        "clip_range": float(model.clip_range(1.0)),
+    }
+    mismatches = []
+    for key, actual in checks.items():
+        if key not in requested:
+            continue
+        expected = requested[key]
+        if expected is None and actual is None:
+            continue
+        if isinstance(actual, float) or isinstance(expected, float):
+            if not np.isclose(float(actual), float(expected)):
+                mismatches.append(f"{key} ({actual} != {expected})")
+        elif actual != expected:
+            mismatches.append(f"{key} ({actual} != {expected})")
+    if mismatches:
+        raise ValueError(
+            "initial PPO checkpoint hyperparameters are incompatible: "
+            + "; ".join(mismatches)
+        )
 
 
 def _timestamp() -> str:
@@ -726,6 +819,15 @@ def _write_metadata(run_path: Path, **info) -> None:
         "checkpoint_freq": info["checkpoint_freq"],
         "eval_freq": info["eval_freq"],
         "bc_initialized": info["bc_initialized"],
+        "initialization_type": (
+            "ppo_curriculum_checkpoint"
+            if info.get("initial_ppo_model_path")
+            else "bc_transfer"
+            if info["bc_initialized"]
+            else "scratch"
+        ),
+        "initial_ppo_model_path": info.get("initial_ppo_model_path"),
+        "initial_ppo_model_sha256": info.get("initial_ppo_model_sha256"),
         "resuming": info["resuming"],
         "ppo_kwargs": info["ppo_kwargs"],
         "env_kwargs": _serializable_env_kwargs(info["env_kwargs"]),
@@ -773,6 +875,8 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     reward_dict = asdict(info["reward_config"])
     bc_path = info.get("bc_model_path")
     bc_sha = info.get("bc_model_sha256")
+    ppo_path = info.get("initial_ppo_model_path")
+    ppo_sha = info.get("initial_ppo_model_sha256")
     randomized = bool(env_kwargs.get("start_randomization"))
     obs_encoding_version = info.get(
         "obs_encoding_version", OBS_ENCODING_VERSION
@@ -787,6 +891,8 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
                  f"obs_encoding={obs_encoding_version}  bc_initialized={info['bc_initialized']}")
     if bc_path:
         lines.append(f"# BC model: {bc_path}  (sha256 {bc_sha})")
+    if ppo_path:
+        lines.append(f"# Initial PPO model: {ppo_path}  (sha256 {ppo_sha})")
     lines.append("python - <<'PY'")
     lines.append("import os")
     lines.append("from marine_race_arena.learning.train_workflow import run_ppo_training")
@@ -803,6 +909,8 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
     lines.append(f"OUTPUT_ROOT = os.environ.get('MARINE_RACE_REPRODUCE_ROOT', {info['output_root']!r})")
     if bc_path:
         lines.append(f"BC_MODEL_PATH = {bc_path!r}  # sha256 {bc_sha}")
+    if ppo_path:
+        lines.append(f"INITIAL_PPO_MODEL_PATH = {ppo_path!r}  # sha256 {ppo_sha}")
     lines.append("")
     lines.append(f"reward_config = {reward_config_name}(**{reward_dict!r})")
     env_literal = dict(env_kwargs)
@@ -837,6 +945,8 @@ def build_reproduce_script(info: Dict[str, Any], commit: Optional[str]) -> str:
         bc_report = info.get("bc_report_path")
         if bc_report:
             lines.append(f"    bc_report_path={bc_report!r},")
+    if ppo_path:
+        lines.append("    initial_ppo_model_path=INITIAL_PPO_MODEL_PATH,")
     lines.append(")")
     lines.append("PY")
     lines.append("")

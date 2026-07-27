@@ -225,3 +225,56 @@ def test_incompatible_resume_is_rejected(tmp_path):
             eval_seeds=[900, 901], run_dir=str(run_dir), hidden_sizes=(64, 64),  # changed
             checkpoint_freq=32, eval_freq=32, env_kwargs=ENV_KWARGS, ppo_kwargs=PPO_KWARGS, resume=True,
         )
+
+
+def test_new_curriculum_run_can_start_from_selected_ppo(tmp_path):
+    source_dir, _ = _run(tmp_path / "source", total=32)
+    source_model = source_dir / "final_model.zip"
+    target_dir = tmp_path / "continued"
+    run_dir, model = run_ppo_training(
+        TRACK,
+        stage="stage_next",
+        algorithm="ppo_curriculum",
+        total_timesteps=32,
+        train_seed=1,
+        eval_seeds=[902],
+        run_dir=str(target_dir),
+        hidden_sizes=(32, 32),
+        checkpoint_freq=32,
+        eval_freq=32,
+        env_kwargs=ENV_KWARGS,
+        ppo_kwargs=PPO_KWARGS,
+        initial_ppo_model_path=str(source_model),
+    )
+    config = json.loads(
+        (run_dir / "run_config.json").read_text(encoding="utf-8")
+    )
+    action_std = json.loads(
+        (run_dir / "action_std.json").read_text(encoding="utf-8")
+    )
+    initial_eval = json.loads(
+        (run_dir / "evaluation" / "initial_eval.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert config["initialization_type"] == "ppo_curriculum_checkpoint"
+    assert config["initial_ppo_model_path"] == str(source_model)
+    assert config["initial_ppo_model_sha256"]
+    assert action_std["source"] == "ppo_curriculum_checkpoint"
+    assert initial_eval["model_initialization_source"] == "ppo_curriculum_checkpoint"
+    assert int(model.num_timesteps) >= 32
+
+
+def test_curriculum_ppo_and_bc_initialization_are_mutually_exclusive(tmp_path):
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        run_ppo_training(
+            TRACK,
+            total_timesteps=32,
+            train_seed=0,
+            eval_seeds=[900],
+            run_dir=str(tmp_path / "bad"),
+            env_kwargs=ENV_KWARGS,
+            ppo_kwargs=PPO_KWARGS,
+            bc_policy=_bc_policy(),
+            initial_ppo_model_path="selected.zip",
+        )
