@@ -245,6 +245,11 @@ def main(argv=None) -> int:
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--anchor-weight", type=float, default=1e-5)
     parser.add_argument("--seed", type=int, default=23000)
+    parser.add_argument(
+        "--include-failed",
+        action="store_true",
+        help="Include non-FINISHED episodes; default uses completed expert trajectories only.",
+    )
     args = parser.parse_args(argv)
 
     assert_clean_worktree()
@@ -254,6 +259,16 @@ def main(argv=None) -> int:
             f"frozen BC-v1 hash mismatch: {source_sha} != {FROZEN_BC_V1_SHA256}"
         )
     dataset = BCDataset.load(args.dataset)
+    source_episode_count = dataset.num_episodes
+    if not args.include_failed:
+        finished_groups = {
+            episode.group_id
+            for episode in dataset.episodes
+            if episode.final_status == "FINISHED"
+        }
+        if not finished_groups:
+            raise ValueError("dataset has no FINISHED episodes")
+        dataset = dataset._subset(finished_groups)
     config = BCV3Config(
         learning_rate=args.learning_rate,
         max_epochs=args.epochs,
@@ -280,6 +295,8 @@ def main(argv=None) -> int:
             dataset.observation_encoding_version
         ),
         "episodes": dataset.num_episodes,
+        "source_episodes": source_episode_count,
+        "failed_episodes_excluded": source_episode_count - dataset.num_episodes,
         "steps": len(dataset),
         "source_v1_path": args.source_v1,
         "source_v1_sha256": source_sha,
