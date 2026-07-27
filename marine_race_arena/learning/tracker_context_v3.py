@@ -248,7 +248,13 @@ class OnboardMultiGateContextTracker:
             beacon_range_min_recent_present=bool(self._recent_ranges),
             beacon_now_receding=range_delta_present and range_delta_m >= _RECEDING_DELTA_M,
             expected_beacon_changed=changed,
-            steps_since_beacon_change=self._steps_since_change,
+            # Zero before the first real change so a transferred policy sees a
+            # neutral transition block throughout single-gate approach.
+            steps_since_beacon_change=(
+                self._steps_since_change
+                if self._previous_beacon_id is not None
+                else 0
+            ),
             previous_gate_in_rear_sector=self._previous_gate_rear,
             previous_gate_bearing_present=self._previous_gate_bearing_present,
         )

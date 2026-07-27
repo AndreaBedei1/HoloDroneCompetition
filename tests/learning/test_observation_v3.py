@@ -158,6 +158,7 @@ def test_range_delta_minimum_and_receding(patched_vision):
     assert receding.beacon_range_delta_m == pytest.approx(0.3)
     assert receding.beacon_now_receding
     assert receding.beacon_range_min_recent_m == pytest.approx(4.7)
+    assert receding.steps_since_beacon_change == 0
 
 
 def test_temporal_feature_masks_zero_absent_history():

@@ -18,6 +18,7 @@ from marine_race_arena.learning.bc_v3_transfer import (
     save_v3_policy,
 )
 from marine_race_arena.learning.config_v3 import (
+    FEATURE_NAMES_V3,
     OBS_DIM_V3,
     OBS_ENCODING_VERSION_V3,
 )
@@ -39,6 +40,7 @@ class BCV3Config:
     val_fraction: float = 0.2
     weight_decay: float = 0.0
     anchor_weight: float = 1e-5
+    transition_columns_only: bool = True
     seed: int = 23000
 
 
@@ -108,13 +110,45 @@ def fine_tune_bc_v3(
         name: parameter.detach().clone()
         for name, parameter in policy.named_parameters()
     }
+    trainable_parameters = list(policy.parameters())
+    restore_weight = None
+    gradient_hook = None
+    if config.transition_columns_only:
+        import torch.nn as nn
+
+        first = next(
+            module
+            for module in policy.extractor
+            if isinstance(module, nn.Linear)
+        )
+        transition_names = (
+            "expected_beacon_changed",
+            "steps_since_beacon_change_norm",
+            "previous_gate_in_rear_sector",
+            "previous_gate_bearing_present",
+        )
+        transition_indices = [
+            FEATURE_NAMES_V3.index(name) for name in transition_names
+        ]
+        for parameter in policy.parameters():
+            parameter.requires_grad_(False)
+        first.weight.requires_grad_(True)
+        mask = torch.zeros_like(first.weight)
+        mask[:, transition_indices] = 1.0
+        gradient_hook = first.weight.register_hook(lambda gradient: gradient * mask)
+        restore_weight = (
+            first,
+            first.weight.detach().clone(),
+            mask.detach().clone(),
+        )
+        trainable_parameters = [first.weight]
 
     x_train = torch.as_tensor(train_set.observations, dtype=torch.float32)
     y_train = torch.as_tensor(train_set.actions, dtype=torch.float32)
     x_val = torch.as_tensor(val_set.observations, dtype=torch.float32)
     y_val = torch.as_tensor(val_set.actions, dtype=torch.float32)
     optimizer = torch.optim.Adam(
-        policy.parameters(),
+        trainable_parameters,
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
@@ -138,6 +172,12 @@ def fine_tune_bc_v3(
             loss = imitation + config.anchor_weight * anchor_loss
             loss.backward()
             optimizer.step()
+            if restore_weight is not None:
+                first, initial_weight, mask = restore_weight
+                with torch.no_grad():
+                    first.weight.copy_(
+                        first.weight * mask + initial_weight * (1.0 - mask)
+                    )
 
         policy.eval()
         with torch.no_grad():
@@ -172,6 +212,10 @@ def fine_tune_bc_v3(
             if stale >= config.patience:
                 break
     policy.load_state_dict(best_state)
+    if gradient_hook is not None:
+        gradient_hook.remove()
+    for parameter in policy.parameters():
+        parameter.requires_grad_(True)
     policy.eval()
     return policy, history
 
