@@ -4,6 +4,8 @@
 > documented in [`rl_multigate_longrun.md`](rl_multigate_longrun.md). This page
 > remains the frozen 5,000-step R0-R2 result and is not rewritten as a long-run
 > success.
+> The later balanced BC-v3 warm start is versioned separately and does not
+> overwrite the selected R1 checkpoint described below.
 
 ## Result
 

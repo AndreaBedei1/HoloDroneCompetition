@@ -3,6 +3,8 @@
 > For the observation-v3 multi-gate million-step workflow, use
 > [`rl_multigate_longrun.md`](rl_multigate_longrun.md). The commands below
 > remain the Stage-1 single-gate smoke workflow.
+> The long-run default uses the selected balanced BC-v3; an explicit frozen-R1
+> continuation config is retained for controlled comparison.
 
 This is the practical workflow for running the safe, reproducible Stage-1 PPO smoke
 experiments on Windows. It assumes the documented HoloOcean install and the dedicated

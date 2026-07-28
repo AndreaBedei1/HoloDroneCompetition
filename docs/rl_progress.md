@@ -3,6 +3,8 @@
 > This is the historical Stage-1 progress record. The current multi-gate
 > manual is [`rl_multigate_longrun.md`](rl_multigate_longrun.md); it honestly
 > reports **LONG-RUN TRAINING PIPELINE READY**, not a completed long-run result.
+> Its recommended warm start is the separately versioned balanced BC-v3; all
+> frozen R1 measurements on this page remain unchanged.
 
 Status of the imitation- and reinforcement-learning extension. This work lives
 **only** on `feature/rl-controller`. It does not modify the official observation

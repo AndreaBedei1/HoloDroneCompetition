@@ -8,6 +8,10 @@ not a completed long-run result. The selected R1 model remains frozen at
 `results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip`
 with SHA-256
 `de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b`.
+The recommended feed-forward run now starts from the balanced BC-v3 derived
+from that frozen policy at
+`results/rl/multigate_longrun/bc_v3_balanced_v2_20260728/bc_v3.pt`, SHA-256
+`c9a889125278122b57307e21b7c2390baa61429f8952093bcc2760d9b3a49bf2`.
 
 ## Why a longer run is needed
 
@@ -34,11 +38,13 @@ datasets/multigate_v3/
     r2_dagger_corrections_v1/
 ```
 
-The balanced plan contains 30 straight, 50 left, and 50 right transition
-episodes spanning 0 to +/-5, +/-10, +/-15, +/-20, +/-30, +/-40, and +/-45
-degree turns, variable separation, offsets, starting yaw, gate loss, noise,
-and recovery difficulty. Raw episodes and generated tracks are ignored by
-Git; only plans and manifests are committed.
+Real HoloOcean collection produced 137 balanced expert trajectories and 43,226
+steps: 32 straight, 50 left, and 55 right. There were 31 successful straight,
+50 successful left, and 52 successful right transitions, meeting all practical
+targets. The distribution spans 0 to +/-5, +/-10, +/-15, +/-20, +/-30, +/-40,
+and +/-45 degree turns, variable separation, offsets, starting yaw, gate loss,
+noise, and recovery difficulty. Raw episodes and generated tracks are ignored
+by Git; only plans, hashes, counts, and manifests are committed.
 
 Collect expert trajectories from clean committed code:
 
@@ -54,10 +60,14 @@ the pre-crossing-to-acquisition window and difficult visited states:
 conda run -n marine_race_rl python -m marine_race_arena.learning.multigate_longrun_data collect --out datasets\multigate_v3\r2_dagger_corrections_v1 --straight 10 --left 20 --right 20 --first-seed 26200 --dagger-model results\rl\multigate_v3\r1\ppo_multigate_v3\20260727_133031\best_model\best_model.zip
 ```
 
+This created 50 learned-policy rollouts and 19,710 shadow expert correction
+pairs, retaining both successful and failed acquisition windows. The learned
+network generated every action actually applied to the simulator.
+
 Train candidate BC-v3 models with geometry/track/seed-disjoint splits:
 
 ```bat
-conda run -n marine_race_rl python -m marine_race_arena.learning.bc_longrun_v3 --single-gate results\rl\stage1\demos_rand2\stage1_demos.npz --straight results\rl\multigate_v3\demos\two_gate_dagger\multigate_v3_demos.npz --turns datasets\multigate_v3\r2_balanced_turns_v1\dataset.npz --corrections datasets\multigate_v3\r2_dagger_corrections_v1\dataset.npz --out results\rl\multigate_longrun_bc_v3\bc_v3.pt --epochs 200 --patience 25 --seed 28000 --closed-loop
+conda run -n marine_race_rl python -m marine_race_arena.learning.bc_longrun_v3 --single-gate results\rl\stage1\demos_rand2\stage1_demos.npz --straight results\rl\multigate_v3\demos\two_gate_dagger\multigate_v3_demos.npz --turns datasets\multigate_v3\r2_balanced_turns_v1\dataset.npz --turns datasets\multigate_v3\r2_balanced_turns_v1\supplement_v1\dataset.npz --corrections datasets\multigate_v3\r2_dagger_corrections_v1\dataset.npz --out results\rl\multigate_longrun\bc_v3_balanced_v2_20260728\bc_v3.pt --epochs 200 --patience 25 --seed 28000 --closed-loop
 ```
 
 BC-v3 starts from the selected R1 policy function and mixes single-gate,
@@ -65,6 +75,13 @@ straight-transition, turning-transition, and corrective samples with
 retention anchors. Early stopping uses validation loss, but final candidate
 selection is lexicographic: single gate, straight, left, right, safety, then
 time. It is not selected by frame-level MSE alone.
+
+The selected candidate trained for 200 epochs on 46,411 train steps, 13,989
+validation steps, and 6,460 test steps. Every seed, track, and geometry-group
+split is pairwise disjoint. On 20 fixed held-out real-HoloOcean trials it
+completed 20/20: single 2/2, straight 4/4, left 5/5, and right 5/5, with zero
+safety events and zero previous-gate returns. This is warm-start evidence, not
+a completed PPO long-run result.
 
 ## Curriculum
 
@@ -100,10 +117,13 @@ that stacking is insufficient.
 
 ## PPO and safety policy
 
-The committed default is MLP `[256, 256]`, learning rate `3e-5` with linear
-decay to `5e-6`, rollout 2,048, batch 256, four epochs, gamma 0.995, GAE 0.95,
-clip 0.10, target KL 0.01, entropy coefficient 0.001, value coefficient 0.5,
-gradient clipping 0.5, and initial action standard deviation 0.12.
+The committed default copies the selected BC-v3 policy into a fresh PPO
+optimizer. The frozen R1 continuation remains available explicitly at
+`configs/rl_multigate_longrun_r1.json`. Both use MLP `[256, 256]`, learning
+rate `3e-5` with linear decay to `5e-6`, rollout 2,048, batch 256, four epochs,
+gamma 0.995, GAE 0.95, clip 0.10, target KL 0.01, entropy coefficient 0.001,
+value coefficient 0.5, gradient clipping 0.5, and initial action standard
+deviation 0.12.
 
 Each update records approximate KL, clip fraction, policy/value losses,
 entropy, explained variance, action standard deviation, measured gradient

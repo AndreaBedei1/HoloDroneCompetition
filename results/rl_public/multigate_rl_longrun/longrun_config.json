@@ -1,14 +1,23 @@
 {
   "source": "configs/rl_multigate_longrun.json",
+  "r1_continuation_config": "configs/rl_multigate_longrun_r1.json",
+  "bounded_smoke_config": "configs/rl_multigate_longrun_smoke.json",
   "default_total_environment_timesteps": 1000000,
   "supported_targets": [100000, 250000, 500000, 1000000, 2000000],
   "default_policy_mode": "feedforward",
   "default_frame_stack": 1,
   "experimental_frame_stack_config": "configs/rl_multigate_longrun_frame_stack.json",
   "initialization": {
-    "path": "results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip",
-    "sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
-    "mode": "policy/value weights copied into a new long-run optimizer"
+    "path": "results/rl/multigate_longrun/bc_v3_balanced_v2_20260728/bc_v3.pt",
+    "sha256": "c9a889125278122b57307e21b7c2390baa61429f8952093bcc2760d9b3a49bf2",
+    "kind": "bc_v3",
+    "mode": "selected balanced BC policy copied into a new long-run PPO optimizer",
+    "derived_from_selected_r1_sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b"
+  },
+  "frame_stack_initialization": {
+    "kind": "ppo_weights",
+    "source": "frozen selected R1",
+    "reason": "input-layer expansion is explicit and remains experimental"
   },
   "ppo": {
     "policy": "MLP [256, 256]",
