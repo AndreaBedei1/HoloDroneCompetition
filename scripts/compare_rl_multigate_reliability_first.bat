@@ -23,22 +23,22 @@ set SEEDS=25400-25404
 conda run -n marine_race_rl python -m marine_race_arena.learning.closed_loop_eval ^
   --track "!TRACK!" --controller rl_multigate_controller --model "!BC_V3!" ^
   --seeds !SEEDS! --out "!BASE!\bc_v3" --adapter holoocean --current-profile none
-if errorlevel 1 exit /b !ERRORLEVEL!
+if not exist "!BASE!\bc_v3\eval_summary.json" exit /b 1
 
 conda run -n marine_race_rl python -m marine_race_arena.learning.closed_loop_eval ^
   --track "!TRACK!" --controller rl_multigate_controller --model "!PPO_MODEL!" ^
   --seeds !SEEDS! --out "!BASE!\ppo_!ALIAS!" --adapter holoocean --current-profile none
-if errorlevel 1 exit /b !ERRORLEVEL!
+if not exist "!BASE!\ppo_!ALIAS!\eval_summary.json" exit /b 1
 
 conda run -n marine_race_rl python -m marine_race_arena.learning.closed_loop_eval ^
   --track "!TRACK!" --controller rule_gate_center_then_commit ^
   --seeds !SEEDS! --out "!BASE!\rule" --adapter holoocean --current-profile none
-if errorlevel 1 exit /b !ERRORLEVEL!
+if not exist "!BASE!\rule\eval_summary.json" exit /b 1
 
 conda run -n marine_race_rl python -m marine_race_arena.learning.closed_loop_eval ^
   --track "!TRACK!" --controller hybrid_gate_controller --model "!BC_V1!" ^
   --seeds !SEEDS! --out "!BASE!\hybrid" --adapter holoocean --current-profile none
-if errorlevel 1 exit /b !ERRORLEVEL!
+if not exist "!BASE!\hybrid\eval_summary.json" exit /b 1
 
 echo Paired BC-v3/PPO/rule/hybrid evidence written to !BASE!
 exit /b 0

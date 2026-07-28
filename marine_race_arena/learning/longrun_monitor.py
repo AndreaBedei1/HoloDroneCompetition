@@ -864,6 +864,13 @@ def make_longrun_callback(
                 for alias, direction in aliases:
                     previous = self.best.get(alias)
                     if direction == "three_gate":
+                        three_gate_n = int(
+                            self.last_eval.get("category_metrics", {})
+                            .get("three_gate", {})
+                            .get("n", 0)
+                        )
+                        if three_gate_n <= 0:
+                            continue
                         better = (
                             previous is None
                             or float(

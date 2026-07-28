@@ -651,6 +651,18 @@ def run_longrun(
             "training_profile": config.training_profile,
             "reward_phase": reward_config.reward_phase,
             "rollback_count": 0,
+            "stage_entry_timesteps": 0,
+            "steps_in_current_stage": 0,
+            "next_promotion_eligibility_step": int(
+                config.curriculum.promotion.minimum_stage_timesteps.get(
+                    config.curriculum.initial_stage, 0
+                )
+            ),
+            "stage_minimum_remaining_timesteps": int(
+                config.curriculum.promotion.minimum_stage_timesteps.get(
+                    config.curriculum.initial_stage, 0
+                )
+            ),
         },
     )
 

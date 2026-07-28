@@ -151,6 +151,24 @@ def test_failed_full_suite_resets_consecutive_promotion_streak():
     assert sampler.state.consecutive_full_passes == 0
 
 
+def test_later_stages_require_progressively_stronger_directional_balance():
+    promotion = _config().curriculum.promotion
+    assert reliability_requirements_met(
+        _passing_report(stage="C1", left_completion_rate=0.85), promotion
+    )
+    assert not reliability_requirements_met(
+        _passing_report(stage="C3", left_completion_rate=0.87), promotion
+    )
+    assert reliability_requirements_met(
+        _passing_report(
+            stage="C3",
+            left_completion_rate=0.90,
+            right_completion_rate=0.90,
+        ),
+        promotion,
+    )
+
+
 def test_distinct_safety_events_frames_and_affected_episodes_are_preserved():
     rows = [
         {
@@ -229,6 +247,15 @@ def test_selection_prefers_completion_then_left_right_floor_before_speed():
     assert fast_reliable_metric_key(
         {**reliable, "episodes_with_collision": 1}, promotion
     ) is None
+    slower_success = {**reliable, "mean_penalized_time_s": 1000.0}
+    fast_failure = {
+        **reliable,
+        "completion_rate": 0.0,
+        "mean_penalized_time_s": 1.0,
+    }
+    assert checkpoint_metric_key(slower_success) > checkpoint_metric_key(
+        fast_failure
+    )
 
 
 def test_regression_gate_detects_retention_direction_safety_and_returns():

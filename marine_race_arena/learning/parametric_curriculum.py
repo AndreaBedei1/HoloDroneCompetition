@@ -566,6 +566,17 @@ def reliability_requirements_met(
     """Return whether one full suite satisfies the reliability-first gate."""
     if str(metrics.get("mode", "full")) != "full":
         return False
+    stage = str(metrics.get("stage", "C0"))
+    stage_index = int(stage[1:]) if stage in CURRICULUM_STAGES else 0
+    # Later stages demand progressively tighter directional balance while
+    # retaining the configured C0/C1 floor.
+    balance_increment = max(0, stage_index - 1) * 0.02
+    left_floor = min(
+        0.95, float(promotion_config.left_completion_rate) + balance_increment
+    )
+    right_floor = min(
+        0.95, float(promotion_config.right_completion_rate) + balance_increment
+    )
     return (
         float(metrics.get("completion_rate", 0.0))
         >= float(promotion_config.overall_completion_rate)
@@ -573,10 +584,8 @@ def reliability_requirements_met(
         >= float(promotion_config.single_gate_completion_rate)
         and float(metrics.get("straight_completion_rate", 0.0))
         >= float(promotion_config.straight_completion_rate)
-        and float(metrics.get("left_completion_rate", 0.0))
-        >= float(promotion_config.left_completion_rate)
-        and float(metrics.get("right_completion_rate", 0.0))
-        >= float(promotion_config.right_completion_rate)
+        and float(metrics.get("left_completion_rate", 0.0)) >= left_floor
+        and float(metrics.get("right_completion_rate", 0.0)) >= right_floor
         and int(metrics.get("episodes_with_collision", 0))
         <= int(promotion_config.maximum_collision_episodes)
         and int(metrics.get("episodes_with_out_of_bounds", 0))
