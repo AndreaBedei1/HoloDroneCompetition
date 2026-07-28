@@ -176,6 +176,33 @@ restart up to five times. Logs rotate at 20 MiB with five backups; preflight
 checks disk, RAM, GPU visibility, Ocean installation, model hash, clean Git,
 and conflicting live training PIDs.
 
+During deterministic evaluation, `status.json` changes to `EVALUATING` and
+records the mode plus completed/total evaluation cases. Every finished case
+refreshes the heartbeat, so a long healthy full suite is not misreported as a
+training stall. Plateau detection does not activate merely because three
+evaluations exist: their first-to-last timestep span must cover the configured
+plateau window.
+
+## Bounded real-HoloOcean validation
+
+The infrastructure smoke stopped gracefully at 1,062 steps, resumed from the
+exact checkpoint for 1,536 more, and completed at 2,598. Timestep/update/
+TensorBoard numbering remained monotonic; seven atomic checkpoint manifests
+were written. Maximum approximate KL was 0.01257, with zero NaN, zero action
+saturation, and zero simulator restarts. Its five-case C0 light evaluation
+completed 5/5 with zero safety events and zero previous-gate returns.
+
+The separate short learning run executed 8,193 real steps and four evaluations
+before a conservative plateau stop. Its first C0 full suite at 4,096 was 13/14
+and became `best_overall`; after promotion, C1 regressed, so the 8,192
+checkpoint (10/14) did not replace the best. This is exactly why selection is
+evaluation-led rather than reward/KL-led. The smoke exposed two monitoring
+defects: long evaluations could look stale, and the plateau detector did not
+require the configured timestep span. Both are fixed in commit `548044d`,
+covered by tests, and the evaluation heartbeat was then verified in a clean
+real-HoloOcean 256-step smoke. No long-run learning success is claimed from
+these bounded runs.
+
 ## Exact operating commands
 
 Prepare and validate the machine:
