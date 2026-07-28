@@ -100,10 +100,15 @@ def _geometry(track: str, seed: int, role: str) -> Tuple[str, str]:
     # A fixed track is an indivisible split unit. Including a seed-family suffix
     # here previously allowed the same fixed track to leak across train/val/test
     # even though seeds and generated transition geometry remained disjoint.
-    return direction, f"{role}:{path.as_posix()}"
+    return direction, f"fixed:{role}:{path.as_posix()}"
 
 
 def _split_for_group(group: str) -> str:
+    # Fixed legacy tracks are retention anchors, not supervised selection data.
+    # Their closed-loop competence is evaluated on separately generated held-out
+    # cases, while all parametric geometry groups remain hash-split.
+    if group.startswith("fixed:"):
+        return "train"
     bucket = int(hashlib.sha256(group.encode("utf-8")).hexdigest()[:8], 16) % 10
     return "test" if bucket == 0 else "validation" if bucket in (1, 2) else "train"
 
