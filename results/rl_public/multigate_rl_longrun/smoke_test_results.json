@@ -127,5 +127,12 @@
     "runtime_rule_actions": 0,
     "note": "The short PPO policy regressed on C1; that is learning evidence, not a reward-accounting exploit or a success claim."
   },
+  "test_matrix": {
+    "git_diff_check": "pass",
+    "compileall": "pass",
+    "ocean_full": {"passed": 678, "skipped": 12},
+    "marine_race_rl_full": {"passed": 768, "skipped": 0},
+    "marine_race_rl_learning": {"passed": 376, "skipped": 0}
+  },
   "full_multiday_run_started": false
 }
