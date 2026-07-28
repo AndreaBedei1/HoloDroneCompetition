@@ -20,6 +20,7 @@ from marine_race_arena.learning.longrun_checkpoint import (
     latest_valid_checkpoint,
     load_checkpoint_state,
 )
+from marine_race_arena.learning.bc_longrun_v3 import _geometry
 from marine_race_arena.learning.longrun_config import LongRunConfig
 from marine_race_arena.learning.longrun_env import ObservationFrameStack
 from marine_race_arena.learning.longrun_evaluation import (
@@ -179,6 +180,12 @@ def test_balanced_plan_has_requested_left_right_and_geometry_splits():
     for row in plan:
         split_by_geometry.setdefault(row.geometry.geometry_group, set()).add(row.split)
     assert all(len(splits) == 1 for splits in split_by_geometry.values())
+
+
+def test_fixed_bc_track_is_indivisible_across_seeds():
+    _, first = _geometry("missing/fixed_track.json", 1, "single_gate")
+    _, second = _geometry("missing/fixed_track.json", 999, "single_gate")
+    assert first == second
 
 
 def test_parametric_track_keeps_referee_and_currents_unchanged(tmp_path):

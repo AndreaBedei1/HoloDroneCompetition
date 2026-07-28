@@ -97,7 +97,10 @@ def _geometry(track: str, seed: int, role: str) -> Tuple[str, str]:
         except Exception:
             pass
     direction = "straight" if role in {"single_gate", "straight"} else "mixed"
-    return direction, f"{role}:{path.name}:seed_family_{int(seed) // 5}"
+    # A fixed track is an indivisible split unit. Including a seed-family suffix
+    # here previously allowed the same fixed track to leak across train/val/test
+    # even though seeds and generated transition geometry remained disjoint.
+    return direction, f"{role}:{path.as_posix()}"
 
 
 def _split_for_group(group: str) -> str:
