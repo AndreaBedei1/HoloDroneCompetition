@@ -110,6 +110,11 @@ class TransitionGeometry:
 @dataclass
 class CurriculumState:
     current_stage: str = "C0"
+    training_timesteps: int = 0
+    stage_entry_timesteps: int = 0
+    consecutive_full_passes: int = 0
+    reliable_full_streak: int = 0
+    efficiency_phase_active: bool = False
     sample_counts: Dict[str, int] = field(default_factory=dict)
     evaluation_history: List[Dict[str, Any]] = field(default_factory=list)
     stage_changes: List[Dict[str, Any]] = field(default_factory=list)
@@ -221,6 +226,9 @@ class CurriculumSampler:
         initial_stage: str = "C0",
         maximum_stage: str = "C4",
         mixture: Sequence[float] = (0.20, 0.20, 0.30, 0.20, 0.10),
+        early_mixture: Optional[Sequence[float]] = None,
+        early_until_timesteps: int = 0,
+        promotion_config: Optional[Any] = None,
         sensor_noise: bool = True,
     ) -> None:
         if initial_stage not in STAGE_BY_KEY or maximum_stage not in STAGE_BY_KEY:
@@ -231,9 +239,16 @@ class CurriculumSampler:
             raise ValueError("maximum stage precedes initial stage")
         if len(mixture) != 5 or abs(sum(mixture) - 1.0) > 1e-9:
             raise ValueError("mixture must contain five weights summing to one")
+        if early_mixture is None:
+            early_mixture = mixture
+        if len(early_mixture) != 5 or abs(sum(early_mixture) - 1.0) > 1e-9:
+            raise ValueError("early_mixture must contain five weights summing to one")
         self.seed = int(seed)
         self.maximum_stage = maximum_stage
         self.mixture = tuple(float(v) for v in mixture)
+        self.early_mixture = tuple(float(v) for v in early_mixture)
+        self.early_until_timesteps = int(early_until_timesteps)
+        self.promotion_config = promotion_config
         self.sensor_noise = bool(sensor_noise)
         self.rng = np.random.default_rng(self.seed)
         self.state = CurriculumState(current_stage=initial_stage)
@@ -249,6 +264,8 @@ class CurriculumSampler:
             "seed": self.seed,
             "maximum_stage": self.maximum_stage,
             "mixture": list(self.mixture),
+            "early_mixture": list(self.early_mixture),
+            "early_until_timesteps": self.early_until_timesteps,
             "sensor_noise": self.sensor_noise,
             "state": state,
         }
@@ -258,6 +275,11 @@ class CurriculumSampler:
             raise ValueError("curriculum seed mismatch")
         if str(value["maximum_stage"]) != self.maximum_stage:
             raise ValueError("curriculum maximum-stage mismatch")
+        stored_early = tuple(value.get("early_mixture", value["mixture"]))
+        if stored_early != self.early_mixture:
+            raise ValueError("curriculum early-mixture mismatch")
+        if int(value.get("early_until_timesteps", 0)) != self.early_until_timesteps:
+            raise ValueError("curriculum early replay boundary mismatch")
         state = dict(value["state"])
         rng_state = state.pop("rng_state", None)
         self.state = CurriculumState(**state)
@@ -269,6 +291,33 @@ class CurriculumSampler:
         self.state.targeted_failures.append(row)
         self.state.targeted_failures = self.state.targeted_failures[-100:]
 
+    @property
+    def active_mixture(self) -> Tuple[float, ...]:
+        if self.state.training_timesteps < self.early_until_timesteps:
+            return self.early_mixture
+        return self.mixture
+
+    def set_timesteps(self, timesteps: int) -> None:
+        self.state.training_timesteps = max(
+            self.state.training_timesteps, int(timesteps)
+        )
+
+    def force_stage(self, stage: str, *, timesteps: int, reason: str) -> Dict[str, Any]:
+        if stage not in CURRICULUM_STAGES:
+            raise ValueError(f"unknown forced curriculum stage {stage!r}")
+        old = self.current_stage
+        self.state.current_stage = stage
+        self.state.stage_entry_timesteps = int(timesteps)
+        self.state.consecutive_full_passes = 0
+        change = {
+            "timesteps": int(timesteps),
+            "from": old,
+            "to": stage,
+            "reason": str(reason),
+        }
+        self.state.stage_changes.append(change)
+        return change
+
     def _choose_source(self) -> str:
         sources = (
             "retention",
@@ -277,7 +326,7 @@ class CurriculumSampler:
             "previous_stage",
             "targeted_failure",
         )
-        source = str(self.rng.choice(sources, p=self.mixture))
+        source = str(self.rng.choice(sources, p=self.active_mixture))
         if source == "targeted_failure" and not self.state.targeted_failures:
             source = "current_stage"
         return source
@@ -326,6 +375,16 @@ class CurriculumSampler:
 
         limits = STAGE_BY_KEY[stage_key]
         turn = 0.0 if max_angle == 0 else float(self.rng.uniform(-max_angle, max_angle))
+        # Once real turns are introduced, prevent a transient success/failure
+        # sequence from creating a persistent left/right replay imbalance.
+        if max_angle > 5.0 and current_index >= 2 and abs(turn) > 5.0:
+            left_count = self.state.sample_counts.get("left", 0)
+            right_count = self.state.sample_counts.get("right", 0)
+            magnitude = abs(turn)
+            if left_count > right_count + 1:
+                turn = -magnitude
+            elif right_count > left_count + 1:
+                turn = magnitude
         noise_scale = 1.0 if self.sensor_noise else 0.0
         geometry = TransitionGeometry(
             signed_turn_deg=turn,
@@ -379,15 +438,35 @@ class CurriculumSampler:
     ) -> Optional[Dict[str, Any]]:
         row = {"timesteps": int(timesteps), "stage": self.current_stage, **dict(metrics)}
         self.state.evaluation_history.append(row)
+        self.set_timesteps(timesteps)
+        if self.promotion_config is not None:
+            passed = reliability_requirements_met(metrics, self.promotion_config)
+            self.state.consecutive_full_passes = (
+                self.state.consecutive_full_passes + 1 if passed else 0
+            )
+            self.state.reliable_full_streak = (
+                self.state.reliable_full_streak + 1 if passed else 0
+            )
+            required = int(
+                self.promotion_config.required_consecutive_full_evaluations
+            )
+            self.state.efficiency_phase_active = (
+                self.state.reliable_full_streak >= required
+            )
         decision = curriculum_stage_decision(
             self.current_stage,
             metrics,
             maximum_stage=self.maximum_stage,
             allow_demotion=allow_demotion,
+            promotion_config=self.promotion_config,
+            consecutive_full_passes=self.state.consecutive_full_passes,
+            stage_timesteps=int(timesteps) - self.state.stage_entry_timesteps,
         )
         if decision and auto_promote:
             old = self.current_stage
             self.state.current_stage = decision
+            self.state.stage_entry_timesteps = int(timesteps)
+            self.state.consecutive_full_passes = 0
             change = {
                 "timesteps": int(timesteps),
                 "from": old,
@@ -405,6 +484,9 @@ def curriculum_stage_decision(
     *,
     maximum_stage: str = "C7",
     allow_demotion: bool = True,
+    promotion_config: Optional[Any] = None,
+    consecutive_full_passes: int = 1,
+    stage_timesteps: int = 0,
 ) -> Optional[str]:
     """Return the next stage only when the documented multi-episode gate passes."""
     current_index = CURRICULUM_STAGES.index(current_stage)
@@ -424,6 +506,18 @@ def curriculum_stage_decision(
     if allow_demotion and current_index > 0 and straight < 0.7:
         return CURRICULUM_STAGES[current_index - 1]
     if current_index >= maximum_index:
+        return None
+    if promotion_config is not None:
+        required = int(promotion_config.required_consecutive_full_evaluations)
+        minimum = int(
+            promotion_config.minimum_stage_timesteps.get(current_stage, 0)
+        )
+        if (
+            consecutive_full_passes >= required
+            and stage_timesteps >= minimum
+            and reliability_requirements_met(metrics, promotion_config)
+        ):
+            return CURRICULUM_STAGES[current_index + 1]
         return None
     promote = False
     if current_stage == "C0":
@@ -464,6 +558,34 @@ def curriculum_stage_decision(
     if promote:
         return CURRICULUM_STAGES[current_index + 1]
     return None
+
+
+def reliability_requirements_met(
+    metrics: Mapping[str, Any], promotion_config: Any
+) -> bool:
+    """Return whether one full suite satisfies the reliability-first gate."""
+    if str(metrics.get("mode", "full")) != "full":
+        return False
+    return (
+        float(metrics.get("completion_rate", 0.0))
+        >= float(promotion_config.overall_completion_rate)
+        and float(metrics.get("single_gate_completion_rate", 0.0))
+        >= float(promotion_config.single_gate_completion_rate)
+        and float(metrics.get("straight_completion_rate", 0.0))
+        >= float(promotion_config.straight_completion_rate)
+        and float(metrics.get("left_completion_rate", 0.0))
+        >= float(promotion_config.left_completion_rate)
+        and float(metrics.get("right_completion_rate", 0.0))
+        >= float(promotion_config.right_completion_rate)
+        and int(metrics.get("episodes_with_collision", 0))
+        <= int(promotion_config.maximum_collision_episodes)
+        and int(metrics.get("episodes_with_out_of_bounds", 0))
+        <= int(promotion_config.maximum_out_of_bounds_episodes)
+        and int(metrics.get("episodes_with_wrong_direction", 0))
+        <= int(promotion_config.maximum_wrong_direction_episodes)
+        and int(metrics.get("previous_gate_returns", 0))
+        <= int(promotion_config.maximum_previous_gate_returns)
+    )
 
 
 def fixed_evaluation_tracks(stage_key: str) -> Dict[str, str]:

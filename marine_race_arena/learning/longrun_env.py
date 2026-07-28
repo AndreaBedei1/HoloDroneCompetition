@@ -121,6 +121,10 @@ class CurriculumMarineRaceEnv(_BASE):
         self.current_geometry: Optional[TransitionGeometry] = None
         self.current_track: Optional[str] = None
         self.simulator_restart_count = 0
+        self._safety_frames: Dict[str, int] = {}
+        self._safety_contact_events: Dict[str, int] = {}
+        self._safety_active: Dict[str, bool] = {}
+        self._reset_safety_tracking()
 
         # Build a lightweight child once to expose stable spaces to SB3. It is not
         # reset until SB3 asks for the first episode.
@@ -183,6 +187,7 @@ class CurriculumMarineRaceEnv(_BASE):
         self._episode_counter += 1
         self._child = self._make_child(self.current_track, episode_seed)
         obs, info = self._child.reset(seed=episode_seed)
+        self._reset_safety_tracking()
         info.update(
             {
                 "curriculum_stage": self.sampler.current_stage,
@@ -200,6 +205,7 @@ class CurriculumMarineRaceEnv(_BASE):
         if self._child is None:
             raise RuntimeError("reset must be called before step")
         obs, reward, terminated, truncated, info = self._child.step(action)
+        self._observe_safety_frames(info)
         geometry = self.current_geometry
         if geometry is not None:
             info.update(
@@ -223,11 +229,72 @@ class CurriculumMarineRaceEnv(_BASE):
                     "episode_status": progress["status"],
                     "episode_gate_count": int(progress["valid_gate_crossings"]),
                     "episode_collisions": int(state.collision_events),
+                    "episode_collision_events": int(state.collision_events),
+                    "episode_collision_frames": int(
+                        self._safety_frames["collision"]
+                    ),
+                    "episode_collision_contact_events": int(
+                        self._safety_contact_events["collision"]
+                    ),
                     "episode_out_of_bounds": int(state.out_of_bounds_events),
+                    "episode_out_of_bounds_events": int(state.out_of_bounds_events),
+                    "episode_out_of_bounds_frames": int(
+                        self._safety_frames["out_of_bounds"]
+                    ),
+                    "episode_out_of_bounds_contact_events": int(
+                        self._safety_contact_events["out_of_bounds"]
+                    ),
                     "episode_wrong_direction": int(state.wrong_direction_crossings),
+                    "episode_wrong_direction_count": int(
+                        state.wrong_direction_crossings
+                    ),
+                    "episode_safety_warning_events": int(
+                        self._safety_contact_events["warning"]
+                    ),
+                    "episode_safety_warning_frames": int(
+                        self._safety_frames["warning"]
+                    ),
+                    "episode_any_safety": bool(
+                        state.collision_events
+                        or state.out_of_bounds_events
+                        or state.wrong_direction_crossings
+                    ),
                 }
             )
         return obs, reward, terminated, truncated, info
+
+    def _reset_safety_tracking(self) -> None:
+        self._safety_frames = {
+            "collision": 0,
+            "out_of_bounds": 0,
+            "warning": 0,
+        }
+        self._safety_contact_events = {
+            "collision": 0,
+            "out_of_bounds": 0,
+            "warning": 0,
+        }
+        self._safety_active = {
+            "collision": False,
+            "out_of_bounds": False,
+            "warning": False,
+        }
+
+    def _observe_safety_frames(self, info: Mapping[str, Any]) -> None:
+        active = {
+            "collision": bool(
+                info.get("collision_contact_frame")
+                or info.get("obstacle_collision_frame")
+            ),
+            "out_of_bounds": bool(info.get("out_of_bounds_frame")),
+            "warning": bool(info.get("safety_warning_frame")),
+        }
+        for name, is_active in active.items():
+            if is_active:
+                self._safety_frames[name] += 1
+            if is_active and not self._safety_active[name]:
+                self._safety_contact_events[name] += 1
+            self._safety_active[name] = is_active
 
     def _append_geometry(self, episode_seed: int, geometry: TransitionGeometry) -> None:
         path = self.run_dir / "logs" / "sampled_geometries.jsonl"

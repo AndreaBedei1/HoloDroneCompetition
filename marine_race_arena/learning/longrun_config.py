@@ -76,6 +76,77 @@ class PPOConfig:
 
 
 @dataclass
+class RetentionConfig:
+    enabled: bool = False
+    weight: float = 0.10
+    maximum_weight: float = 0.20
+    initial_policy_kl_weight: float = 0.02
+    batch_size: int = 256
+    every_updates: int = 1
+    decay_until_timesteps: int = 150_000
+    final_weight: float = 0.0
+    active_through_stage: str = "C2"
+    dataset_paths: Tuple[str, ...] = ()
+
+    def validate(self) -> None:
+        if not 0.0 <= self.weight <= self.maximum_weight <= 0.20:
+            raise ValueError("retention weights must satisfy 0 <= weight <= maximum <= 0.20")
+        if not 0.0 <= self.final_weight <= self.weight:
+            raise ValueError("retention final_weight must be in [0, weight]")
+        if not 0.0 <= self.initial_policy_kl_weight <= 0.20:
+            raise ValueError("initial-policy KL weight must be in [0, 0.20]")
+        if self.batch_size <= 0 or self.every_updates <= 0:
+            raise ValueError("retention batch_size/every_updates must be positive")
+        if self.decay_until_timesteps <= 0:
+            raise ValueError("retention decay_until_timesteps must be positive")
+        if self.active_through_stage not in CURRICULUM_STAGES:
+            raise ValueError("unknown retention active_through_stage")
+        if self.enabled and not self.dataset_paths:
+            raise ValueError("enabled retention requires offline dataset_paths")
+
+
+@dataclass
+class PromotionConfig:
+    required_consecutive_full_evaluations: int = 1
+    minimum_stage_timesteps: Dict[str, int] = field(default_factory=dict)
+    overall_completion_rate: float = 0.80
+    single_gate_completion_rate: float = 0.0
+    straight_completion_rate: float = 0.80
+    left_completion_rate: float = 0.0
+    right_completion_rate: float = 0.0
+    maximum_collision_episodes: int = 2**31 - 1
+    maximum_out_of_bounds_episodes: int = 2**31 - 1
+    maximum_wrong_direction_episodes: int = 2**31 - 1
+    maximum_previous_gate_returns: int = 2**31 - 1
+
+    def validate(self) -> None:
+        if self.required_consecutive_full_evaluations <= 0:
+            raise ValueError("promotion requires at least one consecutive full evaluation")
+        if any(
+            stage not in CURRICULUM_STAGES or int(value) < 0
+            for stage, value in self.minimum_stage_timesteps.items()
+        ):
+            raise ValueError("minimum_stage_timesteps contains an invalid stage/duration")
+        rates = (
+            self.overall_completion_rate,
+            self.single_gate_completion_rate,
+            self.straight_completion_rate,
+            self.left_completion_rate,
+            self.right_completion_rate,
+        )
+        if any(not 0.0 <= value <= 1.0 for value in rates):
+            raise ValueError("promotion completion thresholds must be in [0, 1]")
+        limits = (
+            self.maximum_collision_episodes,
+            self.maximum_out_of_bounds_episodes,
+            self.maximum_wrong_direction_episodes,
+            self.maximum_previous_gate_returns,
+        )
+        if any(int(value) < 0 for value in limits):
+            raise ValueError("promotion safety/return limits must be non-negative")
+
+
+@dataclass
 class CurriculumConfig:
     initial_stage: str = "C0"
     maximum_stage: str = "C4"
@@ -86,7 +157,14 @@ class CurriculumConfig:
     current_stage_fraction: float = 0.30
     previous_stage_fraction: float = 0.20
     failure_case_fraction: float = 0.10
+    early_replay_until_timesteps: int = 0
+    early_retention_fraction: float = 0.20
+    early_straight_fraction: float = 0.20
+    early_current_stage_fraction: float = 0.30
+    early_previous_stage_fraction: float = 0.20
+    early_failure_case_fraction: float = 0.10
     sensor_noise: bool = True
+    promotion: PromotionConfig = field(default_factory=PromotionConfig)
 
     def validate(self) -> None:
         if self.initial_stage not in CURRICULUM_STAGES:
@@ -106,6 +184,18 @@ class CurriculumConfig:
         )
         if any(v < 0 for v in mixture) or abs(sum(mixture) - 1.0) > 1e-9:
             raise ValueError("curriculum replay fractions must be nonnegative and sum to 1")
+        early_mixture = (
+            self.early_retention_fraction,
+            self.early_straight_fraction,
+            self.early_current_stage_fraction,
+            self.early_previous_stage_fraction,
+            self.early_failure_case_fraction,
+        )
+        if any(v < 0 for v in early_mixture) or abs(sum(early_mixture) - 1.0) > 1e-9:
+            raise ValueError("early curriculum replay fractions must sum to 1")
+        if self.early_replay_until_timesteps < 0:
+            raise ValueError("early_replay_until_timesteps must be non-negative")
+        self.promotion.validate()
 
 
 @dataclass
@@ -131,6 +221,65 @@ class EvaluationConfig:
 
 
 @dataclass
+class RollbackConfig:
+    enabled: bool = False
+    maximum_attempts: int = 2
+    completion_drop: float = 0.10
+    single_gate_floor: float = 0.90
+    straight_floor: float = 0.85
+    directional_floor: float = 0.70
+    maximum_safety_episodes: int = 0
+    maximum_previous_gate_returns: int = 2
+    learning_rate_scale: float = 0.5
+    retention_weight_scale: float = 1.25
+
+    def validate(self) -> None:
+        if self.maximum_attempts < 0:
+            raise ValueError("rollback maximum_attempts must be non-negative")
+        if not 0.0 <= self.completion_drop <= 1.0:
+            raise ValueError("rollback completion_drop must be in [0, 1]")
+        for value in (
+            self.single_gate_floor,
+            self.straight_floor,
+            self.directional_floor,
+        ):
+            if not 0.0 <= value <= 1.0:
+                raise ValueError("rollback completion floors must be in [0, 1]")
+        if self.maximum_safety_episodes < 0 or self.maximum_previous_gate_returns < 0:
+            raise ValueError("rollback event limits must be non-negative")
+        if not 0.0 < self.learning_rate_scale <= 1.0:
+            raise ValueError("rollback learning_rate_scale must be in (0, 1]")
+        if self.retention_weight_scale < 1.0:
+            raise ValueError("rollback retention_weight_scale must be at least 1")
+
+
+@dataclass
+class RewardPhaseConfig:
+    enabled: bool = False
+    reliable_full_evaluations: int = 2
+    reliability_time_cost: float = 0.0
+    efficiency_time_cost: float = 0.002
+    efficiency_detour_penalty: float = 0.004
+    efficiency_jerk_penalty: float = 0.01
+    efficiency_energy_penalty: float = 0.002
+    per_step_efficiency_penalty_cap: float = 0.03
+
+    def validate(self) -> None:
+        if self.reliable_full_evaluations <= 0:
+            raise ValueError("reward phase requires a positive reliable-evaluation streak")
+        values = (
+            self.reliability_time_cost,
+            self.efficiency_time_cost,
+            self.efficiency_detour_penalty,
+            self.efficiency_jerk_penalty,
+            self.efficiency_energy_penalty,
+            self.per_step_efficiency_penalty_cap,
+        )
+        if any(value < 0 for value in values):
+            raise ValueError("reward phase coefficients must be non-negative")
+
+
+@dataclass
 class ReliabilityConfig:
     status_frequency_steps: int = 250
     status_frequency_seconds: int = 30
@@ -142,6 +291,8 @@ class ReliabilityConfig:
     maximum_log_bytes: int = 20 * 1024 * 1024
     log_backup_count: int = 5
     graceful_stop_timeout_seconds: int = 300
+    rollback: RollbackConfig = field(default_factory=RollbackConfig)
+    reward_phase: RewardPhaseConfig = field(default_factory=RewardPhaseConfig)
 
     def validate(self) -> None:
         if self.status_frequency_steps <= 0 or self.status_frequency_seconds <= 0:
@@ -154,6 +305,8 @@ class ReliabilityConfig:
             raise ValueError("minimum_free_disk_gb must be at least 1")
         if self.maximum_log_bytes < 1024 * 1024 or self.log_backup_count < 1:
             raise ValueError("rotating log limits are too small")
+        self.rollback.validate()
+        self.reward_phase.validate()
 
 
 @dataclass
@@ -173,7 +326,9 @@ class LongRunConfig:
     action_version: str = ACTION_CONTRACT_VERSION
     policy_mode: str = "feedforward"
     frame_stack: int = 1
+    training_profile: str = "longrun"
     ppo: PPOConfig = field(default_factory=PPOConfig)
+    retention: RetentionConfig = field(default_factory=RetentionConfig)
     curriculum: CurriculumConfig = field(default_factory=CurriculumConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     reliability: ReliabilityConfig = field(default_factory=ReliabilityConfig)
@@ -211,11 +366,14 @@ class LongRunConfig:
             raise ValueError("experimental frame stacking supports 3 or 4 frames")
         if self.policy_mode == "frame_stack" and self.initialization_kind != "ppo_weights":
             raise ValueError("frame stacking currently requires ppo_weights initialization")
+        if self.training_profile not in {"longrun", "reliability_first"}:
+            raise ValueError("training_profile must be longrun or reliability_first")
         if self.initialization_kind not in {"ppo_weights", "bc_v3"}:
             raise ValueError("initialization_kind must be ppo_weights or bc_v3")
         if len(self.initialization_sha256) != 64:
             raise ValueError("initialization_sha256 must be a SHA-256 hex digest")
         self.ppo.validate()
+        self.retention.validate()
         self.curriculum.validate()
         self.evaluation.validate()
         self.reliability.validate()
@@ -230,9 +388,18 @@ class LongRunConfig:
         raw = dict(data)
         raw["ppo"] = PPOConfig(**raw.get("ppo", {}))
         raw["ppo"].hidden_sizes = tuple(raw["ppo"].hidden_sizes)
-        raw["curriculum"] = CurriculumConfig(**raw.get("curriculum", {}))
+        raw["retention"] = RetentionConfig(**raw.get("retention", {}))
+        raw["retention"].dataset_paths = tuple(raw["retention"].dataset_paths)
+        curriculum = dict(raw.get("curriculum", {}))
+        curriculum["promotion"] = PromotionConfig(**curriculum.get("promotion", {}))
+        raw["curriculum"] = CurriculumConfig(**curriculum)
         raw["evaluation"] = EvaluationConfig(**raw.get("evaluation", {}))
-        raw["reliability"] = ReliabilityConfig(**raw.get("reliability", {}))
+        reliability = dict(raw.get("reliability", {}))
+        reliability["rollback"] = RollbackConfig(**reliability.get("rollback", {}))
+        reliability["reward_phase"] = RewardPhaseConfig(
+            **reliability.get("reward_phase", {})
+        )
+        raw["reliability"] = ReliabilityConfig(**reliability)
         return cls(**raw)
 
     @classmethod

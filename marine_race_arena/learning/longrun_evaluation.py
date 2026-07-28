@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -32,22 +33,30 @@ from marine_race_arena.learning.reward_v3 import (
 
 
 def checkpoint_metric_key(metrics: Mapping[str, Any]) -> Tuple[float, ...]:
-    """Lexicographic ordering; reward is intentionally absent."""
+    """Reliability-first lexicographic ordering; reward is intentionally absent."""
     return (
         float(metrics.get("completion_rate", 0.0)),
         min(
             float(metrics.get("left_completion_rate", 0.0)),
             float(metrics.get("right_completion_rate", 0.0)),
         ),
-        float(metrics.get("mean_gates", 0.0)),
-        -float(metrics.get("safety_events", 0.0)),
+        float(metrics.get("single_gate_completion_rate", 0.0)),
+        float(metrics.get("straight_completion_rate", 0.0)),
+        -float(metrics.get("episodes_with_any_safety", 0.0)),
         -float(metrics.get("previous_gate_returns", 0.0)),
+        float(metrics.get("mean_gates", 0.0)),
         -float(
             metrics.get("mean_penalized_time_s")
             if metrics.get("mean_penalized_time_s") is not None
             else 1e9
         ),
+        -float(
+            metrics.get("mean_successful_time_s")
+            if metrics.get("mean_successful_time_s") is not None
+            else 1e9
+        ),
         -float(metrics.get("mean_action_jerk", 0.0)),
+        -float(metrics.get("mean_inference_ms", 1e9)),
     )
 
 
@@ -77,6 +86,32 @@ def directional_metric_key(
         float(metrics.get("completion_rate", 0.0)),
         float(metrics.get("mean_gates", 0.0)),
         -float(metrics.get("safety_events", 0.0)),
+    )
+
+
+def fast_reliable_metric_key(
+    metrics: Mapping[str, Any], promotion_config: Any
+) -> Optional[Tuple[float, ...]]:
+    """Speed ordering that is defined only inside the reliable checkpoint set."""
+    from marine_race_arena.learning.parametric_curriculum import (
+        reliability_requirements_met,
+    )
+
+    if not reliability_requirements_met(metrics, promotion_config):
+        return None
+    return (
+        -float(
+            metrics.get("mean_penalized_time_s")
+            if metrics.get("mean_penalized_time_s") is not None
+            else 1e9
+        ),
+        -float(
+            metrics.get("mean_successful_time_s")
+            if metrics.get("mean_successful_time_s") is not None
+            else 1e9
+        ),
+        -float(metrics.get("mean_action_jerk", 0.0)),
+        -float(metrics.get("mean_inference_ms", 1e9)),
     )
 
 
@@ -297,22 +332,97 @@ def evaluate_longrun_policy(
             base_env, policy_mode=policy_mode, frame_stack=frame_stack
         )
         actions: List[np.ndarray] = []
+        inference_ms: List[float] = []
         previous_return_active = False
         previous_returns = 0
         component_sums: Dict[str, float] = {}
+        safety_frames = {"collision": 0, "out_of_bounds": 0, "warning": 0}
+        safety_contact_events = {"collision": 0, "out_of_bounds": 0, "warning": 0}
+        safety_active = {"collision": False, "out_of_bounds": False, "warning": False}
+        timing = {
+            "approach_s": [],
+            "visual_alignment_s": [],
+            "crossing_s": [],
+            "post_crossing_clearance_s": [],
+            "next_gate_acquisition_s": [],
+        }
+        seen_phase = set()
+        last_gate_count = 0
+        last_crossing_s: Optional[float] = None
+        clearance_recorded = True
+        acquisition_recorded = True
         try:
             obs, _ = env.reset(seed=case["seed"])
             done = False
             while not done:
+                inference_started = time.perf_counter()
                 action, _ = model.predict(obs, deterministic=True)
+                inference_ms.append((time.perf_counter() - inference_started) * 1000.0)
                 action_array = np.asarray(action, dtype=np.float32).reshape(-1)
                 actions.append(action_array)
                 obs, reward, terminated, truncated, info = env.step(action_array)
+                elapsed_s = base_env.episode.step_count * base_env.episode.dt
+                phase = getattr(base_env.tracker, "phase", None)
+                if phase == "APPROACH" and phase not in seen_phase:
+                    timing["approach_s"].append(elapsed_s)
+                    seen_phase.add(phase)
+                if phase == "VISUAL_ALIGN" and phase not in seen_phase:
+                    timing["visual_alignment_s"].append(elapsed_s)
+                    seen_phase.add(phase)
+                gate_count = int(info.get("gate_crossings", last_gate_count))
+                if gate_count > last_gate_count:
+                    timing["crossing_s"].append(elapsed_s)
+                    last_crossing_s = elapsed_s
+                    clearance_recorded = False
+                    acquisition_recorded = False
+                    last_gate_count = gate_count
+                active = {
+                    "collision": bool(
+                        info.get("collision_contact_frame")
+                        or info.get("obstacle_collision_frame")
+                    ),
+                    "out_of_bounds": bool(info.get("out_of_bounds_frame")),
+                    "warning": bool(info.get("safety_warning_frame")),
+                }
+                for name, is_active in active.items():
+                    if is_active:
+                        safety_frames[name] += 1
+                    if is_active and not safety_active[name]:
+                        safety_contact_events[name] += 1
+                    safety_active[name] = is_active
                 components = info.get("reward_components", {})
                 for name, value in components.items():
                     component_sums[name] = component_sums.get(name, 0.0) + float(
                         value
                     )
+                if last_crossing_s is not None:
+                    if (
+                        not clearance_recorded
+                        and float(components.get("previous_gate_behind", 0.0)) > 0
+                    ):
+                        timing["post_crossing_clearance_s"].append(
+                            elapsed_s - last_crossing_s
+                        )
+                        clearance_recorded = True
+                    if (
+                        not acquisition_recorded
+                        and (
+                            float(
+                                components.get("next_beacon_acquisition", 0.0)
+                            )
+                            > 0
+                            or float(
+                                components.get(
+                                    "next_gate_visual_acquisition", 0.0
+                                )
+                            )
+                            > 0
+                        )
+                    ):
+                        timing["next_gate_acquisition_s"].append(
+                            elapsed_s - last_crossing_s
+                        )
+                        acquisition_recorded = True
                 returning = float(
                     components.get("previous_gate_return_penalty", 0.0)
                 ) < 0
@@ -347,8 +457,22 @@ def evaluate_longrun_policy(
                     "status": progress["status"],
                     "completed_gates": int(progress["valid_gate_crossings"]),
                     "collision_events": int(state.collision_events),
+                    "collision_contact_events": int(
+                        safety_contact_events["collision"]
+                    ),
+                    "collision_frames": int(safety_frames["collision"]),
                     "out_of_bounds_events": int(state.out_of_bounds_events),
+                    "out_of_bounds_contact_events": int(
+                        safety_contact_events["out_of_bounds"]
+                    ),
+                    "out_of_bounds_frames": int(
+                        safety_frames["out_of_bounds"]
+                    ),
                     "wrong_direction_crossings": int(state.wrong_direction_crossings),
+                    "safety_warning_events": int(
+                        safety_contact_events["warning"]
+                    ),
+                    "safety_warning_frames": int(safety_frames["warning"]),
                     "previous_gate_returns": previous_returns,
                     "raw_time_s": raw_time if finished else None,
                     "penalized_time_s": (
@@ -358,7 +482,11 @@ def evaluate_longrun_policy(
                     "action_saturation": float(
                         np.mean(np.abs(action_matrix) > 0.98)
                     ),
+                    "mean_inference_ms": (
+                        float(np.mean(inference_ms)) if inference_ms else 0.0
+                    ),
                     "actions_finite": bool(np.all(np.isfinite(action_matrix))),
+                    "timing_diagnostics": timing,
                     "reward_components": component_sums,
                     "runtime_rule_actions": 0,
                 }
@@ -418,10 +546,46 @@ def aggregate_evaluation(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     for row in rows:
         for name, value in row.get("reward_components", {}).items():
             component_totals[name] = component_totals.get(name, 0.0) + float(value)
-    safety = sum(
+    collision_events = sum(int(row.get("collision_events", 0)) for row in rows)
+    out_of_bounds_events = sum(
+        int(row.get("out_of_bounds_events", 0)) for row in rows
+    )
+    wrong_direction_count = sum(
+        int(row.get("wrong_direction_crossings", 0)) for row in rows
+    )
+    safety = (
+        collision_events
+        + out_of_bounds_events
+        + wrong_direction_count
+    )
+    collision_frames = sum(int(row.get("collision_frames", 0)) for row in rows)
+    out_of_bounds_frames = sum(
+        int(row.get("out_of_bounds_frames", 0)) for row in rows
+    )
+    warning_events = sum(
+        int(row.get("safety_warning_events", 0)) for row in rows
+    )
+    warning_frames = sum(
+        int(row.get("safety_warning_frames", 0)) for row in rows
+    )
+    timing_values: Dict[str, List[float]] = {}
+    for row in rows:
+        for name, values in row.get("timing_diagnostics", {}).items():
+            timing_values.setdefault(name, []).extend(float(value) for value in values)
+    episodes_with_collision = sum(
+        int(row.get("collision_events", 0)) > 0 for row in rows
+    )
+    episodes_with_out_of_bounds = sum(
+        int(row.get("out_of_bounds_events", 0)) > 0 for row in rows
+    )
+    episodes_with_wrong_direction = sum(
+        int(row.get("wrong_direction_crossings", 0)) > 0 for row in rows
+    )
+    episodes_with_any_safety = sum(
         int(row.get("collision_events", 0))
         + int(row.get("out_of_bounds_events", 0))
         + int(row.get("wrong_direction_crossings", 0))
+        > 0
         for row in rows
     )
     return {
@@ -452,11 +616,43 @@ def aggregate_evaluation(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
             "completion_rate"
         ],
         "safety_events": int(safety),
+        "collision_events": int(collision_events),
+        "collision_event_count": int(collision_events),
+        "collision_frames": int(collision_frames),
+        "collision_frame_count": int(collision_frames),
+        "out_of_bounds_events": int(out_of_bounds_events),
+        "out_of_bounds_event_count": int(out_of_bounds_events),
+        "out_of_bounds_frames": int(out_of_bounds_frames),
+        "out_of_bounds_frame_count": int(out_of_bounds_frames),
+        "wrong_direction_count": int(wrong_direction_count),
+        "wrong_direction_crossing_count": int(wrong_direction_count),
+        "safety_warning_events": int(warning_events),
+        "safety_warning_event_count": int(warning_events),
+        "safety_warning_frames": int(warning_frames),
+        "safety_warning_frame_count": int(warning_frames),
+        "episodes_with_collision": int(episodes_with_collision),
+        "episodes_with_out_of_bounds": int(episodes_with_out_of_bounds),
+        "episodes_with_wrong_direction": int(episodes_with_wrong_direction),
+        "episodes_with_any_safety": int(episodes_with_any_safety),
+        "episodes_with_any_safety_event": int(episodes_with_any_safety),
         "previous_gate_returns": int(
             sum(int(row.get("previous_gate_returns", 0)) for row in rows)
         ),
         "mean_penalized_time_s": (
             float(np.mean(finished_times)) if finished_times else None
+        ),
+        "mean_successful_time_s": (
+            float(
+                np.mean(
+                    [
+                        float(row["raw_time_s"])
+                        for row in rows
+                        if row.get("raw_time_s") is not None
+                    ]
+                )
+            )
+            if finished_times
+            else None
         ),
         "mean_action_jerk": (
             float(np.mean([row.get("action_jerk", 0.0) for row in rows]))
@@ -468,6 +664,19 @@ def aggregate_evaluation(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
             if rows
             else 0.0
         ),
+        "mean_inference_ms": (
+            float(np.mean([row.get("mean_inference_ms", 0.0) for row in rows]))
+            if rows
+            else 0.0
+        ),
+        "timing_diagnostics": {
+            name: {
+                "count": len(values),
+                "mean_s": float(np.mean(values)) if values else None,
+                "max_s": float(np.max(values)) if values else None,
+            }
+            for name, values in sorted(timing_values.items())
+        },
         "all_actions_finite": all(bool(row.get("actions_finite", True)) for row in rows),
         "reward_component_sums": component_totals,
         "category_metrics": category_metrics,

@@ -53,6 +53,13 @@ class MultiGateRewardConfig:
     stable_visual_frames: int = 3
     completion_bonus: float = 50.0
     time_cost: float = 0.01
+    reward_phase: str = "legacy"
+    reliability_time_cost: float = 0.0
+    efficiency_time_cost: float = 0.002
+    efficiency_detour_penalty: float = 0.004
+    efficiency_jerk_penalty: float = 0.01
+    efficiency_energy_penalty: float = 0.002
+    per_step_efficiency_penalty_cap: float = 0.03
     collision_penalty: float = 8.0
     obstacle_penalty: float = 8.0
     out_of_bounds_penalty: float = 15.0
@@ -62,6 +69,22 @@ class MultiGateRewardConfig:
     post_gate_window_steps: int = 50
     component_abs_bound: float = 50.0
     total_abs_bound: float = 100.0
+
+    def set_phase(self, phase: str) -> None:
+        if phase not in {"legacy", "reliability", "efficiency"}:
+            raise ValueError(f"unknown reward phase {phase!r}")
+        self.reward_phase = phase
+
+    def maximum_episode_time_term(self, max_episode_steps: int) -> float:
+        """Upper bound used to prove failure dominates any time optimization."""
+        per_step = (
+            self.efficiency_time_cost
+            if self.reward_phase == "efficiency"
+            else self.reliability_time_cost
+            if self.reward_phase == "reliability"
+            else self.time_cost
+        )
+        return abs(float(per_step)) * max(0, int(max_episode_steps))
 
 
 @dataclass
@@ -145,7 +168,16 @@ class MultiGateTrainingReward:
             "next_gate_visual_acquisition": 0.0,
             "next_gate_stable_visual": 0.0,
             "completion": 0.0,
-            "time_cost": -abs(cfg.time_cost),
+            "time_cost": -abs(
+                cfg.efficiency_time_cost
+                if cfg.reward_phase == "efficiency"
+                else cfg.reliability_time_cost
+                if cfg.reward_phase == "reliability"
+                else cfg.time_cost
+            ),
+            "efficiency_detour_penalty": 0.0,
+            "efficiency_jerk_penalty": 0.0,
+            "efficiency_energy_penalty": 0.0,
             "collision_penalty": 0.0,
             "obstacle_penalty": 0.0,
             "out_of_bounds_penalty": 0.0,
@@ -354,6 +386,25 @@ class MultiGateTrainingReward:
         components["action_saturation_penalty"] = (
             -cfg.action_saturation_penalty * saturation
         )
+        if cfg.reward_phase == "efficiency":
+            detour = cfg.efficiency_detour_penalty * float(
+                abs(action_array[1]) + abs(action_array[2])
+            )
+            jerk = cfg.efficiency_jerk_penalty * float(
+                np.linalg.norm(action_array - state.previous_action)
+            )
+            energy = cfg.efficiency_energy_penalty * float(
+                np.mean(np.square(action_array))
+            )
+            total_efficiency = detour + jerk + energy
+            scale = min(
+                1.0,
+                cfg.per_step_efficiency_penalty_cap
+                / max(total_efficiency, 1e-12),
+            )
+            components["efficiency_detour_penalty"] = -detour * scale
+            components["efficiency_jerk_penalty"] = -jerk * scale
+            components["efficiency_energy_penalty"] = -energy * scale
         state.previous_action = action_array.copy()
 
         counters = self._read_counters(env)

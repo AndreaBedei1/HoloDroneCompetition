@@ -194,6 +194,28 @@ class MarineRaceGymEnv(_GYM_BASE):
         encoded = self._encode(step.observation)
         info = self._info(step.terminated, step.truncated, components)
         info["gate_crossings"] = gates_now
+        bounds = self._episode.context.arena.bounds
+        position = step.current_state.position
+        out_of_bounds_frame = bounds.violation_reason(position) is not None
+        x, y, z = position
+        boundary_margin = min(
+            x - bounds.x_min,
+            bounds.x_max - x,
+            y - bounds.y_min,
+            bounds.y_max - y,
+            z - bounds.z_min,
+            bounds.z_max - z,
+        )
+        info.update(
+            {
+                "collision_contact_frame": bool(step.collision),
+                "obstacle_collision_frame": bool(step.obstacle_collisions),
+                "out_of_bounds_frame": bool(out_of_bounds_frame),
+                "safety_warning_frame": bool(
+                    not out_of_bounds_frame and boundary_margin <= 0.5
+                ),
+            }
+        )
         return encoded, float(reward), bool(step.terminated), bool(step.truncated), info
 
     def _encode(self, obs_dict: Mapping[str, Any]) -> np.ndarray:

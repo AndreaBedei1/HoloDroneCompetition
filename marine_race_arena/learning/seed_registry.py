@@ -73,6 +73,13 @@ MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS: List[int] = _r(26000, 26999)
 MULTIGATE_LONGRUN_BC_TRAINING_SEEDS: List[int] = _r(28000, 28199)
 MULTIGATE_LONGRUN_BC_EVAL_SEEDS: List[int] = _r(28200, 28299)
 
+# Reliability-first follow-up. These are separate from the completed long-run
+# development namespaces so paired evidence cannot silently reuse tuning seeds.
+MULTIGATE_RELIABILITY_PPO_TRAINING_SEEDS: List[int] = _r(23000, 23999)
+MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS: List[int] = _r(25300, 25399)
+MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS: List[int] = _r(25400, 25499)
+MULTIGATE_RELIABILITY_VALIDATION_SEEDS: List[int] = _r(25500, 25599)
+
 NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "stage2_secondary_dev_eval": STAGE2_SECONDARY_DEV_SEEDS,
     "visual_pose_dataset_v2": VISUAL_POSE_DATASET_V2_SEEDS,
@@ -95,6 +102,10 @@ NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "multigate_longrun_demonstrations": MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS,
     "multigate_longrun_bc_training": MULTIGATE_LONGRUN_BC_TRAINING_SEEDS,
     "multigate_longrun_bc_eval": MULTIGATE_LONGRUN_BC_EVAL_SEEDS,
+    "multigate_reliability_ppo_training": MULTIGATE_RELIABILITY_PPO_TRAINING_SEEDS,
+    "multigate_reliability_dev_eval": MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS,
+    "multigate_reliability_checkpoint_selection": MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS,
+    "multigate_reliability_validation": MULTIGATE_RELIABILITY_VALIDATION_SEEDS,
 }
 
 # Mutually-exclusive roles that must be pairwise disjoint (training/selection vs held-out).
@@ -123,6 +134,10 @@ ROLE_SEED_SETS: Dict[str, Set[int]] = {
     "multigate_longrun_demonstrations": set(MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS),
     "multigate_longrun_bc_training": set(MULTIGATE_LONGRUN_BC_TRAINING_SEEDS),
     "multigate_longrun_bc_eval": set(MULTIGATE_LONGRUN_BC_EVAL_SEEDS),
+    "multigate_reliability_ppo_training": set(MULTIGATE_RELIABILITY_PPO_TRAINING_SEEDS),
+    "multigate_reliability_dev_eval": set(MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS),
+    "multigate_reliability_checkpoint_selection": set(MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS),
+    "multigate_reliability_validation": set(MULTIGATE_RELIABILITY_VALIDATION_SEEDS),
 }
 
 # Ranges that must never be used for training, checkpoint selection, reward or
@@ -186,6 +201,10 @@ def development_and_final_are_disjoint() -> bool:
         | set(MULTIGATE_LONGRUN_DEMONSTRATION_SEEDS)
         | set(MULTIGATE_LONGRUN_BC_TRAINING_SEEDS)
         | set(MULTIGATE_LONGRUN_BC_EVAL_SEEDS)
+        | set(MULTIGATE_RELIABILITY_PPO_TRAINING_SEEDS)
+        | set(MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS)
+        | set(MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS)
+        | set(MULTIGATE_RELIABILITY_VALIDATION_SEEDS)
     )
     return dev.isdisjoint(final)
 
