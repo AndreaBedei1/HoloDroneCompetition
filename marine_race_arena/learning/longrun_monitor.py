@@ -21,8 +21,12 @@ from marine_race_arena.learning.longrun_checkpoint import (
 )
 from marine_race_arena.learning.longrun_evaluation import (
     directional_metric_key,
+    fast_reliable_metric_key,
     is_better,
     plateau_detected,
+)
+from marine_race_arena.learning.parametric_curriculum import (
+    reliability_requirements_met,
 )
 
 
@@ -34,6 +38,7 @@ class LongRunStopReason:
     NUMERICAL = "NUMERICAL_FAILURE"
     DISK = "DISK_SPACE_GUARD"
     PLATEAU = "PLATEAU"
+    REPEATED_REGRESSION = "REPEATED_FULL_EVALUATION_REGRESSION"
 
 
 class StatusStore:
@@ -51,11 +56,48 @@ class StatusStore:
             "last_checkpoint": None,
             "best_checkpoint": None,
             "latest_evaluation": None,
+            "latest_full_evaluation": None,
+            "overall_completion": None,
             "left_success": None,
             "right_success": None,
             "straight_retention": None,
+            "single_gate_retention": None,
             "three_gate_success": None,
             "approx_kl": None,
+            "initial_policy_kl": None,
+            "ppo_policy_loss": None,
+            "bc_retention_loss": None,
+            "combined_policy_loss": None,
+            "retention_weight": None,
+            "reward_phase": "legacy",
+            "consecutive_reliable_full_evaluations": 0,
+            "stage_entry_timesteps": 0,
+            "steps_in_current_stage": 0,
+            "next_promotion_eligibility_step": 0,
+            "stage_minimum_remaining_timesteps": 0,
+            "rollback_count": 0,
+            "last_rollback_reason": None,
+            "last_rollback_source": None,
+            "collision_events": None,
+            "collision_frames": None,
+            "out_of_bounds_events": None,
+            "out_of_bounds_frames": None,
+            "wrong_direction_count": None,
+            "safety_warning_events": None,
+            "safety_warning_frames": None,
+            "episodes_with_any_safety": None,
+            "collision_episodes": None,
+            "out_of_bounds_episodes": None,
+            "wrong_direction_episodes": None,
+            "previous_gate_returns": None,
+            "mean_successful_time_s": None,
+            "mean_penalized_time_s": None,
+            "mean_action_jerk": None,
+            "current_learning_rate": None,
+            "best_reliable_checkpoint": None,
+            "best_fast_reliable_checkpoint": None,
+            "throughput_steps_per_s": None,
+            "estimated_remaining_wall_s": None,
             "elapsed_wall_s": 0.0,
             "last_log_update_unix": time.time(),
             "detected_crash": None,
@@ -85,6 +127,55 @@ def _finite_or_none(value: Any) -> Optional[float]:
     return parsed if math.isfinite(parsed) else None
 
 
+def evaluation_regression_reasons(
+    report: Mapping[str, Any],
+    incumbent: Optional[Mapping[str, Any]],
+    rollback: Any,
+) -> List[str]:
+    """Pure full-suite regression gate used before automatic restoration."""
+    if not rollback.enabled or incumbent is None:
+        return []
+    reasons: List[str] = []
+    if float(report.get("completion_rate", 0.0)) < (
+        float(incumbent.get("completion_rate", 0.0)) - rollback.completion_drop
+    ):
+        reasons.append("overall_completion_drop")
+    if float(report.get("single_gate_completion_rate", 0.0)) < rollback.single_gate_floor:
+        reasons.append("single_gate_retention_floor")
+    if float(report.get("straight_completion_rate", 0.0)) < rollback.straight_floor:
+        reasons.append("straight_retention_floor")
+    if min(
+        float(report.get("left_completion_rate", 0.0)),
+        float(report.get("right_completion_rate", 0.0)),
+    ) < rollback.directional_floor:
+        reasons.append("directional_completion_floor")
+    if int(report.get("episodes_with_any_safety", 0)) > rollback.maximum_safety_episodes:
+        reasons.append("safety_episode_regression")
+    if int(report.get("previous_gate_returns", 0)) > rollback.maximum_previous_gate_returns:
+        reasons.append("previous_gate_return_regression")
+    return reasons
+
+
+def rollback_target_stage(current_stage: str) -> str:
+    return f"C{max(0, int(current_stage[1:]) - 1)}"
+
+
+def rollback_attempt_allowed(attempt: int, maximum_attempts: int) -> bool:
+    return 1 <= int(attempt) <= int(maximum_attempts)
+
+
+def restore_ppo_training_state(model: Any, source: Any, learning_rate_scale: float) -> None:
+    """Restore policy, optimizer and compatible schedule without rewinding steps."""
+    current_timesteps = int(model.num_timesteps)
+    model.policy.load_state_dict(source.policy.state_dict())
+    model.policy.optimizer.load_state_dict(source.policy.optimizer.state_dict())
+    model.lr_schedule = source.lr_schedule
+    schedule = getattr(model, "lr_schedule", None)
+    if hasattr(schedule, "scale"):
+        schedule.scale(learning_rate_scale)
+    model.num_timesteps = current_timesteps
+
+
 class UpdateMetricsRecorder:
     FIELDS = (
         "num_timesteps",
@@ -92,6 +183,11 @@ class UpdateMetricsRecorder:
         "approx_kl",
         "clip_fraction",
         "policy_loss",
+        "ppo_policy_loss",
+        "bc_retention_loss",
+        "initial_policy_kl",
+        "combined_policy_loss",
+        "retention_weight",
         "value_loss",
         "entropy",
         "explained_variance",
@@ -140,8 +236,20 @@ class UpdateMetricsRecorder:
                         "gate_count": int(info.get("episode_gate_count", 0)),
                         "direction": info.get("transition_direction"),
                         "collisions": int(info.get("episode_collisions", 0)),
+                        "collision_frames": int(
+                            info.get("episode_collision_frames", 0)
+                        ),
                         "out_of_bounds": int(info.get("episode_out_of_bounds", 0)),
+                        "out_of_bounds_frames": int(
+                            info.get("episode_out_of_bounds_frames", 0)
+                        ),
                         "wrong_direction": int(info.get("episode_wrong_direction", 0)),
+                        "warning_events": int(
+                            info.get("episode_safety_warning_events", 0)
+                        ),
+                        "warning_frames": int(
+                            info.get("episode_safety_warning_frames", 0)
+                        ),
                     }
                 )
 
@@ -188,6 +296,11 @@ class UpdateMetricsRecorder:
             "approx_kl": approx_kl,
             "clip_fraction": self._logger("train/clip_fraction"),
             "policy_loss": self._logger("train/policy_gradient_loss"),
+            "ppo_policy_loss": self._logger("train/ppo_policy_loss"),
+            "bc_retention_loss": self._logger("train/bc_retention_loss"),
+            "initial_policy_kl": self._logger("train/initial_policy_kl"),
+            "combined_policy_loss": self._logger("train/combined_policy_loss"),
+            "retention_weight": self._logger("train/retention_weight"),
             "value_loss": self._logger("train/value_loss"),
             "entropy": (
                 abs(float(self._logger("train/entropy_loss")))
@@ -254,6 +367,7 @@ def make_longrun_callback(
     status_store: StatusStore,
     contract_hash: str,
     evaluate_fn: Callable[[Any, str, int], Dict[str, Any]],
+    reward_config: Optional[Any] = None,
 ):
     from stable_baselines3.common.callbacks import BaseCallback
 
@@ -270,7 +384,13 @@ def make_longrun_callback(
             self.low_kl_count = 0
             self.high_kl_count = 0
             self.automatic_changes: List[Dict[str, Any]] = []
+            self.rollback_count = 0
+            self.last_rollback_reason: Optional[List[str]] = None
+            self.last_rollback_source: Optional[str] = None
+            self._rollback_this_update = False
             self._last_status_wall = 0.0
+            self._started_wall = time.time()
+            self._started_timesteps = 0
             self._next_checkpoint = config.evaluation.checkpoint_frequency
             self._next_light_eval = config.evaluation.light_frequency
             self._next_full_eval = config.evaluation.full_frequency
@@ -282,6 +402,13 @@ def make_longrun_callback(
             self.automatic_changes = list(
                 state.get("extra", {}).get("automatic_changes", [])
             )
+            self.rollback_count = int(
+                state.get("extra", {}).get("rollback_count", 0)
+            )
+            if reward_config is not None:
+                reward_config.set_phase(
+                    str(state.get("extra", {}).get("reward_phase", reward_config.reward_phase))
+                )
             current = int(state.get("total_timesteps", 0))
             self._next_checkpoint = (
                 current // config.evaluation.checkpoint_frequency + 1
@@ -295,15 +422,20 @@ def make_longrun_callback(
 
         def _init_callback(self) -> None:
             self.metrics = UpdateMetricsRecorder(self.model, self.run_dir)
+            self._started_timesteps = int(self.model.num_timesteps)
             status_store.update(
                 state="RUNNING",
                 total_timesteps=int(self.model.num_timesteps),
                 curriculum_stage=sampler.current_stage,
+                reward_phase=(
+                    reward_config.reward_phase if reward_config is not None else "legacy"
+                ),
             )
 
         def _on_step(self) -> bool:
             assert self.metrics is not None
             self.metrics.observe_infos(self.locals.get("infos", []) or [])
+            sampler.set_timesteps(int(self.num_timesteps))
             now = time.time()
             if (
                 self.n_calls % config.reliability.status_frequency_steps == 0
@@ -311,10 +443,26 @@ def make_longrun_callback(
                 >= config.reliability.status_frequency_seconds
             ):
                 self._last_status_wall = now
+                elapsed = max(1e-6, now - self._started_wall)
+                advanced = max(
+                    0, int(self.num_timesteps) - self._started_timesteps
+                )
+                throughput = advanced / elapsed
+                target = int(
+                    status_store.data.get(
+                        "target_total_timesteps", self.num_timesteps
+                    )
+                )
+                remaining = max(0, target - int(self.num_timesteps))
                 status_store.update(
                     total_timesteps=int(self.num_timesteps),
                     curriculum_stage=sampler.current_stage,
                     state="STOPPING" if self.stop_reason else "RUNNING",
+                    replay_mixture=list(sampler.active_mixture),
+                    throughput_steps_per_s=throughput,
+                    estimated_remaining_wall_s=(
+                        remaining / throughput if throughput > 0 else None
+                    ),
                 )
             if (self.run_dir / "stop.requested").exists():
                 self.stop_reason = LongRunStopReason.GRACEFUL
@@ -328,12 +476,19 @@ def make_longrun_callback(
 
         def _after_update(self) -> None:
             assert self.metrics is not None
+            self._rollback_this_update = False
             row = self.metrics.record()
             if row is not None:
                 self._apply_kl_policy(row)
                 status_store.update(
                     total_timesteps=int(self.model.num_timesteps),
                     approx_kl=row["approx_kl"],
+                    ppo_policy_loss=row.get("ppo_policy_loss"),
+                    bc_retention_loss=row.get("bc_retention_loss"),
+                    initial_policy_kl=row.get("initial_policy_kl"),
+                    combined_policy_loss=row.get("combined_policy_loss"),
+                    retention_weight=row.get("retention_weight"),
+                    current_learning_rate=row.get("learning_rate"),
                     curriculum_stage=sampler.current_stage,
                 )
             current = int(self.model.num_timesteps)
@@ -351,6 +506,7 @@ def make_longrun_callback(
                     self._next_light_eval += config.evaluation.light_frequency
             if (
                 current >= self._next_checkpoint
+                and not self._rollback_this_update
                 and self.stop_reason
                 not in {
                     LongRunStopReason.ABSOLUTE_KL,
@@ -441,6 +597,7 @@ def make_longrun_callback(
             compact["approx_kl"] = latest_update.get("approx_kl")
             self.eval_history.append(compact)
             if report.get("mode") == "full":
+                previous_stage = sampler.current_stage
                 change = sampler.record_evaluation(
                     report,
                     timesteps=int(self.model.num_timesteps),
@@ -451,13 +608,26 @@ def make_longrun_callback(
                     atomic_append_jsonl(
                         self.run_dir / "curriculum_history.jsonl", change
                     )
+                phase_changed = self._update_reward_phase()
+                regression_reasons = self._regression_reasons(report)
+                if regression_reasons:
+                    self._save_checkpoint(
+                        reason="regressed_full_evaluation", safe=False
+                    )
+                    self._perform_rollback(regression_reasons)
+                else:
+                    self._save_checkpoint(
+                        reason="full_evaluation", safe=True
+                    )
+                    if change or phase_changed:
+                        self._reset_training_episode()
                 plateau = plateau_detected(
                     self.eval_history,
                     current_timesteps=int(self.model.num_timesteps),
                     plateau_steps=config.evaluation.plateau_steps,
                     min_evaluations=config.evaluation.plateau_min_evaluations,
                 )
-                if plateau:
+                if plateau and not self._rollback_this_update:
                     atomic_write_json(
                         self.run_dir / "logs" / "plateau_recommendation.json",
                         plateau,
@@ -469,12 +639,184 @@ def make_longrun_callback(
                     / "evaluations"
                     / f"{report['mode']}_{int(self.model.num_timesteps):09d}.json"
                 ),
+                latest_full_evaluation=(
+                    str(
+                        self.run_dir
+                        / "evaluations"
+                        / f"full_{int(self.model.num_timesteps):09d}.json"
+                    )
+                    if report.get("mode") == "full"
+                    else status_store.data.get("latest_full_evaluation")
+                ),
+                overall_completion=report.get("completion_rate"),
                 left_success=report.get("left_completion_rate"),
                 right_success=report.get("right_completion_rate"),
                 straight_retention=report.get("straight_completion_rate"),
+                single_gate_retention=report.get("single_gate_completion_rate"),
                 three_gate_success=report.get("three_gate_completion_rate"),
                 curriculum_stage=sampler.current_stage,
+                consecutive_reliable_full_evaluations=(
+                    sampler.state.reliable_full_streak
+                ),
+                stage_entry_timesteps=sampler.state.stage_entry_timesteps,
+                steps_in_current_stage=(
+                    int(self.model.num_timesteps)
+                    - sampler.state.stage_entry_timesteps
+                ),
+                next_promotion_eligibility_step=(
+                    sampler.state.stage_entry_timesteps
+                    + int(
+                        config.curriculum.promotion.minimum_stage_timesteps.get(
+                            sampler.current_stage, 0
+                        )
+                    )
+                ),
+                stage_minimum_remaining_timesteps=max(
+                    0,
+                    int(
+                        config.curriculum.promotion.minimum_stage_timesteps.get(
+                            sampler.current_stage, 0
+                        )
+                    )
+                    - (
+                        int(self.model.num_timesteps)
+                        - sampler.state.stage_entry_timesteps
+                    ),
+                ),
+                reward_phase=(
+                    reward_config.reward_phase if reward_config is not None else "legacy"
+                ),
+                rollback_count=self.rollback_count,
+                last_rollback_reason=self.last_rollback_reason,
+                last_rollback_source=self.last_rollback_source,
+                collision_events=report.get("collision_events"),
+                collision_frames=report.get("collision_frames"),
+                out_of_bounds_events=report.get("out_of_bounds_events"),
+                out_of_bounds_frames=report.get("out_of_bounds_frames"),
+                wrong_direction_count=report.get("wrong_direction_count"),
+                safety_warning_events=report.get("safety_warning_events"),
+                safety_warning_frames=report.get("safety_warning_frames"),
+                episodes_with_any_safety=report.get(
+                    "episodes_with_any_safety"
+                ),
+                collision_episodes=report.get("episodes_with_collision"),
+                out_of_bounds_episodes=report.get(
+                    "episodes_with_out_of_bounds"
+                ),
+                wrong_direction_episodes=report.get(
+                    "episodes_with_wrong_direction"
+                ),
+                previous_gate_returns=report.get("previous_gate_returns"),
+                mean_successful_time_s=report.get("mean_successful_time_s"),
+                mean_penalized_time_s=report.get("mean_penalized_time_s"),
+                mean_action_jerk=report.get("mean_action_jerk"),
+                best_reliable_checkpoint=self.best.get(
+                    "best_reliable", {}
+                ).get("checkpoint"),
+                best_fast_reliable_checkpoint=self.best.get(
+                    "best_fast_reliable", {}
+                ).get("checkpoint"),
             )
+
+        def _update_reward_phase(self) -> bool:
+            if reward_config is None or not config.reliability.reward_phase.enabled:
+                return False
+            required = config.reliability.reward_phase.reliable_full_evaluations
+            desired = (
+                "efficiency"
+                if sampler.state.reliable_full_streak >= required
+                else "reliability"
+            )
+            if reward_config.reward_phase == desired:
+                return False
+            reward_config.set_phase(desired)
+            atomic_append_jsonl(
+                self.run_dir / "logs" / "reward_phase_history.jsonl",
+                {
+                    "timesteps": int(self.model.num_timesteps),
+                    "phase": desired,
+                    "reliable_full_streak": sampler.state.reliable_full_streak,
+                },
+            )
+            return True
+
+        def _regression_reasons(self, report: Mapping[str, Any]) -> List[str]:
+            return evaluation_regression_reasons(
+                report,
+                self.best.get("best_reliable"),
+                config.reliability.rollback,
+            )
+
+        def _perform_rollback(self, reasons: List[str]) -> None:
+            rollback = config.reliability.rollback
+            self.rollback_count += 1
+            self.last_rollback_reason = list(reasons)
+            incumbent = self.best.get("best_reliable", {})
+            source_path = incumbent.get("checkpoint")
+            self.last_rollback_source = str(source_path) if source_path else None
+            event = {
+                "timesteps": int(self.model.num_timesteps),
+                "attempt": self.rollback_count,
+                "reasons": list(reasons),
+                "source": self.last_rollback_source,
+            }
+            if (
+                not rollback_attempt_allowed(
+                    self.rollback_count, rollback.maximum_attempts
+                )
+                or not source_path
+            ):
+                event["outcome"] = "stopped"
+                self.stop_reason = LongRunStopReason.REPEATED_REGRESSION
+                atomic_append_jsonl(
+                    self.run_dir / "logs" / "rollback_history.jsonl", event
+                )
+                return
+            source = type(self.model).load(str(source_path), device="cpu")
+            current_timesteps = int(self.model.num_timesteps)
+            restore_ppo_training_state(
+                self.model, source, rollback.learning_rate_scale
+            )
+            regularizer = getattr(self.model, "_retention_regularizer", None)
+            if regularizer is not None:
+                event["retention_weight_after"] = regularizer.increase_weight(
+                    rollback.retention_weight_scale
+                )
+            target_stage = rollback_target_stage(sampler.current_stage)
+            change = sampler.force_stage(
+                target_stage,
+                timesteps=current_timesteps,
+                reason="automatic_full_evaluation_rollback",
+            )
+            atomic_append_jsonl(
+                self.run_dir / "curriculum_history.jsonl", change
+            )
+            if reward_config is not None:
+                reward_config.set_phase("reliability")
+            self._reset_training_episode()
+            self._rollback_this_update = True
+            self.last_eval = None
+            event.update({"outcome": "restored", "stage": target_stage})
+            atomic_append_jsonl(
+                self.run_dir / "logs" / "rollback_history.jsonl", event
+            )
+
+        def _reset_training_episode(self) -> None:
+            try:
+                self.model._last_obs = self.model.env.reset()
+                self.model._last_episode_starts = np.ones(
+                    (self.model.n_envs,), dtype=bool
+                )
+            except Exception as exc:
+                self.stop_reason = LongRunStopReason.NUMERICAL
+                atomic_append_jsonl(
+                    self.run_dir / "logs" / "automatic_changes.jsonl",
+                    {
+                        "timesteps": int(self.model.num_timesteps),
+                        "kind": "training_episode_reset_failed",
+                        "error": f"{type(exc).__name__}: {exc}",
+                    },
+                )
 
         def _evaluation_state(self) -> Dict[str, Any]:
             return {"history": self.eval_history, "best": self.best}
@@ -495,6 +837,12 @@ def make_longrun_callback(
                 extra_state={
                     "automatic_changes": self.automatic_changes,
                     "stop_reason": self.stop_reason,
+                    "rollback_count": self.rollback_count,
+                    "reward_phase": (
+                        reward_config.reward_phase
+                        if reward_config is not None
+                        else "legacy"
+                    ),
                 },
             )
             self.last_checkpoint = checkpoint
@@ -544,6 +892,30 @@ def make_longrun_callback(
                             checkpoint,
                             self.run_dir / "best_models" / f"{alias}.zip",
                         )
+                reliable = reliability_requirements_met(
+                    self.last_eval, config.curriculum.promotion
+                )
+                if reliable:
+                    reliable_previous = self.best.get("best_reliable")
+                    if is_better(self.last_eval, reliable_previous):
+                        self._update_alias(
+                            "best_reliable", checkpoint, self.last_eval
+                        )
+                    fast_previous = self.best.get("best_fast_reliable")
+                    fast_key = fast_reliable_metric_key(
+                        self.last_eval, config.curriculum.promotion
+                    )
+                    previous_key = (
+                        fast_reliable_metric_key(
+                            fast_previous, config.curriculum.promotion
+                        )
+                        if fast_previous
+                        else None
+                    )
+                    if previous_key is None or fast_key > previous_key:
+                        self._update_alias(
+                            "best_fast_reliable", checkpoint, self.last_eval
+                        )
             status_store.update(
                 last_checkpoint=str(checkpoint.model_path),
                 best_checkpoint=self.best.get("best_overall", {}).get(
@@ -552,6 +924,25 @@ def make_longrun_callback(
                 total_timesteps=current,
             )
             return checkpoint
+
+        def _update_alias(
+            self,
+            alias: str,
+            checkpoint: Any,
+            report: Mapping[str, Any],
+        ) -> None:
+            self.best[alias] = {
+                **{
+                    key: value
+                    for key, value in report.items()
+                    if key not in {"rows", "reward_component_sums"}
+                },
+                "checkpoint": str(checkpoint.model_path),
+            }
+            atomic_copy_checkpoint(
+                checkpoint,
+                self.run_dir / "best_models" / f"{alias}.zip",
+            )
 
         def finalize(self) -> None:
             self._after_update()

@@ -26,7 +26,14 @@ def make_env(track: str, *, seed: int = 0, **env_kwargs) -> MarineRaceGymEnv:
     return MarineRaceGymEnv(track, seed=seed, **env_kwargs)
 
 
-def build_ppo(env, *, hidden_sizes: Sequence[int] = (256, 256), seed: int = 0, **ppo_kwargs):
+def build_ppo(
+    env,
+    *,
+    hidden_sizes: Sequence[int] = (256, 256),
+    seed: int = 0,
+    algorithm_class=None,
+    **ppo_kwargs,
+):
     """Build a PPO whose policy/value nets match the BC architecture (Tanh MLP)."""
     from stable_baselines3 import PPO
     import torch.nn as nn
@@ -37,7 +44,8 @@ def build_ppo(env, *, hidden_sizes: Sequence[int] = (256, 256), seed: int = 0, *
         learning_rate=3e-4, verbose=0, seed=seed, device="cpu",
     )
     defaults.update(ppo_kwargs)
-    return PPO("MlpPolicy", env, policy_kwargs=policy_kwargs, **defaults)
+    algorithm = algorithm_class or PPO
+    return algorithm("MlpPolicy", env, policy_kwargs=policy_kwargs, **defaults)
 
 
 def transfer_bc_to_ppo(bc_policy, ppo_model) -> None:

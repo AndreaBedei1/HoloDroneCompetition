@@ -23,6 +23,7 @@ from marine_race_arena.learning.longrun_evaluation import (
 from marine_race_arena.learning.reward_v3 import MultiGateRewardConfig
 from marine_race_arena.learning.seed_registry import (
     MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS,
+    MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS,
 )
 from marine_race_arena.learning.train_multigate_longrun import (
     config_contract_hash,
@@ -93,14 +94,62 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         ),
         "best_checkpoint": status.get("best_checkpoint"),
         "latest_evaluation": status.get("latest_evaluation"),
+        "latest_full_evaluation": status.get("latest_full_evaluation"),
+        "overall_completion": status.get("overall_completion"),
         "evaluation_mode": status.get("evaluation_mode"),
         "evaluation_cases_completed": status.get("evaluation_cases_completed"),
         "evaluation_cases_total": status.get("evaluation_cases_total"),
         "left_success": status.get("left_success"),
         "right_success": status.get("right_success"),
         "straight_retention": status.get("straight_retention"),
+        "single_gate_retention": status.get("single_gate_retention"),
         "three_gate_success": status.get("three_gate_success"),
         "approximate_kl": status.get("approx_kl"),
+        "initial_policy_kl": status.get("initial_policy_kl"),
+        "ppo_policy_loss": status.get("ppo_policy_loss"),
+        "bc_retention_loss": status.get("bc_retention_loss"),
+        "combined_policy_loss": status.get("combined_policy_loss"),
+        "retention_weight": status.get("retention_weight"),
+        "reward_phase": status.get("reward_phase"),
+        "replay_mixture": status.get("replay_mixture"),
+        "consecutive_reliable_full_evaluations": status.get(
+            "consecutive_reliable_full_evaluations"
+        ),
+        "stage_entry_timesteps": status.get("stage_entry_timesteps"),
+        "steps_in_current_stage": status.get("steps_in_current_stage"),
+        "next_promotion_eligibility_step": status.get(
+            "next_promotion_eligibility_step"
+        ),
+        "stage_minimum_remaining_timesteps": status.get(
+            "stage_minimum_remaining_timesteps"
+        ),
+        "rollback_count": status.get("rollback_count", 0),
+        "last_rollback_reason": status.get("last_rollback_reason"),
+        "last_rollback_source": status.get("last_rollback_source"),
+        "collision_events": status.get("collision_events"),
+        "collision_frames": status.get("collision_frames"),
+        "out_of_bounds_events": status.get("out_of_bounds_events"),
+        "out_of_bounds_frames": status.get("out_of_bounds_frames"),
+        "wrong_direction_count": status.get("wrong_direction_count"),
+        "safety_warning_events": status.get("safety_warning_events"),
+        "safety_warning_frames": status.get("safety_warning_frames"),
+        "episodes_with_any_safety": status.get("episodes_with_any_safety"),
+        "collision_episodes": status.get("collision_episodes"),
+        "out_of_bounds_episodes": status.get("out_of_bounds_episodes"),
+        "wrong_direction_episodes": status.get("wrong_direction_episodes"),
+        "previous_gate_returns": status.get("previous_gate_returns"),
+        "mean_successful_time_s": status.get("mean_successful_time_s"),
+        "mean_penalized_time_s": status.get("mean_penalized_time_s"),
+        "mean_action_jerk": status.get("mean_action_jerk"),
+        "current_learning_rate": status.get("current_learning_rate"),
+        "best_reliable_checkpoint": status.get("best_reliable_checkpoint"),
+        "best_fast_reliable_checkpoint": status.get(
+            "best_fast_reliable_checkpoint"
+        ),
+        "throughput_steps_per_s": status.get("throughput_steps_per_s"),
+        "estimated_remaining_wall_s": status.get(
+            "estimated_remaining_wall_s"
+        ),
         "elapsed_wall_s": status.get("elapsed_wall_s"),
         "last_log_update_unix": update_unix or None,
         "last_log_age_s": round(age, 3) if age is not None else None,
@@ -130,12 +179,15 @@ def select_best(run_dir: str | Path) -> Dict[str, Any]:
     path = Path(run_dir)
     aliases = {}
     for name in (
+        "best_reliable",
+        "best_fast_reliable",
         "best_overall",
         "best_left",
         "best_right",
         "best_three_gate",
         "latest_safe",
         "last",
+        "initial_bc_v3",
     ):
         model = path / "best_models" / f"{name}.zip"
         meta = model.with_suffix(".json")
@@ -152,7 +204,11 @@ def select_best(run_dir: str | Path) -> Dict[str, Any]:
             if model.exists()
             else None
         )
-    selected = aliases["best_overall"] or aliases["latest_safe"]
+    selected = (
+        aliases["best_reliable"]
+        or aliases["best_overall"]
+        or aliases["latest_safe"]
+    )
     if selected is None:
         raise RuntimeError("no safe checkpoint has been selected")
     return {"selected": selected, "aliases": aliases}
@@ -179,12 +235,21 @@ def evaluate_selected(
     *,
     suite: str = "r2",
     stage: Optional[str] = None,
+    alias: Optional[str] = None,
 ) -> Dict[str, Any]:
     from stable_baselines3 import PPO
 
     path = Path(run_dir)
     config = LongRunConfig.load(path / "config.json")
-    selected = select_best(path)["selected"]
+    selection = select_best(path)
+    if alias:
+        if alias not in selection["aliases"]:
+            raise ValueError(f"unknown checkpoint alias {alias!r}")
+        selected = selection["aliases"][alias]
+        if selected is None:
+            raise FileNotFoundError(path / "best_models" / f"{alias}.zip")
+    else:
+        selected = selection["selected"]
     model = PPO.load(selected["path"], device="cpu")
     status = run_status(path)
     stage_key = stage or str(status.get("current_curriculum_stage") or "C4")
@@ -201,7 +266,11 @@ def evaluate_selected(
             "official circuit evaluation must be launched explicitly with the "
             "documented per-circuit held-out commands"
         )
-    seeds = MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS[:20]
+    seeds = (
+        MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS
+        if config.training_profile == "reliability_first"
+        else MULTIGATE_LONGRUN_CHECKPOINT_SELECTION_SEEDS
+    )[:20]
     report = evaluate_longrun_policy(
         model,
         stage=stage_key,
@@ -241,6 +310,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     eval_parser.add_argument("run_dir")
     eval_parser.add_argument("--suite", choices=("r2", "official"), default="r2")
     eval_parser.add_argument("--stage", default=None)
+    eval_parser.add_argument(
+        "--alias",
+        choices=(
+            "best_reliable",
+            "best_fast_reliable",
+            "best_overall",
+            "best_left",
+            "best_right",
+            "best_three_gate",
+            "latest_safe",
+            "last",
+            "initial_bc_v3",
+        ),
+        default=None,
+    )
     args = parser.parse_args(argv)
     if args.command == "prepare":
         config = LongRunConfig.load(args.config)
@@ -257,7 +341,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         result = select_best(args.run_dir)
     else:
         result = evaluate_selected(
-            args.run_dir, suite=args.suite, stage=args.stage
+            args.run_dir, suite=args.suite, stage=args.stage, alias=args.alias
         )
     print(json.dumps(result, indent=2))
     return 0

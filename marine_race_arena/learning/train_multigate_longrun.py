@@ -31,6 +31,7 @@ from marine_race_arena.learning.config_v3 import (
 )
 from marine_race_arena.learning.longrun_checkpoint import (
     atomic_append_jsonl,
+    atomic_copy_checkpoint,
     atomic_save_checkpoint,
     atomic_write_json,
     canonical_hash,
@@ -66,6 +67,8 @@ from marine_race_arena.learning.rl_train import build_ppo, transfer_bc_to_ppo
 from marine_race_arena.learning.seed_registry import (
     MULTIGATE_LONGRUN_DEV_EVAL_SEEDS,
     MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS,
+    MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS,
+    MULTIGATE_RELIABILITY_PPO_TRAINING_SEEDS,
 )
 
 
@@ -178,9 +181,14 @@ def preflight(
     if not (allow_smoke and allow_dirty_smoke):
         assert_clean_worktree()
     branch = _git_branch()
-    if branch != "feature/rl-multigate-longrun":
+    expected_branch = (
+        "feature/rl-multigate-reliability-first"
+        if config.training_profile == "reliability_first"
+        else "feature/rl-multigate-longrun"
+    )
+    if branch != expected_branch:
         raise RuntimeError(
-            f"long runs require feature/rl-multigate-longrun, found {branch!r}"
+            f"{config.training_profile} runs require {expected_branch}, found {branch!r}"
         )
     checkpoint = Path(config.initialization_checkpoint)
     if not checkpoint.exists():
@@ -217,7 +225,12 @@ def preflight(
         installed_packages = []
     if config.adapter == "holoocean" and "Ocean" not in installed_packages:
         raise RuntimeError("required HoloOcean Ocean package is not installed")
-    if config.seed not in MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS:
+    training_seeds = (
+        MULTIGATE_RELIABILITY_PPO_TRAINING_SEEDS
+        if config.training_profile == "reliability_first"
+        else MULTIGATE_LONGRUN_PPO_TRAINING_SEEDS
+    )
+    if config.seed not in training_seeds:
         raise ValueError("training seed is outside the allocated long-run range")
     tensorboard_available = False
     try:
@@ -319,6 +332,15 @@ def _make_sampler(config: LongRunConfig) -> CurriculumSampler:
             curriculum.previous_stage_fraction,
             curriculum.failure_case_fraction,
         ),
+        early_mixture=(
+            curriculum.early_retention_fraction,
+            curriculum.early_straight_fraction,
+            curriculum.early_current_stage_fraction,
+            curriculum.early_previous_stage_fraction,
+            curriculum.early_failure_case_fraction,
+        ),
+        early_until_timesteps=curriculum.early_replay_until_timesteps,
+        promotion_config=curriculum.promotion,
         sensor_noise=curriculum.sensor_noise,
     )
 
@@ -381,12 +403,21 @@ def _transfer_ppo_initialization(source: Any, target: Any, frame_stack: int) -> 
     target.policy.load_state_dict(expanded, strict=True)
 
 
-def _new_model(config: LongRunConfig, env: Any) -> Any:
+def _new_model(
+    config: LongRunConfig, env: Any, sampler: CurriculumSampler
+) -> Any:
     schedule = AbsoluteLearningRateSchedule(
         config.ppo.learning_rate,
         config.ppo.final_learning_rate,
         config.ppo.learning_rate_schedule,
     )
+    algorithm_class = None
+    if config.training_profile == "reliability_first":
+        from marine_race_arena.learning.reliability_first import (
+            ReliabilityFirstPPO,
+        )
+
+        algorithm_class = ReliabilityFirstPPO
     model = build_ppo(
         env,
         hidden_sizes=config.ppo.hidden_sizes,
@@ -402,6 +433,7 @@ def _new_model(config: LongRunConfig, env: Any) -> Any:
         ent_coef=config.ppo.ent_coef,
         vf_coef=config.ppo.vf_coef,
         max_grad_norm=config.ppo.max_grad_norm,
+        algorithm_class=algorithm_class,
     )
     if config.initialization_kind == "ppo_weights":
         from stable_baselines3 import PPO
@@ -427,7 +459,37 @@ def _new_model(config: LongRunConfig, env: Any) -> Any:
     model.longrun_config_contract = config_contract_hash(config)
     model.longrun_policy_mode = config.policy_mode
     model.longrun_frame_stack = config.frame_stack
+    _attach_retention_regularizer(model, config, sampler)
     return model
+
+
+def _attach_retention_regularizer(
+    model: Any, config: LongRunConfig, sampler: CurriculumSampler
+) -> None:
+    if config.training_profile != "reliability_first":
+        return
+    from marine_race_arena.learning.reliability_first import (
+        OfflineRetentionRegularizer,
+    )
+
+    regularizer = None
+    if config.retention.enabled:
+        regularizer = OfflineRetentionRegularizer(
+            dataset_paths=config.retention.dataset_paths,
+            initial_bc_checkpoint=config.initialization_checkpoint,
+            seed=config.seed,
+            batch_size=config.retention.batch_size,
+            weight=config.retention.weight,
+            maximum_weight=config.retention.maximum_weight,
+            final_weight=config.retention.final_weight,
+            initial_policy_kl_weight=config.retention.initial_policy_kl_weight,
+            decay_until_timesteps=config.retention.decay_until_timesteps,
+            active_through_stage=config.retention.active_through_stage,
+            every_updates=config.retention.every_updates,
+            initial_action_std=config.ppo.initial_action_std,
+            maximum_gradient_norm=config.ppo.max_grad_norm,
+        )
+    model.attach_retention_regularizer(regularizer, lambda: sampler.current_stage)
 
 
 def _load_resume_model(
@@ -435,7 +497,12 @@ def _load_resume_model(
     env: Any,
     sampler: CurriculumSampler,
 ) -> tuple[Any, Dict[str, Any]]:
-    from stable_baselines3 import PPO
+    if config.training_profile == "reliability_first":
+        from marine_race_arena.learning.reliability_first import (
+            ReliabilityFirstPPO as PPO,
+        )
+    else:
+        from stable_baselines3 import PPO
 
     contract = config_contract_hash(config)
     checkpoint = latest_valid_checkpoint(
@@ -458,6 +525,7 @@ def _load_resume_model(
     expected_dim = OBS_DIM_V3 * config.frame_stack
     if tuple(model.observation_space.shape or ()) != (expected_dim,):
         raise ValueError("resume checkpoint observation shape is incompatible")
+    _attach_retention_regularizer(model, config, sampler)
     return model, state
 
 
@@ -486,6 +554,9 @@ def _write_initial_manifest(
         "rule_action_weight": 0,
         "hybrid_blending": False,
         "rule_controller_instantiated": False,
+        "training_profile": config.training_profile,
+        "runtime_expert_queries": 0,
+        "retention_source": "offline_recorded_datasets_only",
         "preflight": preflight_result,
     }
     atomic_write_json(config.run_dir / "run_manifest.json", manifest)
@@ -550,7 +621,26 @@ def run_longrun(
     if resume and stop_request.exists():
         stop_request.unlink()
     logger = _configure_logging(config)
-    reward_config = MultiGateRewardConfig()
+    phase = config.reliability.reward_phase
+    reward_config = MultiGateRewardConfig(
+        reward_phase=(
+            "reliability"
+            if phase.enabled
+            else "legacy"
+        ),
+        reliability_time_cost=phase.reliability_time_cost,
+        efficiency_time_cost=phase.efficiency_time_cost,
+        efficiency_detour_penalty=phase.efficiency_detour_penalty,
+        efficiency_jerk_penalty=phase.efficiency_jerk_penalty,
+        efficiency_energy_penalty=phase.efficiency_energy_penalty,
+        per_step_efficiency_penalty_cap=phase.per_step_efficiency_penalty_cap,
+    )
+    if reward_config.timeout_penalty <= reward_config.maximum_episode_time_term(
+        config.max_episode_steps
+    ):
+        raise ValueError(
+            "failure penalty must exceed the maximum episode time term"
+        )
     atomic_write_json(run_dir / "reward_config.json", reward_config.__dict__)
     status_store = StatusStore(
         run_dir,
@@ -558,6 +648,9 @@ def run_longrun(
             "run_name": config.run_name,
             "target_total_timesteps": config.total_timesteps,
             "curriculum_stage": config.curriculum.initial_stage,
+            "training_profile": config.training_profile,
+            "reward_phase": reward_config.reward_phase,
+            "rollback_count": 0,
         },
     )
 
@@ -567,7 +660,7 @@ def run_longrun(
     if resume:
         model, resume_state = _load_resume_model(config, env, sampler)
     else:
-        model = _new_model(config, env)
+        model = _new_model(config, env, sampler)
     _set_sb3_logger(model, run_dir)
     current = int(model.num_timesteps)
     target = (
@@ -602,7 +695,12 @@ def run_longrun(
             if mode == "light"
             else config.evaluation.full_episodes
         )
-        seeds = MULTIGATE_LONGRUN_DEV_EVAL_SEEDS[: count + 4]
+        evaluation_seeds = (
+            MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS
+            if config.training_profile == "reliability_first"
+            else MULTIGATE_LONGRUN_DEV_EVAL_SEEDS
+        )
+        seeds = evaluation_seeds[: count + 4]
 
         def evaluation_progress(progress: Mapping[str, Any]) -> None:
             status_store.update(
@@ -648,6 +746,7 @@ def run_longrun(
         status_store=status_store,
         contract_hash=config_contract_hash(config),
         evaluate_fn=evaluate,
+        reward_config=reward_config,
     )
     if resume_state is not None:
         callback.restore_pipeline_state(resume_state)
@@ -663,6 +762,10 @@ def run_longrun(
             reason="initialized_from_frozen_checkpoint",
             extra_state={"automatic_changes": []},
         )
+        for alias in ("initial_bc_v3", "latest_safe", "last"):
+            atomic_copy_checkpoint(
+                initial, run_dir / "best_models" / f"{alias}.zip"
+            )
         status_store.update(last_checkpoint=str(initial.model_path))
 
     restart_count = 0
@@ -721,6 +824,7 @@ def run_longrun(
                     status_store=status_store,
                     contract_hash=config_contract_hash(config),
                     evaluate_fn=evaluate,
+                    reward_config=reward_config,
                 )
                 callback.restore_pipeline_state(resume_state)
                 status_store.update(
@@ -746,6 +850,15 @@ def run_longrun(
             total_timesteps=int(model.num_timesteps),
             simulator_restarts=restart_count,
         )
+        try:
+            model.logger.close()
+        except Exception:
+            pass
+        for handler in tuple(logger.handlers):
+            try:
+                handler.close()
+            finally:
+                logger.removeHandler(handler)
     return dict(status_store.data)
 
 
