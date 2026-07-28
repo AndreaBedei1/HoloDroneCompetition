@@ -291,3 +291,17 @@ The first manual run should cover C0 through C4 with automatic promotion, seed
 and the reserved final ranges untouched. Completing the engineering pipeline
 is not itself an RL success claim; that claim requires the later held-out
 long-run evidence.
+
+## Reliability-first successor
+
+The recommended successor is the conservative BC-v3-protected profile on
+`feature/rl-multigate-reliability-first`. It adds minimum stage durations,
+two-consecutive-full promotion, event-vs-frame safety accounting, offline BC
+retention and initial-policy KL, reliability/efficiency reward phases,
+reliability-only speed selection, and automatic full-suite rollback.
+
+Use `configs/rl_multigate_longrun_reliability_first.json` and
+`scripts\start_rl_multigate_reliability_first.bat`; the exact manual workflow
+and bounded real-HoloOcean evidence are in
+`docs/rl_multigate_reliability_first.md`. The earlier long-run profile and its
+result directories remain unchanged.

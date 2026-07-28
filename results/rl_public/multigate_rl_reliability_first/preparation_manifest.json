@@ -1,0 +1,42 @@
+{
+  "schema_version": "multigate_rl_reliability_first_public_v1",
+  "status": "RELIABILITY-FIRST LONG-RUN READY",
+  "created_date": "2026-07-28",
+  "starting_sha": "2b1661ca0b327e366ffbf04306706df69497db59",
+  "validation_code_sha": "c76c23f565d3906360f9d31723d371c7fc506e6c",
+  "branch": "feature/rl-multigate-reliability-first",
+  "full_one_million_step_run_started": false,
+  "real_validation": {
+    "adapter": "holoocean",
+    "fallback_allowed": false,
+    "fallback_used": false,
+    "current_profile": "none",
+    "runtime_rule_actions_in_learned_policy": 0
+  },
+  "protected_refs": {
+    "main": "f4d63751fd935f724a9dce3ea802f76e1e27d45f",
+    "feature/rl-controller": "5a02838e24fec21c3fc540102beb9c13e942f0ac",
+    "feature/visual-pose-multigate": "0b24d003e60dc47ef7269645eb9648fd9ead255f",
+    "feature/rl-multigate-policy": "0cbae9d70fadd8699fc890f9e31e91a0be13fe06",
+    "feature/rl-multigate-longrun": "2b1661ca0b327e366ffbf04306706df69497db59"
+  },
+  "protected_models": {
+    "bc_v1_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+    "r1_ppo_sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+    "bc_v3_sha256": "c9a889125278122b57307e21b7c2390baa61429f8952093bcc2760d9b3a49bf2",
+    "unchanged_after_validation": true
+  },
+  "test_matrix": {
+    "ocean": {"passed": 678, "skipped": 13},
+    "marine_race_rl_all": {"passed": 781},
+    "marine_race_rl_learning": {"passed": 389},
+    "focused_reliability_first_before_validation": {"passed": 33}
+  },
+  "source_artifacts": {
+    "bc_validation_manifest": "results/rl/multigate_reliability_first/bc_v3_baseline_20_c76c23f_20260728/validation_manifest.json",
+    "bc_validation_manifest_sha256": "b90eaca1ba9d8a25b961a088e786ad8a8fb074cf4c32c15a045c6af870e0eab2",
+    "smoke_run": "results/rl/multigate_reliability_first/reliability_first_real_smoke_seed23002",
+    "smoke_full_evaluation_sha256": "025fde2a01f9ce119cd2b039f23656b423c8129c4ef66584c853317d6d35bfda",
+    "smoke_best_reliable_sha256": "1ecb5a1479b2d72344fabb9f7a9f48be2d580c5d8b8b85ce1ce60e3db92c3e0b"
+  }
+}

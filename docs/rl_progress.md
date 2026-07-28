@@ -379,3 +379,17 @@ evaluation were not claimed. The honest verdict is **PARTIAL RL SUCCESS**.
 
 Full details: `docs/rl_multigate_policy.md`; compact results:
 `results/rl_public/multigate_rl_v3/`.
+
+## Reliability-first long-run preparation
+
+The follow-up `feature/rl-multigate-reliability-first` preserves frozen BC-v3
+competence with LR `1e-5 -> 2e-6`, two PPO epochs, offline retention, and KL to
+the initial policy. Curriculum promotion requires stage-duration locks and two
+consecutive reliable 20-case full suites. Full regression can restore the
+best reliable policy/optimizer/scheduler, halve LR, demote, and reset.
+
+Bounded real-HoloOcean evidence on the implementation SHA recorded a 20/20
+unchanged BC-v3 baseline and a 26,624-step conservative PPO smoke whose full
+suite was also 20/20 with zero safety/returns while staying in C0 after only
+one full pass. This validates the pipeline but is not a long-run, three-gate,
+or official-circuit result. See `docs/rl_multigate_reliability_first.md`.

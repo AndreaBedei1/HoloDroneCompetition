@@ -1,0 +1,38 @@
+{
+  "schema_version": "reliability_checkpoint_policy_v1",
+  "selector": "lexicographic",
+  "training_reward_is_selector": false,
+  "order": [
+    "completion_rate",
+    "minimum_left_right_completion",
+    "single_gate_retention",
+    "straight_retention",
+    "episodes_with_collision_oob_wrong_direction",
+    "previous_gate_returns",
+    "mean_gates_completed",
+    "penalized_completion_time",
+    "successful_completion_time",
+    "action_jerk",
+    "inference_time"
+  ],
+  "aliases": [
+    "initial_bc_v3",
+    "best_reliable",
+    "best_fast_reliable",
+    "best_left",
+    "best_right",
+    "best_three_gate",
+    "best_overall",
+    "latest_safe",
+    "last"
+  ],
+  "best_fast_reliable_eligibility": {
+    "requires_full_reliability_threshold": true,
+    "unreliable_checkpoint_can_win_on_speed": false
+  },
+  "best_three_gate_eligibility": {
+    "requires_three_gate_cases_in_suite": true
+  },
+  "safety_selector_uses_frame_counts": false,
+  "safety_selector_uses_distinct_events_and_affected_episodes": true
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": "reliability_reward_schedule_v1",
+  "phase_a": {
+    "name": "reliability",
+    "activation": "initial",
+    "time_cost_per_step": 0.0,
+    "priorities": [
+      "mission_completion",
+      "correct_gate_order",
+      "collision_oob_wrong_direction_avoidance",
+      "single_and_straight_retention",
+      "balanced_left_right_completion",
+      "post_gate_clearance",
+      "next_gate_acquisition",
+      "smooth_control"
+    ]
+  },
+  "phase_b": {
+    "name": "efficiency",
+    "activation": "two consecutive reliable full evaluations",
+    "time_cost_per_step": 0.002,
+    "detour_penalty": 0.004,
+    "jerk_penalty": 0.01,
+    "energy_penalty": 0.002,
+    "per_step_auxiliary_penalty_cap": 0.03
+  },
+  "failure_bound": {
+    "max_episode_steps": 1800,
+    "maximum_episode_time_term": 3.6,
+    "failed_episode_penalty": 30.0,
+    "failure_penalty_exceeds_maximum_time_term": true
+  },
+  "real_smoke_final_phase": "reliability",
+  "real_smoke_reason": "only one reliable full evaluation occurred"
+}

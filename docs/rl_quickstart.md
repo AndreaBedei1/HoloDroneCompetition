@@ -147,3 +147,23 @@ R2 did not pass and no selected model exists for those stages.
 
 See `docs/rl_multigate_policy.md` for the 9/10 R1 result, the R2 stopping
 decision, selected model SHA-256, and exact paired metrics.
+
+## Reliability-first one-million-step run
+
+Prepare and inspect without starting:
+
+```bat
+conda run -n marine_race_rl python -m marine_race_arena.learning.longrun_tools prepare --config configs\rl_multigate_longrun_reliability_first.json
+```
+
+Start manually:
+
+```bat
+scripts\start_rl_multigate_reliability_first.bat 1000000 r2_reliability_first_seed23001
+```
+
+The launcher uses real HoloOcean, no fallback, no currents, seed 23001, frozen
+BC-v3 initialization, automatic reliability-gated curriculum, checkpointing,
+rollback, graceful stop, and resume. It refuses to overwrite an existing run
+directory. See `docs/rl_multigate_reliability_first.md` for status,
+TensorBoard, evaluation, and paired-comparison commands.
