@@ -28,9 +28,9 @@
   },
   "test_matrix": {
     "ocean": {"passed": 678, "skipped": 13},
-    "marine_race_rl_all": {"passed": 781},
-    "marine_race_rl_learning": {"passed": 389},
-    "focused_reliability_first_before_validation": {"passed": 33}
+    "marine_race_rl_all": {"passed": 782},
+    "marine_race_rl_learning": {"passed": 390},
+    "focused_reliability_first_post_validation": {"passed": 34}
   },
   "source_artifacts": {
     "bc_validation_manifest": "results/rl/multigate_reliability_first/bc_v3_baseline_20_c76c23f_20260728/validation_manifest.json",
