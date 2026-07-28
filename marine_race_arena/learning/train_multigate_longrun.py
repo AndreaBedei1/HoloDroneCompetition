@@ -603,24 +603,43 @@ def run_longrun(
             else config.evaluation.full_episodes
         )
         seeds = MULTIGATE_LONGRUN_DEV_EVAL_SEEDS[: count + 4]
-        return evaluate_longrun_policy(
-            model_to_eval,
-            stage=sampler.current_stage,
-            mode=mode,
-            seeds=seeds,
-            output_dir=run_dir / "evaluations",
-            env_kwargs={
-                "adapter": config.adapter,
-                "allow_fallback": config.allow_fallback,
-                "current_profile": config.current_profile,
-                "max_steps": config.max_episode_steps,
-                "observation_encoding_version": config.observation_version,
-            },
-            reward_config=reward_config,
-            timesteps=timesteps,
-            policy_mode=config.policy_mode,
-            frame_stack=config.frame_stack,
+
+        def evaluation_progress(progress: Mapping[str, Any]) -> None:
+            status_store.update(
+                state="EVALUATING",
+                evaluation_mode=progress["mode"],
+                evaluation_cases_completed=int(progress["completed"]),
+                evaluation_cases_total=int(progress["total"]),
+            )
+
+        status_store.update(
+            state="EVALUATING",
+            evaluation_mode=mode,
+            evaluation_cases_completed=0,
+            evaluation_cases_total=0,
         )
+        try:
+            return evaluate_longrun_policy(
+                model_to_eval,
+                stage=sampler.current_stage,
+                mode=mode,
+                seeds=seeds,
+                output_dir=run_dir / "evaluations",
+                env_kwargs={
+                    "adapter": config.adapter,
+                    "allow_fallback": config.allow_fallback,
+                    "current_profile": config.current_profile,
+                    "max_steps": config.max_episode_steps,
+                    "observation_encoding_version": config.observation_version,
+                },
+                reward_config=reward_config,
+                timesteps=timesteps,
+                policy_mode=config.policy_mode,
+                frame_stack=config.frame_stack,
+                progress_callback=evaluation_progress,
+            )
+        finally:
+            status_store.update(state="RUNNING")
 
     callback = make_longrun_callback(
         run_dir=run_dir,

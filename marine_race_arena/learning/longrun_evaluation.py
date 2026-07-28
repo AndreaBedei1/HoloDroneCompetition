@@ -6,7 +6,7 @@ import json
 import math
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -124,6 +124,11 @@ def plateau_detected(
         if int(row.get("timesteps", 0)) >= current_timesteps - plateau_steps
     ]
     if len(window) < min_evaluations:
+        return None
+    covered_steps = int(window[-1].get("timesteps", 0)) - int(
+        window[0].get("timesteps", 0)
+    )
+    if covered_steps < plateau_steps:
         return None
     first = window[0]
     best_completion = max(float(row.get("completion_rate", 0.0)) for row in window)
@@ -260,6 +265,7 @@ def evaluate_longrun_policy(
     timesteps: int = 0,
     policy_mode: str = "feedforward",
     frame_stack: int = 1,
+    progress_callback: Optional[Callable[[Mapping[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     """Evaluate without expert/rule construction and persist a compact report."""
     if mode not in {"light", "full"}:
@@ -270,7 +276,17 @@ def evaluate_longrun_policy(
     cases = _evaluation_cases(stage, mode=mode, seeds=seeds, output_dir=track_dir)
     config = reward_config or MultiGateRewardConfig()
     rows: List[Dict[str, Any]] = []
-    for case in cases:
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "mode": mode,
+                "stage": stage,
+                "completed": 0,
+                "total": len(cases),
+                "timesteps": int(timesteps),
+            }
+        )
+    for index, case in enumerate(cases):
         base_env = MarineRaceGymEnv(
             case["track"],
             seed=case["seed"],
@@ -349,6 +365,16 @@ def evaluate_longrun_policy(
             )
         finally:
             env.close()
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "mode": mode,
+                    "stage": stage,
+                    "completed": index + 1,
+                    "total": len(cases),
+                    "timesteps": int(timesteps),
+                }
+            )
     aggregate = aggregate_evaluation(rows)
     report = {
         "schema_version": "multigate_longrun_evaluation_v1",

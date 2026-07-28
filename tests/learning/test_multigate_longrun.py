@@ -26,6 +26,7 @@ from marine_race_arena.learning.longrun_env import ObservationFrameStack
 from marine_race_arena.learning.longrun_evaluation import (
     bc_checkpoint_metric_key,
     checkpoint_metric_key,
+    evaluate_longrun_policy,
     is_better,
     plateau_detected,
 )
@@ -278,6 +279,41 @@ def test_plateau_detection_uses_evaluation_metrics():
     )
     assert plateau and plateau["detected"]
     assert plateau["low_kl"]
+    assert (
+        plateau_detected(
+            history[:2],
+            current_timesteps=150_000,
+            plateau_steps=100_000,
+            min_evaluations=2,
+        )
+        is None
+    )
+
+
+def test_evaluation_reports_case_progress(tmp_path):
+    class ZeroModel:
+        @staticmethod
+        def predict(observation, deterministic=True):
+            return [0.0, 0.0, 0.0, 0.0], None
+
+    progress = []
+    evaluate_longrun_policy(
+        ZeroModel(),
+        stage="C0",
+        mode="light",
+        seeds=[25000],
+        output_dir=tmp_path,
+        env_kwargs={
+            "adapter": "fallback",
+            "allow_fallback": True,
+            "current_profile": "none",
+            "max_steps": 2,
+            "observation_encoding_version": "onboard_multigate_rl_v3",
+        },
+        progress_callback=lambda row: progress.append(dict(row)),
+    )
+    assert [row["completed"] for row in progress] == [0, 1]
+    assert all(row["total"] == 1 for row in progress)
 
 
 def test_status_file_atomic_update_and_graceful_stop(tmp_path):
