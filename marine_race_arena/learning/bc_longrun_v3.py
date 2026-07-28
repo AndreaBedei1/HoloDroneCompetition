@@ -27,7 +27,7 @@ from marine_race_arena.learning.longrun_config import (
     DEFAULT_R1_SHA256,
 )
 from marine_race_arena.learning.longrun_evaluation import (
-    checkpoint_metric_key,
+    bc_checkpoint_metric_key,
     evaluate_longrun_policy,
 )
 from marine_race_arena.learning.model_contract_v3 import assert_clean_worktree
@@ -405,7 +405,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         selected_index = max(
             range(len(closed_loop_rows)),
-            key=lambda index: checkpoint_metric_key(closed_loop_rows[index]),
+            key=lambda index: bc_checkpoint_metric_key(closed_loop_rows[index]),
         )
     selected = copy.deepcopy(source)
     selected.load_state_dict(candidates[selected_index][1])
@@ -457,11 +457,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 & set(split_summary["validation"]["tracks"])
                 or set(split_summary["train"]["tracks"])
                 & set(split_summary["test"]["tracks"])
+                or set(split_summary["validation"]["tracks"])
+                & set(split_summary["test"]["tracks"])
             ),
             "geometry_group_disjoint": not (
                 set(split_summary["train"]["geometry_groups"])
                 & set(split_summary["validation"]["geometry_groups"])
                 or set(split_summary["train"]["geometry_groups"])
+                & set(split_summary["test"]["geometry_groups"])
+                or set(split_summary["validation"]["geometry_groups"])
                 & set(split_summary["test"]["geometry_groups"])
             ),
         },
@@ -472,9 +476,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "closed_loop_candidates": closed_loop_rows,
         "selected_candidate": selected_index,
         "selection_order": [
-            "completion_rate",
-            "minimum_left_right_completion",
-            "mean_gates",
+            "single_gate_completion_rate",
+            "straight_completion_rate",
+            "left_completion_rate",
+            "right_completion_rate",
             "safety",
             "previous_gate_returns",
             "penalized_time",

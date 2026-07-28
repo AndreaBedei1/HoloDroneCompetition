@@ -51,6 +51,24 @@ def checkpoint_metric_key(metrics: Mapping[str, Any]) -> Tuple[float, ...]:
     )
 
 
+def bc_checkpoint_metric_key(metrics: Mapping[str, Any]) -> Tuple[float, ...]:
+    """BC selection keeps retention categories ahead of safety and speed."""
+    return (
+        float(metrics.get("single_gate_completion_rate", 0.0)),
+        float(metrics.get("straight_completion_rate", 0.0)),
+        float(metrics.get("left_completion_rate", 0.0)),
+        float(metrics.get("right_completion_rate", 0.0)),
+        -float(metrics.get("safety_events", 0.0)),
+        -float(metrics.get("previous_gate_returns", 0.0)),
+        -float(
+            metrics.get("mean_penalized_time_s")
+            if metrics.get("mean_penalized_time_s") is not None
+            else 1e9
+        ),
+        -float(metrics.get("mean_action_jerk", 0.0)),
+    )
+
+
 def directional_metric_key(
     metrics: Mapping[str, Any], direction: str
 ) -> Tuple[float, ...]:

@@ -24,6 +24,7 @@ from marine_race_arena.learning.bc_longrun_v3 import _geometry, _split_for_group
 from marine_race_arena.learning.longrun_config import LongRunConfig
 from marine_race_arena.learning.longrun_env import ObservationFrameStack
 from marine_race_arena.learning.longrun_evaluation import (
+    bc_checkpoint_metric_key,
     checkpoint_metric_key,
     is_better,
     plateau_detected,
@@ -234,6 +235,27 @@ def test_best_checkpoint_selection_is_lexicographic_not_reward():
     }
     assert checkpoint_metric_key(safe) > checkpoint_metric_key(unsafe_reward)
     assert is_better(safe, unsafe_reward)
+
+
+def test_bc_checkpoint_selection_prioritizes_each_retention_category():
+    complete = {
+        "single_gate_completion_rate": 1.0,
+        "straight_completion_rate": 1.0,
+        "left_completion_rate": 1.0,
+        "right_completion_rate": 1.0,
+        "safety_events": 0,
+        "previous_gate_returns": 0,
+        "mean_penalized_time_s": 40,
+        "mean_action_jerk": 0.04,
+    }
+    faster_but_regressed = {
+        **complete,
+        "straight_completion_rate": 0.75,
+        "mean_penalized_time_s": 1,
+    }
+    assert bc_checkpoint_metric_key(complete) > bc_checkpoint_metric_key(
+        faster_but_regressed
+    )
 
 
 def test_plateau_detection_uses_evaluation_metrics():
