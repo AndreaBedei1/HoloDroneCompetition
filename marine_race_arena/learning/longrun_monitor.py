@@ -18,6 +18,7 @@ from marine_race_arena.learning.longrun_checkpoint import (
     atomic_copy_checkpoint,
     atomic_save_checkpoint,
     atomic_write_json,
+    capture_model_training_state,
     valid_checkpoints,
 )
 from marine_race_arena.learning.longrun_evaluation import (
@@ -28,6 +29,14 @@ from marine_race_arena.learning.longrun_evaluation import (
 )
 from marine_race_arena.learning.parametric_curriculum import (
     reliability_requirements_met,
+)
+from marine_race_arena.learning.longrun_rollback import (
+    ROLLBACK_EVENT_SCHEMA_VERSION,
+    enrich_rollbacks_with_curriculum,
+    jsonl_rows_through,
+    merge_curriculum_histories,
+    merge_rollback_histories,
+    rollback_status_fields,
 )
 
 
@@ -79,6 +88,12 @@ class StatusStore:
             "rollback_count": 0,
             "last_rollback_reason": None,
             "last_rollback_source": None,
+            "last_rollback_timestep": None,
+            "last_rollback_attempt": None,
+            "last_rollback_outcome": None,
+            "last_rollback_event": None,
+            "rollback_history": [],
+            "curriculum_stage_history": [],
             "collision_events": None,
             "collision_frames": None,
             "out_of_bounds_events": None,
@@ -188,6 +203,32 @@ def resume_status_snapshot(
     )
     stage_entry = int(sampler.state.stage_entry_timesteps)
     checkpoint_aliases = dict(extra.get("checkpoint_aliases", {}))
+    rollback_history = merge_rollback_histories(
+        extra.get("rollback_history", []),
+        jsonl_rows_through(
+            Path(run_dir) / "logs" / "rollback_history.jsonl", current
+        ),
+    )
+    curriculum_history = merge_curriculum_histories(
+        sampler.state.stage_changes,
+        jsonl_rows_through(Path(run_dir) / "curriculum_history.jsonl", current),
+        rollback_history=rollback_history,
+    )
+    rollback_history = enrich_rollbacks_with_curriculum(
+        rollback_history, curriculum_history
+    )
+    rollback_fields = rollback_status_fields(rollback_history)
+    rollback_fields["rollback_count"] = max(
+        int(extra.get("rollback_count", 0)),
+        int(rollback_fields["rollback_count"]),
+    )
+    if not rollback_history:
+        rollback_fields["last_rollback_reason"] = extra.get(
+            "last_rollback_reason"
+        )
+        rollback_fields["last_rollback_source"] = extra.get(
+            "last_rollback_source"
+        )
     if not checkpoint_aliases:
         checkpoint_aliases = {
             alias: selected.get("checkpoint")
@@ -201,7 +242,7 @@ def resume_status_snapshot(
         "total_timesteps": current,
         "curriculum_stage": sampler.current_stage,
         "curriculum_stage_history": _compact_stage_history(
-            list(sampler.state.stage_changes)
+            curriculum_history
         ),
         "curriculum_evaluation_history_count": len(
             sampler.state.evaluation_history
@@ -228,10 +269,7 @@ def resume_status_snapshot(
         ),
         "reward_phase": str(extra.get("reward_phase", "legacy")),
         "replay_mixture": list(sampler.active_mixture),
-        "rollback_count": int(extra.get("rollback_count", 0)),
-        "last_rollback_reason": extra.get("last_rollback_reason"),
-        "last_rollback_source": extra.get("last_rollback_source"),
-        "rollback_history": list(extra.get("rollback_history", [])),
+        **rollback_fields,
         "checkpoint_aliases": checkpoint_aliases,
         "collision_events": report.get("collision_events"),
         "collision_frames": report.get("collision_frames"),
@@ -333,6 +371,42 @@ def restore_ppo_training_state(model: Any, source: Any, learning_rate_scale: flo
     if hasattr(schedule, "scale"):
         schedule.scale(learning_rate_scale)
     model.num_timesteps = current_timesteps
+
+
+def learning_rate_snapshot(model: Any) -> Dict[str, Any]:
+    """Capture the optimizer and absolute-schedule LR view without mutation."""
+    optimizer = getattr(getattr(model, "policy", None), "optimizer", None)
+    optimizer_lrs = (
+        [float(group["lr"]) for group in optimizer.param_groups]
+        if optimizer is not None
+        else []
+    )
+    schedule_state: Dict[str, Any] = {}
+    seen = set()
+    for schedule in (
+        getattr(model, "learning_rate", None),
+        getattr(model, "lr_schedule", None),
+        getattr(getattr(model, "lr_schedule", None), "value_schedule", None),
+    ):
+        if schedule is None or id(schedule) in seen:
+            continue
+        seen.add(id(schedule))
+        if hasattr(schedule, "state_dict"):
+            candidate = schedule.state_dict()
+            if isinstance(candidate, dict):
+                schedule_state = dict(candidate)
+                break
+        if hasattr(schedule, "last_value"):
+            schedule_state = {
+                "multiplier": float(getattr(schedule, "multiplier", 1.0)),
+                "last_value": float(schedule.last_value),
+            }
+            break
+    return {
+        "optimizer_learning_rates": optimizer_lrs,
+        "schedule_multiplier": schedule_state.get("multiplier"),
+        "schedule_value": schedule_state.get("last_value"),
+    }
 
 
 class UpdateMetricsRecorder:
@@ -614,17 +688,37 @@ def make_longrun_callback(
             self.automatic_changes = list(
                 extra.get("automatic_changes", [])
             )
-            self.rollback_count = int(extra.get("rollback_count", 0))
-            self.last_rollback_reason = extra.get("last_rollback_reason")
-            self.last_rollback_source = extra.get("last_rollback_source")
-            self.rollback_history = list(extra.get("rollback_history", []))
+            current = int(state.get("total_timesteps", 0))
+            self.rollback_history = merge_rollback_histories(
+                extra.get("rollback_history", []),
+                jsonl_rows_through(
+                    self.run_dir / "logs" / "rollback_history.jsonl",
+                    current,
+                ),
+            )
+            restored_rollback = rollback_status_fields(
+                self.rollback_history
+            )
+            self.rollback_count = max(
+                int(extra.get("rollback_count", 0)),
+                int(restored_rollback["rollback_count"]),
+            )
+            self.last_rollback_reason = (
+                restored_rollback["last_rollback_reason"]
+                if self.rollback_history
+                else extra.get("last_rollback_reason")
+            )
+            self.last_rollback_source = (
+                restored_rollback["last_rollback_source"]
+                if self.rollback_history
+                else extra.get("last_rollback_source")
+            )
             self.low_kl_count = int(extra.get("low_kl_count", 0))
             self.high_kl_count = int(extra.get("high_kl_count", 0))
             if reward_config is not None:
                 reward_config.set_phase(
                     str(extra.get("reward_phase", reward_config.reward_phase))
                 )
-            current = int(state.get("total_timesteps", 0))
             self._next_checkpoint = int(
                 extra.get(
                     "next_checkpoint",
@@ -901,6 +995,15 @@ def make_longrun_callback(
                         plateau,
                     )
                     self.stop_reason = LongRunStopReason.PLATEAU
+            rollback_fields = rollback_status_fields(self.rollback_history)
+            model_training = capture_model_training_state(self.model)
+            lr_state = learning_rate_snapshot(self.model)
+            current_learning_rate = lr_state.get("schedule_value")
+            if current_learning_rate is None:
+                optimizer_lrs = lr_state.get("optimizer_learning_rates", [])
+                current_learning_rate = (
+                    optimizer_lrs[0] if optimizer_lrs else None
+                )
             status_store.update(
                 latest_evaluation=str(
                     self.run_dir
@@ -923,6 +1026,12 @@ def make_longrun_callback(
                 single_gate_retention=report.get("single_gate_completion_rate"),
                 three_gate_success=report.get("three_gate_completion_rate"),
                 curriculum_stage=sampler.current_stage,
+                curriculum_stage_history=_compact_stage_history(
+                    list(sampler.state.stage_changes)
+                ),
+                curriculum_evaluation_history_count=len(
+                    sampler.state.evaluation_history
+                ),
                 consecutive_reliable_full_evaluations=(
                     sampler.state.reliable_full_streak
                 ),
@@ -954,9 +1063,9 @@ def make_longrun_callback(
                 reward_phase=(
                     reward_config.reward_phase if reward_config is not None else "legacy"
                 ),
-                rollback_count=self.rollback_count,
-                last_rollback_reason=self.last_rollback_reason,
-                last_rollback_source=self.last_rollback_source,
+                **rollback_fields,
+                current_learning_rate=current_learning_rate,
+                retention_state=model_training.get("retention_regularizer"),
                 collision_events=report.get("collision_events"),
                 collision_frames=report.get("collision_frames"),
                 out_of_bounds_events=report.get("out_of_bounds_events"),
@@ -1022,11 +1131,29 @@ def make_longrun_callback(
             incumbent = self.best.get("best_reliable", {})
             source_path = incumbent.get("checkpoint")
             self.last_rollback_source = str(source_path) if source_path else None
+            current_timesteps = int(self.model.num_timesteps)
+            stage_before = sampler.current_stage
+            regularizer = getattr(self.model, "_retention_regularizer", None)
+            retention_multiplier_before = (
+                float(regularizer.weight_multiplier)
+                if regularizer is not None
+                and hasattr(regularizer, "weight_multiplier")
+                else None
+            )
+            learning_rate_before = learning_rate_snapshot(self.model)
             event = {
-                "timesteps": int(self.model.num_timesteps),
+                "schema_version": ROLLBACK_EVENT_SCHEMA_VERSION,
+                "timesteps": current_timesteps,
                 "attempt": self.rollback_count,
+                "reason": (
+                    reasons[0] if len(reasons) == 1 else "+".join(reasons)
+                ),
                 "reasons": list(reasons),
                 "source": self.last_rollback_source,
+                "source_checkpoint": self.last_rollback_source,
+                "stage_before": stage_before,
+                "retention_multiplier_before": retention_multiplier_before,
+                "learning_rate_before": learning_rate_before,
             }
             if (
                 not rollback_attempt_allowed(
@@ -1034,41 +1161,107 @@ def make_longrun_callback(
                 )
                 or not source_path
             ):
-                event["outcome"] = "stopped"
+                event.update(
+                    {
+                        "outcome": "stopped",
+                        "stage_after": stage_before,
+                        "stage": stage_before,
+                        "retention_multiplier_after": (
+                            retention_multiplier_before
+                        ),
+                        "learning_rate_after": learning_rate_before,
+                        "curriculum_transition": None,
+                    }
+                )
                 self.stop_reason = LongRunStopReason.REPEATED_REGRESSION
                 self.rollback_history.append(dict(event))
                 atomic_append_jsonl(
                     self.run_dir / "logs" / "rollback_history.jsonl", event
                 )
+                self._publish_rollback_status()
                 return
             source = type(self.model).load(str(source_path), device="cpu")
-            current_timesteps = int(self.model.num_timesteps)
             restore_ppo_training_state(
                 self.model, source, rollback.learning_rate_scale
             )
-            regularizer = getattr(self.model, "_retention_regularizer", None)
             if regularizer is not None:
                 event["retention_weight_after"] = regularizer.increase_weight(
                     rollback.retention_weight_scale
                 )
+            retention_multiplier_after = (
+                float(regularizer.weight_multiplier)
+                if regularizer is not None
+                and hasattr(regularizer, "weight_multiplier")
+                else retention_multiplier_before
+            )
             target_stage = rollback_target_stage(sampler.current_stage)
             change = sampler.force_stage(
                 target_stage,
                 timesteps=current_timesteps,
                 reason="automatic_full_evaluation_rollback",
             )
-            atomic_append_jsonl(
-                self.run_dir / "curriculum_history.jsonl", change
-            )
             if reward_config is not None:
                 reward_config.set_phase("reliability")
             self._reset_training_episode()
             self._rollback_this_update = True
             self.last_eval = None
-            event.update({"outcome": "restored", "stage": target_stage})
+            event.update(
+                {
+                    "outcome": "restored",
+                    "stage_after": target_stage,
+                    "stage": target_stage,
+                    "retention_multiplier_after": (
+                        retention_multiplier_after
+                    ),
+                    "learning_rate_after": learning_rate_snapshot(self.model),
+                    "curriculum_transition": dict(change),
+                }
+            )
             self.rollback_history.append(dict(event))
             atomic_append_jsonl(
                 self.run_dir / "logs" / "rollback_history.jsonl", event
+            )
+            atomic_append_jsonl(
+                self.run_dir / "curriculum_history.jsonl", change
+            )
+            self._publish_rollback_status()
+
+        def _publish_rollback_status(self) -> None:
+            rollback_fields = rollback_status_fields(self.rollback_history)
+            model_training = capture_model_training_state(self.model)
+            lr_state = learning_rate_snapshot(self.model)
+            current_learning_rate = lr_state.get("schedule_value")
+            if current_learning_rate is None:
+                optimizer_lrs = lr_state.get("optimizer_learning_rates", [])
+                current_learning_rate = (
+                    optimizer_lrs[0] if optimizer_lrs else None
+                )
+            minimum = int(
+                config.curriculum.promotion.minimum_stage_timesteps.get(
+                    sampler.current_stage, 0
+                )
+            )
+            current = int(self.model.num_timesteps)
+            stage_entry = int(sampler.state.stage_entry_timesteps)
+            status_store.update(
+                **rollback_fields,
+                curriculum_stage=sampler.current_stage,
+                curriculum_stage_history=_compact_stage_history(
+                    list(sampler.state.stage_changes)
+                ),
+                stage_entry_timesteps=stage_entry,
+                steps_in_current_stage=current - stage_entry,
+                next_promotion_eligibility_step=stage_entry + minimum,
+                stage_minimum_remaining_timesteps=max(
+                    0, minimum - (current - stage_entry)
+                ),
+                reward_phase=(
+                    reward_config.reward_phase
+                    if reward_config is not None
+                    else "legacy"
+                ),
+                current_learning_rate=current_learning_rate,
+                retention_state=model_training.get("retention_regularizer"),
             )
 
         def _reset_training_episode(self) -> None:
@@ -1191,6 +1384,17 @@ def make_longrun_callback(
             checkpoint_aliases["last"] = str(checkpoint_path)
             if safe:
                 checkpoint_aliases["latest_safe"] = str(checkpoint_path)
+            rollback_fields = rollback_status_fields(self.rollback_history)
+            rollback_fields["rollback_count"] = max(
+                self.rollback_count, int(rollback_fields["rollback_count"])
+            )
+            if not self.rollback_history:
+                rollback_fields["last_rollback_reason"] = (
+                    self.last_rollback_reason
+                )
+                rollback_fields["last_rollback_source"] = (
+                    self.last_rollback_source
+                )
             checkpoint = atomic_save_checkpoint(
                 self.model,
                 self.run_dir,
@@ -1203,10 +1407,7 @@ def make_longrun_callback(
                 extra_state={
                     "automatic_changes": self.automatic_changes,
                     "stop_reason": self.stop_reason,
-                    "rollback_count": self.rollback_count,
-                    "last_rollback_reason": self.last_rollback_reason,
-                    "last_rollback_source": self.last_rollback_source,
-                    "rollback_history": self.rollback_history,
+                    **rollback_fields,
                     "reward_phase": (
                         reward_config.reward_phase
                         if reward_config is not None

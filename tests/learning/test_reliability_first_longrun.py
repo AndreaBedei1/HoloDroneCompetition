@@ -321,6 +321,281 @@ def test_rollback_restores_policy_optimizer_scheduler_and_keeps_timestep():
     assert not rollback_attempt_allowed(3, 2)
 
 
+def test_multiple_rollbacks_atomically_record_complete_events_and_status(
+    tmp_path,
+):
+    import json
+
+    import numpy as np
+    import torch
+
+    from marine_race_arena.learning.longrun_rollback import (
+        ROLLBACK_EVENT_SCHEMA_VERSION,
+    )
+    from marine_race_arena.learning.train_multigate_longrun import (
+        AbsoluteLearningRateSchedule,
+    )
+
+    class Policy(torch.nn.Module):
+        def __init__(self, value):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.tensor([float(value)]))
+            self.optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
+
+    class Retention:
+        def __init__(self):
+            self.weight_multiplier = 1.0
+            self.base_weight = 0.1
+
+        def increase_weight(self, factor):
+            self.weight_multiplier *= float(factor)
+            return self.base_weight * self.weight_multiplier
+
+        def state_dict(self):
+            return {
+                "schema_version": "offline_retention_state_v1",
+                "weight_multiplier": self.weight_multiplier,
+            }
+
+    class Env:
+        @staticmethod
+        def reset():
+            return np.zeros((1, 3), dtype=np.float32)
+
+    class Model:
+        def __init__(self, value, timesteps):
+            self.policy = Policy(value)
+            self.num_timesteps = timesteps
+            self.learning_rate = AbsoluteLearningRateSchedule(
+                1e-5, 2e-6, "linear"
+            )
+            self.learning_rate.last_value = 8e-6
+            self.lr_schedule = self.learning_rate
+            self._retention_regularizer = Retention()
+            self.env = Env()
+            self.n_envs = 1
+
+        @classmethod
+        def load(cls, _path, device="cpu"):
+            assert device == "cpu"
+            return cls(2.0, 100_000)
+
+    class Reward:
+        reward_phase = "efficiency"
+
+        def set_phase(self, phase):
+            self.reward_phase = phase
+
+    config = _config()
+    config.output_root = str(tmp_path.parent)
+    config.run_name = tmp_path.name
+    sampler = _sampler(config)
+    sampler.state.current_stage = "C3"
+    model = Model(-1.0, 300_397)
+    reward = Reward()
+    status = StatusStore(tmp_path)
+    callback = make_longrun_callback(
+        run_dir=tmp_path,
+        config=config,
+        sampler=sampler,
+        status_store=status,
+        contract_hash="a" * 64,
+        evaluate_fn=lambda *_: _passing_report(),
+        reward_config=reward,
+    )
+    callback.model = model
+    callback.best = {
+        "best_reliable": {
+            "checkpoint": str(tmp_path / "checkpoints" / "source.zip")
+        }
+    }
+
+    callback._perform_rollback(["straight_retention_floor"])
+    model.num_timesteps = 325_000
+    callback._perform_rollback(["directional_completion_floor"])
+
+    assert callback.rollback_count == 2
+    assert len(callback.rollback_history) == 2
+    first, second = callback.rollback_history
+    assert first["stage_before"] == "C3"
+    assert first["stage_after"] == "C2"
+    assert second["stage_before"] == "C2"
+    assert second["stage_after"] == "C1"
+    assert first["retention_multiplier_before"] == pytest.approx(1.0)
+    assert first["retention_multiplier_after"] == pytest.approx(1.25)
+    assert second["retention_multiplier_before"] == pytest.approx(1.25)
+    assert second["retention_multiplier_after"] == pytest.approx(1.5625)
+    for attempt, event in enumerate(callback.rollback_history, start=1):
+        assert event["schema_version"] == ROLLBACK_EVENT_SCHEMA_VERSION
+        assert event["attempt"] == attempt
+        assert event["reason"]
+        assert event["source_checkpoint"].endswith("source.zip")
+        assert event["learning_rate_before"]["schedule_value"] is not None
+        assert event["learning_rate_after"]["schedule_value"] is not None
+        assert event["outcome"] == "restored"
+        assert event["curriculum_transition"] == {
+            "timesteps": event["timesteps"],
+            "from": event["stage_before"],
+            "to": event["stage_after"],
+            "reason": "automatic_full_evaluation_rollback",
+        }
+
+    journal = [
+        json.loads(line)
+        for line in (
+            tmp_path / "logs" / "rollback_history.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+    ]
+    assert journal == callback.rollback_history
+    assert status.data["rollback_count"] == 2
+    assert len(status.data["rollback_history"]) == 2
+    assert status.data["last_rollback_attempt"] == 2
+    assert status.data["last_rollback_outcome"] == "restored"
+    assert status.data["last_rollback_event"] == second
+    assert status.data["curriculum_stage"] == "C1"
+    assert status.data["stage_entry_timesteps"] == 325_000
+    assert status.data["curriculum_stage_history"][-1] == {
+        "timesteps": 325_000,
+        "from": "C2",
+        "to": "C1",
+        "reason": "automatic_full_evaluation_rollback",
+    }
+    assert reward.reward_phase == "reliability"
+
+
+def test_status_and_resume_recover_second_rollback_from_journals(tmp_path):
+    import json
+    from types import SimpleNamespace
+
+    from marine_race_arena.learning.longrun_tools import run_status
+    from marine_race_arena.learning.train_multigate_longrun import (
+        _upgrade_resume_state,
+    )
+
+    config = _config()
+    config.output_root = str(tmp_path.parent)
+    config.run_name = tmp_path.name
+    sampler = _sampler(config)
+    sampler.state.current_stage = "C1"
+    sampler.state.training_timesteps = 302_445
+    sampler.state.stage_entry_timesteps = 300_397
+    first_transition = {
+        "timesteps": 225_280,
+        "from": "C2",
+        "to": "C1",
+        "reason": "automatic_full_evaluation_rollback",
+    }
+    second_transition = {
+        "timesteps": 300_397,
+        "from": "C2",
+        "to": "C1",
+        "reason": "automatic_full_evaluation_rollback",
+    }
+    sampler.state.stage_changes = [first_transition]
+    first = {
+        "timesteps": 225_280,
+        "attempt": 1,
+        "reasons": ["safety_episode_regression"],
+        "source": "ppo_126976_steps.zip",
+        "retention_weight_after": 0.125,
+        "outcome": "restored",
+        "stage": "C1",
+    }
+    second = {
+        "timesteps": 300_397,
+        "attempt": 2,
+        "reasons": ["straight_retention_floor"],
+        "source": "ppo_251245_steps.zip",
+        "retention_weight_after": 0.15625,
+        "outcome": "restored",
+        "stage": "C1",
+    }
+    (tmp_path / "logs").mkdir(parents=True)
+    (tmp_path / "logs" / "rollback_history.jsonl").write_text(
+        "\n".join(json.dumps(row) for row in (first, second)) + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "curriculum_history.jsonl").write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in (first_transition, second_transition)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    status = StatusStore(
+        tmp_path,
+        {
+            "total_timesteps": 302_445,
+            "curriculum_stage": "C1",
+            "stage_entry_timesteps": 300_397,
+            "rollback_count": 2,
+            "last_rollback_reason": ["straight_retention_floor"],
+            "last_rollback_source": second["source"],
+            "rollback_history": [first],
+            "curriculum_stage_history": [first_transition],
+        },
+    )
+    recovered_status = run_status(tmp_path)
+    assert recovered_status["rollback_count"] == 2
+    assert len(recovered_status["rollback_history"]) == 2
+    assert recovered_status["last_rollback_attempt"] == 2
+    assert recovered_status["last_rollback_reason"] == [
+        "straight_retention_floor"
+    ]
+    assert recovered_status["rollback_history"][-1]["stage_before"] == "C2"
+    assert recovered_status["rollback_history"][-1]["stage_after"] == "C1"
+    assert len(recovered_status["curriculum_stage_history"]) == 2
+
+    state = {
+        "total_timesteps": 302_445,
+        "curriculum": sampler.state_dict(),
+        "evaluation": {"history": [], "best": {}, "last": None},
+        "model_training": {
+            "schema_version": "multigate_model_training_state_v1",
+            "optimizer_learning_rates": [3.79e-6],
+            "retention_regularizer": {"weight_multiplier": 1.5625},
+        },
+        "extra": {
+            "rollback_count": 2,
+            "last_rollback_reason": second["reasons"],
+            "last_rollback_source": second["source"],
+            "rollback_history": [first],
+            "reward_phase": "reliability",
+        },
+    }
+    checkpoint = SimpleNamespace(
+        model_path=tmp_path / "checkpoints" / "ppo_302445_steps.zip",
+        manifest={"status": "safe"},
+    )
+    upgraded = _upgrade_resume_state(
+        config, checkpoint, state, SimpleNamespace()
+    )
+    sampler.load_state_dict(upgraded["curriculum"])
+    reward = MultiGateRewardConfig(reward_phase="efficiency")
+    callback = make_longrun_callback(
+        run_dir=tmp_path,
+        config=config,
+        sampler=sampler,
+        status_store=status,
+        contract_hash="a" * 64,
+        evaluate_fn=lambda *_: _passing_report(),
+        reward_config=reward,
+    )
+    callback.restore_pipeline_state(upgraded)
+
+    assert callback.rollback_count == 2
+    assert len(callback.rollback_history) == 2
+    assert callback.last_rollback_reason == ["straight_retention_floor"]
+    assert callback.last_rollback_source == second["source"]
+    assert status.data["rollback_count"] == 2
+    assert len(status.data["rollback_history"]) == 2
+    assert len(status.data["curriculum_stage_history"]) == 2
+    assert status.data["last_rollback_attempt"] == 2
+    assert status.data["stage_entry_timesteps"] == 300_397
+    assert reward.reward_phase == "reliability"
+
+
 def test_reward_phase_time_term_is_bounded_below_failure_penalty():
     config = _config()
     phase = config.reliability.reward_phase
@@ -565,7 +840,15 @@ def test_resume_hydrates_exact_reliability_pipeline_state_without_resets(
     assert restored["last_rollback_source"] == str(
         best_checkpoint.model_path
     )
-    assert restored["rollback_history"] == [rollback]
+    assert len(restored["rollback_history"]) == 1
+    restored_rollback = restored["rollback_history"][0]
+    assert all(
+        restored_rollback[key] == value
+        for key, value in rollback.items()
+    )
+    assert restored_rollback["source_checkpoint"] == rollback["source"]
+    assert restored_rollback["stage_before"] == "C2"
+    assert restored_rollback["stage_after"] == "C1"
     assert restored["best_reliable_checkpoint"] == str(
         best_checkpoint.model_path
     )

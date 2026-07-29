@@ -58,6 +58,12 @@ from marine_race_arena.learning.longrun_monitor import (
     make_longrun_callback,
     resume_status_snapshot,
 )
+from marine_race_arena.learning.longrun_rollback import (
+    enrich_rollbacks_with_curriculum,
+    merge_curriculum_histories,
+    merge_rollback_histories,
+    rollback_status_fields,
+)
 from marine_race_arena.learning.model_contract_v3 import (
     assert_clean_worktree,
     validate_v3_model,
@@ -669,23 +675,33 @@ def _upgrade_resume_state(
     history = list(evaluation.get("history", []))
     evaluation.setdefault("last", history[-1] if history else None)
     extra = upgraded.setdefault("extra", {})
-    rollback_history = list(
-        extra.get(
-            "rollback_history",
-            _jsonl_rows_through(
-                config.run_dir / "logs" / "rollback_history.jsonl", current
-            ),
-        )
+    rollback_history = merge_rollback_histories(
+        extra.get("rollback_history", []),
+        _jsonl_rows_through(
+            config.run_dir / "logs" / "rollback_history.jsonl", current
+        ),
+    )
+    curriculum = upgraded.setdefault("curriculum", {})
+    curriculum_state = curriculum.setdefault("state", {})
+    curriculum_history = merge_curriculum_histories(
+        curriculum_state.get("stage_changes", []),
+        _jsonl_rows_through(
+            config.run_dir / "curriculum_history.jsonl", current
+        ),
+        rollback_history=rollback_history,
+    )
+    curriculum_state["stage_changes"] = curriculum_history
+    rollback_history = enrich_rollbacks_with_curriculum(
+        rollback_history, curriculum_history
     )
     extra["rollback_history"] = rollback_history
     if rollback_history:
-        latest_rollback = rollback_history[-1]
-        extra.setdefault("last_rollback_reason", latest_rollback.get("reasons"))
-        extra.setdefault("last_rollback_source", latest_rollback.get("source"))
-        extra["rollback_count"] = max(
+        rollback_fields = rollback_status_fields(rollback_history)
+        rollback_fields["rollback_count"] = max(
             int(extra.get("rollback_count", 0)),
-            int(latest_rollback.get("attempt", 0)),
+            int(rollback_fields["rollback_count"]),
         )
+        extra.update(rollback_fields)
     else:
         extra.setdefault("last_rollback_reason", None)
         extra.setdefault("last_rollback_source", None)

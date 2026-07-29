@@ -13,12 +13,20 @@ from typing import Any, Dict, Optional, Sequence
 
 from marine_race_arena.learning.longrun_checkpoint import (
     latest_valid_checkpoint,
+    load_checkpoint_state,
     sha256_file,
 )
 from marine_race_arena.learning.longrun_config import LongRunConfig
 from marine_race_arena.learning.longrun_evaluation import (
     evaluate_longrun_policy,
     official_evaluation_unlocked,
+)
+from marine_race_arena.learning.longrun_rollback import (
+    enrich_rollbacks_with_curriculum,
+    jsonl_rows_through,
+    merge_curriculum_histories,
+    merge_rollback_histories,
+    rollback_status_fields,
 )
 from marine_race_arena.learning.reward_v3 import MultiGateRewardConfig
 from marine_race_arena.learning.seed_registry import (
@@ -46,6 +54,23 @@ def _pid_alive(pid: int) -> bool:
         return True
     except OSError:
         return False
+
+
+def _compact_curriculum_history(
+    changes: Sequence[Dict[str, Any]],
+) -> list[Dict[str, Any]]:
+    return [
+        {
+            "timesteps": int(change.get("timesteps", 0)),
+            "from": change.get("from"),
+            "to": change.get("to"),
+            "reason": change.get(
+                "reason",
+                "evaluation_promotion" if change.get("metrics") else None,
+            ),
+        }
+        for change in changes
+    ]
 
 
 def run_status(run_dir: str | Path) -> Dict[str, Any]:
@@ -81,15 +106,105 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         ),
         safe_only=False,
     )
+    checkpoint_state: Dict[str, Any] = {}
+    if latest is not None:
+        try:
+            checkpoint_state = load_checkpoint_state(latest)
+        except Exception:
+            checkpoint_state = {}
+    current = int(
+        status.get(
+            "total_timesteps",
+            checkpoint_state.get("total_timesteps", 0),
+        )
+        or 0
+    )
+    checkpoint_extra = dict(checkpoint_state.get("extra", {}))
+    rollback_history = merge_rollback_histories(
+        status.get("rollback_history", []),
+        checkpoint_extra.get("rollback_history", []),
+        jsonl_rows_through(
+            path / "logs" / "rollback_history.jsonl", current
+        ),
+    )
+    checkpoint_curriculum = dict(
+        checkpoint_state.get("curriculum", {})
+    ).get("state", {})
+    curriculum_history = merge_curriculum_histories(
+        status.get("curriculum_stage_history", []),
+        checkpoint_curriculum.get("stage_changes", []),
+        jsonl_rows_through(path / "curriculum_history.jsonl", current),
+        rollback_history=rollback_history,
+    )
+    rollback_history = enrich_rollbacks_with_curriculum(
+        rollback_history, curriculum_history
+    )
+    if rollback_history:
+        latest_event = rollback_history[-1]
+        checkpoint_retention_state = dict(
+            checkpoint_state.get("model_training", {})
+        ).get("retention_regularizer")
+        if (
+            isinstance(checkpoint_retention_state, dict)
+            and latest_event.get("retention_multiplier_after") is None
+            and checkpoint_retention_state.get("weight_multiplier") is not None
+        ):
+            multiplier_after = float(
+                checkpoint_retention_state["weight_multiplier"]
+            )
+            latest_event["retention_multiplier_after"] = multiplier_after
+            if config is not None:
+                scale = float(
+                    config.reliability.rollback.retention_weight_scale
+                )
+                if scale:
+                    latest_event["retention_multiplier_before"] = (
+                        multiplier_after / scale
+                    )
+    effective_retention_state = status.get("retention_state")
+    checkpoint_retention_state = dict(
+        checkpoint_state.get("model_training", {})
+    ).get("retention_regularizer")
+    if isinstance(checkpoint_retention_state, dict):
+        effective_retention_state = {
+            **checkpoint_retention_state,
+            **(
+                effective_retention_state
+                if isinstance(effective_retention_state, dict)
+                else {}
+            ),
+        }
+        # The running process may still publish a pre-rollback multiplier while
+        # newer sidecars already prove that the rollback restored correctly.
+        # Preserve the fresher live counters/RNG, but report the persisted
+        # post-rollback multiplier.
+        effective_retention_state["weight_multiplier"] = (
+            checkpoint_retention_state.get("weight_multiplier")
+        )
+    rollback_fields = rollback_status_fields(rollback_history)
+    rollback_fields["rollback_count"] = max(
+        int(status.get("rollback_count", 0) or 0),
+        int(checkpoint_extra.get("rollback_count", 0) or 0),
+        int(rollback_fields["rollback_count"]),
+    )
+    if not rollback_history:
+        rollback_fields["last_rollback_reason"] = status.get(
+            "last_rollback_reason"
+        )
+        rollback_fields["last_rollback_source"] = status.get(
+            "last_rollback_source"
+        )
     result = {
         "run_dir": str(path),
         "pid": pid or None,
         "process_alive": alive,
         "state": status.get("state", "UNKNOWN"),
-        "current_total_timesteps": status.get("total_timesteps"),
+        "current_total_timesteps": current or None,
         "target_total_timesteps": status.get("target_total_timesteps"),
         "current_curriculum_stage": status.get("curriculum_stage"),
-        "curriculum_stage_history": status.get("curriculum_stage_history"),
+        "curriculum_stage_history": _compact_curriculum_history(
+            curriculum_history
+        ),
         "curriculum_evaluation_history_count": status.get(
             "curriculum_evaluation_history_count"
         ),
@@ -128,10 +243,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "stage_minimum_remaining_timesteps": status.get(
             "stage_minimum_remaining_timesteps"
         ),
-        "rollback_count": status.get("rollback_count", 0),
-        "last_rollback_reason": status.get("last_rollback_reason"),
-        "last_rollback_source": status.get("last_rollback_source"),
-        "rollback_history": status.get("rollback_history"),
+        **rollback_fields,
         "collision_events": status.get("collision_events"),
         "collision_frames": status.get("collision_frames"),
         "out_of_bounds_events": status.get("out_of_bounds_events"),
@@ -153,7 +265,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
             "best_fast_reliable_checkpoint"
         ),
         "checkpoint_aliases": status.get("checkpoint_aliases"),
-        "retention_state": status.get("retention_state"),
+        "retention_state": effective_retention_state,
         "throughput_steps_per_s": status.get("throughput_steps_per_s"),
         "estimated_remaining_wall_s": status.get(
             "estimated_remaining_wall_s"
