@@ -8,6 +8,7 @@ actions.  Use ``--smoke`` only for bounded pipeline validation.
 from __future__ import annotations
 
 import argparse
+import copy
 import ctypes
 import json
 import logging
@@ -35,8 +36,11 @@ from marine_race_arena.learning.longrun_checkpoint import (
     atomic_save_checkpoint,
     atomic_write_json,
     canonical_hash,
+    capture_model_training_state,
+    capture_rng_state,
     latest_valid_checkpoint,
     load_checkpoint_state,
+    restore_model_training_state,
     restore_rng_state,
     sha256_file,
 )
@@ -52,6 +56,7 @@ from marine_race_arena.learning.longrun_evaluation import evaluate_longrun_polic
 from marine_race_arena.learning.longrun_monitor import (
     StatusStore,
     make_longrun_callback,
+    resume_status_snapshot,
 )
 from marine_race_arena.learning.model_contract_v3 import (
     assert_clean_worktree,
@@ -81,9 +86,22 @@ class AbsoluteLearningRateSchedule:
         self.kind = str(kind)
         self.multiplier = 1.0
         self.last_value = float(start)
+        self.absolute_total_timesteps: Optional[int] = None
+        self.sb3_total_timesteps: Optional[int] = None
 
     def __call__(self, progress_remaining: float) -> float:
         p = float(np.clip(progress_remaining, 0.0, 1.0))
+        absolute_total = getattr(self, "absolute_total_timesteps", None)
+        sb3_total = getattr(self, "sb3_total_timesteps", None)
+        if absolute_total and sb3_total:
+            absolute_timesteps = (1.0 - p) * int(sb3_total)
+            p = float(
+                np.clip(
+                    1.0 - absolute_timesteps / int(absolute_total),
+                    0.0,
+                    1.0,
+                )
+            )
         if self.kind == "constant":
             base = self.start
         elif self.kind == "cosine":
@@ -104,6 +122,43 @@ class AbsoluteLearningRateSchedule:
             np.clip(self.last_value * float(factor), self.end, self.start * 1.5)
         )
 
+    def set_training_horizon(
+        self, *, sb3_total_timesteps: int, absolute_total_timesteps: int
+    ) -> None:
+        if sb3_total_timesteps <= 0 or absolute_total_timesteps <= 0:
+            raise ValueError("learning-rate horizons must be positive")
+        self.sb3_total_timesteps = int(sb3_total_timesteps)
+        self.absolute_total_timesteps = int(absolute_total_timesteps)
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {
+            "schema_version": "absolute_learning_rate_schedule_v1",
+            "start": self.start,
+            "end": self.end,
+            "kind": self.kind,
+            "multiplier": self.multiplier,
+            "last_value": self.last_value,
+            "absolute_total_timesteps": self.absolute_total_timesteps,
+        }
+
+    def load_state_dict(self, state: Dict[str, Any]) -> None:
+        if state.get("schema_version") not in {
+            None,
+            "absolute_learning_rate_schedule_v1",
+        }:
+            raise ValueError("unsupported learning-rate schedule state")
+        if (
+            float(state.get("start", self.start)) != self.start
+            or float(state.get("end", self.end)) != self.end
+            or str(state.get("kind", self.kind)) != self.kind
+        ):
+            raise ValueError("learning-rate schedule configuration changed")
+        self.multiplier = float(state.get("multiplier", self.multiplier))
+        self.last_value = float(state.get("last_value", self.last_value))
+        absolute_total = state.get("absolute_total_timesteps")
+        if absolute_total is not None:
+            self.absolute_total_timesteps = int(absolute_total)
+
 
 def _contract_dict(config: LongRunConfig) -> Dict[str, Any]:
     value = config.to_dict()
@@ -118,6 +173,20 @@ def config_contract_hash(config: LongRunConfig) -> str:
     return canonical_hash(
         {"config": _contract_dict(config), "training_code_sha": git_sha()}
     )
+
+
+def run_contract_hash(config: LongRunConfig) -> str:
+    """Keep a run's original contract stable across compatible bug-fix commits."""
+    manifest_path = config.run_dir / "run_manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            stored = str(manifest.get("config_contract_sha256", ""))
+            if len(stored) == 64:
+                return stored
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
+    return config_contract_hash(config)
 
 
 def _git_branch() -> str:
@@ -319,6 +388,46 @@ def _set_sb3_logger(model: Any, run_dir: Path) -> None:
     model.set_logger(Logger(str(run_dir / "logs"), formats))
 
 
+def _set_learning_rate_horizon(
+    model: Any, *, learn_target: int, schedule_target: int
+) -> None:
+    seen = set()
+    for schedule in (
+        getattr(model, "learning_rate", None),
+        getattr(model, "lr_schedule", None),
+        getattr(getattr(model, "lr_schedule", None), "value_schedule", None),
+    ):
+        if schedule is None or id(schedule) in seen:
+            continue
+        seen.add(id(schedule))
+        if hasattr(schedule, "set_training_horizon"):
+            schedule.set_training_horizon(
+                sb3_total_timesteps=int(learn_target),
+                absolute_total_timesteps=int(schedule_target),
+            )
+
+
+def _migrate_learning_rate_schedule(model: Any, config: LongRunConfig) -> None:
+    """Replace cloud-pickled legacy schedule code while preserving its state."""
+    from stable_baselines3.common.utils import FloatSchedule
+
+    previous = getattr(model, "learning_rate", None)
+    replacement = AbsoluteLearningRateSchedule(
+        config.ppo.learning_rate,
+        config.ppo.final_learning_rate,
+        config.ppo.learning_rate_schedule,
+    )
+    if previous is not None:
+        replacement.multiplier = float(
+            getattr(previous, "multiplier", replacement.multiplier)
+        )
+        replacement.last_value = float(
+            getattr(previous, "last_value", replacement.last_value)
+        )
+    model.learning_rate = replacement
+    model.lr_schedule = FloatSchedule(replacement)
+
+
 def _make_sampler(config: LongRunConfig) -> CurriculumSampler:
     curriculum = config.curriculum
     return CurriculumSampler(
@@ -492,11 +601,122 @@ def _attach_retention_regularizer(
     model.attach_retention_regularizer(regularizer, lambda: sampler.current_stage)
 
 
+def _jsonl_rows_through(path: Path, timesteps: int) -> list[Dict[str, Any]]:
+    rows: list[Dict[str, Any]] = []
+    if not path.exists():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+            if int(row.get("timesteps", row.get("num_timesteps", 0))) <= timesteps:
+                rows.append(row)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+    return rows
+
+
+def _restore_legacy_retention_state(
+    model: Any, run_dir: Path, timesteps: int
+) -> None:
+    """Reconstruct the v1 retention state that was omitted from old sidecars."""
+    regularizer = getattr(model, "_retention_regularizer", None)
+    if regularizer is None:
+        return
+    regularizer.calls = int(getattr(model, "_n_updates", 0)) // max(
+        1, int(getattr(model, "n_epochs", 1))
+    )
+    update_rows = _jsonl_rows_through(
+        run_dir / "update_metrics.jsonl", timesteps
+    )
+    applied_batches = sum(
+        float(row.get("bc_retention_loss") or 0.0) > 0.0
+        for row in update_rows
+    )
+    batch_size = min(regularizer.batch_size, len(regularizer.observations))
+    for _ in range(applied_batches):
+        regularizer.rng.integers(
+            0, len(regularizer.observations), size=batch_size
+        )
+    rollback_rows = _jsonl_rows_through(
+        run_dir / "logs" / "rollback_history.jsonl", timesteps
+    )
+    for row in rollback_rows:
+        retained = row.get("retention_weight_after")
+        if retained is not None and regularizer.base_weight > 0:
+            regularizer.weight_multiplier = max(
+                regularizer.weight_multiplier,
+                float(retained) / regularizer.base_weight,
+            )
+    if update_rows:
+        latest = update_rows[-1]
+        regularizer.last_metrics = {
+            "bc_retention_loss": latest.get("bc_retention_loss"),
+            "initial_policy_kl": latest.get("initial_policy_kl"),
+            "retention_weight": latest.get("retention_weight"),
+        }
+
+
+def _upgrade_resume_state(
+    config: LongRunConfig,
+    checkpoint: Any,
+    state: Dict[str, Any],
+    model: Any,
+) -> Dict[str, Any]:
+    """Backfill fields absent from v1 checkpoints without changing the source."""
+    upgraded = copy.deepcopy(state)
+    current = int(upgraded["total_timesteps"])
+    evaluation = upgraded.setdefault("evaluation", {})
+    history = list(evaluation.get("history", []))
+    evaluation.setdefault("last", history[-1] if history else None)
+    extra = upgraded.setdefault("extra", {})
+    rollback_history = list(
+        extra.get(
+            "rollback_history",
+            _jsonl_rows_through(
+                config.run_dir / "logs" / "rollback_history.jsonl", current
+            ),
+        )
+    )
+    extra["rollback_history"] = rollback_history
+    if rollback_history:
+        latest_rollback = rollback_history[-1]
+        extra.setdefault("last_rollback_reason", latest_rollback.get("reasons"))
+        extra.setdefault("last_rollback_source", latest_rollback.get("source"))
+        extra["rollback_count"] = max(
+            int(extra.get("rollback_count", 0)),
+            int(latest_rollback.get("attempt", 0)),
+        )
+    else:
+        extra.setdefault("last_rollback_reason", None)
+        extra.setdefault("last_rollback_source", None)
+        extra.setdefault("rollback_count", 0)
+    extra.setdefault("reward_phase", "legacy")
+    extra.setdefault("low_kl_count", 0)
+    extra.setdefault("high_kl_count", 0)
+    best = dict(evaluation.get("best", {}))
+    aliases = dict(extra.get("checkpoint_aliases", {}))
+    aliases.update(
+        {
+            alias: selected.get("checkpoint")
+            for alias, selected in best.items()
+            if selected.get("checkpoint")
+        }
+    )
+    aliases["last"] = str(checkpoint.model_path)
+    if checkpoint.manifest.get("status") == "safe":
+        aliases["latest_safe"] = str(checkpoint.model_path)
+    extra["checkpoint_aliases"] = aliases
+    if not upgraded.get("model_training"):
+        _restore_legacy_retention_state(model, config.run_dir, current)
+        upgraded["model_training"] = capture_model_training_state(model)
+    return upgraded
+
+
 def _load_resume_model(
     config: LongRunConfig,
     env: Any,
     sampler: CurriculumSampler,
-) -> tuple[Any, Dict[str, Any]]:
+) -> tuple[Any, Dict[str, Any], Any]:
     if config.training_profile == "reliability_first":
         from marine_race_arena.learning.reliability_first import (
             ReliabilityFirstPPO as PPO,
@@ -504,29 +724,55 @@ def _load_resume_model(
     else:
         from stable_baselines3 import PPO
 
-    contract = config_contract_hash(config)
+    contract = run_contract_hash(config)
     checkpoint = latest_valid_checkpoint(
         config.run_dir, expected_contract_hash=contract
     )
     if checkpoint is None:
         raise RuntimeError("no valid compatible checkpoint is available to resume")
-    state = load_checkpoint_state(checkpoint)
-    sampler.load_state_dict(state["curriculum"])
-    restore_rng_state(state["rng"])
-    model = PPO.load(str(checkpoint.model_path), env=env, device="cpu")
-    if getattr(model, "obs_encoding_version", None) != OBS_ENCODING_VERSION_V3:
-        raise ValueError("resume checkpoint observation version is incompatible")
-    if getattr(model, "action_contract_version", None) != ACTION_CONTRACT_VERSION:
-        raise ValueError("resume checkpoint action version is incompatible")
-    if getattr(model, "longrun_policy_mode", "feedforward") != config.policy_mode:
-        raise ValueError("resume checkpoint policy mode is incompatible")
-    if int(getattr(model, "longrun_frame_stack", 1)) != config.frame_stack:
-        raise ValueError("resume checkpoint frame stack is incompatible")
-    expected_dim = OBS_DIM_V3 * config.frame_stack
-    if tuple(model.observation_space.shape or ()) != (expected_dim,):
-        raise ValueError("resume checkpoint observation shape is incompatible")
-    _attach_retention_regularizer(model, config, sampler)
-    return model, state
+    prior_rng = capture_rng_state()
+    try:
+        state = load_checkpoint_state(checkpoint)
+        if int(state["total_timesteps"]) != checkpoint.timesteps:
+            raise ValueError("resume checkpoint manifest and sidecar disagree")
+        candidate_sampler = _make_sampler(config)
+        candidate_sampler.load_state_dict(state["curriculum"])
+        model = PPO.load(str(checkpoint.model_path), env=env, device="cpu")
+        _migrate_learning_rate_schedule(model, config)
+        if int(model.num_timesteps) != checkpoint.timesteps:
+            raise ValueError("resume model and sidecar timestep disagree")
+        if getattr(model, "obs_encoding_version", None) != OBS_ENCODING_VERSION_V3:
+            raise ValueError("resume checkpoint observation version is incompatible")
+        if (
+            getattr(model, "action_contract_version", None)
+            != ACTION_CONTRACT_VERSION
+        ):
+            raise ValueError("resume checkpoint action version is incompatible")
+        if (
+            getattr(model, "longrun_config_contract", contract) != contract
+        ):
+            raise ValueError("resume checkpoint training contract is incompatible")
+        if (
+            getattr(model, "longrun_policy_mode", "feedforward")
+            != config.policy_mode
+        ):
+            raise ValueError("resume checkpoint policy mode is incompatible")
+        if int(getattr(model, "longrun_frame_stack", 1)) != config.frame_stack:
+            raise ValueError("resume checkpoint frame stack is incompatible")
+        expected_dim = OBS_DIM_V3 * config.frame_stack
+        if tuple(model.observation_space.shape or ()) != (expected_dim,):
+            raise ValueError("resume checkpoint observation shape is incompatible")
+        _attach_retention_regularizer(model, config, sampler)
+        state = _upgrade_resume_state(config, checkpoint, state, model)
+        restore_model_training_state(model, state["model_training"])
+        sampler.load_state_dict(state["curriculum"])
+        # Model/environment construction can consume Python, NumPy, and Torch
+        # entropy. Restore the checkpoint RNG only after every component is ready.
+        restore_rng_state(state["rng"])
+        return model, state, checkpoint
+    except BaseException:
+        restore_rng_state(prior_rng)
+        raise
 
 
 def _write_initial_manifest(
@@ -607,6 +853,7 @@ def run_longrun(
         raise FileExistsError(
             f"run directory {run_dir} is not empty; choose a new name or resume"
         )
+    contract_hash = run_contract_hash(config)
 
     _prepare_run_dirs(run_dir)
     preflight_result = preflight(
@@ -642,35 +889,21 @@ def run_longrun(
             "failure penalty must exceed the maximum episode time term"
         )
     atomic_write_json(run_dir / "reward_config.json", reward_config.__dict__)
-    status_store = StatusStore(
-        run_dir,
-        {
-            "run_name": config.run_name,
-            "target_total_timesteps": config.total_timesteps,
-            "curriculum_stage": config.curriculum.initial_stage,
-            "training_profile": config.training_profile,
-            "reward_phase": reward_config.reward_phase,
-            "rollback_count": 0,
-            "stage_entry_timesteps": 0,
-            "steps_in_current_stage": 0,
-            "next_promotion_eligibility_step": int(
-                config.curriculum.promotion.minimum_stage_timesteps.get(
-                    config.curriculum.initial_stage, 0
-                )
-            ),
-            "stage_minimum_remaining_timesteps": int(
-                config.curriculum.promotion.minimum_stage_timesteps.get(
-                    config.curriculum.initial_stage, 0
-                )
-            ),
-        },
-    )
-
     sampler = _make_sampler(config)
     env = _make_env(config, sampler, reward_config)
     resume_state: Optional[Dict[str, Any]] = None
+    resume_checkpoint = None
     if resume:
-        model, resume_state = _load_resume_model(config, env, sampler)
+        model, resume_state, resume_checkpoint = _load_resume_model(
+            config, env, sampler
+        )
+        reward_config.set_phase(
+            str(
+                resume_state.get("extra", {}).get(
+                    "reward_phase", reward_config.reward_phase
+                )
+            )
+        )
     else:
         model = _new_model(config, env, sampler)
     _set_sb3_logger(model, run_dir)
@@ -684,11 +917,45 @@ def run_longrun(
         raise ValueError(
             f"target {target} must exceed checkpoint timesteps {current}"
         )
+    initial_status: Dict[str, Any] = {
+        "run_name": config.run_name,
+        "target_total_timesteps": target,
+        "curriculum_stage": sampler.current_stage,
+        "training_profile": config.training_profile,
+        "reward_phase": reward_config.reward_phase,
+        "rollback_count": 0,
+        "stage_entry_timesteps": sampler.state.stage_entry_timesteps,
+        "steps_in_current_stage": current - sampler.state.stage_entry_timesteps,
+        "next_promotion_eligibility_step": (
+            sampler.state.stage_entry_timesteps
+            + int(
+                config.curriculum.promotion.minimum_stage_timesteps.get(
+                    sampler.current_stage, 0
+                )
+            )
+        ),
+    }
+    if resume_state is not None:
+        initial_status.update(
+            resume_status_snapshot(
+                run_dir=run_dir,
+                config=config,
+                sampler=sampler,
+                state=resume_state,
+                last_checkpoint=(
+                    str(resume_checkpoint.model_path)
+                    if resume_checkpoint is not None
+                    else None
+                ),
+            )
+        )
+    status_store = StatusStore(run_dir, initial_status)
     status_store.update(
         state="RUNNING",
         total_timesteps=current,
         target_total_timesteps=target,
         curriculum_stage=sampler.current_stage,
+        stop_reason=None,
     )
     atomic_append_jsonl(
         run_dir / "logs" / "resume_history.jsonl",
@@ -756,18 +1023,20 @@ def run_longrun(
         config=config,
         sampler=sampler,
         status_store=status_store,
-        contract_hash=config_contract_hash(config),
+        contract_hash=contract_hash,
         evaluate_fn=evaluate,
         reward_config=reward_config,
     )
     if resume_state is not None:
-        callback.restore_pipeline_state(resume_state)
+        callback.restore_pipeline_state(
+            resume_state, resume_checkpoint=resume_checkpoint
+        )
     else:
         initial = atomic_save_checkpoint(
             model,
             run_dir,
             total_timesteps=current,
-            config_contract_hash=config_contract_hash(config),
+            config_contract_hash=contract_hash,
             curriculum_state=sampler.state_dict(),
             evaluation_state={"history": [], "best": {}},
             status="safe",
@@ -791,6 +1060,11 @@ def run_longrun(
                     model.num_timesteps,
                     remaining,
                     sampler.current_stage,
+                )
+                _set_learning_rate_horizon(
+                    model,
+                    learn_target=target,
+                    schedule_target=config.total_timesteps,
                 )
                 model.learn(
                     total_timesteps=remaining,
@@ -827,18 +1101,24 @@ def run_longrun(
                 env.close()
                 sampler = _make_sampler(config)
                 env = _make_env(config, sampler, reward_config)
-                model, resume_state = _load_resume_model(config, env, sampler)
+                (
+                    model,
+                    resume_state,
+                    resume_checkpoint,
+                ) = _load_resume_model(config, env, sampler)
                 _set_sb3_logger(model, run_dir)
                 callback = make_longrun_callback(
                     run_dir=run_dir,
                     config=config,
                     sampler=sampler,
                     status_store=status_store,
-                    contract_hash=config_contract_hash(config),
+                    contract_hash=contract_hash,
                     evaluate_fn=evaluate,
                     reward_config=reward_config,
                 )
-                callback.restore_pipeline_state(resume_state)
+                callback.restore_pipeline_state(
+                    resume_state, resume_checkpoint=resume_checkpoint
+                )
                 status_store.update(
                     simulator_restarts=restart_count,
                     total_timesteps=int(model.num_timesteps),

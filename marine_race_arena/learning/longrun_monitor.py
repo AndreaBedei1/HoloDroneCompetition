@@ -18,6 +18,7 @@ from marine_race_arena.learning.longrun_checkpoint import (
     atomic_copy_checkpoint,
     atomic_save_checkpoint,
     atomic_write_json,
+    valid_checkpoints,
 )
 from marine_race_arena.learning.longrun_evaluation import (
     directional_metric_key,
@@ -119,6 +120,148 @@ class StatusStore:
         atomic_write_json(self.path, self.data)
 
 
+def _evaluation_path(
+    run_dir: str | Path, report: Optional[Mapping[str, Any]]
+) -> Optional[str]:
+    if not report:
+        return None
+    mode = report.get("mode")
+    timesteps = report.get("timesteps")
+    if mode not in {"light", "full"} or timesteps is None:
+        return None
+    return str(
+        Path(run_dir)
+        / "evaluations"
+        / f"{mode}_{int(timesteps):09d}.json"
+    )
+
+
+def _future_trigger(current: int, frequency: int) -> int:
+    return (int(current) // int(frequency) + 1) * int(frequency)
+
+
+def _compact_stage_history(changes: List[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "timesteps": int(change.get("timesteps", 0)),
+            "from": change.get("from"),
+            "to": change.get("to"),
+            "reason": change.get(
+                "reason",
+                "evaluation_promotion" if change.get("metrics") else None,
+            ),
+        }
+        for change in changes
+    ]
+
+
+def resume_status_snapshot(
+    *,
+    run_dir: str | Path,
+    config: Any,
+    sampler: Any,
+    state: Mapping[str, Any],
+    last_checkpoint: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build a complete status image from one validated checkpoint sidecar."""
+    current = int(state.get("total_timesteps", 0))
+    evaluation = dict(state.get("evaluation", {}))
+    history = list(evaluation.get("history", []))
+    latest = dict(evaluation.get("last") or (history[-1] if history else {}))
+    latest_full = next(
+        (
+            dict(report)
+            for report in reversed(history)
+            if report.get("mode") == "full"
+        ),
+        {},
+    )
+    report = latest or latest_full
+    best = dict(evaluation.get("best", {}))
+    extra = dict(state.get("extra", {}))
+    model_training = dict(state.get("model_training", {}))
+    optimizer_lrs = list(model_training.get("optimizer_learning_rates", []))
+    minimum = int(
+        config.curriculum.promotion.minimum_stage_timesteps.get(
+            sampler.current_stage, 0
+        )
+    )
+    stage_entry = int(sampler.state.stage_entry_timesteps)
+    checkpoint_aliases = dict(extra.get("checkpoint_aliases", {}))
+    if not checkpoint_aliases:
+        checkpoint_aliases = {
+            alias: selected.get("checkpoint")
+            for alias, selected in best.items()
+            if selected.get("checkpoint")
+        }
+    if last_checkpoint:
+        checkpoint_aliases["last"] = str(last_checkpoint)
+        checkpoint_aliases["latest_safe"] = str(last_checkpoint)
+    return {
+        "total_timesteps": current,
+        "curriculum_stage": sampler.current_stage,
+        "curriculum_stage_history": _compact_stage_history(
+            list(sampler.state.stage_changes)
+        ),
+        "curriculum_evaluation_history_count": len(
+            sampler.state.evaluation_history
+        ),
+        "evaluation_history_count": len(history),
+        "last_checkpoint": last_checkpoint,
+        "best_checkpoint": best.get("best_overall", {}).get("checkpoint"),
+        "latest_evaluation": _evaluation_path(run_dir, latest),
+        "latest_full_evaluation": _evaluation_path(run_dir, latest_full),
+        "overall_completion": report.get("completion_rate"),
+        "left_success": report.get("left_completion_rate"),
+        "right_success": report.get("right_completion_rate"),
+        "straight_retention": report.get("straight_completion_rate"),
+        "single_gate_retention": report.get("single_gate_completion_rate"),
+        "three_gate_success": report.get("three_gate_completion_rate"),
+        "consecutive_reliable_full_evaluations": int(
+            sampler.state.reliable_full_streak
+        ),
+        "stage_entry_timesteps": stage_entry,
+        "steps_in_current_stage": current - stage_entry,
+        "next_promotion_eligibility_step": stage_entry + minimum,
+        "stage_minimum_remaining_timesteps": max(
+            0, minimum - (current - stage_entry)
+        ),
+        "reward_phase": str(extra.get("reward_phase", "legacy")),
+        "replay_mixture": list(sampler.active_mixture),
+        "rollback_count": int(extra.get("rollback_count", 0)),
+        "last_rollback_reason": extra.get("last_rollback_reason"),
+        "last_rollback_source": extra.get("last_rollback_source"),
+        "rollback_history": list(extra.get("rollback_history", [])),
+        "checkpoint_aliases": checkpoint_aliases,
+        "collision_events": report.get("collision_events"),
+        "collision_frames": report.get("collision_frames"),
+        "out_of_bounds_events": report.get("out_of_bounds_events"),
+        "out_of_bounds_frames": report.get("out_of_bounds_frames"),
+        "wrong_direction_count": report.get("wrong_direction_count"),
+        "safety_warning_events": report.get("safety_warning_events"),
+        "safety_warning_frames": report.get("safety_warning_frames"),
+        "episodes_with_any_safety": report.get("episodes_with_any_safety"),
+        "collision_episodes": report.get("episodes_with_collision"),
+        "out_of_bounds_episodes": report.get("episodes_with_out_of_bounds"),
+        "wrong_direction_episodes": report.get("episodes_with_wrong_direction"),
+        "previous_gate_returns": report.get("previous_gate_returns"),
+        "mean_successful_time_s": report.get("mean_successful_time_s"),
+        "mean_penalized_time_s": report.get("mean_penalized_time_s"),
+        "mean_action_jerk": report.get("mean_action_jerk"),
+        "current_learning_rate": (
+            float(optimizer_lrs[0]) if optimizer_lrs else None
+        ),
+        "best_reliable_checkpoint": best.get("best_reliable", {}).get(
+            "checkpoint"
+        ),
+        "best_fast_reliable_checkpoint": best.get(
+            "best_fast_reliable", {}
+        ).get("checkpoint"),
+        "retention_state": model_training.get("retention_regularizer"),
+        "previous_stop_reason": extra.get("stop_reason"),
+    }
+
+
 def _finite_or_none(value: Any) -> Optional[float]:
     try:
         parsed = float(value)
@@ -169,8 +312,24 @@ def restore_ppo_training_state(model: Any, source: Any, learning_rate_scale: flo
     current_timesteps = int(model.num_timesteps)
     model.policy.load_state_dict(source.policy.state_dict())
     model.policy.optimizer.load_state_dict(source.policy.optimizer.state_dict())
-    model.lr_schedule = source.lr_schedule
-    schedule = getattr(model, "lr_schedule", None)
+    schedule = getattr(model, "learning_rate", None)
+    source_schedule = getattr(source, "learning_rate", None)
+    if hasattr(schedule, "load_state_dict") and source_schedule is not None:
+        schedule.load_state_dict(
+            {
+                "schema_version": "absolute_learning_rate_schedule_v1",
+                "start": float(source_schedule.start),
+                "end": float(source_schedule.end),
+                "kind": str(source_schedule.kind),
+                "multiplier": float(source_schedule.multiplier),
+                "last_value": float(source_schedule.last_value),
+            }
+        )
+    else:
+        model.lr_schedule = source.lr_schedule
+        schedule = getattr(
+            getattr(model, "lr_schedule", None), "value_schedule", None
+        ) or getattr(model, "lr_schedule", None)
     if hasattr(schedule, "scale"):
         schedule.scale(learning_rate_scale)
     model.num_timesteps = current_timesteps
@@ -211,14 +370,57 @@ class UpdateMetricsRecorder:
         self.episode_rows: List[Dict[str, Any]] = []
         self.reward_sums: Dict[str, float] = {}
         self.reward_samples = 0
+        maximum_timestep = int(getattr(model, "num_timesteps", 0))
+        self._quarantine_future_jsonl_rows(maximum_timestep)
         if self.csv_path.exists():
             try:
                 with self.csv_path.open(newline="", encoding="utf-8") as handle:
-                    self.rows = list(csv.DictReader(handle))
+                    all_rows = list(csv.DictReader(handle))
+                self.rows = [
+                    row
+                    for row in all_rows
+                    if int(float(row["num_timesteps"])) <= maximum_timestep
+                ]
+                if len(self.rows) != len(all_rows):
+                    self._write_csv()
                 if self.rows:
                     self.last_timestep = int(float(self.rows[-1]["num_timesteps"]))
             except Exception:
                 self.rows = []
+
+    def _quarantine_future_jsonl_rows(self, maximum_timestep: int) -> None:
+        if not self.jsonl_path.exists():
+            return
+        kept_lines: List[str] = []
+        future_rows: List[Dict[str, Any]] = []
+        for line in self.jsonl_path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+                if int(row["num_timesteps"]) > maximum_timestep:
+                    future_rows.append(row)
+                else:
+                    kept_lines.append(line)
+            except (TypeError, ValueError, KeyError, json.JSONDecodeError):
+                kept_lines.append(line)
+        if not future_rows:
+            return
+        recovery_path = (
+            self.run_dir
+            / "recovery"
+            / f"update_metrics_after_{maximum_timestep}_{int(time.time())}.json"
+        )
+        atomic_write_json(
+            recovery_path,
+            {
+                "resume_checkpoint_timesteps": maximum_timestep,
+                "source": str(self.jsonl_path),
+                "rows": future_rows,
+            },
+        )
+        tmp = self.jsonl_path.with_suffix(self.jsonl_path.suffix + ".tmp")
+        text = "\n".join(kept_lines)
+        tmp.write_text(text + ("\n" if text else ""), encoding="utf-8")
+        os.replace(tmp, self.jsonl_path)
 
     def observe_infos(self, infos: List[Mapping[str, Any]]) -> None:
         for info in infos:
@@ -387,6 +589,7 @@ def make_longrun_callback(
             self.rollback_count = 0
             self.last_rollback_reason: Optional[List[str]] = None
             self.last_rollback_source: Optional[str] = None
+            self.rollback_history: List[Dict[str, Any]] = []
             self._rollback_this_update = False
             self._last_status_wall = 0.0
             self._started_wall = time.time()
@@ -395,30 +598,95 @@ def make_longrun_callback(
             self._next_light_eval = config.evaluation.light_frequency
             self._next_full_eval = config.evaluation.full_frequency
 
-        def restore_pipeline_state(self, state: Mapping[str, Any]) -> None:
+        def restore_pipeline_state(
+            self,
+            state: Mapping[str, Any],
+            *,
+            resume_checkpoint: Optional[Any] = None,
+        ) -> None:
             evaluation = dict(state.get("evaluation", {}))
             self.eval_history = list(evaluation.get("history", []))
             self.best = dict(evaluation.get("best", {}))
+            self.last_eval = evaluation.get("last")
+            if self.last_eval is None and self.eval_history:
+                self.last_eval = dict(self.eval_history[-1])
+            extra = dict(state.get("extra", {}))
             self.automatic_changes = list(
-                state.get("extra", {}).get("automatic_changes", [])
+                extra.get("automatic_changes", [])
             )
-            self.rollback_count = int(
-                state.get("extra", {}).get("rollback_count", 0)
-            )
+            self.rollback_count = int(extra.get("rollback_count", 0))
+            self.last_rollback_reason = extra.get("last_rollback_reason")
+            self.last_rollback_source = extra.get("last_rollback_source")
+            self.rollback_history = list(extra.get("rollback_history", []))
+            self.low_kl_count = int(extra.get("low_kl_count", 0))
+            self.high_kl_count = int(extra.get("high_kl_count", 0))
             if reward_config is not None:
                 reward_config.set_phase(
-                    str(state.get("extra", {}).get("reward_phase", reward_config.reward_phase))
+                    str(extra.get("reward_phase", reward_config.reward_phase))
                 )
             current = int(state.get("total_timesteps", 0))
-            self._next_checkpoint = (
-                current // config.evaluation.checkpoint_frequency + 1
-            ) * config.evaluation.checkpoint_frequency
-            self._next_light_eval = (
-                current // config.evaluation.light_frequency + 1
-            ) * config.evaluation.light_frequency
-            self._next_full_eval = (
-                current // config.evaluation.full_frequency + 1
-            ) * config.evaluation.full_frequency
+            self._next_checkpoint = int(
+                extra.get(
+                    "next_checkpoint",
+                    _future_trigger(
+                        current, config.evaluation.checkpoint_frequency
+                    ),
+                )
+            )
+            self._next_light_eval = int(
+                extra.get(
+                    "next_light_evaluation",
+                    _future_trigger(current, config.evaluation.light_frequency),
+                )
+            )
+            self._next_full_eval = int(
+                extra.get(
+                    "next_full_evaluation",
+                    _future_trigger(current, config.evaluation.full_frequency),
+                )
+            )
+            self.last_checkpoint = resume_checkpoint
+            if resume_checkpoint is not None:
+                self._restore_checkpoint_aliases(resume_checkpoint)
+            status_store.update(
+                **resume_status_snapshot(
+                    run_dir=self.run_dir,
+                    config=config,
+                    sampler=sampler,
+                    state=state,
+                    last_checkpoint=(
+                        str(resume_checkpoint.model_path)
+                        if resume_checkpoint is not None
+                        else None
+                    ),
+                )
+            )
+
+        def _restore_checkpoint_aliases(self, resume_checkpoint: Any) -> None:
+            """Re-materialize every alias from the checkpoint-selection state."""
+            available = {
+                checkpoint.model_path.name: checkpoint
+                for checkpoint in valid_checkpoints(
+                    self.run_dir,
+                    expected_contract_hash=contract_hash,
+                )
+            }
+            atomic_copy_checkpoint(
+                resume_checkpoint, self.run_dir / "best_models" / "last.zip"
+            )
+            if resume_checkpoint.manifest.get("status") == "safe":
+                atomic_copy_checkpoint(
+                    resume_checkpoint,
+                    self.run_dir / "best_models" / "latest_safe.zip",
+                )
+            for alias, selected in self.best.items():
+                source = selected.get("checkpoint")
+                checkpoint = available.get(Path(source).name) if source else None
+                if checkpoint is not None:
+                    atomic_copy_checkpoint(
+                        checkpoint,
+                        self.run_dir / "best_models" / f"{alias}.zip",
+                    )
 
         def _init_callback(self) -> None:
             self.metrics = UpdateMetricsRecorder(self.model, self.run_dir)
@@ -768,6 +1036,7 @@ def make_longrun_callback(
             ):
                 event["outcome"] = "stopped"
                 self.stop_reason = LongRunStopReason.REPEATED_REGRESSION
+                self.rollback_history.append(dict(event))
                 atomic_append_jsonl(
                     self.run_dir / "logs" / "rollback_history.jsonl", event
                 )
@@ -797,6 +1066,7 @@ def make_longrun_callback(
             self._rollback_this_update = True
             self.last_eval = None
             event.update({"outcome": "restored", "stage": target_stage})
+            self.rollback_history.append(dict(event))
             atomic_append_jsonl(
                 self.run_dir / "logs" / "rollback_history.jsonl", event
             )
@@ -818,33 +1088,145 @@ def make_longrun_callback(
                     },
                 )
 
-        def _evaluation_state(self) -> Dict[str, Any]:
-            return {"history": self.eval_history, "best": self.best}
+        def _selection_state(
+            self, checkpoint_path: Path, *, safe: bool
+        ) -> tuple[Dict[str, Dict[str, Any]], List[str]]:
+            proposed = dict(self.best)
+            changed: List[str] = []
+            if not (
+                safe and self.last_eval and self.last_eval.get("mode") == "full"
+            ):
+                return proposed, changed
+            compact = {
+                key: value
+                for key, value in self.last_eval.items()
+                if key not in {"rows", "reward_component_sums"}
+            }
+            aliases = (
+                ("best_overall", None),
+                ("best_left", "left"),
+                ("best_right", "right"),
+                ("best_three_gate", "three_gate"),
+            )
+            for alias, direction in aliases:
+                previous = proposed.get(alias)
+                if direction == "three_gate":
+                    three_gate_n = int(
+                        self.last_eval.get("category_metrics", {})
+                        .get("three_gate", {})
+                        .get("n", 0)
+                    )
+                    if three_gate_n <= 0:
+                        continue
+                    better = previous is None or float(
+                        self.last_eval.get("three_gate_completion_rate", 0.0)
+                    ) > float(previous.get("three_gate_completion_rate", 0.0))
+                else:
+                    better = is_better(
+                        self.last_eval, previous, direction=direction
+                    )
+                if better:
+                    proposed[alias] = {
+                        **compact,
+                        "checkpoint": str(checkpoint_path),
+                    }
+                    changed.append(alias)
+            reliable = reliability_requirements_met(
+                self.last_eval, config.curriculum.promotion
+            )
+            if reliable:
+                reliable_previous = proposed.get("best_reliable")
+                if is_better(self.last_eval, reliable_previous):
+                    proposed["best_reliable"] = {
+                        **compact,
+                        "checkpoint": str(checkpoint_path),
+                    }
+                    changed.append("best_reliable")
+                fast_previous = proposed.get("best_fast_reliable")
+                fast_key = fast_reliable_metric_key(
+                    self.last_eval, config.curriculum.promotion
+                )
+                previous_key = (
+                    fast_reliable_metric_key(
+                        fast_previous, config.curriculum.promotion
+                    )
+                    if fast_previous
+                    else None
+                )
+                if previous_key is None or fast_key > previous_key:
+                    proposed["best_fast_reliable"] = {
+                        **compact,
+                        "checkpoint": str(checkpoint_path),
+                    }
+                    changed.append("best_fast_reliable")
+            return proposed, changed
 
-        def _save_checkpoint(
-            self, *, reason: str, safe: bool = True
-        ):
+        def _evaluation_state(
+            self, best: Optional[Dict[str, Dict[str, Any]]] = None
+        ) -> Dict[str, Any]:
+            return {
+                "history": self.eval_history,
+                "best": self.best if best is None else best,
+                "last": self.last_eval,
+            }
+
+        def _save_checkpoint(self, *, reason: str, safe: bool = True):
             current = int(self.model.num_timesteps)
+            checkpoint_path = (
+                self.run_dir / "checkpoints" / f"ppo_{current}_steps.zip"
+            )
+            proposed_best, changed_aliases = self._selection_state(
+                checkpoint_path, safe=safe
+            )
+            checkpoint_aliases = dict(
+                status_store.data.get("checkpoint_aliases", {})
+            )
+            checkpoint_aliases.update(
+                {
+                    alias: selected.get("checkpoint")
+                    for alias, selected in proposed_best.items()
+                    if selected.get("checkpoint")
+                }
+            )
+            checkpoint_aliases["last"] = str(checkpoint_path)
+            if safe:
+                checkpoint_aliases["latest_safe"] = str(checkpoint_path)
             checkpoint = atomic_save_checkpoint(
                 self.model,
                 self.run_dir,
                 total_timesteps=current,
                 config_contract_hash=contract_hash,
                 curriculum_state=sampler.state_dict(),
-                evaluation_state=self._evaluation_state(),
+                evaluation_state=self._evaluation_state(proposed_best),
                 status="safe" if safe else "unsafe",
                 reason=reason,
                 extra_state={
                     "automatic_changes": self.automatic_changes,
                     "stop_reason": self.stop_reason,
                     "rollback_count": self.rollback_count,
+                    "last_rollback_reason": self.last_rollback_reason,
+                    "last_rollback_source": self.last_rollback_source,
+                    "rollback_history": self.rollback_history,
                     "reward_phase": (
                         reward_config.reward_phase
                         if reward_config is not None
                         else "legacy"
                     ),
+                    "low_kl_count": self.low_kl_count,
+                    "high_kl_count": self.high_kl_count,
+                    "next_checkpoint": _future_trigger(
+                        current, config.evaluation.checkpoint_frequency
+                    ),
+                    "next_light_evaluation": _future_trigger(
+                        current, config.evaluation.light_frequency
+                    ),
+                    "next_full_evaluation": _future_trigger(
+                        current, config.evaluation.full_frequency
+                    ),
+                    "checkpoint_aliases": checkpoint_aliases,
                 },
             )
+            self.best = proposed_best
             self.last_checkpoint = checkpoint
             atomic_copy_checkpoint(
                 checkpoint, self.run_dir / "best_models" / "last.zip"
@@ -854,102 +1236,26 @@ def make_longrun_callback(
                     checkpoint,
                     self.run_dir / "best_models" / "latest_safe.zip",
                 )
-            if safe and self.last_eval and self.last_eval.get("mode") == "full":
-                aliases = (
-                    ("best_overall", None),
-                    ("best_left", "left"),
-                    ("best_right", "right"),
-                    ("best_three_gate", "three_gate"),
+            for alias in changed_aliases:
+                atomic_copy_checkpoint(
+                    checkpoint,
+                    self.run_dir / "best_models" / f"{alias}.zip",
                 )
-                for alias, direction in aliases:
-                    previous = self.best.get(alias)
-                    if direction == "three_gate":
-                        three_gate_n = int(
-                            self.last_eval.get("category_metrics", {})
-                            .get("three_gate", {})
-                            .get("n", 0)
-                        )
-                        if three_gate_n <= 0:
-                            continue
-                        better = (
-                            previous is None
-                            or float(
-                                self.last_eval.get(
-                                    "three_gate_completion_rate", 0.0
-                                )
-                            )
-                            > float(
-                                previous.get("three_gate_completion_rate", 0.0)
-                            )
-                        )
-                    else:
-                        better = is_better(
-                            self.last_eval, previous, direction=direction
-                        )
-                    if better:
-                        self.best[alias] = {
-                            **{
-                                key: value
-                                for key, value in self.last_eval.items()
-                                if key not in {"rows", "reward_component_sums"}
-                            },
-                            "checkpoint": str(checkpoint.model_path),
-                        }
-                        atomic_copy_checkpoint(
-                            checkpoint,
-                            self.run_dir / "best_models" / f"{alias}.zip",
-                        )
-                reliable = reliability_requirements_met(
-                    self.last_eval, config.curriculum.promotion
-                )
-                if reliable:
-                    reliable_previous = self.best.get("best_reliable")
-                    if is_better(self.last_eval, reliable_previous):
-                        self._update_alias(
-                            "best_reliable", checkpoint, self.last_eval
-                        )
-                    fast_previous = self.best.get("best_fast_reliable")
-                    fast_key = fast_reliable_metric_key(
-                        self.last_eval, config.curriculum.promotion
-                    )
-                    previous_key = (
-                        fast_reliable_metric_key(
-                            fast_previous, config.curriculum.promotion
-                        )
-                        if fast_previous
-                        else None
-                    )
-                    if previous_key is None or fast_key > previous_key:
-                        self._update_alias(
-                            "best_fast_reliable", checkpoint, self.last_eval
-                        )
             status_store.update(
                 last_checkpoint=str(checkpoint.model_path),
                 best_checkpoint=self.best.get("best_overall", {}).get(
                     "checkpoint"
                 ),
+                best_reliable_checkpoint=self.best.get(
+                    "best_reliable", {}
+                ).get("checkpoint"),
+                best_fast_reliable_checkpoint=self.best.get(
+                    "best_fast_reliable", {}
+                ).get("checkpoint"),
+                checkpoint_aliases=checkpoint_aliases,
                 total_timesteps=current,
             )
             return checkpoint
-
-        def _update_alias(
-            self,
-            alias: str,
-            checkpoint: Any,
-            report: Mapping[str, Any],
-        ) -> None:
-            self.best[alias] = {
-                **{
-                    key: value
-                    for key, value in report.items()
-                    if key not in {"rows", "reward_component_sums"}
-                },
-                "checkpoint": str(checkpoint.model_path),
-            }
-            atomic_copy_checkpoint(
-                checkpoint,
-                self.run_dir / "best_models" / f"{alias}.zip",
-            )
 
         def finalize(self) -> None:
             self._after_update()

@@ -9,13 +9,16 @@ import pytest
 pytest.importorskip("torch")
 
 from marine_race_arena.learning.longrun_config import LongRunConfig
+from marine_race_arena.learning.longrun_checkpoint import atomic_save_checkpoint
 from marine_race_arena.learning.longrun_evaluation import (
     aggregate_evaluation,
     checkpoint_metric_key,
     fast_reliable_metric_key,
 )
 from marine_race_arena.learning.longrun_monitor import (
+    StatusStore,
     evaluation_regression_reasons,
+    make_longrun_callback,
     rollback_attempt_allowed,
     rollback_target_stage,
     restore_ppo_training_state,
@@ -351,6 +354,21 @@ def test_retention_weight_decays_and_is_disabled_after_c2_without_runtime_expert
     regularizer.decay_until_timesteps = 150_000
     regularizer.active_through_stage_index = 2
     regularizer.weight_multiplier = 1.0
+    regularizer.calls = 17
+    regularizer.rng = __import__("numpy").random.default_rng(42)
+    regularizer.last_metrics = {
+        "bc_retention_loss": 0.2,
+        "initial_policy_kl": 0.1,
+        "retention_weight": 0.05,
+    }
+    state = regularizer.state_dict()
+    expected_rng_value = regularizer.rng.integers(0, 1000)
+    regularizer.calls = 0
+    regularizer.weight_multiplier = 2.0
+    regularizer.load_state_dict(state)
+    assert regularizer.calls == 17
+    assert regularizer.weight_multiplier == 1.0
+    assert regularizer.rng.integers(0, 1000) == expected_rng_value
     assert regularizer.effective_weight(0, "C0") == pytest.approx(0.10)
     assert regularizer.effective_weight(75_000, "C2") == pytest.approx(0.05)
     assert regularizer.effective_weight(150_000, "C2") == 0
@@ -360,6 +378,227 @@ def test_retention_weight_decays_and_is_disabled_after_c2_without_runtime_expert
     ).read_text(encoding="utf-8")
     assert "RuleGateCenterThenCommitController" not in source
     assert "ControllerLoader" not in source
+
+
+def test_resume_hydrates_exact_reliability_pipeline_state_without_resets(
+    tmp_path,
+):
+    import json
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from marine_race_arena.learning.reliability_first import (
+        OfflineRetentionRegularizer,
+    )
+    from marine_race_arena.learning.train_multigate_longrun import (
+        AbsoluteLearningRateSchedule,
+        _upgrade_resume_state,
+    )
+
+    config = _config()
+    config.output_root = str(tmp_path.parent)
+    config.run_name = tmp_path.name
+    sampler = _sampler(config)
+    sampler.state.current_stage = "C1"
+    sampler.state.training_timesteps = 232_382
+    sampler.state.stage_entry_timesteps = 225_280
+    sampler.state.consecutive_full_passes = 2
+    sampler.state.reliable_full_streak = 2
+    sampler.state.efficiency_phase_active = True
+    sampler.state.stage_changes = [
+        {"timesteps": 25_000, "from": "C0", "to": "C1"},
+        {"timesteps": 126_976, "from": "C1", "to": "C2"},
+        {
+            "timesteps": 225_280,
+            "from": "C2",
+            "to": "C1",
+            "reason": "automatic_full_evaluation_rollback",
+        },
+    ]
+    report = {
+        **_passing_report(
+            timesteps=225_280,
+            stage="C2",
+            collision_events=2,
+            collision_frames=9,
+            out_of_bounds_events=3,
+            out_of_bounds_frames=4,
+            wrong_direction_count=5,
+            safety_warning_events=6,
+            safety_warning_frames=7,
+            episodes_with_collision=1,
+            episodes_with_out_of_bounds=1,
+            episodes_with_wrong_direction=1,
+            episodes_with_any_safety=1,
+            mean_successful_time_s=15.33,
+            mean_penalized_time_s=15.83,
+            mean_action_jerk=0.036,
+        )
+    }
+
+    class FakeModel:
+        num_timesteps = 0
+
+        def save(self, path):
+            import zipfile
+
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("model.txt", "policy optimizer scheduler")
+
+    best_checkpoint = atomic_save_checkpoint(
+        FakeModel(),
+        tmp_path,
+        total_timesteps=126_976,
+        config_contract_hash="a" * 64,
+        curriculum_state=sampler.state_dict(),
+        evaluation_state={"history": [], "best": {}},
+    )
+    resume_checkpoint = atomic_save_checkpoint(
+        FakeModel(),
+        tmp_path,
+        total_timesteps=232_382,
+        config_contract_hash="a" * 64,
+        curriculum_state=sampler.state_dict(),
+        evaluation_state={"history": [], "best": {}},
+    )
+    rollback = {
+        "timesteps": 225_280,
+        "attempt": 1,
+        "reasons": ["safety_episode_regression"],
+        "source": str(best_checkpoint.model_path),
+        "retention_weight_after": 0.125,
+        "outcome": "restored",
+        "stage": "C1",
+    }
+    (tmp_path / "logs").mkdir(exist_ok=True)
+    (tmp_path / "logs" / "rollback_history.jsonl").write_text(
+        json.dumps(rollback) + "\n", encoding="utf-8"
+    )
+    regularizer = object.__new__(OfflineRetentionRegularizer)
+    regularizer.rng = np.random.default_rng(23001 + 9173)
+    regularizer.calls = 0
+    regularizer.weight_multiplier = 1.0
+    regularizer.batch_size = 4
+    regularizer.observations = np.zeros((10, 3), dtype=np.float32)
+    regularizer.base_weight = 0.1
+    regularizer.last_metrics = {
+        "bc_retention_loss": None,
+        "initial_policy_kl": None,
+        "retention_weight": 0.1,
+    }
+    schedule = AbsoluteLearningRateSchedule(1e-5, 2e-6, "linear")
+    schedule.last_value = 8.19776e-6
+    legacy_model = SimpleNamespace(
+        num_timesteps=232_382,
+        _n_updates=226,
+        n_epochs=2,
+        _current_progress_remaining=0.768576,
+        learning_rate=schedule,
+        lr_schedule=schedule,
+        policy=SimpleNamespace(
+            optimizer=SimpleNamespace(param_groups=[{"lr": 8.148608e-6}])
+        ),
+        _retention_regularizer=regularizer,
+    )
+    # This is the exact v1 shape that triggered the bug: no model-training
+    # sidecar, last evaluation, rollback detail/history, or alias snapshot.
+    legacy_state = {
+        "total_timesteps": 232_382,
+        "curriculum": sampler.state_dict(),
+        "evaluation": {
+            "history": [report],
+            "best": {
+                "best_overall": {
+                    **report,
+                    "checkpoint": str(best_checkpoint.model_path),
+                },
+                "best_reliable": {
+                    **report,
+                    "checkpoint": str(best_checkpoint.model_path),
+                },
+                "best_fast_reliable": {
+                    **report,
+                    "checkpoint": str(best_checkpoint.model_path),
+                },
+            },
+        },
+        "extra": {
+            "automatic_changes": [{"kind": "bounded_lr_change"}],
+            "rollback_count": 1,
+            "reward_phase": "efficiency",
+        },
+    }
+    state = _upgrade_resume_state(
+        config, resume_checkpoint, legacy_state, legacy_model
+    )
+    reward = MultiGateRewardConfig(reward_phase="reliability")
+    status = StatusStore(tmp_path)
+    callback = make_longrun_callback(
+        run_dir=tmp_path,
+        config=config,
+        sampler=sampler,
+        status_store=status,
+        contract_hash="a" * 64,
+        evaluate_fn=lambda *_: report,
+        reward_config=reward,
+    )
+    callback.restore_pipeline_state(
+        state, resume_checkpoint=resume_checkpoint
+    )
+
+    restored = status.data
+    assert restored["total_timesteps"] == 232_382
+    assert restored["curriculum_stage"] == "C1"
+    assert len(restored["curriculum_stage_history"]) == 3
+    assert restored["stage_entry_timesteps"] == 225_280
+    assert restored["next_promotion_eligibility_step"] == 275_280
+    assert restored["consecutive_reliable_full_evaluations"] == 2
+    assert restored["evaluation_history_count"] == 1
+    assert restored["latest_full_evaluation"].endswith(
+        "full_000225280.json"
+    )
+    assert restored["rollback_count"] == 1
+    assert restored["last_rollback_reason"] == [
+        "safety_episode_regression"
+    ]
+    assert restored["last_rollback_source"] == str(
+        best_checkpoint.model_path
+    )
+    assert restored["rollback_history"] == [rollback]
+    assert restored["best_reliable_checkpoint"] == str(
+        best_checkpoint.model_path
+    )
+    assert restored["best_fast_reliable_checkpoint"] == str(
+        best_checkpoint.model_path
+    )
+    assert restored["last_checkpoint"] == str(resume_checkpoint.model_path)
+    assert restored["checkpoint_aliases"]["best_reliable"] == str(
+        best_checkpoint.model_path
+    )
+    assert restored["current_learning_rate"] == pytest.approx(8.148608e-6)
+    assert restored["reward_phase"] == "efficiency"
+    assert restored["retention_state"]["calls"] == 113
+    assert restored["retention_state"]["weight_multiplier"] == pytest.approx(
+        1.25
+    )
+    assert restored["collision_events"] == 2
+    assert restored["collision_frames"] == 9
+    assert restored["out_of_bounds_events"] == 3
+    assert restored["wrong_direction_count"] == 5
+    assert all(value is not None for value in (
+        restored["last_checkpoint"],
+        restored["latest_full_evaluation"],
+        restored["best_reliable_checkpoint"],
+        restored["best_fast_reliable_checkpoint"],
+        restored["last_rollback_reason"],
+        restored["last_rollback_source"],
+        restored["checkpoint_aliases"],
+        restored["retention_state"],
+    ))
+    assert reward.reward_phase == "efficiency"
+    assert callback.rollback_count == 1
+    assert callback.eval_history == [report]
 
 
 def test_auxiliary_losses_are_logged_separately_by_reliability_ppo():

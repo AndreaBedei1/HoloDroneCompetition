@@ -17,8 +17,10 @@ pytest.importorskip("torch")
 from marine_race_arena.learning.longrun_checkpoint import (
     atomic_save_checkpoint,
     atomic_write_json,
+    capture_model_training_state,
     latest_valid_checkpoint,
     load_checkpoint_state,
+    restore_model_training_state,
 )
 from marine_race_arena.learning.bc_longrun_v3 import _geometry, _split_for_group
 from marine_race_arena.learning.longrun_config import LongRunConfig
@@ -30,7 +32,10 @@ from marine_race_arena.learning.longrun_evaluation import (
     is_better,
     plateau_detected,
 )
-from marine_race_arena.learning.longrun_monitor import StatusStore
+from marine_race_arena.learning.longrun_monitor import (
+    StatusStore,
+    UpdateMetricsRecorder,
+)
 from marine_race_arena.learning.longrun_tools import request_stop, run_status
 from marine_race_arena.learning.multigate_longrun_data import build_balanced_plan
 from marine_race_arena.learning.parametric_curriculum import (
@@ -49,6 +54,8 @@ from marine_race_arena.learning.seed_registry import (
 from marine_race_arena.learning.train_multigate_longrun import (
     AbsoluteLearningRateSchedule,
     _is_recoverable_simulator_error,
+    _migrate_learning_rate_schedule,
+    run_contract_hash,
 )
 
 
@@ -124,6 +131,45 @@ def test_scheduler_resume_is_picklable_and_continuous():
     assert 5e-6 <= restored(0.5) < before
 
 
+def test_scheduler_uses_original_absolute_horizon_on_short_resume():
+    schedule = AbsoluteLearningRateSchedule(1e-5, 2e-6, "linear")
+    short_resume_target = 332_382
+    current = 234_430
+    schedule.set_training_horizon(
+        sb3_total_timesteps=short_resume_target,
+        absolute_total_timesteps=1_000_000,
+    )
+    sb3_progress = 1.0 - current / short_resume_target
+    expected = 2e-6 + (1e-5 - 2e-6) * (1.0 - current / 1_000_000)
+    assert schedule(sb3_progress) == pytest.approx(expected)
+    assert schedule(sb3_progress) > 8e-6
+
+
+def test_legacy_cloudpickled_schedule_is_migrated_with_state():
+    class LegacySchedule:
+        start = 1e-5
+        end = 2e-6
+        kind = "linear"
+        multiplier = 0.5
+        last_value = 8.19776e-6
+
+        def __call__(self, progress_remaining):
+            return 4e-6
+
+    class Model:
+        learning_rate = LegacySchedule()
+        lr_schedule = LegacySchedule()
+
+    config = LongRunConfig()
+    model = Model()
+    _migrate_learning_rate_schedule(model, config)
+    assert isinstance(model.learning_rate, AbsoluteLearningRateSchedule)
+    assert model.learning_rate.multiplier == pytest.approx(0.5)
+    assert model.learning_rate.last_value == pytest.approx(8.19776e-6)
+    assert model.lr_schedule.value_schedule is model.learning_rate
+    assert hasattr(model.learning_rate, "set_training_horizon")
+
+
 def test_atomic_checkpoint_and_timestep_resume_continuity(tmp_path):
     checkpoint = _checkpoint(tmp_path, 2048)
     assert checkpoint.model_path.exists()
@@ -134,6 +180,10 @@ def test_atomic_checkpoint_and_timestep_resume_continuity(tmp_path):
     assert latest is not None and latest.timesteps == 2048
     state = load_checkpoint_state(latest)
     assert state["total_timesteps"] == 2048
+    assert state["model_training"]["num_timesteps"] == 0
+    assert state["model_training"]["schema_version"] == (
+        "multigate_model_training_state_v1"
+    )
     assert not list((tmp_path / "checkpoints").glob("*.tmp"))
     assert not list((tmp_path / "checkpoints").glob("*.partial.zip"))
 
@@ -159,6 +209,53 @@ def test_curriculum_rng_and_stage_resume_exactly():
     resumed = CurriculumSampler(seed=22001, initial_stage="C2")
     resumed.load_state_dict(state)
     assert resumed.sample() == expected
+
+
+def test_model_counter_schedule_and_optimizer_lr_resume_together():
+    torch = pytest.importorskip("torch")
+
+    class Policy(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.tensor([1.0]))
+            self.optimizer = torch.optim.Adam(self.parameters(), lr=8.2e-6)
+
+    class Model:
+        def __init__(self):
+            self.policy = Policy()
+            self.num_timesteps = 232_382
+            self._n_updates = 226
+            self._current_progress_remaining = 0.768576
+            self.learning_rate = AbsoluteLearningRateSchedule(
+                1e-5, 2e-6, "linear"
+            )
+            self.learning_rate.multiplier = 0.5
+            self.learning_rate.last_value = 7.5e-6
+            self.lr_schedule = self.learning_rate
+
+    model = Model()
+    saved = capture_model_training_state(model)
+    model._n_updates = 0
+    model._current_progress_remaining = 1.0
+    model.policy.optimizer.param_groups[0]["lr"] = 1e-5
+    model.learning_rate.multiplier = 1.0
+    model.learning_rate.last_value = 1e-5
+    restore_model_training_state(model, saved)
+    assert model._n_updates == 226
+    assert model._current_progress_remaining == pytest.approx(0.768576)
+    assert model.policy.optimizer.param_groups[0]["lr"] == pytest.approx(8.2e-6)
+    assert model.learning_rate.multiplier == pytest.approx(0.5)
+    assert model.learning_rate.last_value == pytest.approx(7.5e-6)
+
+
+def test_existing_run_contract_survives_compatible_code_fix(tmp_path):
+    config = LongRunConfig(output_root=str(tmp_path), run_name="resume")
+    config.run_dir.mkdir(parents=True)
+    atomic_write_json(
+        config.run_dir / "run_manifest.json",
+        {"config_contract_sha256": "b" * 64},
+    )
+    assert run_contract_hash(config) == "b" * 64
 
 
 def test_balanced_plan_has_requested_left_right_and_geometry_splits():
@@ -325,6 +422,40 @@ def test_status_file_atomic_update_and_graceful_stop(tmp_path):
     assert result["stop_requested"]
     assert (tmp_path / "stop.requested").exists()
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_resume_quarantines_metric_rows_newer_than_selected_checkpoint(tmp_path):
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "update_metrics.csv").write_text(
+        "num_timesteps,n_updates\n232382,226\n235885,228\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "update_metrics.jsonl").write_text(
+        "\n".join(
+            (
+                '{"num_timesteps":232382,"n_updates":226}',
+                '{"num_timesteps":235885,"n_updates":228}',
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class Model:
+        num_timesteps = 232_382
+
+    recorder = UpdateMetricsRecorder(Model(), tmp_path)
+    assert recorder.last_timestep == 232_382
+    assert [int(row["num_timesteps"]) for row in recorder.rows] == [232_382]
+    assert "235885" not in (
+        tmp_path / "update_metrics.jsonl"
+    ).read_text(encoding="utf-8")
+    quarantines = list(
+        (tmp_path / "recovery").glob("update_metrics_after_232382_*.json")
+    )
+    assert len(quarantines) == 1
+    recovered = json.loads(quarantines[0].read_text(encoding="utf-8"))
+    assert recovered["rows"][0]["num_timesteps"] == 235_885
 
 
 def test_status_pid_handling_marks_missing_process_dead(tmp_path):

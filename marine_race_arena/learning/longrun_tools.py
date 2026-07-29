@@ -26,8 +26,8 @@ from marine_race_arena.learning.seed_registry import (
     MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS,
 )
 from marine_race_arena.learning.train_multigate_longrun import (
-    config_contract_hash,
     preflight,
+    run_contract_hash,
 )
 
 
@@ -77,7 +77,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
     latest = latest_valid_checkpoint(
         path,
         expected_contract_hash=(
-            config_contract_hash(config) if config is not None else None
+            run_contract_hash(config) if config is not None else None
         ),
         safe_only=False,
     )
@@ -89,6 +89,11 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "current_total_timesteps": status.get("total_timesteps"),
         "target_total_timesteps": status.get("target_total_timesteps"),
         "current_curriculum_stage": status.get("curriculum_stage"),
+        "curriculum_stage_history": status.get("curriculum_stage_history"),
+        "curriculum_evaluation_history_count": status.get(
+            "curriculum_evaluation_history_count"
+        ),
+        "evaluation_history_count": status.get("evaluation_history_count"),
         "last_checkpoint": (
             str(latest.model_path) if latest is not None else status.get("last_checkpoint")
         ),
@@ -126,6 +131,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "rollback_count": status.get("rollback_count", 0),
         "last_rollback_reason": status.get("last_rollback_reason"),
         "last_rollback_source": status.get("last_rollback_source"),
+        "rollback_history": status.get("rollback_history"),
         "collision_events": status.get("collision_events"),
         "collision_frames": status.get("collision_frames"),
         "out_of_bounds_events": status.get("out_of_bounds_events"),
@@ -146,6 +152,8 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "best_fast_reliable_checkpoint": status.get(
             "best_fast_reliable_checkpoint"
         ),
+        "checkpoint_aliases": status.get("checkpoint_aliases"),
+        "retention_state": status.get("retention_state"),
         "throughput_steps_per_s": status.get("throughput_steps_per_s"),
         "estimated_remaining_wall_s": status.get(
             "estimated_remaining_wall_s"

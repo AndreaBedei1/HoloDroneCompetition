@@ -20,6 +20,7 @@ from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION
 from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
 
 CHECKPOINT_SCHEMA_VERSION = "multigate_longrun_checkpoint_v1"
+MODEL_TRAINING_STATE_VERSION = "multigate_model_training_state_v1"
 
 
 def sha256_file(path: str | Path) -> str:
@@ -96,6 +97,109 @@ def restore_rng_state(state: Dict[str, Any]) -> None:
         pass
 
 
+def _schedule_objects(model: Any) -> Iterable[Any]:
+    """Yield the persisted schedule and any SB3 wrapper around it once each."""
+    seen = set()
+    candidates = [
+        getattr(model, "learning_rate", None),
+        getattr(model, "lr_schedule", None),
+        getattr(getattr(model, "lr_schedule", None), "value_schedule", None),
+    ]
+    for candidate in candidates:
+        if candidate is None or id(candidate) in seen:
+            continue
+        seen.add(id(candidate))
+        yield candidate
+
+
+def _schedule_state(model: Any) -> Optional[Dict[str, Any]]:
+    for schedule in _schedule_objects(model):
+        if hasattr(schedule, "state_dict"):
+            value = schedule.state_dict()
+            if isinstance(value, dict):
+                return dict(value)
+        if hasattr(schedule, "last_value"):
+            return {
+                "schema_version": "absolute_learning_rate_schedule_v1",
+                "start": float(schedule.start),
+                "end": float(schedule.end),
+                "kind": str(schedule.kind),
+                "multiplier": float(schedule.multiplier),
+                "last_value": float(schedule.last_value),
+            }
+    return None
+
+
+def capture_model_training_state(model: Any) -> Dict[str, Any]:
+    """Capture JSON-safe counters and dynamic state stored alongside the SB3 ZIP."""
+    optimizer = getattr(getattr(model, "policy", None), "optimizer", None)
+    optimizer_lrs = (
+        [float(group["lr"]) for group in optimizer.param_groups]
+        if optimizer is not None
+        else []
+    )
+    regularizer = getattr(model, "_retention_regularizer", None)
+    retention_state = (
+        regularizer.state_dict()
+        if regularizer is not None and hasattr(regularizer, "state_dict")
+        else None
+    )
+    return {
+        "schema_version": MODEL_TRAINING_STATE_VERSION,
+        "num_timesteps": int(getattr(model, "num_timesteps", 0)),
+        "n_updates": int(getattr(model, "_n_updates", 0)),
+        "current_progress_remaining": float(
+            getattr(model, "_current_progress_remaining", 1.0)
+        ),
+        "optimizer_learning_rates": optimizer_lrs,
+        "learning_rate_schedule": _schedule_state(model),
+        "retention_regularizer": retention_state,
+    }
+
+
+def restore_model_training_state(model: Any, state: Dict[str, Any]) -> None:
+    """Restore sidecar state after SB3 has restored policy and optimizer tensors."""
+    if not state:
+        return
+    if state.get("schema_version") not in {None, MODEL_TRAINING_STATE_VERSION}:
+        raise ValueError("unsupported model training state")
+    expected_timesteps = int(state.get("num_timesteps", model.num_timesteps))
+    if int(model.num_timesteps) != expected_timesteps:
+        raise ValueError(
+            "model ZIP and training sidecar disagree on total timesteps"
+        )
+    model._n_updates = int(state.get("n_updates", model._n_updates))
+    model._current_progress_remaining = float(
+        state.get(
+            "current_progress_remaining",
+            model._current_progress_remaining,
+        )
+    )
+    schedule_state = state.get("learning_rate_schedule")
+    if schedule_state:
+        for schedule in _schedule_objects(model):
+            if hasattr(schedule, "load_state_dict"):
+                schedule.load_state_dict(schedule_state)
+            elif hasattr(schedule, "last_value"):
+                schedule.multiplier = float(
+                    schedule_state.get("multiplier", schedule.multiplier)
+                )
+                schedule.last_value = float(
+                    schedule_state.get("last_value", schedule.last_value)
+                )
+    optimizer = getattr(getattr(model, "policy", None), "optimizer", None)
+    learning_rates = list(state.get("optimizer_learning_rates", []))
+    if optimizer is not None and learning_rates:
+        if len(learning_rates) != len(optimizer.param_groups):
+            raise ValueError("optimizer parameter-group count changed on resume")
+        for group, learning_rate in zip(optimizer.param_groups, learning_rates):
+            group["lr"] = float(learning_rate)
+    regularizer = getattr(model, "_retention_regularizer", None)
+    retention_state = state.get("retention_regularizer")
+    if regularizer is not None and retention_state is not None:
+        regularizer.load_state_dict(retention_state)
+
+
 @dataclass(frozen=True)
 class ValidCheckpoint:
     model_path: Path
@@ -148,6 +252,7 @@ def atomic_save_checkpoint(
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
         "total_timesteps": int(total_timesteps),
         "rng": capture_rng_state(),
+        "model_training": capture_model_training_state(model),
         "curriculum": curriculum_state,
         "evaluation": evaluation_state,
         "extra": dict(extra_state or {}),

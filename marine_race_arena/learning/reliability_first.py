@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 
@@ -72,6 +72,31 @@ class OfflineRetentionRegularizer:
             "retention_weight": self.base_weight,
         }
         self._torch = torch
+
+    def state_dict(self) -> Dict[str, Any]:
+        """Return every mutable value needed for an exact continuation."""
+        return {
+            "schema_version": "offline_retention_state_v1",
+            "rng_state": self.rng.bit_generator.state,
+            "calls": int(self.calls),
+            "weight_multiplier": float(self.weight_multiplier),
+            "last_metrics": dict(self.last_metrics),
+        }
+
+    def load_state_dict(self, state: Mapping[str, Any]) -> None:
+        if state.get("schema_version") not in {None, "offline_retention_state_v1"}:
+            raise ValueError("unsupported offline retention state")
+        rng_state = state.get("rng_state")
+        if rng_state is not None:
+            self.rng.bit_generator.state = dict(rng_state)
+        self.calls = int(state.get("calls", self.calls))
+        self.weight_multiplier = float(
+            state.get("weight_multiplier", self.weight_multiplier)
+        )
+        self.last_metrics = {
+            **self.last_metrics,
+            **dict(state.get("last_metrics", {})),
+        }
 
     def effective_weight(self, timesteps: int, stage: str) -> float:
         if int(stage[1:]) > self.active_through_stage_index:
