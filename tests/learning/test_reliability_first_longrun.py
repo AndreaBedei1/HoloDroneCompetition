@@ -38,6 +38,9 @@ from marine_race_arena.learning.seed_registry import (
 
 
 CONFIG_PATH = Path("configs/rl_multigate_longrun_reliability_first.json")
+RECOVERY_CONFIG_PATH = Path(
+    "configs/rl/multigate_reliability_first_c3_recovery.json"
+)
 
 
 def _config() -> LongRunConfig:
@@ -85,6 +88,7 @@ def _sampler(config: LongRunConfig) -> CurriculumSampler:
             curriculum.early_failure_case_fraction,
         ),
         early_until_timesteps=curriculum.early_replay_until_timesteps,
+        geometry_ramp_timesteps=curriculum.geometry_ramp_timesteps,
         promotion_config=curriculum.promotion,
     )
 
@@ -117,6 +121,101 @@ def test_committed_reliability_config_is_conservative_and_exact():
     assert config.current_profile == "none"
 
 
+def test_c3_recovery_config_is_conservative_policy_only():
+    config = LongRunConfig.load(RECOVERY_CONFIG_PATH)
+    config.validate()
+    assert config.total_timesteps == 1_000_000
+    assert config.initialization_kind == "ppo_weights"
+    assert config.initialization_checkpoint.endswith(
+        "ppo_476525_steps.zip"
+    )
+    assert config.ppo.learning_rate == pytest.approx(5e-6)
+    assert config.ppo.target_kl == pytest.approx(0.003)
+    assert config.retention.active_through_stage == "C3"
+    assert config.retention.final_weight == pytest.approx(0.06)
+    assert config.curriculum.failure_case_fraction == pytest.approx(0.20)
+    assert config.curriculum.geometry_ramp_timesteps == 150_000
+    assert (
+        config.curriculum.promotion.required_consecutive_full_evaluations
+        == 2
+    )
+    assert (
+        config.curriculum.promotion.minimum_stage_timesteps["C3"]
+        == 100_000
+    )
+    assert config.curriculum.promotion.maximum_collision_episodes == 0
+    assert config.curriculum.promotion.maximum_out_of_bounds_episodes == 0
+    assert config.curriculum.promotion.maximum_wrong_direction_episodes == 0
+    assert config.curriculum.promotion.maximum_previous_gate_returns == 0
+    assert config.reliability.reward_phase.action_change_penalty == pytest.approx(
+        0.06
+    )
+
+
+def test_c3_geometry_is_ramped_without_hiding_targeted_failure_replay():
+    config = LongRunConfig.load(RECOVERY_CONFIG_PATH)
+    sampler = _sampler(config)
+    sampler.state.current_stage = "C3"
+    sampler.state.stage_entry_timesteps = 451_949
+    sampler.set_timesteps(525_678)
+    limits = sampler._sampling_limits("C3", "current_stage")
+    assert 20.0 < limits.max_abs_turn_deg < 30.0
+    sampler.set_timesteps(601_949)
+    assert sampler._sampling_limits(
+        "C3", "current_stage"
+    ).max_abs_turn_deg == pytest.approx(30.0)
+
+
+def test_recovery_preserves_absolute_timestep_and_curriculum_history():
+    from dataclasses import asdict
+
+    from marine_race_arena.learning.parametric_curriculum import (
+        TransitionGeometry,
+    )
+    from marine_race_arena.learning.prepare_c3_recovery import (
+        _recovery_curriculum,
+    )
+
+    config = LongRunConfig.load(RECOVERY_CONFIG_PATH)
+    source_sampler = _sampler(_config())
+    source_sampler.state.current_stage = "C3"
+    source_sampler.state.training_timesteps = 525_678
+    source_sampler.state.stage_entry_timesteps = 451_949
+    source_sampler.state.stage_changes = [
+        {
+            "timesteps": 451_949,
+            "from": "C2",
+            "to": "C3",
+            "reason": "evaluation_promotion",
+        }
+    ]
+    geometry = TransitionGeometry(
+        signed_turn_deg=30.0,
+        gate_separation_m=6.0,
+        lateral_displacement_m=0.4,
+        vertical_displacement_m=0.3,
+        starting_yaw_error_deg=6.0,
+        initial_lateral_offset_m=0.5,
+        source="held_out_evaluation",
+        stage="C3",
+    )
+    recovered = _recovery_curriculum(
+        config,
+        {
+            "total_timesteps": 525_678,
+            "curriculum": source_sampler.state_dict(),
+        },
+        asdict(geometry),
+    )
+    state = recovered["state"]
+    assert state["training_timesteps"] == 525_678
+    assert state["current_stage"] == "C3"
+    assert state["stage_entry_timesteps"] == 451_949
+    assert state["stage_changes"] == source_sampler.state.stage_changes
+    assert state["targeted_failures"][-1]["geometry"] == asdict(geometry)
+    assert recovered["geometry_ramp_timesteps"] == 150_000
+
+
 def test_early_replay_mixture_switches_exactly_at_50k():
     sampler = _sampler(_config())
     assert sampler.active_mixture == pytest.approx((0.30, 0.25, 0.25, 0.15, 0.05))
@@ -134,7 +233,6 @@ def test_only_two_consecutive_full_passes_after_lock_promote():
     sampler.record_evaluation(light, timesteps=25_000)
     assert sampler.current_stage == "C0"
     assert sampler.state.consecutive_full_passes == 0
-
     sampler.record_evaluation(_passing_report(), timesteps=25_000)
     assert sampler.current_stage == "C0"
     assert sampler.state.consecutive_full_passes == 1
@@ -142,6 +240,39 @@ def test_only_two_consecutive_full_passes_after_lock_promote():
     assert sampler.current_stage == "C1"
     assert sampler.state.stage_entry_timesteps == 50_000
     assert sampler.state.consecutive_full_passes == 0
+
+
+def test_c3_requires_minimum_duration_and_two_clean_full_suites():
+    config = LongRunConfig.load(RECOVERY_CONFIG_PATH)
+    sampler = _sampler(config)
+    sampler.state.current_stage = "C3"
+    sampler.state.stage_entry_timesteps = 451_949
+    clean = _passing_report(
+        stage="C3",
+        completions=20,
+        completion_rate=1.0,
+        previous_gate_returns=0,
+    )
+    sampler.record_evaluation(clean, timesteps=525_678)
+    sampler.record_evaluation(clean, timesteps=550_000)
+    assert sampler.current_stage == "C3"
+    assert sampler.state.consecutive_full_passes == 2
+    sampler.record_evaluation(
+        _passing_report(
+            stage="C3",
+            completions=20,
+            completion_rate=1.0,
+            previous_gate_returns=0,
+            episodes_with_collision=1,
+        ),
+        timesteps=552_000,
+    )
+    assert sampler.current_stage == "C3"
+    assert sampler.state.consecutive_full_passes == 0
+    sampler.record_evaluation(clean, timesteps=575_000)
+    assert sampler.current_stage == "C3"
+    sampler.record_evaluation(clean, timesteps=600_000)
+    assert sampler.current_stage == "C4"
 
 
 def test_failed_full_suite_resets_consecutive_promotion_streak():
@@ -380,6 +511,9 @@ def test_multiple_rollbacks_atomically_record_complete_events_and_status(
             assert device == "cpu"
             return cls(2.0, 100_000)
 
+        def save(self, path):
+            Path(path).write_bytes(b"fake-ppo")
+
     class Reward:
         reward_phase = "efficiency"
 
@@ -461,6 +595,44 @@ def test_multiple_rollbacks_atomically_record_complete_events_and_status(
         "reason": "automatic_full_evaluation_rollback",
     }
     assert reward.reward_phase == "reliability"
+
+    model.num_timesteps = 350_000
+    callback._perform_rollback(["safety_episode_regression"])
+    assert callback.rollback_count == 3
+    assert callback.stop_reason == "REPEATED_FULL_EVALUATION_REGRESSION"
+    assert callback.rollback_history[-1]["outcome"] == "stopped"
+    assert callback.rollback_history[-1]["recovery_attempt"] == 3
+    assert status.data["rollback_count"] == 3
+    assert status.data["last_rollback_outcome"] == "stopped"
+    assert len(
+        (
+            tmp_path / "logs" / "rollback_history.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+    ) == 3
+
+    unsafe = _passing_report(
+        stage="C1",
+        episodes_with_collision=1,
+    )
+    unsafe.update(
+        {
+            "timesteps": 350_000,
+            "collision_events": 1,
+            "runtime_rule_controller_instantiated": False,
+        }
+    )
+    callback.last_eval = unsafe
+    status.data["checkpoint_aliases"] = {
+        "latest_safe": str(tmp_path / "checkpoints" / "known_safe.zip")
+    }
+    final = callback._save_checkpoint(
+        reason="final_or_stop",
+        safe=True,
+    )
+    assert final.manifest["status"] == "unsafe"
+    assert status.data["checkpoint_aliases"]["latest_safe"].endswith(
+        "known_safe.zip"
+    )
 
 
 def test_status_and_resume_recover_second_rollback_from_journals(tmp_path):
@@ -558,6 +730,7 @@ def test_status_and_resume_recover_second_rollback_from_journals(tmp_path):
         },
         "extra": {
             "rollback_count": 2,
+            "rollback_attempt_base": 2,
             "last_rollback_reason": second["reasons"],
             "last_rollback_source": second["source"],
             "rollback_history": [first],
@@ -585,10 +758,12 @@ def test_status_and_resume_recover_second_rollback_from_journals(tmp_path):
     callback.restore_pipeline_state(upgraded)
 
     assert callback.rollback_count == 2
+    assert callback.rollback_attempt_base == 2
     assert len(callback.rollback_history) == 2
     assert callback.last_rollback_reason == ["straight_retention_floor"]
     assert callback.last_rollback_source == second["source"]
     assert status.data["rollback_count"] == 2
+    assert status.data["rollback_attempt_base"] == 2
     assert len(status.data["rollback_history"]) == 2
     assert len(status.data["curriculum_stage_history"]) == 2
     assert status.data["last_rollback_attempt"] == 2

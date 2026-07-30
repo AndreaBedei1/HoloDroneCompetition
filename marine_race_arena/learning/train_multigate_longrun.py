@@ -455,6 +455,7 @@ def _make_sampler(config: LongRunConfig) -> CurriculumSampler:
             curriculum.early_failure_case_fraction,
         ),
         early_until_timesteps=curriculum.early_replay_until_timesteps,
+        geometry_ramp_timesteps=curriculum.geometry_ramp_timesteps,
         promotion_config=curriculum.promotion,
         sensor_noise=curriculum.sensor_noise,
     )
@@ -707,6 +708,7 @@ def _upgrade_resume_state(
         extra.setdefault("last_rollback_source", None)
         extra.setdefault("rollback_count", 0)
     extra.setdefault("reward_phase", "legacy")
+    extra.setdefault("rollback_attempt_base", 0)
     extra.setdefault("low_kl_count", 0)
     extra.setdefault("high_kl_count", 0)
     best = dict(evaluation.get("best", {}))
@@ -719,8 +721,14 @@ def _upgrade_resume_state(
         }
     )
     aliases["last"] = str(checkpoint.model_path)
-    if checkpoint.manifest.get("status") == "safe":
-        aliases["latest_safe"] = str(checkpoint.model_path)
+    aliases.pop("latest_safe", None)
+    latest_safe = latest_valid_checkpoint(
+        config.run_dir,
+        expected_contract_hash=run_contract_hash(config),
+        safe_only=True,
+    )
+    if latest_safe is not None:
+        aliases["latest_safe"] = str(latest_safe.model_path)
     extra["checkpoint_aliases"] = aliases
     if not upgraded.get("model_training"):
         _restore_legacy_retention_state(model, config.run_dir, current)
@@ -897,6 +905,7 @@ def run_longrun(
         efficiency_jerk_penalty=phase.efficiency_jerk_penalty,
         efficiency_energy_penalty=phase.efficiency_energy_penalty,
         per_step_efficiency_penalty_cap=phase.per_step_efficiency_penalty_cap,
+        action_change_penalty=phase.action_change_penalty,
     )
     if reward_config.timeout_penalty <= reward_config.maximum_episode_time_term(
         config.max_episode_steps
@@ -1055,11 +1064,11 @@ def run_longrun(
             config_contract_hash=contract_hash,
             curriculum_state=sampler.state_dict(),
             evaluation_state={"history": [], "best": {}},
-            status="safe",
+            status="unverified",
             reason="initialized_from_frozen_checkpoint",
             extra_state={"automatic_changes": []},
         )
-        for alias in ("initial_bc_v3", "latest_safe", "last"):
+        for alias in ("initial_bc_v3", "last"):
             atomic_copy_checkpoint(
                 initial, run_dir / "best_models" / f"{alias}.zip"
             )

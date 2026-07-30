@@ -228,6 +228,7 @@ class CurriculumSampler:
         mixture: Sequence[float] = (0.20, 0.20, 0.30, 0.20, 0.10),
         early_mixture: Optional[Sequence[float]] = None,
         early_until_timesteps: int = 0,
+        geometry_ramp_timesteps: int = 0,
         promotion_config: Optional[Any] = None,
         sensor_noise: bool = True,
     ) -> None:
@@ -248,6 +249,7 @@ class CurriculumSampler:
         self.mixture = tuple(float(v) for v in mixture)
         self.early_mixture = tuple(float(v) for v in early_mixture)
         self.early_until_timesteps = int(early_until_timesteps)
+        self.geometry_ramp_timesteps = int(geometry_ramp_timesteps)
         self.promotion_config = promotion_config
         self.sensor_noise = bool(sensor_noise)
         self.rng = np.random.default_rng(self.seed)
@@ -266,6 +268,7 @@ class CurriculumSampler:
             "mixture": list(self.mixture),
             "early_mixture": list(self.early_mixture),
             "early_until_timesteps": self.early_until_timesteps,
+            "geometry_ramp_timesteps": self.geometry_ramp_timesteps,
             "sensor_noise": self.sensor_noise,
             "state": state,
         }
@@ -280,6 +283,11 @@ class CurriculumSampler:
             raise ValueError("curriculum early-mixture mismatch")
         if int(value.get("early_until_timesteps", 0)) != self.early_until_timesteps:
             raise ValueError("curriculum early replay boundary mismatch")
+        if (
+            int(value.get("geometry_ramp_timesteps", 0))
+            != self.geometry_ramp_timesteps
+        ):
+            raise ValueError("curriculum geometry-ramp boundary mismatch")
         state = dict(value["state"])
         rng_state = state.pop("rng_state", None)
         self.state = CurriculumState(**state)
@@ -373,7 +381,9 @@ class CurriculumSampler:
             stage_key = self.current_stage
             max_angle = STAGE_BY_KEY[stage_key].max_abs_turn_deg
 
-        limits = STAGE_BY_KEY[stage_key]
+        limits = self._sampling_limits(stage_key, source)
+        if source == "current_stage":
+            max_angle = limits.max_abs_turn_deg
         turn = 0.0 if max_angle == 0 else float(self.rng.uniform(-max_angle, max_angle))
         # Once real turns are introduced, prevent a transient success/failure
         # sequence from creating a persistent left/right replay imbalance.
@@ -423,6 +433,63 @@ class CurriculumSampler:
         )
         self._record_sample(geometry)
         return geometry
+
+    def _sampling_limits(
+        self, stage_key: str, source: str
+    ) -> ParametricStage:
+        """Ramp only newly introduced current-stage geometry difficulty."""
+        target = STAGE_BY_KEY[stage_key]
+        if (
+            source != "current_stage"
+            or self.geometry_ramp_timesteps <= 0
+            or stage_key == "C0"
+        ):
+            return target
+        previous_key = CURRICULUM_STAGES[
+            max(0, CURRICULUM_STAGES.index(stage_key) - 1)
+        ]
+        previous = STAGE_BY_KEY[previous_key]
+        elapsed = max(
+            0,
+            int(self.state.training_timesteps)
+            - int(self.state.stage_entry_timesteps),
+        )
+        progress = float(
+            np.clip(elapsed / self.geometry_ramp_timesteps, 0.0, 1.0)
+        )
+
+        def lerp(start: float, end: float) -> float:
+            return float(start + progress * (end - start))
+
+        return ParametricStage(
+            key=target.key,
+            max_abs_turn_deg=lerp(
+                previous.max_abs_turn_deg, target.max_abs_turn_deg
+            ),
+            min_separation_m=lerp(
+                previous.min_separation_m, target.min_separation_m
+            ),
+            max_separation_m=lerp(
+                previous.max_separation_m, target.max_separation_m
+            ),
+            max_lateral_offset_m=lerp(
+                previous.max_lateral_offset_m,
+                target.max_lateral_offset_m,
+            ),
+            max_vertical_step_m=lerp(
+                previous.max_vertical_step_m, target.max_vertical_step_m
+            ),
+            max_start_yaw_error_deg=lerp(
+                previous.max_start_yaw_error_deg,
+                target.max_start_yaw_error_deg,
+            ),
+            max_start_lateral_offset_m=lerp(
+                previous.max_start_lateral_offset_m,
+                target.max_start_lateral_offset_m,
+            ),
+            gate_count=target.gate_count,
+            official_tracks=target.official_tracks,
+        )
 
     def _record_sample(self, geometry: TransitionGeometry) -> None:
         for key in (geometry.source, geometry.direction, geometry.stage):

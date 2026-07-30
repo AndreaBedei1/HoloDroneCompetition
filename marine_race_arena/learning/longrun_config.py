@@ -163,6 +163,7 @@ class CurriculumConfig:
     early_current_stage_fraction: float = 0.30
     early_previous_stage_fraction: float = 0.20
     early_failure_case_fraction: float = 0.10
+    geometry_ramp_timesteps: int = 0
     sensor_noise: bool = True
     promotion: PromotionConfig = field(default_factory=PromotionConfig)
 
@@ -195,6 +196,8 @@ class CurriculumConfig:
             raise ValueError("early curriculum replay fractions must sum to 1")
         if self.early_replay_until_timesteps < 0:
             raise ValueError("early_replay_until_timesteps must be non-negative")
+        if self.geometry_ramp_timesteps < 0:
+            raise ValueError("geometry_ramp_timesteps must be non-negative")
         self.promotion.validate()
 
 
@@ -263,6 +266,7 @@ class RewardPhaseConfig:
     efficiency_jerk_penalty: float = 0.01
     efficiency_energy_penalty: float = 0.002
     per_step_efficiency_penalty_cap: float = 0.03
+    action_change_penalty: float = 0.04
 
     def validate(self) -> None:
         if self.reliable_full_evaluations <= 0:
@@ -274,6 +278,7 @@ class RewardPhaseConfig:
             self.efficiency_jerk_penalty,
             self.efficiency_energy_penalty,
             self.per_step_efficiency_penalty_cap,
+            self.action_change_penalty,
         )
         if any(value < 0 for value in values):
             raise ValueError("reward phase coefficients must be non-negative")

@@ -19,6 +19,8 @@ from marine_race_arena.learning.longrun_checkpoint import (
     atomic_save_checkpoint,
     atomic_write_json,
     capture_model_training_state,
+    checkpoint_passed_safety,
+    full_evaluation_passed_safety,
     valid_checkpoints,
 )
 from marine_race_arena.learning.longrun_evaluation import (
@@ -86,6 +88,7 @@ class StatusStore:
             "next_promotion_eligibility_step": 0,
             "stage_minimum_remaining_timesteps": 0,
             "rollback_count": 0,
+            "rollback_attempt_base": 0,
             "last_rollback_reason": None,
             "last_rollback_source": None,
             "last_rollback_timestep": None,
@@ -237,7 +240,6 @@ def resume_status_snapshot(
         }
     if last_checkpoint:
         checkpoint_aliases["last"] = str(last_checkpoint)
-        checkpoint_aliases["latest_safe"] = str(last_checkpoint)
     return {
         "total_timesteps": current,
         "curriculum_stage": sampler.current_stage,
@@ -269,6 +271,10 @@ def resume_status_snapshot(
         ),
         "reward_phase": str(extra.get("reward_phase", "legacy")),
         "replay_mixture": list(sampler.active_mixture),
+        "recovery_provenance": extra.get("recovery_provenance"),
+        "rollback_attempt_base": int(
+            extra.get("rollback_attempt_base", 0)
+        ),
         **rollback_fields,
         "checkpoint_aliases": checkpoint_aliases,
         "collision_events": report.get("collision_events"),
@@ -661,9 +667,12 @@ def make_longrun_callback(
             self.high_kl_count = 0
             self.automatic_changes: List[Dict[str, Any]] = []
             self.rollback_count = 0
+            self.rollback_attempt_base = 0
             self.last_rollback_reason: Optional[List[str]] = None
             self.last_rollback_source: Optional[str] = None
             self.rollback_history: List[Dict[str, Any]] = []
+            self.recovery_provenance: Optional[Dict[str, Any]] = None
+            self.safety_validation: Optional[Dict[str, Any]] = None
             self._rollback_this_update = False
             self._last_status_wall = 0.0
             self._started_wall = time.time()
@@ -703,6 +712,9 @@ def make_longrun_callback(
                 int(extra.get("rollback_count", 0)),
                 int(restored_rollback["rollback_count"]),
             )
+            self.rollback_attempt_base = int(
+                extra.get("rollback_attempt_base", 0)
+            )
             self.last_rollback_reason = (
                 restored_rollback["last_rollback_reason"]
                 if self.rollback_history
@@ -715,6 +727,8 @@ def make_longrun_callback(
             )
             self.low_kl_count = int(extra.get("low_kl_count", 0))
             self.high_kl_count = int(extra.get("high_kl_count", 0))
+            self.recovery_provenance = extra.get("recovery_provenance")
+            self.safety_validation = extra.get("safety_validation")
             if reward_config is not None:
                 reward_config.set_phase(
                     str(extra.get("reward_phase", reward_config.reward_phase))
@@ -758,19 +772,27 @@ def make_longrun_callback(
 
         def _restore_checkpoint_aliases(self, resume_checkpoint: Any) -> None:
             """Re-materialize every alias from the checkpoint-selection state."""
-            available = {
-                checkpoint.model_path.name: checkpoint
-                for checkpoint in valid_checkpoints(
+            checkpoint_rows = list(
+                valid_checkpoints(
                     self.run_dir,
                     expected_contract_hash=contract_hash,
                 )
+            )
+            available = {
+                checkpoint.model_path.name: checkpoint
+                for checkpoint in checkpoint_rows
             }
             atomic_copy_checkpoint(
                 resume_checkpoint, self.run_dir / "best_models" / "last.zip"
             )
-            if resume_checkpoint.manifest.get("status") == "safe":
+            safe_rows = [
+                checkpoint
+                for checkpoint in checkpoint_rows
+                if checkpoint_passed_safety(checkpoint)
+            ]
+            if safe_rows:
                 atomic_copy_checkpoint(
-                    resume_checkpoint,
+                    safe_rows[-1],
                     self.run_dir / "best_models" / "latest_safe.zip",
                 )
             for alias, selected in self.best.items():
@@ -868,6 +890,10 @@ def make_longrun_callback(
                     self._next_light_eval += config.evaluation.light_frequency
             if (
                 current >= self._next_checkpoint
+                and (
+                    self.last_checkpoint is None
+                    or self.last_checkpoint.timesteps != current
+                )
                 and not self._rollback_this_update
                 and self.stop_reason
                 not in {
@@ -875,7 +901,7 @@ def make_longrun_callback(
                     LongRunStopReason.NUMERICAL,
                 }
             ):
-                self._save_checkpoint(reason="periodic")
+                self._save_checkpoint(reason="periodic", safe=False)
                 while self._next_checkpoint <= current:
                     self._next_checkpoint += config.evaluation.checkpoint_frequency
 
@@ -979,7 +1005,11 @@ def make_longrun_callback(
                     self._perform_rollback(regression_reasons)
                 else:
                     self._save_checkpoint(
-                        reason="full_evaluation", safe=True
+                        reason="full_evaluation",
+                        safe=full_evaluation_passed_safety(
+                            report,
+                            minimum_cases=config.evaluation.full_episodes,
+                        ),
                     )
                     if change or phase_changed:
                         self._reset_training_episode()
@@ -1127,6 +1157,9 @@ def make_longrun_callback(
         def _perform_rollback(self, reasons: List[str]) -> None:
             rollback = config.reliability.rollback
             self.rollback_count += 1
+            recovery_attempt = (
+                self.rollback_count - self.rollback_attempt_base
+            )
             self.last_rollback_reason = list(reasons)
             incumbent = self.best.get("best_reliable", {})
             source_path = incumbent.get("checkpoint")
@@ -1145,6 +1178,7 @@ def make_longrun_callback(
                 "schema_version": ROLLBACK_EVENT_SCHEMA_VERSION,
                 "timesteps": current_timesteps,
                 "attempt": self.rollback_count,
+                "recovery_attempt": recovery_attempt,
                 "reason": (
                     reasons[0] if len(reasons) == 1 else "+".join(reasons)
                 ),
@@ -1157,7 +1191,7 @@ def make_longrun_callback(
             }
             if (
                 not rollback_attempt_allowed(
-                    self.rollback_count, rollback.maximum_attempts
+                    recovery_attempt, rollback.maximum_attempts
                 )
                 or not source_path
             ):
@@ -1363,8 +1397,17 @@ def make_longrun_callback(
                 "last": self.last_eval,
             }
 
-        def _save_checkpoint(self, *, reason: str, safe: bool = True):
+        def _save_checkpoint(self, *, reason: str, safe: bool = False):
             current = int(self.model.num_timesteps)
+            safe = bool(
+                safe
+                and isinstance(self.last_eval, dict)
+                and int(self.last_eval.get("timesteps", -1)) == current
+                and full_evaluation_passed_safety(
+                    self.last_eval,
+                    minimum_cases=config.evaluation.full_episodes,
+                )
+            )
             checkpoint_path = (
                 self.run_dir / "checkpoints" / f"ppo_{current}_steps.zip"
             )
@@ -1407,6 +1450,9 @@ def make_longrun_callback(
                 extra_state={
                     "automatic_changes": self.automatic_changes,
                     "stop_reason": self.stop_reason,
+                    "recovery_provenance": self.recovery_provenance,
+                    "safety_validation": self.safety_validation,
+                    "rollback_attempt_base": self.rollback_attempt_base,
                     **rollback_fields,
                     "reward_phase": (
                         reward_config.reward_phase
@@ -1466,11 +1512,16 @@ def make_longrun_callback(
             ):
                 self._save_checkpoint(
                     reason="final_or_stop",
-                    safe=self.stop_reason
-                    not in {
-                        LongRunStopReason.ABSOLUTE_KL,
-                        LongRunStopReason.NUMERICAL,
-                    },
+                    safe=(
+                        self.stop_reason is None
+                        and isinstance(self.last_eval, dict)
+                        and int(self.last_eval.get("timesteps", -1))
+                        == int(self.model.num_timesteps)
+                        and full_evaluation_passed_safety(
+                            self.last_eval,
+                            minimum_cases=config.evaluation.full_episodes,
+                        )
+                    ),
                 )
             state = "COMPLETED" if self.stop_reason is None else "STOPPED"
             status_store.update(

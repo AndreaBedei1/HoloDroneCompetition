@@ -356,12 +356,59 @@ def latest_valid_checkpoint(
         valid_checkpoints(run_dir, expected_contract_hash=expected_contract_hash)
     )
     if safe_only:
-        rows = [row for row in rows if row.manifest.get("status") == "safe"]
+        rows = [row for row in rows if checkpoint_passed_safety(row)]
     return rows[-1] if rows else None
 
 
 def load_checkpoint_state(checkpoint: ValidCheckpoint) -> Dict[str, Any]:
     return json.loads(checkpoint.state_path.read_text(encoding="utf-8"))
+
+
+def full_evaluation_passed_safety(
+    report: Dict[str, Any],
+    *,
+    minimum_cases: int = 10,
+) -> bool:
+    """Require complete, policy-only, zero-event safety evidence."""
+    return (
+        str(report.get("mode", "")) == "full"
+        and int(report.get("n_eval", 0)) >= int(minimum_cases)
+        and int(report.get("collision_events", 0)) == 0
+        and int(report.get("out_of_bounds_events", 0)) == 0
+        and int(report.get("wrong_direction_count", 0)) == 0
+        and int(report.get("previous_gate_returns", 0)) == 0
+        and bool(report.get("all_actions_finite", False))
+        and not bool(report.get("runtime_rule_controller_instantiated", False))
+    )
+
+
+def checkpoint_passed_safety(checkpoint: ValidCheckpoint) -> bool:
+    """Return whether a checkpoint has matching full-suite safety evidence.
+
+    Legacy manifests used ``status=safe`` for periodic and final snapshots that
+    had never been evaluated.  Direct evidence therefore has to match the
+    checkpoint timestep.  A derived recovery checkpoint may instead carry an
+    explicit validation record for the byte-identical source policy.
+    """
+    if checkpoint.manifest.get("status") != "safe":
+        return False
+    try:
+        state = load_checkpoint_state(checkpoint)
+    except (AttributeError, OSError, ValueError, json.JSONDecodeError):
+        return False
+    extra = dict(state.get("extra", {}))
+    recovery_validation = extra.get("safety_validation")
+    if isinstance(recovery_validation, dict):
+        report = recovery_validation.get("report", {})
+        return bool(recovery_validation.get("passed")) and isinstance(
+            report, dict
+        ) and full_evaluation_passed_safety(report)
+    report = dict(state.get("evaluation", {})).get("last")
+    return (
+        isinstance(report, dict)
+        and int(report.get("timesteps", -1)) == checkpoint.timesteps
+        and full_evaluation_passed_safety(report)
+    )
 
 
 def atomic_copy_checkpoint(

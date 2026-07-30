@@ -106,6 +106,13 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         ),
         safe_only=False,
     )
+    latest_safe = latest_valid_checkpoint(
+        path,
+        expected_contract_hash=(
+            run_contract_hash(config) if config is not None else None
+        ),
+        safe_only=True,
+    )
     checkpoint_state: Dict[str, Any] = {}
     if latest is not None:
         try:
@@ -194,6 +201,11 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         rollback_fields["last_rollback_source"] = status.get(
             "last_rollback_source"
         )
+    checkpoint_aliases = dict(status.get("checkpoint_aliases") or {})
+    if latest_safe is not None:
+        checkpoint_aliases["latest_safe"] = str(latest_safe.model_path)
+    else:
+        checkpoint_aliases.pop("latest_safe", None)
     result = {
         "run_dir": str(path),
         "pid": pid or None,
@@ -232,6 +244,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "retention_weight": status.get("retention_weight"),
         "reward_phase": status.get("reward_phase"),
         "replay_mixture": status.get("replay_mixture"),
+        "recovery_provenance": status.get("recovery_provenance"),
         "consecutive_reliable_full_evaluations": status.get(
             "consecutive_reliable_full_evaluations"
         ),
@@ -243,6 +256,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "stage_minimum_remaining_timesteps": status.get(
             "stage_minimum_remaining_timesteps"
         ),
+        "rollback_attempt_base": status.get("rollback_attempt_base", 0),
         **rollback_fields,
         "collision_events": status.get("collision_events"),
         "collision_frames": status.get("collision_frames"),
@@ -264,7 +278,7 @@ def run_status(run_dir: str | Path) -> Dict[str, Any]:
         "best_fast_reliable_checkpoint": status.get(
             "best_fast_reliable_checkpoint"
         ),
-        "checkpoint_aliases": status.get("checkpoint_aliases"),
+        "checkpoint_aliases": checkpoint_aliases,
         "retention_state": effective_retention_state,
         "throughput_steps_per_s": status.get("throughput_steps_per_s"),
         "estimated_remaining_wall_s": status.get(

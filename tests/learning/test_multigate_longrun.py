@@ -18,6 +18,7 @@ from marine_race_arena.learning.longrun_checkpoint import (
     atomic_save_checkpoint,
     atomic_write_json,
     capture_model_training_state,
+    checkpoint_passed_safety,
     latest_valid_checkpoint,
     load_checkpoint_state,
     restore_model_training_state,
@@ -69,13 +70,28 @@ class _FakeModel:
 
 def _checkpoint(tmp_path: Path, steps: int, sampler=None):
     sampler = sampler or CurriculumSampler(seed=22001)
+    safe_report = {
+        "mode": "full",
+        "timesteps": steps,
+        "n_eval": 20,
+        "collision_events": 0,
+        "out_of_bounds_events": 0,
+        "wrong_direction_count": 0,
+        "previous_gate_returns": 0,
+        "all_actions_finite": True,
+        "runtime_rule_controller_instantiated": False,
+    }
     return atomic_save_checkpoint(
         _FakeModel(),
         tmp_path,
         total_timesteps=steps,
         config_contract_hash="a" * 64,
         curriculum_state=sampler.state_dict(),
-        evaluation_state={"history": [], "best": {}},
+        evaluation_state={
+            "history": [safe_report],
+            "best": {},
+            "last": safe_report,
+        },
     )
 
 
@@ -198,6 +214,151 @@ def test_corrupted_checkpoint_falls_back_to_previous(tmp_path):
     assert latest is not None
     assert latest.timesteps == 1024
     assert latest.model_path == first.model_path
+
+
+def test_latest_safe_requires_matching_clean_full_evaluation(tmp_path):
+    verified = _checkpoint(tmp_path, 1024)
+    stale_report = load_checkpoint_state(verified)["evaluation"]["last"]
+    periodic = atomic_save_checkpoint(
+        _FakeModel(),
+        tmp_path,
+        total_timesteps=2048,
+        config_contract_hash="a" * 64,
+        curriculum_state=CurriculumSampler(seed=22001).state_dict(),
+        evaluation_state={
+            "history": [stale_report],
+            "best": {},
+            "last": stale_report,
+        },
+        status="safe",
+        reason="periodic",
+    )
+    collision_report = {
+        **stale_report,
+        "timesteps": 3072,
+        "collision_events": 1,
+    }
+    collision = atomic_save_checkpoint(
+        _FakeModel(),
+        tmp_path,
+        total_timesteps=3072,
+        config_contract_hash="a" * 64,
+        curriculum_state=CurriculumSampler(seed=22001).state_dict(),
+        evaluation_state={
+            "history": [collision_report],
+            "best": {},
+            "last": collision_report,
+        },
+        status="safe",
+        reason="final_or_stop",
+    )
+    assert checkpoint_passed_safety(verified)
+    assert not checkpoint_passed_safety(periodic)
+    assert not checkpoint_passed_safety(collision)
+    latest = latest_valid_checkpoint(
+        tmp_path, expected_contract_hash="a" * 64
+    )
+    assert latest is not None
+    assert latest.model_path == verified.model_path
+    atomic_write_json(
+        tmp_path / "status.json",
+        {
+            "total_timesteps": 3072,
+            "checkpoint_aliases": {
+                "latest_safe": str(collision.model_path)
+            },
+        },
+    )
+    status = run_status(tmp_path)
+    assert status["checkpoint_aliases"]["latest_safe"] == str(
+        verified.model_path
+    )
+
+
+def test_unsafe_periodic_resume_preserves_previous_verified_latest_safe(
+    tmp_path,
+):
+    from marine_race_arena.learning.train_multigate_longrun import (
+        _upgrade_resume_state,
+    )
+
+    verified = _checkpoint(tmp_path, 1024)
+    stale_report = load_checkpoint_state(verified)["evaluation"]["last"]
+    periodic = atomic_save_checkpoint(
+        _FakeModel(),
+        tmp_path,
+        total_timesteps=2048,
+        config_contract_hash="a" * 64,
+        curriculum_state=CurriculumSampler(seed=22001).state_dict(),
+        evaluation_state={
+            "history": [stale_report],
+            "best": {},
+            "last": stale_report,
+        },
+        status="unsafe",
+        reason="periodic",
+        extra_state={
+            "checkpoint_aliases": {
+                "latest_safe": str(verified.model_path)
+            }
+        },
+    )
+    config = LongRunConfig()
+    config.output_root = str(tmp_path.parent)
+    config.run_name = tmp_path.name
+    atomic_write_json(
+        tmp_path / "run_manifest.json",
+        {"config_contract_sha256": "a" * 64},
+    )
+    state = _upgrade_resume_state(
+        config,
+        periodic,
+        load_checkpoint_state(periodic),
+        _FakeModel(),
+    )
+    assert state["extra"]["checkpoint_aliases"]["latest_safe"] == str(
+        verified.model_path
+    )
+    assert state["extra"]["checkpoint_aliases"]["last"] == str(
+        periodic.model_path
+    )
+
+
+def test_recovery_selects_best_reliable_instead_of_last_checkpoint(tmp_path):
+    from marine_race_arena.learning.prepare_c3_recovery import (
+        select_best_reliable_checkpoint,
+    )
+
+    best = _checkpoint(tmp_path, 1024)
+    best_report = load_checkpoint_state(best)["evaluation"]["last"]
+    unsafe_report = {
+        **best_report,
+        "timesteps": 2048,
+        "collision_events": 1,
+    }
+    last = atomic_save_checkpoint(
+        _FakeModel(),
+        tmp_path,
+        total_timesteps=2048,
+        config_contract_hash="a" * 64,
+        curriculum_state=CurriculumSampler(seed=22001).state_dict(),
+        evaluation_state={
+            "history": [best_report, unsafe_report],
+            "best": {
+                "best_reliable": {
+                    **best_report,
+                    "checkpoint": str(best.model_path),
+                }
+            },
+            "last": unsafe_report,
+        },
+        status="safe",
+        reason="final_or_stop",
+    )
+    assert not checkpoint_passed_safety(last)
+    selected = select_best_reliable_checkpoint(tmp_path)
+    assert selected.model_path == best.model_path
+    assert selected.timesteps == 1024
 
 
 def test_curriculum_rng_and_stage_resume_exactly():

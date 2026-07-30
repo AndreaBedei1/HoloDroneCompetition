@@ -301,6 +301,8 @@ def evaluate_longrun_policy(
     policy_mode: str = "feedforward",
     frame_stack: int = 1,
     progress_callback: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    trace_case_seeds: Sequence[int] = (),
+    case_indices: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
     """Evaluate without expert/rule construction and persist a compact report."""
     if mode not in {"light", "full"}:
@@ -309,6 +311,11 @@ def evaluate_longrun_policy(
     track_dir = out / "tracks"
     track_dir.mkdir(parents=True, exist_ok=True)
     cases = _evaluation_cases(stage, mode=mode, seeds=seeds, output_dir=track_dir)
+    if case_indices is not None:
+        selected = {int(index) for index in case_indices}
+        cases = [
+            case for index, case in enumerate(cases) if index in selected
+        ]
     config = reward_config or MultiGateRewardConfig()
     rows: List[Dict[str, Any]] = []
     if progress_callback is not None:
@@ -332,6 +339,10 @@ def evaluate_longrun_policy(
             base_env, policy_mode=policy_mode, frame_stack=frame_stack
         )
         actions: List[np.ndarray] = []
+        trace_steps: List[Dict[str, Any]] = []
+        trace_enabled = int(case["seed"]) in {
+            int(seed) for seed in trace_case_seeds
+        }
         inference_ms: List[float] = []
         previous_return_active = False
         previous_returns = 0
@@ -363,6 +374,55 @@ def evaluate_longrun_policy(
                 obs, reward, terminated, truncated, info = env.step(action_array)
                 elapsed_s = base_env.episode.step_count * base_env.episode.dt
                 phase = getattr(base_env.tracker, "phase", None)
+                if trace_enabled:
+                    participant_state = (
+                        base_env.episode.context.adapter.get_participant_state(
+                            base_env.episode.participant_id
+                        )
+                    )
+                    referee_state = (
+                        base_env.episode.context.referee.states[
+                            base_env.episode.participant_id
+                        ]
+                    )
+                    previous_action = (
+                        actions[-2]
+                        if len(actions) > 1
+                        else np.zeros_like(action_array)
+                    )
+                    trace_steps.append(
+                        {
+                            "step": int(base_env.episode.step_count),
+                            "time_s": float(elapsed_s),
+                            "phase": phase,
+                            "action": action_array.tolist(),
+                            "action_delta_norm": float(
+                                np.linalg.norm(
+                                    action_array - previous_action
+                                )
+                            ),
+                            "position": list(participant_state.position),
+                            "rotation_rpy_deg": list(
+                                participant_state.rotation_rpy_deg
+                            ),
+                            "gate_crossings": int(
+                                info.get("gate_crossings", 0)
+                            ),
+                            "collision_contact_frame": bool(
+                                info.get("collision_contact_frame")
+                                or info.get("obstacle_collision_frame")
+                            ),
+                            "collision_events": int(
+                                referee_state.collision_events
+                            ),
+                            "out_of_bounds_frame": bool(
+                                info.get("out_of_bounds_frame")
+                            ),
+                            "wrong_direction_crossings": int(
+                                referee_state.wrong_direction_crossings
+                            ),
+                        }
+                    )
                 if phase == "APPROACH" and phase not in seen_phase:
                     timing["approach_s"].append(elapsed_s)
                     seen_phase.add(phase)
@@ -489,6 +549,7 @@ def evaluate_longrun_policy(
                     "timing_diagnostics": timing,
                     "reward_components": component_sums,
                     "runtime_rule_actions": 0,
+                    **({"trace": trace_steps} if trace_enabled else {}),
                 }
             )
         finally:
