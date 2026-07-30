@@ -129,6 +129,7 @@ def test_c3_recovery_config_is_conservative_policy_only():
     assert config.initialization_checkpoint.endswith(
         "ppo_476525_steps.zip"
     )
+    assert config.retention.reference_checkpoint.endswith("bc_v3.pt")
     assert config.ppo.learning_rate == pytest.approx(5e-6)
     assert config.ppo.target_kl == pytest.approx(0.003)
     assert config.retention.active_through_stage == "C3"

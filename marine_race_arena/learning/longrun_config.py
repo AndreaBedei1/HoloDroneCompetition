@@ -78,6 +78,7 @@ class PPOConfig:
 @dataclass
 class RetentionConfig:
     enabled: bool = False
+    reference_checkpoint: Optional[str] = None
     weight: float = 0.10
     maximum_weight: float = 0.20
     initial_policy_kl_weight: float = 0.02
@@ -103,6 +104,10 @@ class RetentionConfig:
             raise ValueError("unknown retention active_through_stage")
         if self.enabled and not self.dataset_paths:
             raise ValueError("enabled retention requires offline dataset_paths")
+        if self.reference_checkpoint is not None and not str(
+            self.reference_checkpoint
+        ).strip():
+            raise ValueError("retention reference_checkpoint cannot be empty")
 
 
 @dataclass

@@ -39,6 +39,7 @@
   },
   "retention": {
     "enabled": true,
+    "reference_checkpoint": "results/rl/multigate_longrun/bc_v3_balanced_v2_20260728/bc_v3.pt",
     "weight": 0.12,
     "maximum_weight": 0.2,
     "initial_policy_kl_weight": 0.05,

@@ -592,7 +592,10 @@ def _attach_retention_regularizer(
     if config.retention.enabled:
         regularizer = OfflineRetentionRegularizer(
             dataset_paths=config.retention.dataset_paths,
-            initial_bc_checkpoint=config.initialization_checkpoint,
+            initial_bc_checkpoint=(
+                config.retention.reference_checkpoint
+                or config.initialization_checkpoint
+            ),
             seed=config.seed,
             batch_size=config.retention.batch_size,
             weight=config.retention.weight,
