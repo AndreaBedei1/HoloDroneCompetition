@@ -1092,6 +1092,13 @@ def run_shard(args: argparse.Namespace) -> int:
         flush=True,
     )
     for episode in todo:
+        # The work list is a snapshot, so a second worker draining the same shard
+        # would otherwise re-run whatever the first finished after that snapshot.
+        # Re-checking costs one small file read per episode and each episode costs
+        # minutes, so the check is free in comparison.
+        if episode.key in _completed_keys(out_dir):
+            print(f"[bench:{args.shard}] {episode.key} already done -- skip", flush=True)
+            continue
         case = case_by_uid[f"{episode.group}/{episode.case_id}"]
         spec = CONTROLLERS_BY_KEY[episode.controller]
         capture_video = bool(
