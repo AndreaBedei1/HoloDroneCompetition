@@ -993,9 +993,9 @@ def plan_episodes(
     return episodes
 
 
-def _completed_keys(out_dir: Path) -> Dict[str, Dict[str, Any]]:
+def _completed_keys(out_dir: str | Path) -> Dict[str, Dict[str, Any]]:
     done: Dict[str, Dict[str, Any]] = {}
-    for path in sorted(out_dir.glob("episodes.shard*.jsonl")):
+    for path in sorted(Path(out_dir).glob("episodes.shard*.jsonl")):
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:

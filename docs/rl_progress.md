@@ -393,3 +393,37 @@ unchanged BC-v3 baseline and a 26,624-step conservative PPO smoke whose full
 suite was also 20/20 with zero safety/returns while staying in C0 after only
 one full pass. This validates the pipeline but is not a long-run, three-gate,
 or official-circuit result. See `docs/rl_multigate_reliability_first.md`.
+
+## Final common benchmark and recommended controller
+
+The reliability-first long run completed at 1,000,814 steps. A single common
+benchmark then compared every deployable controller on one identical suite:
+474 real-HoloOcean episodes, 6 controllers (PPO 525,678 / 900,462 / 1,000,814,
+BC-v3, the deterministic rule baseline and the hybrid baseline), 11 test groups
+covering single-gate retention, two-gate straight/left/right, vertical
+low-to-high and high-to-low transitions, three-gate sequences, S-shapes and the
+three official current-free circuits, on the same seeds and geometries.
+
+**The deterministic rule baseline wins.** It completes 93.3% of official circuit
+episodes with one safety episode; the best PPO checkpoint (`ppo_900462`)
+completes 40.0% with eight. On paired episodes the learned policies are ~7 s
+faster than the rule baseline (sign test p < 0.0001), but the rule baseline
+completes 10-14 episodes that PPO does not and never the reverse (p <= 0.002),
+with roughly half the action jerk. PPO is faster; it is not safer and not more
+reliable.
+
+Only Horseshoe Bay is completed by a learned policy. Vertical Serpent is 0/15
+across every PPO checkpoint against 5/5 for the rule baseline.
+
+The recommended PPO checkpoint is `ppo_900462`, **not** the training metadata's
+`best_reliable` (`ppo_525678`), which ranks last of the three on official
+circuits. The three checkpoints are statistically indistinguishable on
+reliability, so this is a point-estimate ordering.
+
+`three_gate_success: 0.0` in the training status meant "never evaluated", not
+"failed": three-gate cases enter the evaluation suite only at stage C5 and the
+run finished at C3, so three-gate competence was untested for the whole run.
+Unevaluated categories now report `None` with an explicit status and reason.
+
+Full details: `docs/rl_final_benchmark.md`; compact results:
+`results/rl_public/final_benchmark/`.
