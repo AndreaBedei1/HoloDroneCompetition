@@ -478,6 +478,54 @@ def selection_key(
     return key, evidence
 
 
+def next_stage_evidence(
+    aggregates: Mapping[str, Any], controller_meta: Mapping[str, Any]
+) -> Dict[str, Any]:
+    """Evidence for what a further training stage would actually have to fix.
+
+    Reports, for the best PPO checkpoints, which capability each failure belongs
+    to, so the size of any follow-up run is argued from measurements rather than
+    from a general wish for more steps.
+    """
+    ppo = [
+        key
+        for key, meta in controller_meta.items()
+        if meta.get("kind") == "ppo" and key in aggregates["controllers"]
+    ]
+    capabilities = {
+        "single_gate_retention": ("single_gate_retention",),
+        "two_gate_turns": ("two_gate_straight", "two_gate_left", "two_gate_right"),
+        "vertical_transitions": VERTICAL_GROUPS,
+        "three_gate_sequences": THREE_GATE_GROUPS,
+        "official_circuits": OFFICIAL_GROUPS,
+    }
+    out: Dict[str, Any] = {}
+    for controller in ppo:
+        by_group = aggregates["controllers"][controller]["by_group"]
+        per_capability = {}
+        for capability, groups in capabilities.items():
+            episodes = sum(by_group[g]["episodes"] for g in groups if g in by_group)
+            successes = sum(by_group[g]["successes"] for g in groups if g in by_group)
+            safety = sum(
+                by_group[g]["safety_event_episodes"] for g in groups if g in by_group
+            )
+            modes: Dict[str, int] = {}
+            for group in groups:
+                if group not in by_group:
+                    continue
+                for mode, count in by_group[group]["failure_breakdown"]["modes"].items():
+                    modes[mode] = modes.get(mode, 0) + count
+            per_capability[capability] = {
+                "episodes": episodes,
+                "successes": successes,
+                "success_rate": _rate(successes, episodes),
+                "safety_event_episodes": safety,
+                "failure_modes": modes,
+            }
+        out[controller] = per_capability
+    return out
+
+
 def recommend(aggregates: Mapping[str, Any], controller_meta: Mapping[str, Any]) -> Dict[str, Any]:
     """Rank the fully policy-based controllers; hybrid is scored but never selected."""
     time_ranks = group_mean_ranks(aggregates, "completion_time_s", timed_only=True)
@@ -769,6 +817,7 @@ def build_report(out_dir: str | Path, *, plots: bool = True) -> Dict[str, Any]:
         "paired_comparisons": comparisons,
         "paired_comparisons_by_group": per_group_comparisons,
         "recommendation": recommendation,
+        "next_stage_evidence": next_stage_evidence(aggregates, controller_meta),
         "plots": plot_files,
         "videos": videos,
     }
@@ -1086,6 +1135,54 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             )
         )
         lines.append("")
+    lines.append("## What a further training stage would have to fix")
+    lines.append("")
+    lines.append(
+        "Per-capability breakdown for the PPO checkpoints, so the scope of any "
+        "follow-up run is argued from measurements rather than from step count."
+    )
+    lines.append("")
+    evidence = report.get("next_stage_evidence", {})
+    if evidence:
+        capabilities = list(next(iter(evidence.values())).keys())
+        lines.append(markdown_table(
+            ["controller", *capabilities],
+            [
+                [
+                    controller,
+                    *[
+                        (
+                            f"{per_capability[c]['successes']}/{per_capability[c]['episodes']}"
+                            + (
+                                f" ({per_capability[c]['safety_event_episodes']} safety)"
+                                if per_capability[c]["safety_event_episodes"]
+                                else ""
+                            )
+                        )
+                        for c in capabilities
+                    ],
+                ]
+                for controller, per_capability in evidence.items()
+            ],
+        ))
+        lines.append("")
+        for controller, per_capability in evidence.items():
+            modes = {
+                capability: value["failure_modes"]
+                for capability, value in per_capability.items()
+                if value["failure_modes"]
+            }
+            if modes:
+                lines.append(
+                    f"- `{controller}` failure modes: "
+                    + "; ".join(
+                        f"{capability}: "
+                        + ", ".join(f"{k}={v}" for k, v in sorted(mode.items()))
+                        for capability, mode in modes.items()
+                    )
+                )
+        lines.append("")
+
     if report.get("plots"):
         lines.append("## Trajectory plots")
         lines.append("")

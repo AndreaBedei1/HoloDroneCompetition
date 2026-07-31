@@ -667,3 +667,28 @@ def test_repair_drops_only_harness_error_rows(tmp_path):
     assert [row["seed"] for row in kept] == [1, 3]
     # The dropped episode is no longer "done", so a re-run re-attempts it.
     assert set(fb._completed_keys(tmp_path)) == {"a|g|c|1", "a|g|c|3"}
+
+
+def test_next_stage_evidence_groups_failures_by_capability():
+    rows = (
+        _controller_rows("reliable", official_full=False, safety=0, three_gate_ok=False,
+                         time_s=9.0, jerk=0.05)
+    )
+    evidence = fbr.next_stage_evidence(fbr.build_aggregates(rows), _META)
+    assert set(evidence) == {"reliable"}
+    per_capability = evidence["reliable"]
+    assert per_capability["three_gate_sequences"]["success_rate"] == 0.0
+    assert per_capability["vertical_transitions"]["success_rate"] == 1.0
+    assert per_capability["official_circuits"]["success_rate"] == 0.0
+    assert per_capability["two_gate_turns"]["success_rate"] == 1.0
+
+
+def test_next_stage_evidence_only_covers_ppo_checkpoints():
+    rows = (
+        _controller_rows("reliable", official_full=True, safety=0, three_gate_ok=True,
+                         time_s=9.0, jerk=0.05)
+        + _controller_rows("hybrid", official_full=True, safety=0, three_gate_ok=True,
+                           time_s=9.0, jerk=0.05)
+    )
+    evidence = fbr.next_stage_evidence(fbr.build_aggregates(rows), _META)
+    assert set(evidence) == {"reliable"}

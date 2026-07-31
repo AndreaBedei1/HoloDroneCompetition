@@ -33,9 +33,9 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -1074,10 +1074,18 @@ def run_shard(args: argparse.Namespace) -> int:
     controllers = _select_controllers(args.controllers)
     episodes = plan_episodes(cases, controllers)
     done = _completed_keys(out_dir)
-    shard_path = out_dir / f"episodes.shard{args.shard:02d}.jsonl"
+    suffix = "r" if args.reverse else ""
+    shard_path = out_dir / f"episodes.shard{args.shard:02d}{suffix}.jsonl"
     artifact_dir = out_dir / "artifacts"
     mine = [e for e in episodes if e.index % args.shards == args.shard]
     todo = [e for e in mine if e.key not in done]
+    if args.reverse:
+        # A helper drains the same queue from the tail. The expensive official
+        # circuits are last, so a reverse helper starts on them immediately while
+        # the forward shard is still working through the cheap groups; the two
+        # only overlap once the queue is nearly empty, and the merge is keyed by
+        # episode so a duplicate is harmless.
+        todo = list(reversed(todo))
     print(
         f"[bench:{args.shard}] {len(todo)} episodes to run "
         f"({len(mine) - len(todo)} already complete)",
@@ -1355,6 +1363,12 @@ def build_parser() -> argparse.ArgumentParser:
     common(shard)
     shard.add_argument("--shard", type=int, required=True)
     shard.add_argument("--shards", type=int, required=True)
+    shard.add_argument(
+        "--reverse",
+        action="store_true",
+        help="drain this shard's queue from the tail; run alongside the forward "
+             "shard to start the expensive official circuits sooner",
+    )
 
     merge = sub.add_parser("merge", help="merge shard results into episodes.json/csv")
     merge.add_argument("--out", required=True)
