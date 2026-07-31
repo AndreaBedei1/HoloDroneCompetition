@@ -24,10 +24,13 @@ from marine_race_arena.learning.longrun_checkpoint import (
     valid_checkpoints,
 )
 from marine_race_arena.learning.longrun_evaluation import (
+    category_evaluated,
+    category_not_evaluated_reason,
     directional_metric_key,
     fast_reliable_metric_key,
     is_better,
     plateau_detected,
+    rate_or,
 )
 from marine_race_arena.learning.parametric_curriculum import (
     reliability_requirements_met,
@@ -74,7 +77,15 @@ class StatusStore:
             "right_success": None,
             "straight_retention": None,
             "single_gate_retention": None,
+            # ``three_gate_success`` is null until three-gate cases actually run.
+            # ``three_gate_evaluated``/``three_gate_n`` say whether a number is a
+            # measurement at all, so a null or 0.0 can never be misread as a
+            # measured failure.
             "three_gate_success": None,
+            "three_gate_evaluated": False,
+            "three_gate_n": 0,
+            "three_gate_status": "not_evaluated",
+            "three_gate_note": None,
             "approx_kl": None,
             "initial_policy_kl": None,
             "ppo_policy_loss": None,
@@ -259,7 +270,7 @@ def resume_status_snapshot(
         "right_success": report.get("right_completion_rate"),
         "straight_retention": report.get("straight_completion_rate"),
         "single_gate_retention": report.get("single_gate_completion_rate"),
-        "three_gate_success": report.get("three_gate_completion_rate"),
+        **_three_gate_status_fields(report, sampler.current_stage),
         "consecutive_reliable_full_evaluations": int(
             sampler.state.reliable_full_streak
         ),
@@ -306,6 +317,41 @@ def resume_status_snapshot(
     }
 
 
+def _three_gate_status_fields(
+    report: Mapping[str, Any], stage: Any
+) -> Dict[str, Any]:
+    """Status fields that separate "not evaluated" from "evaluated and failed".
+
+    The reliability-first run reported ``three_gate_success: 0.0`` while its C3
+    suite contained no three-gate case at all. The rate alone cannot express
+    that, so the status now carries the sample count and an explicit state.
+    """
+    evaluated = category_evaluated(report, "three_gate")
+    rate = report.get("three_gate_completion_rate")
+    n = int(
+        (report.get("category_metrics") or {}).get("three_gate", {}).get("n", 0)
+        if isinstance(report.get("category_metrics"), Mapping)
+        else report.get("three_gate_n", 0) or 0
+    )
+    if not evaluated:
+        status = "not_evaluated"
+    elif rate is not None and float(rate) >= 1.0:
+        status = "passed"
+    elif rate:
+        status = "partial"
+    else:
+        status = "failed"
+    return {
+        "three_gate_success": (float(rate) if evaluated and rate is not None else None),
+        "three_gate_evaluated": bool(evaluated),
+        "three_gate_n": n,
+        "three_gate_status": status,
+        "three_gate_note": (
+            None if evaluated else category_not_evaluated_reason("three_gate", stage)
+        ),
+    }
+
+
 def _finite_or_none(value: Any) -> Optional[float]:
     try:
         parsed = float(value)
@@ -323,18 +369,29 @@ def evaluation_regression_reasons(
     if not rollback.enabled or incumbent is None:
         return []
     reasons: List[str] = []
-    if float(report.get("completion_rate", 0.0)) < (
-        float(incumbent.get("completion_rate", 0.0)) - rollback.completion_drop
+    if rate_or(report, "completion_rate", 0.0) < (
+        rate_or(incumbent, "completion_rate", 0.0) - rollback.completion_drop
     ):
         reasons.append("overall_completion_drop")
-    if float(report.get("single_gate_completion_rate", 0.0)) < rollback.single_gate_floor:
+    # A category the suite never ran is not evidence of a regression, so an
+    # unmeasured floor is skipped rather than read as a 0% completion rate.
+    if (
+        category_evaluated(report, "retention")
+        and rate_or(report, "single_gate_completion_rate", 1.0)
+        < rollback.single_gate_floor
+    ):
         reasons.append("single_gate_retention_floor")
-    if float(report.get("straight_completion_rate", 0.0)) < rollback.straight_floor:
+    if (
+        category_evaluated(report, "straight")
+        and rate_or(report, "straight_completion_rate", 1.0) < rollback.straight_floor
+    ):
         reasons.append("straight_retention_floor")
-    if min(
-        float(report.get("left_completion_rate", 0.0)),
-        float(report.get("right_completion_rate", 0.0)),
-    ) < rollback.directional_floor:
+    directional = [
+        rate_or(report, f"{direction}_completion_rate", 1.0)
+        for direction in ("left", "right")
+        if category_evaluated(report, direction)
+    ]
+    if directional and min(directional) < rollback.directional_floor:
         reasons.append("directional_completion_floor")
     if int(report.get("episodes_with_any_safety", 0)) > rollback.maximum_safety_episodes:
         reasons.append("safety_episode_regression")
@@ -1054,7 +1111,7 @@ def make_longrun_callback(
                 right_success=report.get("right_completion_rate"),
                 straight_retention=report.get("straight_completion_rate"),
                 single_gate_retention=report.get("single_gate_completion_rate"),
-                three_gate_success=report.get("three_gate_completion_rate"),
+                **_three_gate_status_fields(report, sampler.current_stage),
                 curriculum_stage=sampler.current_stage,
                 curriculum_stage_history=_compact_stage_history(
                     list(sampler.state.stage_changes)

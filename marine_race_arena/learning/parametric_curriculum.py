@@ -28,6 +28,17 @@ BASE_TWO_GATE_TRACK = Path(
 ANGLE_BANDS_DEG = (0.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 45.0)
 
 
+def _rate(metrics: Mapping[str, Any], key: str, default: float) -> float:
+    """Read a completion rate; ``None`` means the category was never evaluated.
+
+    Mirrors ``longrun_evaluation.rate_or`` without importing it (that module
+    imports this one). Each call site states what an unmeasured category counts
+    as, so a missing measurement is never silently read as a 0% success rate.
+    """
+    value = metrics.get(key)
+    return float(default) if value is None else float(value)
+
+
 @dataclass(frozen=True)
 class ParametricStage:
     key: str
@@ -558,7 +569,7 @@ def curriculum_stage_decision(
     """Return the next stage only when the documented multi-episode gate passes."""
     current_index = CURRICULUM_STAGES.index(current_stage)
     maximum_index = CURRICULUM_STAGES.index(maximum_stage)
-    straight = float(metrics.get("straight_completion_rate", 1.0))
+    straight = _rate(metrics, "straight_completion_rate", 1.0)
     total = int(metrics.get("completions", 0))
     n_eval = max(1, int(metrics.get("n_eval", 0)))
     left_successes = int(metrics.get("left_successes", 0))
@@ -567,8 +578,10 @@ def curriculum_stage_decision(
     right_n = max(1, int(metrics.get("right_n", 0)))
     previous_returns = int(metrics.get("previous_gate_returns", 0))
     safety = int(metrics.get("safety_events", 0))
-    three_gate = float(metrics.get("three_gate_completion_rate", 0.0))
-    six_gate = float(metrics.get("six_gate_completion_rate", 0.0))
+    # An unevaluated sequence category counts as 0.0 here: a stage that requires
+    # measured three-/six-gate competence must not promote on a missing measurement.
+    three_gate = _rate(metrics, "three_gate_completion_rate", 0.0)
+    six_gate = _rate(metrics, "six_gate_completion_rate", 0.0)
 
     if allow_demotion and current_index > 0 and straight < 0.7:
         return CURRICULUM_STAGES[current_index - 1]
@@ -645,14 +658,14 @@ def reliability_requirements_met(
         0.95, float(promotion_config.right_completion_rate) + balance_increment
     )
     return (
-        float(metrics.get("completion_rate", 0.0))
+        _rate(metrics, "completion_rate", 0.0)
         >= float(promotion_config.overall_completion_rate)
-        and float(metrics.get("single_gate_completion_rate", 0.0))
+        and _rate(metrics, "single_gate_completion_rate", 0.0)
         >= float(promotion_config.single_gate_completion_rate)
-        and float(metrics.get("straight_completion_rate", 0.0))
+        and _rate(metrics, "straight_completion_rate", 0.0)
         >= float(promotion_config.straight_completion_rate)
-        and float(metrics.get("left_completion_rate", 0.0)) >= left_floor
-        and float(metrics.get("right_completion_rate", 0.0)) >= right_floor
+        and _rate(metrics, "left_completion_rate", 0.0) >= left_floor
+        and _rate(metrics, "right_completion_rate", 0.0) >= right_floor
         and int(metrics.get("episodes_with_collision", 0))
         <= int(promotion_config.maximum_collision_episodes)
         and int(metrics.get("episodes_with_out_of_bounds", 0))

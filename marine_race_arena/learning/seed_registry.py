@@ -80,6 +80,11 @@ MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS: List[int] = _r(25300, 25399)
 MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS: List[int] = _r(25400, 25499)
 MULTIGATE_RELIABILITY_VALIDATION_SEEDS: List[int] = _r(25500, 25599)
 
+# Final common benchmark holdout. These seeds have never been used for training,
+# checkpoint selection, reward design or hyper-parameter tuning, so the final
+# controller comparison has a genuinely unseen half in every test group.
+MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS: List[int] = _r(27000, 27499)
+
 NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "stage2_secondary_dev_eval": STAGE2_SECONDARY_DEV_SEEDS,
     "visual_pose_dataset_v2": VISUAL_POSE_DATASET_V2_SEEDS,
@@ -106,6 +111,7 @@ NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "multigate_reliability_dev_eval": MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS,
     "multigate_reliability_checkpoint_selection": MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS,
     "multigate_reliability_validation": MULTIGATE_RELIABILITY_VALIDATION_SEEDS,
+    "multigate_FINAL_benchmark_holdout": MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS,
 }
 
 # Mutually-exclusive roles that must be pairwise disjoint (training/selection vs held-out).
@@ -138,6 +144,7 @@ ROLE_SEED_SETS: Dict[str, Set[int]] = {
     "multigate_reliability_dev_eval": set(MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS),
     "multigate_reliability_checkpoint_selection": set(MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS),
     "multigate_reliability_validation": set(MULTIGATE_RELIABILITY_VALIDATION_SEEDS),
+    "multigate_final_benchmark_holdout": set(MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS),
 }
 
 # Ranges that must never be used for training, checkpoint selection, reward or
@@ -151,6 +158,7 @@ DO_NOT_TRAIN_ON: Dict[str, List[int]] = {
     "multigate_v3_FINAL_two_gate": MULTIGATE_V3_FINAL_TWO_GATE_SEEDS,
     "multigate_v3_FINAL_three_gate": MULTIGATE_V3_FINAL_THREE_GATE_SEEDS,
     "multigate_v3_FINAL_official": MULTIGATE_V3_FINAL_OFFICIAL_SEEDS,
+    "multigate_FINAL_benchmark_holdout": MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS,
 }
 
 
@@ -189,7 +197,8 @@ def development_and_final_are_disjoint() -> bool:
              | set(RESERVED_FINAL_MULTIGATE_SEEDS)
              | set(MULTIGATE_V3_FINAL_TWO_GATE_SEEDS)
              | set(MULTIGATE_V3_FINAL_THREE_GATE_SEEDS)
-             | set(MULTIGATE_V3_FINAL_OFFICIAL_SEEDS))
+             | set(MULTIGATE_V3_FINAL_OFFICIAL_SEEDS)
+             | set(MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS))
     dev |= (
         set(MULTIGATE_V3_DEMONSTRATION_SEEDS)
         | set(MULTIGATE_V3_PPO_TRAINING_SEEDS)

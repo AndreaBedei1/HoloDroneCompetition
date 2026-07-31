@@ -18,3 +18,8 @@ stable-baselines3==2.7.1   # PPO reinforcement learning
 
 # Required by the multi-day launcher; CSV/JSONL remain the authoritative logs.
 tensorboard==2.20.0
+
+# Optional, used only by the final benchmark to encode the official-circuit
+# onboard-camera videos. Without it the benchmark still runs and reports; the
+# video step is skipped (the encoder falls back to GIF, then to no video).
+imageio[ffmpeg]==2.37.2

@@ -32,16 +32,93 @@ from marine_race_arena.learning.reward_v3 import (
 )
 
 
+#: Categories the suite can contain. A category that produced no episode is
+#: reported as ``None`` (not evaluated), never as ``0.0`` (evaluated and failed).
+EVALUATION_CATEGORIES = ("retention", "straight", "left", "right", "three_gate", "six_gate")
+
+#: The parametric stage at which each conditional category first enters the suite.
+CATEGORY_FIRST_STAGE_INDEX = {"three_gate": 5, "six_gate": 6}
+
+#: Category name -> the aggregate's top-level completion-rate key. The retention
+#: category is published as ``single_gate_completion_rate`` for historical reasons.
+CATEGORY_RATE_KEY = {
+    "retention": "single_gate_completion_rate",
+    "straight": "straight_completion_rate",
+    "left": "left_completion_rate",
+    "right": "right_completion_rate",
+    "three_gate": "three_gate_completion_rate",
+    "six_gate": "six_gate_completion_rate",
+}
+
+#: Category name -> the aggregate's top-level sample-count key.
+CATEGORY_COUNT_KEY = {
+    "retention": "single_gate_n",
+    "straight": "straight_n",
+    "left": "left_n",
+    "right": "right_n",
+    "three_gate": "three_gate_n",
+    "six_gate": "six_gate_n",
+}
+
+
+def rate_or(metrics: Mapping[str, Any], key: str, default: float) -> float:
+    """Read a completion rate, mapping "not evaluated" (``None``) to ``default``.
+
+    ``metrics.get(key, default)`` is not enough: the key is present with a
+    ``None`` value when the category was never part of the suite, and ``float``
+    would raise. Callers that need a number state what an unmeasured category
+    should count as, instead of silently reading it as a 0% success rate.
+    """
+    value = metrics.get(key)
+    return float(default) if value is None else float(value)
+
+
+def category_evaluated(metrics: Mapping[str, Any], category: str) -> bool:
+    """True only when the suite actually ran at least one episode of ``category``.
+
+    Prefers the per-category sample count; falls back to the published rate so
+    reports written before this schema (which always emitted a float) still read
+    as evaluated rather than silently disappearing.
+    """
+    categories = metrics.get("category_metrics")
+    if isinstance(categories, Mapping):
+        entry = categories.get(category)
+        if isinstance(entry, Mapping) and "n" in entry:
+            return int(entry.get("n", 0)) > 0
+    count_key = CATEGORY_COUNT_KEY.get(category)
+    if count_key is not None and metrics.get(count_key) is not None:
+        return int(metrics[count_key]) > 0
+    rate_key = CATEGORY_RATE_KEY.get(category, f"{category}_completion_rate")
+    return metrics.get(rate_key) is not None
+
+
+def category_not_evaluated_reason(category: str, stage: Any) -> Optional[str]:
+    """Explain why a conditional category is absent from a stage's suite."""
+    first = CATEGORY_FIRST_STAGE_INDEX.get(category)
+    if first is None:
+        return None
+    try:
+        stage_index = int(str(stage)[1:])
+    except (TypeError, ValueError):
+        return None
+    if stage_index < first:
+        return (
+            f"{category} cases enter the evaluation suite at stage C{first}; "
+            f"the run is at stage {stage}, so the category was not evaluated"
+        )
+    return None
+
+
 def checkpoint_metric_key(metrics: Mapping[str, Any]) -> Tuple[float, ...]:
     """Reliability-first lexicographic ordering; reward is intentionally absent."""
     return (
-        float(metrics.get("completion_rate", 0.0)),
+        rate_or(metrics, "completion_rate", 0.0),
         min(
-            float(metrics.get("left_completion_rate", 0.0)),
-            float(metrics.get("right_completion_rate", 0.0)),
+            rate_or(metrics, "left_completion_rate", 0.0),
+            rate_or(metrics, "right_completion_rate", 0.0),
         ),
-        float(metrics.get("single_gate_completion_rate", 0.0)),
-        float(metrics.get("straight_completion_rate", 0.0)),
+        rate_or(metrics, "single_gate_completion_rate", 0.0),
+        rate_or(metrics, "straight_completion_rate", 0.0),
         -float(metrics.get("episodes_with_any_safety", 0.0)),
         -float(metrics.get("previous_gate_returns", 0.0)),
         float(metrics.get("mean_gates", 0.0)),
@@ -63,10 +140,10 @@ def checkpoint_metric_key(metrics: Mapping[str, Any]) -> Tuple[float, ...]:
 def bc_checkpoint_metric_key(metrics: Mapping[str, Any]) -> Tuple[float, ...]:
     """BC selection keeps retention categories ahead of safety and speed."""
     return (
-        float(metrics.get("single_gate_completion_rate", 0.0)),
-        float(metrics.get("straight_completion_rate", 0.0)),
-        float(metrics.get("left_completion_rate", 0.0)),
-        float(metrics.get("right_completion_rate", 0.0)),
+        rate_or(metrics, "single_gate_completion_rate", 0.0),
+        rate_or(metrics, "straight_completion_rate", 0.0),
+        rate_or(metrics, "left_completion_rate", 0.0),
+        rate_or(metrics, "right_completion_rate", 0.0),
         -float(metrics.get("safety_events", 0.0)),
         -float(metrics.get("previous_gate_returns", 0.0)),
         -float(
@@ -82,8 +159,8 @@ def directional_metric_key(
     metrics: Mapping[str, Any], direction: str
 ) -> Tuple[float, ...]:
     return (
-        float(metrics.get(f"{direction}_completion_rate", 0.0)),
-        float(metrics.get("completion_rate", 0.0)),
+        rate_or(metrics, f"{direction}_completion_rate", 0.0),
+        rate_or(metrics, "completion_rate", 0.0),
         float(metrics.get("mean_gates", 0.0)),
         -float(metrics.get("safety_events", 0.0)),
     )
@@ -137,11 +214,18 @@ def is_better(
 
 
 def official_evaluation_unlocked(metrics: Mapping[str, Any]) -> bool:
+    """Official circuits unlock only on *measured* three-gate competence.
+
+    A suite that never ran a three-gate case cannot unlock the circuits: an
+    unmeasured category is not evidence either way.
+    """
+    if not category_evaluated(metrics, "three_gate"):
+        return False
     return (
-        float(metrics.get("straight_completion_rate", 0.0)) >= 0.9
-        and float(metrics.get("left_completion_rate", 0.0)) >= 0.8
-        and float(metrics.get("right_completion_rate", 0.0)) >= 0.8
-        and float(metrics.get("three_gate_completion_rate", 0.0)) >= 0.8
+        rate_or(metrics, "straight_completion_rate", 0.0) >= 0.9
+        and rate_or(metrics, "left_completion_rate", 0.0) >= 0.8
+        and rate_or(metrics, "right_completion_rate", 0.0) >= 0.8
+        and rate_or(metrics, "three_gate_completion_rate", 0.0) >= 0.8
         and int(metrics.get("safety_events", 0)) == 0
     )
 
@@ -565,11 +649,18 @@ def evaluate_longrun_policy(
                 }
             )
     aggregate = aggregate_evaluation(rows)
+    not_evaluated_reasons = {
+        category: reason
+        for category in aggregate["not_evaluated_categories"]
+        for reason in [category_not_evaluated_reason(category, stage)]
+        if reason
+    }
     report = {
         "schema_version": "multigate_longrun_evaluation_v1",
         "timesteps": int(timesteps),
         "stage": stage,
         "mode": mode,
+        "not_evaluated_reasons": not_evaluated_reasons,
         "deterministic": True,
         "observation_version": OBS_ENCODING_VERSION_V3,
         "policy_mode": policy_mode,
@@ -585,18 +676,19 @@ def evaluate_longrun_policy(
 def aggregate_evaluation(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     n = len(rows)
     completed = sum(bool(row.get("finished")) for row in rows)
-    categories = ("retention", "straight", "left", "right", "three_gate", "six_gate")
     category_metrics: Dict[str, Dict[str, Any]] = {}
-    for category in categories:
+    for category in EVALUATION_CATEGORIES:
         subset = [row for row in rows if row.get("category") == category]
+        successes = sum(bool(row.get("finished")) for row in subset)
         category_metrics[category] = {
             "n": len(subset),
-            "successes": sum(bool(row.get("finished")) for row in subset),
-            "completion_rate": (
-                sum(bool(row.get("finished")) for row in subset) / len(subset)
-                if subset
-                else 0.0
-            ),
+            "successes": successes,
+            # ``None`` means the suite never ran this category. Reporting 0.0 here
+            # is indistinguishable from "ran and failed every episode", which is
+            # exactly the ambiguity that made three_gate_success look like a
+            # failure while three-gate cases were simply not in the suite.
+            "completion_rate": (successes / len(subset) if subset else None),
+            "evaluated": bool(subset),
         }
     finished_times = [
         float(row["penalized_time_s"])
@@ -664,17 +756,33 @@ def aggregate_evaluation(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
         "right_n": category_metrics["right"]["n"],
         "right_successes": category_metrics["right"]["successes"],
         "right_completion_rate": category_metrics["right"]["completion_rate"],
+        "straight_n": category_metrics["straight"]["n"],
         "straight_completion_rate": category_metrics["straight"][
             "completion_rate"
         ],
+        "single_gate_n": category_metrics["retention"]["n"],
         "single_gate_completion_rate": category_metrics["retention"][
             "completion_rate"
         ],
+        "three_gate_n": category_metrics["three_gate"]["n"],
+        "three_gate_evaluated": category_metrics["three_gate"]["evaluated"],
         "three_gate_completion_rate": category_metrics["three_gate"][
             "completion_rate"
         ],
+        "six_gate_n": category_metrics["six_gate"]["n"],
+        "six_gate_evaluated": category_metrics["six_gate"]["evaluated"],
         "six_gate_completion_rate": category_metrics["six_gate"][
             "completion_rate"
+        ],
+        "evaluated_categories": [
+            name
+            for name in EVALUATION_CATEGORIES
+            if category_metrics[name]["evaluated"]
+        ],
+        "not_evaluated_categories": [
+            name
+            for name in EVALUATION_CATEGORIES
+            if not category_metrics[name]["evaluated"]
         ],
         "safety_events": int(safety),
         "collision_events": int(collision_events),
