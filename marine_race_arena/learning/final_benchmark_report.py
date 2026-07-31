@@ -123,8 +123,16 @@ def _rate(successes: int, n: int) -> Optional[float]:
     return round(successes / n, 4) if n else None
 
 
-def aggregate_rows(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
-    """All benchmark-facing metrics for one homogeneous set of episodes."""
+def aggregate_rows(all_rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """All benchmark-facing metrics for one homogeneous set of episodes.
+
+    Episodes that never ran (a simulator launch failure recorded as
+    ``HARNESS_ERROR``) are excluded from every rate: they are infrastructure
+    failures, not controller results. Their count is reported as
+    ``harness_errors`` so an incomplete cell is visible rather than silently
+    depressing a success rate.
+    """
+    rows = [r for r in all_rows if r.get("referee_status") != "HARNESS_ERROR"]
     n = len(rows)
     successes = sum(1 for r in rows if r.get("finished"))
     full = sum(1 for r in rows if r.get("full_completion"))
@@ -187,11 +195,58 @@ def aggregate_rows(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
         "timeouts": int(sum(1 for r in rows if r.get("timeout"))),
         "timeout_rate": _rate(sum(1 for r in rows if r.get("timeout")), n),
         "timing_meaningful": bool(timed_rows),
-        "harness_errors": int(sum(1 for r in rows if r.get("referee_status") == "HARNESS_ERROR")),
+        "harness_errors": int(
+            sum(1 for r in all_rows if r.get("referee_status") == "HARNESS_ERROR")
+        ),
         "mean_inference_ms": mean_ci([r.get("mean_inference_ms") for r in rows]),
         "referee_status_counts": _counts(r.get("referee_status") for r in rows),
         "end_reason_counts": _counts(r.get("evaluation_end_reason") for r in rows),
+        "failure_breakdown": failure_breakdown(rows),
         "seeds": sorted({int(r.get("seed", 0)) for r in rows}),
+    }
+
+
+def failure_mode(row: Mapping[str, Any]) -> Optional[str]:
+    """Classify why one episode did not finish, from the referee's own record.
+
+    ``missed_gate`` is the dominant mode on the official circuits: the referee
+    DNFs a participant that bypasses its expected gate, so the episode ends where
+    the policy lost the sequence rather than at the deadline.
+    """
+    if row.get("finished"):
+        return None
+    if row.get("referee_status") == "HARNESS_ERROR":
+        return "harness_error"
+    if int(row.get("missed_gate_attempts", 0) or 0) > 0:
+        return "missed_gate_dnf"
+    if int(row.get("stuck_events", 0) or 0) > 0:
+        return "stuck"
+    if row.get("referee_status") == "DSQ":
+        return "disqualified"
+    if row.get("timeout"):
+        return "timeout_without_dnf"
+    if row.get("referee_status") == "DNF":
+        return "dnf_other"
+    return f"unfinished_{str(row.get('referee_status', 'unknown')).lower()}"
+
+
+def failure_breakdown(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Failure modes plus where in the gate sequence each episode stopped."""
+    failures = [r for r in rows if not r.get("finished")]
+    modes = _counts(failure_mode(r) for r in failures)
+    stop_points = _counts(
+        f"{int(r.get('completed_gates', 0))}/{int(r.get('expected_gates', 0))}"
+        for r in failures
+    )
+    return {
+        "failures": len(failures),
+        "modes": modes,
+        "stopped_after_gates": stop_points,
+        "median_gates_at_failure": (
+            statistics.median([int(r.get("completed_gates", 0)) for r in failures])
+            if failures
+            else None
+        ),
     }
 
 
@@ -259,7 +314,13 @@ def paired_comparison(
         }
 
     left, right = index(controller_a), index(controller_b)
-    keys = sorted(set(left) & set(right))
+    keys = sorted(
+        key
+        for key in set(left) & set(right)
+        # A pair is only comparable when both episodes actually ran.
+        if left[key].get("referee_status") != "HARNESS_ERROR"
+        and right[key].get("referee_status") != "HARNESS_ERROR"
+    )
     both_finished = [k for k in keys if left[k].get("finished") and right[k].get("finished")]
     a_only = [k for k in keys if left[k].get("finished") and not right[k].get("finished")]
     b_only = [k for k in keys if right[k].get("finished") and not left[k].get("finished")]
@@ -942,6 +1003,40 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         ],
     ))
     lines.append("")
+
+    lines.append("## Failure modes")
+    lines.append("")
+    lines.append(
+        "Where each unfinished episode stopped, and why. `missed_gate_dnf` means the "
+        "referee ended the run because the participant bypassed its expected gate; the "
+        "episode therefore stops at the point where the policy lost the sequence, not at "
+        "the deadline."
+    )
+    lines.append("")
+    for scope, title in (
+        ("official_circuits", "Official circuits"),
+        ("overall_excluding_official", "All non-official groups"),
+    ):
+        rows_out = []
+        for controller, aggregate in aggregates["controllers"].items():
+            breakdown = aggregate[scope]["failure_breakdown"]
+            if not breakdown["failures"]:
+                rows_out.append([controller, "0", "-", "-", "-"])
+                continue
+            rows_out.append([
+                controller,
+                str(breakdown["failures"]),
+                ", ".join(f"{k}={v}" for k, v in breakdown["modes"].items()),
+                ", ".join(f"{k}x{v}" for k, v in breakdown["stopped_after_gates"].items()),
+                _fmt(breakdown["median_gates_at_failure"], 1),
+            ])
+        lines.append(f"### {title}")
+        lines.append("")
+        lines.append(markdown_table(
+            ["controller", "failures", "modes", "stopped after gates", "median gates"],
+            rows_out,
+        ))
+        lines.append("")
 
     lines.append("## Recommendation")
     lines.append("")

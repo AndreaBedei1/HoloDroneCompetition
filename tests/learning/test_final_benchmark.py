@@ -574,3 +574,96 @@ def test_report_renders_and_names_the_selected_checkpoint(tmp_path):
     assert "Best PPO checkpoint on this benchmark: `reliable`" in text
     assert (tmp_path / "aggregate_by_group.csv").exists()
     assert (tmp_path / "paired_comparisons.csv").exists()
+
+
+# --------------------------------------------------------------------------- #
+# Failure modes
+# --------------------------------------------------------------------------- #
+def test_failure_mode_classifies_a_missed_gate_dnf():
+    row = _episode(finished=False, full_completion=False, referee_status="DNF",
+                   evaluation_end_reason="REFEREE_TERMINAL", missed_gate_attempts=1,
+                   completed_gates=2, expected_gates=22)
+    assert fbr.failure_mode(row) == "missed_gate_dnf"
+
+
+def test_failure_mode_distinguishes_timeout_stuck_and_success():
+    assert fbr.failure_mode(_episode()) is None
+    assert fbr.failure_mode(
+        _episode(finished=False, referee_status="RUNNING", timeout=True)
+    ) == "timeout_without_dnf"
+    assert fbr.failure_mode(
+        _episode(finished=False, referee_status="STUCK", stuck_events=1)
+    ) == "stuck"
+    assert fbr.failure_mode(
+        _episode(finished=False, referee_status="HARNESS_ERROR")
+    ) == "harness_error"
+
+
+def test_failure_breakdown_records_where_the_sequence_was_lost():
+    rows = [
+        _episode(),
+        _episode(seed=2, finished=False, full_completion=False, referee_status="DNF",
+                 missed_gate_attempts=1, completed_gates=2, expected_gates=22),
+        _episode(seed=3, finished=False, full_completion=False, referee_status="DNF",
+                 missed_gate_attempts=1, completed_gates=5, expected_gates=22),
+    ]
+    breakdown = fbr.failure_breakdown(rows)
+    assert breakdown["failures"] == 2
+    assert breakdown["modes"] == {"missed_gate_dnf": 2}
+    assert breakdown["stopped_after_gates"] == {"2/22": 1, "5/22": 1}
+    assert breakdown["median_gates_at_failure"] == pytest.approx(3.5)
+
+
+# --------------------------------------------------------------------------- #
+# Harness errors are infrastructure, not controller results
+# --------------------------------------------------------------------------- #
+def test_harness_errors_are_excluded_from_rates_but_still_counted():
+    rows = [
+        _episode(seed=1),
+        _episode(seed=2, referee_status="HARNESS_ERROR", finished=False,
+                 full_completion=False, completed_gates=0,
+                 evaluation_end_reason="HARNESS_ERROR", official_time_s=None,
+                 penalized_time_s=None, time_per_gate_s=None),
+    ]
+    aggregate = fbr.aggregate_rows(rows)
+    assert aggregate["episodes"] == 1
+    assert aggregate["success_rate"] == 1.0
+    assert aggregate["harness_errors"] == 1
+    assert aggregate["failure_breakdown"]["failures"] == 0
+
+
+def test_paired_comparison_drops_pairs_where_either_episode_never_ran():
+    rows = [
+        _episode(controller="a", seed=1),
+        _episode(controller="b", seed=1, referee_status="HARNESS_ERROR",
+                 finished=False, official_time_s=None),
+        _episode(controller="a", seed=2),
+        _episode(controller="b", seed=2, official_time_s=8.0),
+    ]
+    comparison = fbr.paired_comparison(rows, "a", "b")
+    assert comparison["paired_episodes"] == 1
+    assert comparison["time_delta_s"]["n"] == 1
+
+
+def test_repair_drops_only_harness_error_rows(tmp_path):
+    shard = tmp_path / "episodes.shard00.jsonl"
+    shard.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                {"controller": "a", "group": "g", "case_id": "c", "seed": 1,
+                 "referee_status": "FINISHED"},
+                {"controller": "a", "group": "g", "case_id": "c", "seed": 2,
+                 "referee_status": "HARNESS_ERROR"},
+                {"controller": "a", "group": "g", "case_id": "c", "seed": 3,
+                 "referee_status": "DNF"},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert fb.drop_harness_errors(tmp_path) == 1
+    kept = [json.loads(line) for line in shard.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert [row["seed"] for row in kept] == [1, 3]
+    # The dropped episode is no longer "done", so a re-run re-attempts it.
+    assert set(fb._completed_keys(tmp_path)) == {"a|g|c|1", "a|g|c|3"}

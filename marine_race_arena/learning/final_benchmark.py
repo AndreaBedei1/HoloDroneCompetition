@@ -1090,21 +1090,39 @@ def run_shard(args: argparse.Namespace) -> int:
             args.video and case.official and episode.seed == _video_seed(case)
         )
         started = time.time()
-        try:
-            row = run_benchmark_episode(
-                spec,
-                case,
-                episode.seed,
-                adapter=args.adapter,
-                allow_fallback=args.allow_fallback,
-                dt=args.dt,
-                current_profile=args.current_profile,
-                capture_video=capture_video,
-                video_stride=args.video_stride,
-                trajectory_stride=args.trajectory_stride,
-                artifact_dir=artifact_dir,
-            )
-        except Exception as exc:  # pragma: no cover - simulator/runtime failure
+        row = None
+        exc: Optional[BaseException] = None
+        # A simulator launch can time out when several instances start at once.
+        # That is an infrastructure failure, not a controller failure, so retry
+        # before recording anything: a recorded HARNESS_ERROR would otherwise be
+        # indistinguishable from the policy losing the episode.
+        for attempt in range(1, max(1, args.retries) + 1):
+            try:
+                row = run_benchmark_episode(
+                    spec,
+                    case,
+                    episode.seed,
+                    adapter=args.adapter,
+                    allow_fallback=args.allow_fallback,
+                    dt=args.dt,
+                    current_profile=args.current_profile,
+                    capture_video=capture_video,
+                    video_stride=args.video_stride,
+                    trajectory_stride=args.trajectory_stride,
+                    artifact_dir=artifact_dir,
+                )
+                exc = None
+                break
+            except Exception as error:  # pragma: no cover - simulator/runtime failure
+                exc = error
+                print(
+                    f"[bench:{args.shard}] attempt {attempt}/{args.retries} failed for "
+                    f"{episode.key}: {type(error).__name__}: {error}",
+                    flush=True,
+                )
+                if attempt < args.retries:
+                    time.sleep(15.0 * attempt)
+        if row is None:
             row = {
                 "schema_version": EPISODE_SCHEMA_VERSION,
                 "controller": spec.key,
@@ -1128,6 +1146,7 @@ def run_shard(args: argparse.Namespace) -> int:
                 "expected_gates": int(case.expected_gates),
                 "full_completion": False,
                 "error": f"{type(exc).__name__}: {exc}",
+                "attempts": int(args.retries),
                 "wall_s": round(time.time() - started, 3),
             }
             print(f"[bench:{args.shard}] ERROR {episode.key}: {row['error']}", flush=True)
@@ -1146,9 +1165,39 @@ def run_shard(args: argparse.Namespace) -> int:
     return 0
 
 
+def drop_harness_errors(out_dir: str | Path) -> int:
+    """Forget recorded harness errors so a re-run re-attempts those episodes.
+
+    A ``HARNESS_ERROR`` row is a simulator launch failure, never a controller
+    result. Keeping it would both freeze the episode as "done" and count it as a
+    failed episode, so the repair pass removes it and lets the benchmark re-run it.
+    """
+    out = Path(out_dir)
+    removed = 0
+    for path in sorted(out.glob("episodes.shard*.jsonl")):
+        kept: List[str] = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                row = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if row.get("referee_status") == "HARNESS_ERROR":
+                removed += 1
+                continue
+            kept.append(stripped)
+        path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+    return removed
+
+
 def run_all(args: argparse.Namespace) -> int:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+    if getattr(args, "repair", False):
+        removed = drop_harness_errors(out_dir)
+        print(f"[bench] repair: dropped {removed} harness-error episode(s)", flush=True)
     cases = build_suite(
         out_dir,
         episodes_per_case=args.episodes_per_case,
@@ -1202,6 +1251,8 @@ def run_all(args: argparse.Namespace) -> int:
             str(args.video_stride),
             "--trajectory-stride",
             str(args.trajectory_stride),
+            "--retries",
+            str(args.retries),
         ]
         if args.allow_fallback:
             command.append("--allow-fallback")
@@ -1282,11 +1333,23 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--video", action="store_true")
         sp.add_argument("--video-stride", type=int, default=5)
         sp.add_argument("--trajectory-stride", type=int, default=1)
+        sp.add_argument(
+            "--retries",
+            type=int,
+            default=3,
+            help="attempts per episode before recording a harness error; a simulator "
+                 "launch timeout is infrastructure, not a controller failure",
+        )
 
     run = sub.add_parser("run", help="plan and execute the whole benchmark")
     common(run)
     run.add_argument("--workers", type=int, default=5)
     run.add_argument("--plan-only", action="store_true")
+    run.add_argument(
+        "--repair",
+        action="store_true",
+        help="drop previously recorded harness errors first so they are re-run",
+    )
 
     shard = sub.add_parser("shard", help="execute one shard (used by run)")
     common(shard)

@@ -29,7 +29,7 @@ conda run -n marine_race_rl python -m marine_race_arena.learning.final_benchmark
   --out "%OUT%" --workers %WORKERS% ^
   --episodes-per-case 8 --official-episodes 5 ^
   --adapter holoocean --current-profile none ^
-  --video --video-stride 5
+  --video --video-stride 5 --retries 3 --repair
 set RC=%ERRORLEVEL%
 if not "%RC%"=="0" echo [final-benchmark] WARNING: a shard exited with %RC%; the report still covers every completed episode.
 
