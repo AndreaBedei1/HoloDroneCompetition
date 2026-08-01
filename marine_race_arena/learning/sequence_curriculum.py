@@ -162,6 +162,10 @@ def generate_sequence_track(
         "expected_gates_per_lap": geometry.gate_count,
         "max_duration_s": max(240, geometry.gate_count * 45),
     })
+    # Sequence PPO is deliberately current-free.  Do not inherit a task such
+    # as ``current_gate`` when callers provide a different base track: removing
+    # currents while retaining that task produces an invalid track contract.
+    data["benchmark_task"] = {"mode": "clean_gate"}
     data["track"]["gate_sequence"] = [gate["id"] for gate in gates]
     data["track"]["declared_length_m"] = round(4.5 + sum(geometry.spacings_m), 3)
     data["track"]["length_tolerance_m"] = max(2.0, geometry.gate_count * 0.5)

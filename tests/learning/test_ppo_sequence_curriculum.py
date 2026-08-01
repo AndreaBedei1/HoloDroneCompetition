@@ -11,6 +11,9 @@ import pytest
 
 pytest.importorskip("torch")
 
+from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
+from marine_race_arena.config.loader import load_track_config
+from marine_race_arena.config.validation import validate_track_config
 from marine_race_arena.learning.config_sequence import (
     FEATURE_NAMES_SEQUENCE,
     OBS_DIM_SEQUENCE,
@@ -40,8 +43,10 @@ from marine_race_arena.learning.sequence_curriculum import (
     generate_sequence_track,
 )
 from marine_race_arena.learning.sequence_evaluation import (
+    OFFICIAL_TRACKS,
     aggregate_sequence_evaluation,
     checkpoint_rank_key,
+    evaluate_episode,
 )
 from marine_race_arena.learning.tracker_context_sequence import OnboardSequenceContextTracker
 from marine_race_arena.learning.sequence_policy import build_sequence_ppo
@@ -132,14 +137,84 @@ def test_procedural_curriculum_gate_counts_and_no_currents(tmp_path, stage):
         seed=30000 + int(stage[1:]), initial_stage=stage,
         maximum_stage=stage, replay_mixture=mixture,
     )
-    geometry = sampler.sample()
-    data_path = generate_sequence_track(geometry, tmp_path / f"{stage}.json")
-    data = json.loads(data_path.read_text(encoding="utf-8"))
-    assert len(data["gates"]) == geometry.gate_count
-    assert data["currents"] == []
-    assert data["race"]["official_mode"] is False
-    assert data["participants"][0]["controller"] == "rl_sequence_ppo"
-    assert 1 <= geometry.gate_count <= 22
+    # Exercise a deterministic production-sized matrix for every stage, not
+    # merely a single favourable sample.  Track validation is pure/config-only
+    # and therefore does not launch HoloOcean.
+    for sample_index in range(64):
+        geometry = sampler.sample()
+        data_path = generate_sequence_track(
+            geometry, tmp_path / f"{stage}_{sample_index:02d}.json"
+        )
+        data = json.loads(data_path.read_text(encoding="utf-8"))
+        assert len(data["gates"]) == geometry.gate_count
+        assert data["currents"] == []
+        assert data["benchmark_task"]["mode"] == BENCHMARK_TASK_CLEAN_GATE
+        assert data["race"]["official_mode"] is False
+        assert data["participants"][0]["controller"] == "rl_sequence_ppo"
+        assert 1 <= geometry.gate_count <= 22
+
+        config = load_track_config(data_path, current_profile="none")
+        result = validate_track_config(config)
+        assert result.errors == []
+        assert config.selected_current_profile == "none"
+        assert config.benchmark_task.mode == BENCHMARK_TASK_CLEAN_GATE
+
+
+def test_all_official_sequence_holdouts_validate_current_free():
+    """Regression for Mixed Endurance seed 33502 at the 100352 holdout."""
+    for track in OFFICIAL_TRACKS:
+        config = load_track_config(
+            track,
+            benchmark_task=BENCHMARK_TASK_CLEAN_GATE,
+            current_profile="none",
+        )
+        assert config.selected_current_profile == "none"
+        assert config.benchmark_task.mode == BENCHMARK_TASK_CLEAN_GATE
+        assert not config.currents
+        assert validate_track_config(config).errors == []
+
+
+def test_procedural_generator_replaces_current_gate_from_alternate_base(tmp_path):
+    mixture = {"current_stage": 1.0, "three_gate": 0.0, "previous_stage": 0.0,
+               "short_retention": 0.0, "targeted_failure": 0.0}
+    sampler = SequenceCurriculumSampler(
+        seed=33502, initial_stage="S2", maximum_stage="S2", replay_mixture=mixture,
+    )
+    path = generate_sequence_track(
+        sampler.sample(), tmp_path / "s2_from_current_gate_base.json",
+        base_track=OFFICIAL_TRACKS[2],
+    )
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    assert raw["benchmark_task"]["mode"] == BENCHMARK_TASK_CLEAN_GATE
+    assert raw["currents"] == []
+    config = load_track_config(path, current_profile="none")
+    assert config.benchmark_task.mode == BENCHMARK_TASK_CLEAN_GATE
+    assert validate_track_config(config).errors == []
+
+
+def test_sequence_episode_pairs_current_free_profile_with_clean_gate(monkeypatch):
+    captured = {}
+
+    class ProbeReached(RuntimeError):
+        pass
+
+    def probe_env(track, **kwargs):
+        captured.update({"track": track, **kwargs})
+        raise ProbeReached
+
+    monkeypatch.setattr(
+        "marine_race_arena.learning.sequence_evaluation.MarineRaceGymEnv",
+        probe_env,
+    )
+    with pytest.raises(ProbeReached):
+        evaluate_episode(
+            object(), architecture="feedforward_ppo",
+            track=OFFICIAL_TRACKS[2], seed=33502, category="official",
+            adapter="fallback", max_steps=1,
+        )
+    assert captured["track"] == OFFICIAL_TRACKS[2]
+    assert captured["current_profile"] == "none"
+    assert captured["benchmark_task"] == BENCHMARK_TASK_CLEAN_GATE
 
 
 def _clean_metrics(rate=0.95, longest=3):

@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
 
 import numpy as np
 
+from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
 from marine_race_arena.learning.config_sequence import OBS_ENCODING_VERSION_SEQUENCE
 from marine_race_arena.learning.gym_env import MarineRaceGymEnv
 from marine_race_arena.learning.reward_sequence import SequenceTrainingReward
@@ -162,6 +163,11 @@ def evaluate_episode(
         seed=seed,
         adapter=adapter,
         allow_fallback=adapter == "fallback",
+        # The entire PPO sequence experiment is current-free.  Mixed Endurance
+        # is authored as ``current_gate`` for its current-enabled benchmark,
+        # so selecting profile ``none`` must be paired with the clean-gate task
+        # rather than leaving an impossible task/current combination behind.
+        benchmark_task=BENCHMARK_TASK_CLEAN_GATE,
         current_profile="none",
         max_steps=max_steps,
         observation_encoding_version=OBS_ENCODING_VERSION_SEQUENCE,
