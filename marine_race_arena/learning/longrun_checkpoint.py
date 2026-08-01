@@ -18,6 +18,7 @@ import numpy as np
 
 from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION
 from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
+from marine_race_arena.learning.config_sequence import OBS_ENCODING_VERSION_SEQUENCE
 
 CHECKPOINT_SCHEMA_VERSION = "multigate_longrun_checkpoint_v1"
 MODEL_TRAINING_STATE_VERSION = "multigate_model_training_state_v1"
@@ -271,7 +272,10 @@ def atomic_save_checkpoint(
         "state_path": str(state_path),
         "state_sha256": state_sha,
         "config_contract_sha256": config_contract_hash,
-        "observation_version": OBS_ENCODING_VERSION_V3,
+        "observation_version": getattr(
+            model, "longrun_observation_version", OBS_ENCODING_VERSION_V3
+        ),
+        "architecture": getattr(model, "longrun_architecture", "feedforward_ppo"),
         "policy_mode": getattr(model, "longrun_policy_mode", "feedforward"),
         "frame_stack": int(getattr(model, "longrun_frame_stack", 1)),
         "policy_observation_dim": _model_observation_dim(model),
@@ -299,7 +303,10 @@ def _checkpoint_is_valid(
             and manifest.get("config_contract_sha256") != expected_contract_hash
         ):
             return None
-        if manifest.get("observation_version") != OBS_ENCODING_VERSION_V3:
+        if manifest.get("observation_version") not in {
+            OBS_ENCODING_VERSION_V3,
+            OBS_ENCODING_VERSION_SEQUENCE,
+        }:
             return None
         if manifest.get("action_version") != ACTION_CONTRACT_VERSION:
             return None
@@ -404,6 +411,20 @@ def checkpoint_passed_safety(checkpoint: ValidCheckpoint) -> bool:
             report, dict
         ) and full_evaluation_passed_safety(report)
     report = dict(state.get("evaluation", {})).get("last")
+    if checkpoint.manifest.get("observation_version") == OBS_ENCODING_VERSION_SEQUENCE:
+        metrics = report.get("metrics", {}) if isinstance(report, dict) else {}
+        return (
+            isinstance(report, dict)
+            and int(report.get("timesteps", -1)) == checkpoint.timesteps
+            and int(metrics.get("n_eval", 0)) >= 10
+            and bool(metrics.get("safety_clean", False))
+            and bool(metrics.get("all_actions_policy_generated", False))
+            and int(metrics.get("collision_events", 0)) == 0
+            and int(metrics.get("out_of_bounds_episodes", 0)) == 0
+            and int(metrics.get("wrong_direction_events", 0)) == 0
+            and int(metrics.get("previous_gate_returns", 0)) == 0
+            and int(metrics.get("missed_gate_dnf", 0)) == 0
+        )
     return (
         isinstance(report, dict)
         and int(report.get("timesteps", -1)) == checkpoint.timesteps

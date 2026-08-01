@@ -34,8 +34,23 @@ class _Inference:
     def __init__(self, kind: str, model: Any) -> None:
         self.kind = kind
         self.model = model
+        self.recurrent_state = None
+        self.episode_start = np.ones((1,), dtype=bool)
+
+    def reset(self) -> None:
+        self.recurrent_state = None
+        self.episode_start = np.ones((1,), dtype=bool)
 
     def act(self, observation: np.ndarray) -> np.ndarray:
+        if self.kind == "recurrent_ppo":
+            action, self.recurrent_state = self.model.predict(
+                np.asarray(observation, dtype=np.float32),
+                state=self.recurrent_state,
+                episode_start=self.episode_start,
+                deterministic=True,
+            )
+            self.episode_start[:] = False
+            return np.asarray(action, dtype=np.float32).reshape(-1)
         if self.kind == "ppo":
             action, _ = self.model.predict(
                 np.asarray(observation, dtype=np.float32), deterministic=True
@@ -49,22 +64,43 @@ def _load_v3_inference(model_path: str) -> _Inference:
     if not path.exists():
         raise FileNotFoundError(f"RL multi-gate model path does not exist: {model_path}")
     if path.suffix.lower() == ".zip":
-        from stable_baselines3 import PPO
+        from stable_baselines3.common.save_util import load_from_zip_file
 
-        model = PPO.load(str(path), device="cpu")
+        data, _, _ = load_from_zip_file(str(path), device="cpu")
+        architecture = data.get("longrun_architecture", "feedforward_ppo")
+        if architecture == "recurrent_ppo_lstm":
+            import torch
+            torch.set_num_threads(1)
+            from sb3_contrib import RecurrentPPO
+            model = RecurrentPPO.load(str(path), device="cpu")
+            kind = "recurrent_ppo"
+        else:
+            from stable_baselines3 import PPO
+            model = PPO.load(str(path), device="cpu")
+            kind = "ppo"
         version = getattr(model, "obs_encoding_version", None)
         shape = tuple(getattr(model.observation_space, "shape", ()) or ())
-        if version != OBS_ENCODING_VERSION_V3:
-            raise ValueError(
-                f"incompatible observation encoding: model={version!r}, "
-                f"controller={OBS_ENCODING_VERSION_V3!r}"
+        supported = {OBS_ENCODING_VERSION_V3}
+        expected_shape = {OBS_ENCODING_VERSION_V3: (OBS_DIM_V3,)}
+        try:
+            from marine_race_arena.learning.config_sequence import (
+                OBS_DIM_SEQUENCE,
+                OBS_ENCODING_VERSION_SEQUENCE,
             )
-        if shape != (OBS_DIM_V3,):
+            supported.add(OBS_ENCODING_VERSION_SEQUENCE)
+            expected_shape[OBS_ENCODING_VERSION_SEQUENCE] = (OBS_DIM_SEQUENCE,)
+        except ImportError:
+            pass
+        if version not in supported:
+            raise ValueError(
+                f"incompatible observation encoding: model={version!r}"
+            )
+        if shape != expected_shape[version]:
             raise ValueError(
                 f"incompatible PPO observation shape: model={shape}, "
-                f"controller={(OBS_DIM_V3,)}"
+                f"controller={expected_shape[version]}"
             )
-        return _Inference("ppo", model)
+        return _Inference(kind, model)
     import torch
 
     checkpoint = torch.load(path, map_location="cpu", weights_only=False)
@@ -114,11 +150,21 @@ class RLMultigateController(BaseController):
             )
         if self._inference is None:
             self._inference = _load_v3_inference(self._model_path)
+        self._inference.reset()
         mission = mission_info or {}
         total = int(mission.get("total_beacons", DEFAULT_TOTAL_BEACONS))
         laps = int(mission.get("laps", DEFAULT_LAPS))
         initial = str(mission.get("initial_beacon_id", "B01"))
-        self._context_source = OnboardMultiGateContextTracker(
+        version = getattr(self._inference.model, "obs_encoding_version", OBS_ENCODING_VERSION_V3)
+        if version == OBS_ENCODING_VERSION_V3:
+            source_type = OnboardMultiGateContextTracker
+        else:
+            from marine_race_arena.learning.tracker_context_sequence import (
+                OnboardSequenceContextTracker,
+            )
+            source_type = OnboardSequenceContextTracker
+        self.observation_encoding_version = version
+        self._context_source = source_type(
             total_beacons=total or DEFAULT_TOTAL_BEACONS,
             laps=laps or DEFAULT_LAPS,
             initial_beacon_id=initial,
@@ -164,7 +210,13 @@ class RLMultigateController(BaseController):
             self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
             return _zero_command()
 
-        encoded = encode_observation_v3(observation, context)
+        if self.observation_encoding_version == OBS_ENCODING_VERSION_V3:
+            encoded = encode_observation_v3(observation, context)
+        else:
+            from marine_race_arena.learning.observation_encoder_sequence import (
+                encode_observation_sequence,
+            )
+            encoded = encode_observation_sequence(observation, context)
         self._last_encoded_observation = encoded
         action = np.asarray(self._inference.act(encoded), dtype=np.float32).reshape(-1)
         if action.shape != (ACTION_DIM,):

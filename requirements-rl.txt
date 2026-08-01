@@ -15,6 +15,7 @@
 gymnasium==1.0.0            # step-wise environment API
 torch==2.8.0               # policy network (CPU wheel; a CUDA build also works)
 stable-baselines3==2.7.1   # PPO reinforcement learning
+sb3-contrib==2.7.1         # RecurrentPPO/LSTM sequence-policy experiment
 
 # Required by the multi-day launcher; CSV/JSONL remain the authoritative logs.
 tensorboard==2.20.0

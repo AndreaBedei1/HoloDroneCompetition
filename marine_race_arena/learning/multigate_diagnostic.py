@@ -147,9 +147,11 @@ def _classify_first_failure(*, finished: bool, end_reason: str, gates: int, expe
 def run_diagnostic(track: str, model: Optional[str], seed: int, *, controller_name: str = "rl_gate_controller",
                    adapter: str = "holoocean", allow_fallback: bool = False,
                    current_profile: Optional[str] = "none", benchmark_task: Optional[str] = None,
-                   dt: float = 0.1, heartbeat: int = 10) -> Dict:
+                   dt: float = 0.1, heartbeat: int = 10,
+                   max_steps: Optional[int] = None) -> Dict:
     """Run one seed and return a compact diagnostic (summary + event timeline + classification)."""
     ep = RaceEpisode(track, seed=int(seed), dt=dt, adapter=adapter, allow_fallback=allow_fallback,
+                     max_steps=max_steps,
                      official=True, current_profile=current_profile, benchmark_task=benchmark_task)
     obs = ep.reset()
     ctx = ep.context
@@ -282,12 +284,18 @@ def main(argv=None) -> int:
     parser.add_argument("--benchmark-task", default=None)
     parser.add_argument("--dt", type=float, default=0.1)
     parser.add_argument("--heartbeat", type=int, default=15)
+    parser.add_argument("--max-steps", type=int, default=None)
     args = parser.parse_args(argv)
 
     if args.controller == "rl_multigate_controller":
-        from marine_race_arena.learning.model_contract_v3 import validate_v3_model
+        # The deployable policy-only controller accepts both the frozen v3 PPO
+        # contract and the PPO sequence-v4/recurrent contract. Loading the
+        # inference object performs the version, shape, and algorithm checks.
+        from marine_race_arena.learning.rl_multigate_controller import (
+            _load_v3_inference,
+        )
 
-        validate_v3_model(args.model)
+        _load_v3_inference(args.model)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -302,7 +310,7 @@ def main(argv=None) -> int:
         r = run_diagnostic(args.track, args.model, seed, controller_name=args.controller,
                            adapter=args.adapter, allow_fallback=args.allow_fallback,
                            current_profile=args.current_profile, benchmark_task=args.benchmark_task,
-                           dt=args.dt, heartbeat=args.heartbeat)
+                           dt=args.dt, heartbeat=args.heartbeat, max_steps=args.max_steps)
         runs.append(r)
         c = r["classification"]
         print(f"[diag] seed={seed} gates={r['completed_gates']}/{r['expected_gates']} "

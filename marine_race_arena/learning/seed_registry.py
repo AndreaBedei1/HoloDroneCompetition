@@ -85,6 +85,14 @@ MULTIGATE_RELIABILITY_VALIDATION_SEEDS: List[int] = _r(25500, 25599)
 # controller comparison has a genuinely unseen half in every test group.
 MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS: List[int] = _r(27000, 27499)
 
+# PPO-only long-sequence curriculum. These roles were allocated after the final
+# common benchmark and are disjoint from every historical experiment.
+PPO_SEQUENCE_TRAINING_SEEDS: List[int] = _r(30000, 31999)
+PPO_SEQUENCE_CURRICULUM_EVAL_SEEDS: List[int] = _r(32000, 32499)
+PPO_SEQUENCE_CHECKPOINT_SELECTION_SEEDS: List[int] = _r(32500, 32999)
+PPO_SEQUENCE_UNSEEN_HOLDOUT_SEEDS: List[int] = _r(33000, 33499)
+PPO_SEQUENCE_OFFICIAL_HOLDOUT_SEEDS: List[int] = _r(33500, 33999)
+
 NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "stage2_secondary_dev_eval": STAGE2_SECONDARY_DEV_SEEDS,
     "visual_pose_dataset_v2": VISUAL_POSE_DATASET_V2_SEEDS,
@@ -112,6 +120,11 @@ NEW_ALLOCATIONS: Dict[str, List[int]] = {
     "multigate_reliability_checkpoint_selection": MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS,
     "multigate_reliability_validation": MULTIGATE_RELIABILITY_VALIDATION_SEEDS,
     "multigate_FINAL_benchmark_holdout": MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS,
+    "ppo_sequence_training": PPO_SEQUENCE_TRAINING_SEEDS,
+    "ppo_sequence_curriculum_eval": PPO_SEQUENCE_CURRICULUM_EVAL_SEEDS,
+    "ppo_sequence_checkpoint_selection": PPO_SEQUENCE_CHECKPOINT_SELECTION_SEEDS,
+    "ppo_sequence_unseen_holdout": PPO_SEQUENCE_UNSEEN_HOLDOUT_SEEDS,
+    "ppo_sequence_official_holdout": PPO_SEQUENCE_OFFICIAL_HOLDOUT_SEEDS,
 }
 
 # Mutually-exclusive roles that must be pairwise disjoint (training/selection vs held-out).
@@ -145,6 +158,11 @@ ROLE_SEED_SETS: Dict[str, Set[int]] = {
     "multigate_reliability_checkpoint_selection": set(MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS),
     "multigate_reliability_validation": set(MULTIGATE_RELIABILITY_VALIDATION_SEEDS),
     "multigate_final_benchmark_holdout": set(MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS),
+    "ppo_sequence_training": set(PPO_SEQUENCE_TRAINING_SEEDS),
+    "ppo_sequence_curriculum_eval": set(PPO_SEQUENCE_CURRICULUM_EVAL_SEEDS),
+    "ppo_sequence_checkpoint_selection": set(PPO_SEQUENCE_CHECKPOINT_SELECTION_SEEDS),
+    "ppo_sequence_unseen_holdout": set(PPO_SEQUENCE_UNSEEN_HOLDOUT_SEEDS),
+    "ppo_sequence_official_holdout": set(PPO_SEQUENCE_OFFICIAL_HOLDOUT_SEEDS),
 }
 
 # Ranges that must never be used for training, checkpoint selection, reward or
@@ -159,6 +177,8 @@ DO_NOT_TRAIN_ON: Dict[str, List[int]] = {
     "multigate_v3_FINAL_three_gate": MULTIGATE_V3_FINAL_THREE_GATE_SEEDS,
     "multigate_v3_FINAL_official": MULTIGATE_V3_FINAL_OFFICIAL_SEEDS,
     "multigate_FINAL_benchmark_holdout": MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS,
+    "ppo_sequence_unseen_holdout": PPO_SEQUENCE_UNSEEN_HOLDOUT_SEEDS,
+    "ppo_sequence_official_holdout": PPO_SEQUENCE_OFFICIAL_HOLDOUT_SEEDS,
 }
 
 
@@ -198,7 +218,9 @@ def development_and_final_are_disjoint() -> bool:
              | set(MULTIGATE_V3_FINAL_TWO_GATE_SEEDS)
              | set(MULTIGATE_V3_FINAL_THREE_GATE_SEEDS)
              | set(MULTIGATE_V3_FINAL_OFFICIAL_SEEDS)
-             | set(MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS))
+             | set(MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS)
+             | set(PPO_SEQUENCE_UNSEEN_HOLDOUT_SEEDS)
+             | set(PPO_SEQUENCE_OFFICIAL_HOLDOUT_SEEDS))
     dev |= (
         set(MULTIGATE_V3_DEMONSTRATION_SEEDS)
         | set(MULTIGATE_V3_PPO_TRAINING_SEEDS)
@@ -214,6 +236,9 @@ def development_and_final_are_disjoint() -> bool:
         | set(MULTIGATE_RELIABILITY_DEV_EVAL_SEEDS)
         | set(MULTIGATE_RELIABILITY_CHECKPOINT_SELECTION_SEEDS)
         | set(MULTIGATE_RELIABILITY_VALIDATION_SEEDS)
+        | set(PPO_SEQUENCE_TRAINING_SEEDS)
+        | set(PPO_SEQUENCE_CURRICULUM_EVAL_SEEDS)
+        | set(PPO_SEQUENCE_CHECKPOINT_SELECTION_SEEDS)
     )
     return dev.isdisjoint(final)
 

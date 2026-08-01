@@ -109,23 +109,45 @@ class MarineRaceGymEnv(_GYM_BASE):
                 OBS_ENCODING_VERSION_V3,
             )
 
-            if self.observation_encoding_version != OBS_ENCODING_VERSION_V3:
+            if self.observation_encoding_version not in {
+                OBS_ENCODING_VERSION_V3,
+                "onboard_ppo_sequence_v4",
+            }:
                 raise ValueError(
                     f"unsupported observation encoding {self.observation_encoding_version!r}"
                 )
-            from marine_race_arena.learning.observation_encoder_v3 import (
-                encode_observation_v3,
-            )
-            from marine_race_arena.learning.reward_v3 import MultiGateTrainingReward
-            from marine_race_arena.learning.tracker_context_v3 import (
-                OnboardMultiGateContextTracker,
-            )
+            if self.observation_encoding_version == "onboard_ppo_sequence_v4":
+                from marine_race_arena.learning.config_sequence import (
+                    FEATURE_BOUNDS_SEQUENCE,
+                    OBS_DIM_SEQUENCE,
+                )
+                from marine_race_arena.learning.observation_encoder_sequence import (
+                    encode_observation_sequence,
+                )
+                from marine_race_arena.learning.reward_sequence import SequenceTrainingReward
+                from marine_race_arena.learning.tracker_context_sequence import (
+                    OnboardSequenceContextTracker,
+                )
 
-            self._feature_bounds = FEATURE_BOUNDS_V3
-            self._obs_dim = OBS_DIM_V3
-            self._context_type = OnboardMultiGateContextTracker
-            self._encoder = encode_observation_v3
-            default_reward = MultiGateTrainingReward()
+                self._feature_bounds = FEATURE_BOUNDS_SEQUENCE
+                self._obs_dim = OBS_DIM_SEQUENCE
+                self._context_type = OnboardSequenceContextTracker
+                self._encoder = encode_observation_sequence
+                default_reward = SequenceTrainingReward()
+            else:
+                from marine_race_arena.learning.observation_encoder_v3 import (
+                    encode_observation_v3,
+                )
+                from marine_race_arena.learning.reward_v3 import MultiGateTrainingReward
+                from marine_race_arena.learning.tracker_context_v3 import (
+                    OnboardMultiGateContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_V3
+                self._obs_dim = OBS_DIM_V3
+                self._context_type = OnboardMultiGateContextTracker
+                self._encoder = encode_observation_v3
+                default_reward = MultiGateTrainingReward()
         self._reward_fn: RewardFn = reward_fn or default_reward
         self._ctx_source = None
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
