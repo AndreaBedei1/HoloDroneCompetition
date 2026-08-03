@@ -119,6 +119,12 @@ before evaluation begins, then recreated with sampler, curriculum and learner
 RNG state restored before learning resumes; rollout and evaluator engines never
 overlap.
 
+HoloOcean shutdown is verified against the exact `_world_process` handle owned
+by each adapter. Normal context-manager cleanup runs first; if HoloOcean 2.3.0
+leaves that child alive, the adapter reaps only that PID (including its Windows
+process tree) before the next engine is launched. This prevents idle evaluator
+engines from accumulating across the 1,000-case benchmark.
+
 At every evaluation boundary, the trainer first writes a complete atomic
 checkpoint and marks status `evaluating`, then releases rollout workers. If the
 machine stops during evaluation, resume recognizes that the boundary evaluation

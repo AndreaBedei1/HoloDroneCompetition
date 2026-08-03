@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -134,3 +135,56 @@ def test_holoocean_close_uses_context_manager_and_drops_environment_references()
     assert env.exit_calls == [(None, None, None)]
     assert adapter.env is None
     assert adapter.visual_spawner is None
+
+
+def test_holoocean_close_force_reaps_a_leaked_windows_world_process() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class LeakedWorldProcess:
+        pid = 43210
+
+        def __init__(self) -> None:
+            self.kill_calls = 0
+            self.stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def kill(self) -> None:
+            self.kill_calls += 1
+
+        def wait(self, timeout: int):
+            if not self.stopped:
+                raise subprocess.TimeoutExpired("Holodeck", timeout)
+            return 0
+
+    class LeakingEnvironment:
+        def __init__(self) -> None:
+            self._world_process = LeakedWorldProcess()
+            self.exit_calls = 0
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            self.exit_calls += 1
+
+    env = LeakingEnvironment()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = env
+
+    def taskkill(command, **kwargs):
+        assert command == ["taskkill", "/PID", "43210", "/T", "/F"]
+        env._world_process.stopped = True
+        return subprocess.CompletedProcess(command, 0)
+
+    with (
+        patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
+        patch(
+            "marine_race_arena.adapters.holoocean_adapter.subprocess.run",
+            side_effect=taskkill,
+        ) as run,
+    ):
+        adapter.close()
+
+    assert env.exit_calls == 1
+    assert env._world_process.kill_calls == 1
+    run.assert_called_once()
+    assert adapter.env is None

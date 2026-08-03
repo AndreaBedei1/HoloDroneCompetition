@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import logging
 import math
+import os
+import subprocess
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter, RaceAdapterError, RaceAdapterUnavailable
@@ -255,16 +257,72 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         self.visual_spawner = None
         if env is None:
             return
-        close = getattr(env, "close", None)
-        if callable(close):
-            close()
+        world_process = getattr(env, "_world_process", None)
+        lifecycle_error: Optional[Exception] = None
+        try:
+            close = getattr(env, "close", None)
+            if callable(close):
+                close()
+            else:
+                exit_environment = getattr(env, "__exit__", None)
+                if callable(exit_environment):
+                    # HoloOcean 2.3.0 exposes lifecycle cleanup through its
+                    # context manager rather than close().
+                    exit_environment(None, None, None)
+        except Exception as exc:  # pragma: no cover - real engine failure path
+            lifecycle_error = exc
+        finally:
+            self._ensure_world_process_stopped(world_process)
+        if lifecycle_error is not None:
+            raise lifecycle_error
+
+    @staticmethod
+    def _ensure_world_process_stopped(world_process: Any) -> None:
+        """Reap the exact engine child if HoloOcean lifecycle cleanup leaked it."""
+
+        if world_process is None:
             return
-        exit_environment = getattr(env, "__exit__", None)
-        if callable(exit_environment):
-            # HoloOcean 2.3.0 exposes lifecycle cleanup through its context
-            # manager, not close().  __exit__ unlinks shared memory and waits
-            # for this environment's exact Holodeck child process to stop.
-            exit_environment(None, None, None)
+        try:
+            if world_process.poll() is not None:
+                return
+        except (AttributeError, OSError):
+            return
+
+        pid = int(world_process.pid)
+        LOGGER.warning(
+            "HoloOcean lifecycle cleanup left Holodeck PID %s alive; reaping it.",
+            pid,
+        )
+        try:
+            world_process.kill()
+        except (OSError, ProcessLookupError):
+            return
+        try:
+            world_process.wait(timeout=2)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                LOGGER.exception("Forced cleanup failed for Holodeck PID %s.", pid)
+        else:  # pragma: no cover - kill() normally completes on POSIX
+            try:
+                world_process.kill()
+            except (OSError, ProcessLookupError):
+                return
+        try:
+            world_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            LOGGER.error("Holodeck PID %s remained alive after forced cleanup.", pid)
 
     @property
     def active_environment_name(self) -> Optional[str]:
