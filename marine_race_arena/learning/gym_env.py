@@ -112,11 +112,32 @@ class MarineRaceGymEnv(_GYM_BASE):
             if self.observation_encoding_version not in {
                 OBS_ENCODING_VERSION_V3,
                 "onboard_ppo_sequence_v4",
+                "onboard_local_transition_v1",
             }:
                 raise ValueError(
                     f"unsupported observation encoding {self.observation_encoding_version!r}"
                 )
-            if self.observation_encoding_version == "onboard_ppo_sequence_v4":
+            if self.observation_encoding_version == "onboard_local_transition_v1":
+                from marine_race_arena.learning.config_local_transition import (
+                    FEATURE_BOUNDS_LOCAL_TRANSITION,
+                    OBS_DIM_LOCAL_TRANSITION,
+                )
+                from marine_race_arena.learning.observation_encoder_local_transition import (
+                    encode_observation_local_transition,
+                )
+                from marine_race_arena.learning.reward_local_transition import (
+                    LocalTransitionTrainingReward,
+                )
+                from marine_race_arena.learning.tracker_context_local_transition import (
+                    OnboardLocalTransitionContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION
+                self._obs_dim = OBS_DIM_LOCAL_TRANSITION
+                self._context_type = OnboardLocalTransitionContextTracker
+                self._encoder = encode_observation_local_transition
+                default_reward = LocalTransitionTrainingReward()
+            elif self.observation_encoding_version == "onboard_ppo_sequence_v4":
                 from marine_race_arena.learning.config_sequence import (
                     FEATURE_BOUNDS_SEQUENCE,
                     OBS_DIM_SEQUENCE,

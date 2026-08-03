@@ -91,6 +91,17 @@ def _load_v3_inference(model_path: str) -> _Inference:
             expected_shape[OBS_ENCODING_VERSION_SEQUENCE] = (OBS_DIM_SEQUENCE,)
         except ImportError:
             pass
+        try:
+            from marine_race_arena.learning.config_local_transition import (
+                OBS_DIM_LOCAL_TRANSITION,
+                OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+            )
+            supported.add(OBS_ENCODING_VERSION_LOCAL_TRANSITION)
+            expected_shape[OBS_ENCODING_VERSION_LOCAL_TRANSITION] = (
+                OBS_DIM_LOCAL_TRANSITION,
+            )
+        except ImportError:
+            pass
         if version not in supported:
             raise ValueError(
                 f"incompatible observation encoding: model={version!r}"
@@ -158,6 +169,11 @@ class RLMultigateController(BaseController):
         version = getattr(self._inference.model, "obs_encoding_version", OBS_ENCODING_VERSION_V3)
         if version == OBS_ENCODING_VERSION_V3:
             source_type = OnboardMultiGateContextTracker
+        elif version == "onboard_local_transition_v1":
+            from marine_race_arena.learning.tracker_context_local_transition import (
+                OnboardLocalTransitionContextTracker,
+            )
+            source_type = OnboardLocalTransitionContextTracker
         else:
             from marine_race_arena.learning.tracker_context_sequence import (
                 OnboardSequenceContextTracker,
@@ -191,8 +207,8 @@ class RLMultigateController(BaseController):
             prev_action=self._prev_action.tolist(),
         )
         if (
-            context.previous_gate_bearing_present
-            and not context.previous_gate_in_rear_sector
+            getattr(context, "previous_gate_bearing_present", False)
+            and not getattr(context, "previous_gate_in_rear_sector", False)
         ):
             self._previous_gate_forward_streak += 1
             if (
@@ -203,7 +219,7 @@ class RLMultigateController(BaseController):
                 self._previous_gate_return_latched = True
         else:
             self._previous_gate_forward_streak = 0
-            if context.previous_gate_in_rear_sector:
+            if getattr(context, "previous_gate_in_rear_sector", False):
                 self._previous_gate_return_latched = False
         if self._finished or self._context_source.tracker.finished:
             self._finished = True
@@ -212,6 +228,11 @@ class RLMultigateController(BaseController):
 
         if self.observation_encoding_version == OBS_ENCODING_VERSION_V3:
             encoded = encode_observation_v3(observation, context)
+        elif self.observation_encoding_version == "onboard_local_transition_v1":
+            from marine_race_arena.learning.observation_encoder_local_transition import (
+                encode_observation_local_transition,
+            )
+            encoded = encode_observation_local_transition(observation, context)
         else:
             from marine_race_arena.learning.observation_encoder_sequence import (
                 encode_observation_sequence,

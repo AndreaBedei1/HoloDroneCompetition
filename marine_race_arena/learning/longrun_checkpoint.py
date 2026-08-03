@@ -19,6 +19,9 @@ import numpy as np
 from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION
 from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
 from marine_race_arena.learning.config_sequence import OBS_ENCODING_VERSION_SEQUENCE
+from marine_race_arena.learning.config_local_transition import (
+    OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+)
 
 CHECKPOINT_SCHEMA_VERSION = "multigate_longrun_checkpoint_v1"
 MODEL_TRAINING_STATE_VERSION = "multigate_model_training_state_v1"
@@ -306,6 +309,7 @@ def _checkpoint_is_valid(
         if manifest.get("observation_version") not in {
             OBS_ENCODING_VERSION_V3,
             OBS_ENCODING_VERSION_SEQUENCE,
+            OBS_ENCODING_VERSION_LOCAL_TRANSITION,
         }:
             return None
         if manifest.get("action_version") != ACTION_CONTRACT_VERSION:
@@ -411,9 +415,12 @@ def checkpoint_passed_safety(checkpoint: ValidCheckpoint) -> bool:
             report, dict
         ) and full_evaluation_passed_safety(report)
     report = dict(state.get("evaluation", {})).get("last")
-    if checkpoint.manifest.get("observation_version") == OBS_ENCODING_VERSION_SEQUENCE:
+    if checkpoint.manifest.get("observation_version") in {
+        OBS_ENCODING_VERSION_SEQUENCE,
+        OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+    }:
         metrics = report.get("metrics", {}) if isinstance(report, dict) else {}
-        return (
+        common = (
             isinstance(report, dict)
             and int(report.get("timesteps", -1)) == checkpoint.timesteps
             and int(metrics.get("n_eval", 0)) >= 10
@@ -425,6 +432,11 @@ def checkpoint_passed_safety(checkpoint: ValidCheckpoint) -> bool:
             and int(metrics.get("previous_gate_returns", 0)) == 0
             and int(metrics.get("missed_gate_dnf", 0)) == 0
         )
+        if checkpoint.manifest.get("observation_version") == OBS_ENCODING_VERSION_LOCAL_TRANSITION:
+            return common and float(
+                metrics.get("universal_transition_success_rate", 0.0) or 0.0
+            ) >= 0.99
+        return common
     return (
         isinstance(report, dict)
         and int(report.get("timesteps", -1)) == checkpoint.timesteps

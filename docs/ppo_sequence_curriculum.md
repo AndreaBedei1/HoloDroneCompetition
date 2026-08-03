@@ -1,5 +1,9 @@
 # PPO-only sequence curriculum
 
+> Historical path. The sequence-length-independent successor is documented in
+> [`ppo_universal_transition.md`](ppo_universal_transition.md). Existing run
+> artifacts and the 526,336-step safe checkpoint remain preserved.
+
 This is the active learning workflow after the final common benchmark. Hybrid,
 rule-controller, and BC-v3 files remain untouched as historical reproducibility
 artifacts, but they are not imported by `train_ppo_sequence`, are not sampled as

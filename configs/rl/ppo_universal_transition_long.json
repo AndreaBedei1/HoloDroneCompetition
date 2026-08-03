@@ -1,0 +1,48 @@
+{
+  "run_name": "universal_transition_seed23001",
+  "output_root": "results/rl/universal_transition/longrun",
+  "observation_version": "onboard_local_transition_v1",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "initialization": {
+    "mode": "selective_warm_start",
+    "source_checkpoint": "results/rl/ppo_sequence_curriculum/ppo900462_long_sequences_seed23001/checkpoints/ppo_526336_steps.zip",
+    "source_sha256": "7fcb83db85c86eb22c2d7120d01cd1cb43e238f4f4ee27ff866d698ae3b0cf9c"
+  },
+  "seed": 23001,
+  "worker_seed_base": 43001,
+  "torch_threads": 1,
+  "new_environment_steps": 1000000,
+  "n_envs": 2,
+  "adapter": "holoocean",
+  "allow_fallback": false,
+  "holoocean_frames_per_sec": false,
+  "max_episode_steps": 3600,
+  "ppo": {
+    "hidden_sizes": [256, 256],
+    "learning_rate": 0.000006,
+    "final_learning_rate": 0.000001,
+    "learning_rate_schedule": "linear",
+    "n_steps": 1024,
+    "batch_size": 256,
+    "n_epochs": 3,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "clip_range": 0.05,
+    "target_kl": 0.004,
+    "ent_coef": 0.0002
+  },
+  "curriculum": {
+    "initial_difficulty": "G1",
+    "maximum_difficulty": "G6",
+    "transition_focus_fraction": 0.70
+  },
+  "reward": {},
+  "evaluation": {
+    "frequency": 50000,
+    "checkpoint_frequency": 10000,
+    "seed": 88001,
+    "transition_cases": 100,
+    "full_cases_per_length": 3,
+    "dedicated_transition_cases": 1000
+  }
+}

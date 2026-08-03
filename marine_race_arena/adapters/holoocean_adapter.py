@@ -183,6 +183,37 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             rotation=[float(rotation_rpy_deg[0]), float(rotation_rpy_deg[1]), float(rotation_rpy_deg[2])],
         )
 
+    def set_participant_body_velocity(
+        self,
+        participant_id: str,
+        body_velocity: Vector3,
+    ) -> None:
+        """Apply a privileged reset velocity without exposing it to policy code."""
+
+        if self.env is None:
+            raise RaceAdapterError("HoloOcean environment is not initialized.")
+        agents = getattr(self.env, "agents", None)
+        agent = agents.get(participant_id) if isinstance(agents, dict) else None
+        setter = getattr(agent, "set_physics_state", None)
+        if agent is None or not callable(setter):
+            raise RaceAdapterError(
+                f"HoloOcean agent '{participant_id}' cannot set reset velocity."
+            )
+        state = self.get_participant_state(participant_id)
+        yaw = math.radians(float(state.rotation_rpy_deg[2]))
+        surge, sway, heave = map(float, body_velocity)
+        velocity = [
+            math.cos(yaw) * surge - math.sin(yaw) * sway,
+            math.sin(yaw) * surge + math.cos(yaw) * sway,
+            heave,
+        ]
+        setter(
+            location=list(map(float, state.position)),
+            rotation=list(map(float, state.rotation_rpy_deg)),
+            velocity=velocity,
+            angular_velocity=[0.0, 0.0, 0.0],
+        )
+
     def get_collision_state(self, participant_id: str) -> bool:
         sensors = self._agent_sensors(participant_id)
         for key, value in sensors.items():
@@ -239,6 +270,13 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
     def active_environment_name(self) -> Optional[str]:
         return self._active_environment_name
 
+    @property
+    def environment_uuid(self) -> Optional[str]:
+        """HoloOcean's automatically generated process/shared-memory UUID."""
+
+        value = getattr(self.env, "_uuid", None)
+        return None if value is None else str(value)
+
     def _make_environment(self) -> Any:
         failures: list[str] = []
         for environment_name in self._environment_candidates():
@@ -282,7 +320,9 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             "package_name": self.config.world.package or "Ocean",
             "main_agent": next(iter(self._participants.keys()), "bluerov2_01"),
             "ticks_per_sec": 30,
-            "frames_per_sec": True,
+            "frames_per_sec": self.config.raw.get(
+                "holoocean_frames_per_sec", True
+            ),
             "window_width": 1280,
             "window_height": 720,
             "current": {"vehicle_debugging": False},
