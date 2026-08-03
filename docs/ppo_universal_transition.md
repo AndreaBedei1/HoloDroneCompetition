@@ -119,6 +119,13 @@ before evaluation begins, then recreated with sampler, curriculum and learner
 RNG state restored before learning resumes; rollout and evaluator engines never
 overlap.
 
+At every evaluation boundary, the trainer first writes a complete atomic
+checkpoint and marks status `evaluating`, then releases rollout workers. If the
+machine stops during evaluation, resume recognizes that the boundary evaluation
+is still absent from checkpoint history, completes it without adding another
+rollout, and atomically replaces the same-timestep checkpoint with the retained
+evaluation and curriculum history.
+
 The real benchmark is written to
 `results/rl/universal_transition/parallel_benchmark/parallel_benchmark.{json,md}`.
 It compares one/two workers and `frames_per_sec=true/false`, records throughput,

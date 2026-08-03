@@ -241,6 +241,26 @@ def _recreate_training_env(
         raise
 
 
+def _next_evaluation_transition(
+    evaluation_state: Mapping[str, Any], frequency: int
+) -> int:
+    """Return the first scheduled evaluation not present in checkpoint state."""
+
+    completed = [
+        int(report.get("timesteps", 0) or 0)
+        for report in list(evaluation_state.get("history") or [])
+        if isinstance(report, Mapping)
+    ]
+    last_completed = max(completed, default=0)
+    return ((last_completed // int(frequency)) + 1) * int(frequency)
+
+
+def _training_work_pending(current: int, target: int, next_evaluation: int) -> bool:
+    """Include a pending target-boundary evaluation without extra training."""
+
+    return int(current) < int(target) or int(current) >= int(next_evaluation)
+
+
 def _save(
     model: Any,
     run_dir: Path,
@@ -457,7 +477,9 @@ def run_training(args: argparse.Namespace) -> int:
         )
     evaluation_frequency = int(config["evaluation"]["frequency"])
     checkpoint_frequency = int(config["evaluation"]["checkpoint_frequency"])
-    next_evaluation = ((int(model.num_timesteps) // evaluation_frequency) + 1) * evaluation_frequency
+    next_evaluation = _next_evaluation_transition(
+        evaluation_state, evaluation_frequency
+    )
     next_checkpoint = ((int(model.num_timesteps) // checkpoint_frequency) + 1) * checkpoint_frequency
     _status(
         run_dir, state="running", model=model, curriculum=curriculum, env=env,
@@ -465,34 +487,56 @@ def run_training(args: argparse.Namespace) -> int:
         message="universal transition PPO initialized",
     )
     try:
-        while int(model.num_timesteps) < target and not stop["requested"] and not stop_file.exists():
-            schedule = getattr(model, "learning_rate", None)
-            if hasattr(schedule, "set_training_horizon"):
-                schedule.set_training_horizon(
-                    sb3_total_timesteps=int(model.num_timesteps) + rollout_size,
-                    absolute_total_timesteps=target,
-                )
-            started = time.perf_counter()
-            model.learn(
-                total_timesteps=rollout_size,
-                reset_num_timesteps=False,
-                progress_bar=False,
+        while (
+            _training_work_pending(
+                int(model.num_timesteps), target, next_evaluation
             )
-            elapsed = time.perf_counter() - started
-            curriculum.set_total_environment_transitions(int(model.num_timesteps))
-            env.env_method("set_total_environment_transitions", int(model.num_timesteps))
-            with (run_dir / "logs" / "progress.jsonl").open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps({
-                    "utc": now_utc(),
-                    "total_environment_transitions": int(model.num_timesteps),
-                    "difficulty": curriculum.difficulty,
-                    "learning_rate": float(model.policy.optimizer.param_groups[0]["lr"]),
-                    "rollout_wall_time_s": elapsed,
-                    "environment_transitions_per_second": rollout_size / max(elapsed, 1e-9),
-                }) + "\n")
+            and not stop["requested"]
+            and not stop_file.exists()
+        ):
+            if int(model.num_timesteps) < target:
+                schedule = getattr(model, "learning_rate", None)
+                if hasattr(schedule, "set_training_horizon"):
+                    schedule.set_training_horizon(
+                        sb3_total_timesteps=int(model.num_timesteps) + rollout_size,
+                        absolute_total_timesteps=target,
+                    )
+                started = time.perf_counter()
+                model.learn(
+                    total_timesteps=rollout_size,
+                    reset_num_timesteps=False,
+                    progress_bar=False,
+                )
+                elapsed = time.perf_counter() - started
+                curriculum.set_total_environment_transitions(int(model.num_timesteps))
+                env.env_method(
+                    "set_total_environment_transitions", int(model.num_timesteps)
+                )
+                with (run_dir / "logs" / "progress.jsonl").open(
+                    "a", encoding="utf-8"
+                ) as handle:
+                    handle.write(json.dumps({
+                        "utc": now_utc(),
+                        "total_environment_transitions": int(model.num_timesteps),
+                        "difficulty": curriculum.difficulty,
+                        "learning_rate": float(model.policy.optimizer.param_groups[0]["lr"]),
+                        "rollout_wall_time_s": elapsed,
+                        "environment_transitions_per_second": rollout_size / max(elapsed, 1e-9),
+                    }) + "\n")
 
             if int(model.num_timesteps) >= next_evaluation:
                 output = run_dir / "evaluations" / f"unseen_{int(model.num_timesteps):09d}"
+                _save(
+                    model, run_dir, contract, curriculum, env, evaluation_state,
+                    aliases, selection, config, status="unverified",
+                    reason="pre_evaluation_atomic_boundary",
+                )
+                _status(
+                    run_dir, state="evaluating", model=model,
+                    curriculum=curriculum, env=env, aliases=aliases,
+                    selection=selection, config=config,
+                    message="training workers will be released for evaluation",
+                )
                 worker_states = _worker_states(env)
                 learner_rng = capture_rng_state()
                 env.close()

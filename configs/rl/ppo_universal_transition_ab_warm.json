@@ -1,5 +1,5 @@
 {
-  "run_name": "ab_selective_warm_trackerfix_v2_seed23001",
+  "run_name": "ab_selective_warm_atomic_v3_seed23001",
   "output_root": "results/rl/universal_transition/ab_comparison",
   "observation_version": "onboard_local_transition_v1",
   "action_version": "surge_sway_heave_yaw_pm1_v1",

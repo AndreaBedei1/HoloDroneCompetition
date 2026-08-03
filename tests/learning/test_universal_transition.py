@@ -532,6 +532,24 @@ def test_training_workers_are_recreated_with_state_before_learning_resumes(
     )
 
 
+def test_target_boundary_checkpoint_resume_keeps_pending_evaluation():
+    from marine_race_arena.learning.train_ppo_transition import (
+        _next_evaluation_transition,
+        _training_work_pending,
+    )
+
+    frequency = 40_960
+    pending = {"history": [], "last": None, "best": None}
+    next_evaluation = _next_evaluation_transition(pending, frequency)
+    assert next_evaluation == frequency
+    assert _training_work_pending(frequency, frequency, next_evaluation)
+
+    completed = {"history": [{"timesteps": frequency}]}
+    next_evaluation = _next_evaluation_transition(completed, frequency)
+    assert next_evaluation == 2 * frequency
+    assert not _training_work_pending(frequency, frequency, next_evaluation)
+
+
 def test_ab_configs_differ_only_by_initialization_and_use_1000_unseen_cases():
     from marine_race_arena.learning.compare_transition_initializations import (
         validate_pair,
