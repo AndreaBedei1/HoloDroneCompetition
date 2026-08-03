@@ -99,6 +99,17 @@ class LocalCourseTrackerConfig:
     #: has a much larger range rise and must not trigger a return crossing.
     close_commit_range_rise_max_m: float = 0.35
     close_commit_required_frames: int = 2
+    #: Optional close-passage COMMIT path for policies whose camera target can
+    #: become cropped before its centroid satisfies the normal alignment
+    #: thresholds.  It is disabled for existing controllers.  When enabled it
+    #: still requires consecutive camera detections plus a fresh, close and
+    #: forward expected-beacon packet; all normal post-COMMIT DVL, range,
+    #: disappearance and rear-bearing checks remain mandatory.
+    proximity_commit_enabled: bool = False
+    proximity_commit_range_m: float = 1.0
+    proximity_commit_bearing_deg: float = 25.0
+    proximity_commit_confidence_threshold: float = 0.35
+    proximity_commit_required_frames: int = 2
     #: DVL-integrated forward displacement after COMMIT required for passage.
     min_commit_displacement_m: float = 1.2
     #: Give up a COMMIT that produced no displacement after this long.
@@ -247,6 +258,7 @@ class LocalCourseTracker:
         self._rear_exit_range_rise_confirmed = False
         self._centered_streak = 0
         self._close_commit_streak = 0
+        self._proximity_commit_streak = 0
         self._disappear_streak = 0
         self._commit_started_at: Optional[float] = None
         self._verify_started_at: Optional[float] = None
@@ -372,6 +384,7 @@ class LocalCourseTracker:
             "commit_active": self.phase in (PHASE_COMMIT, PHASE_VERIFY_EXIT),
             "centered_streak": self._centered_streak,
             "close_commit_streak": self._close_commit_streak,
+            "proximity_commit_streak": self._proximity_commit_streak,
             "disappear_streak": self._disappear_streak,
             "advancements": self._advancements,
             "recent_beacon_samples": len(self._recent_beacon_history),
@@ -546,6 +559,7 @@ class LocalCourseTracker:
                 # VISUAL_ALIGN itself is held briefly for reacquisition.
                 self._centered_streak = 0
                 self._close_commit_streak = 0
+                self._proximity_commit_streak = 0
                 lost_for = (
                     time_s - self._last_visual_at
                     if self._last_visual_at is not None
@@ -582,14 +596,38 @@ class LocalCourseTracker:
             self._close_commit_streak = (
                 self._close_commit_streak + 1 if close_centered else 0
             )
+            proximity_commit_evidence = (
+                config.proximity_commit_enabled
+                and held is not None
+                and held.range_m <= config.proximity_commit_range_m
+                and abs(held.bearing_deg) <= config.proximity_commit_bearing_deg
+                and visual_target.confidence
+                >= config.proximity_commit_confidence_threshold
+                and self._rescue_min_range is not None
+                and held.range_m - self._rescue_min_range
+                <= config.close_commit_range_rise_max_m
+            )
+            self._proximity_commit_streak = (
+                self._proximity_commit_streak + 1
+                if proximity_commit_evidence else 0
+            )
             normal_commit = self._centered_streak >= config.commit_required_frames
             close_commit = (
                 self._close_commit_streak >= config.close_commit_required_frames
             )
-            if normal_commit or close_commit:
+            proximity_commit = (
+                self._proximity_commit_streak
+                >= config.proximity_commit_required_frames
+            )
+            if normal_commit or close_commit or proximity_commit:
+                reason = (
+                    "standard_visual_lock" if normal_commit
+                    else "close_range_rescue" if close_commit
+                    else "proximity_passage_rescue"
+                )
                 self._enter_commit(
                     time_s=time_s,
-                    reason="standard_visual_lock" if normal_commit else "close_range_rescue",
+                    reason=reason,
                     held=held,
                     visual_target=visual_target,
                 )
@@ -665,8 +703,10 @@ class LocalCourseTracker:
             ),
             "centered_streak": self._centered_streak,
             "close_commit_streak": self._close_commit_streak,
+            "proximity_commit_streak": self._proximity_commit_streak,
         }
         self._close_commit_streak = 0
+        self._proximity_commit_streak = 0
         self._last_commit_center_x = (
             visual_target.center_x if visual_target is not None else None
         )
@@ -827,6 +867,7 @@ class LocalCourseTracker:
         self._rear_exit_range_rise_confirmed = False
         self._centered_streak = 0
         self._close_commit_streak = 0
+        self._proximity_commit_streak = 0
         self._disappear_streak = 0
         self._commit_started_at = None
         self._verify_started_at = None
@@ -846,6 +887,7 @@ class LocalCourseTracker:
     ) -> None:
         self._centered_streak = 0
         self._close_commit_streak = 0
+        self._proximity_commit_streak = 0
         self._disappear_streak = 0
         self._commit_started_at = None
         self._verify_started_at = None

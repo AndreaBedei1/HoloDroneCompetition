@@ -13,7 +13,7 @@ from typing import Any, Dict, Mapping
 from marine_race_arena.learning.longrun_checkpoint import latest_valid_checkpoint
 from marine_race_arena.learning.provenance import now_utc
 from marine_race_arena.learning.transition_evaluation import (
-    evaluate_universal_transition_benchmark,
+    evaluate_checkpoint_universal_transition_benchmark,
     transition_checkpoint_rank_key,
 )
 
@@ -94,11 +94,8 @@ def _dedicated_benchmark(config: Mapping[str, Any]) -> Dict[str, Any]:
     checkpoint = latest_valid_checkpoint(run_dir, safe_only=False)
     if checkpoint is None:
         raise RuntimeError(f"no valid checkpoint in {run_dir}")
-    from stable_baselines3 import PPO
-
-    model = PPO.load(str(checkpoint.model_path), device="cpu")
-    report = evaluate_universal_transition_benchmark(
-        model,
+    report = evaluate_checkpoint_universal_transition_benchmark(
+        checkpoint.model_path,
         output_dir=output,
         seed=int(config["evaluation"]["seed"]),
         difficulty="G6",
@@ -107,6 +104,9 @@ def _dedicated_benchmark(config: Mapping[str, Any]) -> Dict[str, Any]:
         adapter=str(config["adapter"]),
         frames_per_sec=config["holoocean_frames_per_sec"],
         max_steps=int(config["max_episode_steps"]),
+        parallel_workers=int(
+            config["evaluation"].get("dedicated_parallel_workers", 1)
+        ),
     )
     report["checkpoint"] = str(checkpoint.model_path)
     return report
@@ -159,19 +159,25 @@ def main(argv=None) -> int:
     scratch = _load(scratch_path)
     validate_pair(warm, scratch)
 
-    runs = {}
-    for name, path, config in (
+    run_configs = (
         ("selective_warm_start", warm_path, warm),
         ("scratch", scratch_path, scratch),
-    ):
-        training = _train(path, config, args.allow_dirty)
-        benchmark = _dedicated_benchmark(config)
+    )
+    runs = {}
+    # Complete both controlled training arms before starting the expensive
+    # benchmark so an interrupted comparison never leaves the second arm
+    # untrained merely because the first arm's evaluation was long-running.
+    for name, path, config in run_configs:
         runs[name] = {
             "run_dir": str(_run_dir(config)),
-            "training": training,
-            "benchmark": benchmark,
-            "rank_key": list(transition_checkpoint_rank_key(benchmark["metrics"])),
+            "training": _train(path, config, args.allow_dirty),
         }
+    for name, _, config in run_configs:
+        benchmark = _dedicated_benchmark(config)
+        runs[name]["benchmark"] = benchmark
+        runs[name]["rank_key"] = list(
+            transition_checkpoint_rank_key(benchmark["metrics"])
+        )
     selected = max(
         runs,
         key=lambda name: transition_checkpoint_rank_key(runs[name]["benchmark"]["metrics"]),

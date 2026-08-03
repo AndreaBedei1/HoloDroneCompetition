@@ -448,6 +448,92 @@ def test_close_range_commit_rescue_rejects_far_or_oblique_beacon(
     assert scenario.tracker.local_completed == 0
 
 
+def _local_transition_tracker(total=2):
+    """Tracker thresholds used by onboard_local_transition_v1."""
+    from marine_race_arena.learning.tracker_context_local_transition import (
+        LOCAL_TRANSITION_TRACKER_CONFIG,
+    )
+
+    return LocalCourseTracker(
+        initial_beacon_id="B01",
+        total_beacons=total,
+        config=LOCAL_TRANSITION_TRACKER_CONFIG,
+    )
+
+
+def test_local_transition_proximity_commit_accepts_cropped_offcenter_gate():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+
+    # The first observation enters VISUAL_ALIGN.  The following two camera +
+    # close expected-beacon observations establish the local-only rescue.
+    for _ in range(3):
+        result = scenario.step(
+            range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2
+        )
+
+    assert result.phase == PHASE_COMMIT
+    evidence = scenario.tracker.diagnostics()["last_commit_entry_evidence"]
+    assert evidence["reason"] == "proximity_passage_rescue"
+    assert abs(evidence["visual_center_x"]) > 0.30
+
+
+def test_local_transition_proximity_commit_requires_consecutive_camera_evidence():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+
+    scenario.step(range_m=0.8, bearing=10.0, camera=cropped)
+    scenario.step(range_m=0.8, bearing=10.0, camera=cropped)
+    assert scenario.tracker.diagnostics()["proximity_commit_streak"] == 1
+    scenario.step(range_m=0.8, bearing=10.0, camera=empty_frame())
+    assert scenario.tracker.diagnostics()["proximity_commit_streak"] == 0
+    scenario.step(range_m=0.8, bearing=10.0, camera=cropped)
+
+    assert scenario.tracker.phase == PHASE_VISUAL_ALIGN
+
+
+def test_local_transition_cropped_true_passage_advances_from_onboard_evidence():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+    for _ in range(3):
+        scenario.step(range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2)
+    assert scenario.tracker.phase == PHASE_COMMIT
+
+    # Establish the tight passage envelope and enough DVL displacement, then
+    # require two fresh rear-sector packets plus range turnaround and visual
+    # disappearance before advancing.
+    scenario.step(range_m=0.55, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    scenario.step(range_m=0.50, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    scenario.step(range_m=0.50, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    assert scenario.tracker.phase == PHASE_VERIFY_EXIT
+    scenario.step(range_m=0.90, bearing=100.0, camera=empty_frame(), dvl_vx=0.4)
+    result = scenario.step(
+        range_m=0.90, bearing=100.0, camera=empty_frame(), dvl_vx=0.4
+    )
+
+    assert result.just_advanced
+    assert scenario.tracker.expected_beacon_id == "B02"
+
+
+def test_local_transition_proximity_near_miss_outside_tight_envelope_never_advances():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+    for _ in range(3):
+        scenario.step(range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2)
+    assert scenario.tracker.phase == PHASE_COMMIT
+
+    # This passes beside the aperture: all exit-shaped evidence is present,
+    # but the beacon never enters the <=0.60 m central passage envelope.
+    for _ in range(4):
+        scenario.step(range_m=0.80, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    for _ in range(6):
+        scenario.step(range_m=1.25, bearing=120.0, camera=empty_frame(), dvl_vx=0.5)
+
+    assert scenario.advancements == 0
+    assert scenario.tracker.local_completed == 0
+    assert not scenario.tracker.diagnostics()["close_range_confirmed"]
+
+
 def test_commit_without_dvl_displacement_does_not_advance():
     scenario = Scenario(make_tracker(commit_timeout_s=1.0))
     for _ in range(200):

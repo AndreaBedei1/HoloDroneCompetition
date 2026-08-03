@@ -57,6 +57,14 @@ tracker phases. It directly generates normalized surge, sway, heave, and yaw.
 Deterministic code is limited to ordered-crossing confirmation, expected-beacon
 selection, legal local temporal state, reward, and termination.
 
+The local transition tracker has a close-passage path for real HoloOcean images
+whose gate bars become cropped before a stable visual centroid is available.
+Two consecutive close camera detections and forward expected-beacon packets may
+start `COMMIT`; advancement still requires DVL displacement, a tight 0.60 m
+beacon-range envelope, range turnaround, camera-confirmed disappearance, and
+two fresh rear-sector packets. This path is disabled for existing controllers,
+uses no referee state, and is covered by cropped-passage and near-miss tests.
+
 ## Initialization and reward
 
 Two initialization modes are supported:
@@ -95,13 +103,21 @@ also reports full-sequence completion by length and transition success by
 position. Checkpoints rank by safety, transition success, long-sequence
 completion, jerk, then acquisition time.
 
+Dedicated benchmark cases are written atomically one episode at a time and are
+resumed by deterministic case identity after interruption. Two isolated
+evaluator processes are used after the two training arms finish. Each loads the
+same immutable checkpoint and writes disjoint case directories.
+
 ## Parallel HoloOcean layout
 
 The default long run uses one learner and two `SubprocVecEnv` workers with the
 Windows `spawn` method. Each worker owns a distinct HoloOcean engine/UUID,
 sampler seed, generated-track directory, active track, tracker, and log. The
 rollout is 1,024 steps per worker (2,048 total), with batch size 256. Evaluation
-uses separate deterministic simulator instances.
+uses separate deterministic simulator instances. Training workers are closed
+before evaluation begins, then recreated with sampler, curriculum and learner
+RNG state restored before learning resumes; rollout and evaluator engines never
+overlap.
 
 The real benchmark is written to
 `results/rl/universal_transition/parallel_benchmark/parallel_benchmark.{json,md}`.

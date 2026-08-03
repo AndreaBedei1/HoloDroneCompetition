@@ -421,6 +421,50 @@ def test_transition_benchmark_aggregation_and_sampler_are_deterministic():
     assert aggregate_transition_benchmark(rows)["universal_transition_success_rate"] == 1.0
 
 
+def test_checkpoint_benchmark_parallel_cases_are_atomic_and_resumable(tmp_path):
+    from marine_race_arena.learning.transition_evaluation import (
+        evaluate_checkpoint_universal_transition_benchmark,
+    )
+
+    model = build_local_transition_ppo(
+        _TinyEnv(OBS_DIM_LOCAL_TRANSITION), seed=9, learning_rate=1e-5,
+        hidden_sizes=(16, 16), n_steps=8, batch_size=8, n_epochs=1,
+    )
+    checkpoint = tmp_path / "model.zip"
+    model.save(checkpoint)
+    output = tmp_path / "benchmark"
+    first = evaluate_checkpoint_universal_transition_benchmark(
+        checkpoint,
+        output_dir=output,
+        seed=8123,
+        difficulty="G1",
+        transition_cases=2,
+        full_cases_per_length=0,
+        adapter="fallback",
+        max_steps=2,
+        parallel_workers=2,
+    )
+    assert first["metrics"]["n_eval"] == 2
+    case_files = sorted((output / "transitions").glob("case_*/episode.json"))
+    assert len(case_files) == 2
+
+    # A complete rerun loads atomic per-case rows and must not rewrite them.
+    mtimes = [path.stat().st_mtime_ns for path in case_files]
+    second = evaluate_checkpoint_universal_transition_benchmark(
+        checkpoint,
+        output_dir=output,
+        seed=8123,
+        difficulty="G1",
+        transition_cases=2,
+        full_cases_per_length=0,
+        adapter="fallback",
+        max_steps=2,
+        parallel_workers=2,
+    )
+    assert first["episodes"] == second["episodes"]
+    assert mtimes == [path.stat().st_mtime_ns for path in case_files]
+
+
 def test_vectorized_config_counts_total_rollout_across_workers():
     from marine_race_arena.learning.train_ppo_transition import _load_config
 
@@ -428,6 +472,64 @@ def test_vectorized_config_counts_total_rollout_across_workers():
     assert config["n_envs"] == 2
     assert config["ppo"]["n_steps"] == 1024
     assert config["n_envs"] * config["ppo"]["n_steps"] == 2048
+
+
+def test_training_workers_are_recreated_with_state_before_learning_resumes(
+    monkeypatch, tmp_path
+):
+    import marine_race_arena.learning.train_ppo_transition as training
+
+    calls = []
+
+    class FakeVecEnv:
+        num_envs = 2
+
+        def env_method(self, name, *args, **kwargs):
+            calls.append((name, args, kwargs))
+            return [None, None]
+
+        def reset(self):
+            calls.append(("reset", (), {}))
+            return np.zeros((2, OBS_DIM_LOCAL_TRANSITION), dtype=np.float32)
+
+        def close(self):
+            calls.append(("close", (), {}))
+
+    replacement = FakeVecEnv()
+    monkeypatch.setattr(training, "_make_vec_env", lambda *args: replacement)
+
+    class FakeModel:
+        num_timesteps = 8192
+        _last_obs = "stale"
+
+        def set_env(self, env):
+            calls.append(("set_env", (env,), {}))
+
+    model = FakeModel()
+    curriculum = TransitionCurriculumController()
+    config = {
+        "n_envs": 2,
+    }
+    states = [
+        {"worker_id": 0, "sampler_seed": 10},
+        {"worker_id": 1, "sampler_seed": 20},
+    ]
+
+    actual = training._recreate_training_env(
+        model, config, tmp_path, curriculum, states
+    )
+
+    assert actual is replacement
+    load_calls = [call for call in calls if call[0] == "load_worker_state"]
+    assert [call[2]["indices"] for call in load_calls] == [0, 1]
+    assert calls.index(("reset", (), {})) < next(
+        index for index, call in enumerate(calls) if call[0] == "set_env"
+    )
+    assert model._last_obs is None
+    assert any(
+        name == "set_total_environment_transitions" and args == (8192,)
+        for name, args, _ in calls
+    )
 
 
 def test_ab_configs_differ_only_by_initialization_and_use_1000_unseen_cases():

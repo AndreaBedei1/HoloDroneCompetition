@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence
 
@@ -42,6 +44,130 @@ def _geometry_with_length(geometry: TransitionGeometry, gate_count: int) -> Tran
     # Sampled arrays are regenerated deterministically by a dedicated sampler in
     # the caller; this guard exists for explicitly requested benchmark lengths.
     raise ValueError(f"geometry length {geometry.gate_count} != requested {gate_count}")
+
+
+def _completed_case(
+    output_dir: Path, geometry: TransitionGeometry
+) -> Optional[Dict[str, Any]]:
+    path = output_dir / "episode.json"
+    if not path.exists():
+        return None
+    try:
+        row = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    if (
+        int(row.get("seed", -1)) != int(geometry.seed)
+        or row.get("episode_type") != geometry.episode_type
+        or int(row.get("gate_count", -1)) != int(geometry.gate_count)
+        or "universal_transition_success" not in row
+    ):
+        return None
+    return row
+
+
+def _benchmark_cases(
+    *,
+    output: Path,
+    seed: int,
+    difficulty: str,
+    transition_cases: int,
+    full_cases_per_length: int,
+) -> list[tuple[int, TransitionGeometry, Path, bool]]:
+    """Generate the complete deterministic case list before any engine starts."""
+
+    cases: list[tuple[int, TransitionGeometry, Path, bool]] = []
+    sampler = TransitionGeometrySampler(
+        seed=int(seed), difficulty=difficulty, transition_focus_fraction=1.0
+    )
+    ordinal = 0
+    for index in range(int(transition_cases)):
+        geometry = sampler.sample(force_episode_type="transition_focus")
+        cases.append((
+            ordinal,
+            geometry,
+            output / "transitions" / f"case_{index:04d}",
+            index == 0,
+        ))
+        ordinal += 1
+    full_sampler = TransitionGeometrySampler(
+        seed=int(seed) + 1_000_003,
+        difficulty=difficulty,
+        transition_focus_fraction=0.0,
+    )
+    for length in FULL_SEQUENCE_LENGTHS:
+        completed = 0
+        attempts = 0
+        while completed < int(full_cases_per_length):
+            geometry = full_sampler.sample(force_episode_type="full_sequence")
+            attempts += 1
+            if geometry.gate_count != length:
+                if attempts > 10_000:
+                    raise RuntimeError(
+                        "could not deterministically sample requested sequence lengths"
+                    )
+                continue
+            cases.append((
+                ordinal,
+                _geometry_with_length(geometry, length),
+                output / "full_sequences" / f"length_{length}" / f"case_{completed:03d}",
+                completed == 0,
+            ))
+            ordinal += 1
+            completed += 1
+    return cases
+
+
+def _evaluate_case(
+    model: Any,
+    *,
+    geometry: TransitionGeometry,
+    output_dir: Path,
+    adapter: str,
+    frames_per_sec: bool | int,
+    max_steps: int,
+    record_trajectory: bool,
+) -> Dict[str, Any]:
+    completed = _completed_case(output_dir, geometry)
+    if completed is not None:
+        return completed
+    row = evaluate_local_transition_episode(
+        model,
+        geometry=geometry,
+        output_dir=output_dir,
+        adapter=adapter,
+        frames_per_sec=frames_per_sec,
+        max_steps=max_steps,
+        record_trajectory=record_trajectory,
+    )
+    _atomic_json(output_dir / "episode.json", row)
+    return row
+
+
+def _evaluate_checkpoint_batch(
+    checkpoint: str,
+    cases: Sequence[tuple[int, TransitionGeometry, Path, bool]],
+    adapter: str,
+    frames_per_sec: bool | int,
+    max_steps: int,
+) -> list[tuple[int, Dict[str, Any]]]:
+    """Spawn-safe evaluator worker; owns one model and one engine at a time."""
+
+    from stable_baselines3 import PPO
+
+    model = PPO.load(checkpoint, device="cpu")
+    rows = []
+    for ordinal, geometry, output_dir, record_trajectory in cases:
+        rows.append((ordinal, _evaluate_case(
+            model,
+            geometry=geometry,
+            output_dir=output_dir,
+            adapter=adapter,
+            frames_per_sec=frames_per_sec,
+            max_steps=max_steps,
+            record_trajectory=record_trajectory,
+        )))
+    return rows
 
 
 def evaluate_local_transition_episode(
@@ -171,6 +297,7 @@ def evaluate_local_transition_episode(
         no_previous_return = not reward.previous_gate_return_triggered
         no_missed = int(referee.missed_gate_attempts) == 0
         collision_events = int(referee.collision_events) + int(referee.obstacle_collision_events)
+        tracker_diagnostics = env.tracker.diagnostics()
         success = all((
             first_crossed, switched, aligned, range_decreased,
             no_previous_return, no_missed, collision_events == 0,
@@ -206,6 +333,15 @@ def evaluate_local_transition_episode(
             ),
             "gates_completed": int(referee.valid_gate_crossings),
             "transition_positions": transition_positions,
+            "tracker_final_phase": tracker_diagnostics["phase"],
+            "tracker_local_completed": int(tracker_diagnostics["local_completed"]),
+            "tracker_commit_entry_reason": tracker_diagnostics["commit_entry_reason"],
+            "tracker_last_advancement_evidence": tracker_diagnostics[
+                "last_advancement_evidence"
+            ],
+            "referee_tracker_first_crossing_mismatch": bool(
+                first_crossed and int(tracker_diagnostics["local_completed"]) < 1
+            ),
             "action_source": "ppo_policy",
         }
         if record_trajectory:
@@ -325,46 +461,25 @@ def evaluate_universal_transition_benchmark(
     if int(transition_cases) < 1:
         raise ValueError("transition benchmark requires at least one case")
     output = Path(output_dir)
-    sampler = TransitionGeometrySampler(
-        seed=int(seed), difficulty=difficulty, transition_focus_fraction=1.0
+    cases = _benchmark_cases(
+        output=output,
+        seed=int(seed),
+        difficulty=difficulty,
+        transition_cases=int(transition_cases),
+        full_cases_per_length=int(full_cases_per_length),
     )
-    rows = []
-    for index in range(int(transition_cases)):
-        geometry = sampler.sample(force_episode_type="transition_focus")
-        rows.append(evaluate_local_transition_episode(
+    rows = [
+        _evaluate_case(
             model,
             geometry=geometry,
-            output_dir=output / "transitions" / f"case_{index:04d}",
+            output_dir=case_output,
             adapter=adapter,
             frames_per_sec=frames_per_sec,
             max_steps=max_steps,
-            record_trajectory=index == 0,
-        ))
-    full_sampler = TransitionGeometrySampler(
-        seed=int(seed) + 1_000_003,
-        difficulty=difficulty,
-        transition_focus_fraction=0.0,
-    )
-    for length in FULL_SEQUENCE_LENGTHS:
-        completed = 0
-        attempts = 0
-        while completed < int(full_cases_per_length):
-            geometry = full_sampler.sample(force_episode_type="full_sequence")
-            attempts += 1
-            if geometry.gate_count != length:
-                if attempts > 10_000:
-                    raise RuntimeError("could not deterministically sample requested sequence lengths")
-                continue
-            rows.append(evaluate_local_transition_episode(
-                model,
-                geometry=_geometry_with_length(geometry, length),
-                output_dir=output / "full_sequences" / f"length_{length}" / f"case_{completed:03d}",
-                adapter=adapter,
-                frames_per_sec=frames_per_sec,
-                max_steps=max_steps,
-                record_trajectory=completed == 0,
-            ))
-            completed += 1
+            record_trajectory=record_trajectory,
+        )
+        for _, geometry, case_output, record_trajectory in cases
+    ]
     report = {
         "schema_version": "universal_transition_benchmark_v1",
         "observation_version": OBS_ENCODING_VERSION_LOCAL_TRANSITION,
@@ -372,6 +487,90 @@ def evaluate_universal_transition_benchmark(
         "difficulty": difficulty,
         "transition_cases": int(transition_cases),
         "full_cases_per_length": int(full_cases_per_length),
+        "metrics": aggregate_transition_benchmark(rows),
+        "episodes": rows,
+    }
+    _atomic_json(output / "evaluation.json", report)
+    return report
+
+
+def evaluate_checkpoint_universal_transition_benchmark(
+    checkpoint: str | Path,
+    *,
+    output_dir: str | Path,
+    seed: int,
+    difficulty: str = "G6",
+    transition_cases: int = 1000,
+    full_cases_per_length: int = 5,
+    adapter: str = "holoocean",
+    frames_per_sec: bool | int = False,
+    max_steps: int = 3600,
+    parallel_workers: int = 2,
+) -> Dict[str, Any]:
+    """Resume-safe checkpoint benchmark across isolated evaluator processes."""
+
+    if int(transition_cases) < 1:
+        raise ValueError("transition benchmark requires at least one case")
+    workers = max(1, int(parallel_workers))
+    output = Path(output_dir)
+    cases = _benchmark_cases(
+        output=output,
+        seed=int(seed),
+        difficulty=difficulty,
+        transition_cases=int(transition_cases),
+        full_cases_per_length=int(full_cases_per_length),
+    )
+    rows_by_ordinal: Dict[int, Dict[str, Any]] = {}
+    pending = []
+    for case in cases:
+        ordinal, geometry, case_output, _ = case
+        completed = _completed_case(case_output, geometry)
+        if completed is None:
+            pending.append(case)
+        else:
+            rows_by_ordinal[ordinal] = completed
+
+    if pending and workers == 1:
+        for ordinal, row in _evaluate_checkpoint_batch(
+            str(checkpoint), pending, adapter, frames_per_sec, int(max_steps)
+        ):
+            rows_by_ordinal[ordinal] = row
+    elif pending:
+        chunks = [pending[index::workers] for index in range(workers)]
+        chunks = [chunk for chunk in chunks if chunk]
+        context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(
+            max_workers=len(chunks), mp_context=context
+        ) as executor:
+            futures = [
+                executor.submit(
+                    _evaluate_checkpoint_batch,
+                    str(checkpoint),
+                    chunk,
+                    adapter,
+                    frames_per_sec,
+                    int(max_steps),
+                )
+                for chunk in chunks
+            ]
+            for future in as_completed(futures):
+                for ordinal, row in future.result():
+                    rows_by_ordinal[ordinal] = row
+
+    if len(rows_by_ordinal) != len(cases):
+        raise RuntimeError(
+            f"benchmark completed {len(rows_by_ordinal)} of {len(cases)} cases"
+        )
+    rows = [rows_by_ordinal[index] for index in range(len(cases))]
+    report = {
+        "schema_version": "universal_transition_benchmark_v1",
+        "observation_version": OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+        "seed": int(seed),
+        "difficulty": difficulty,
+        "transition_cases": int(transition_cases),
+        "full_cases_per_length": int(full_cases_per_length),
+        "parallel_workers": workers,
+        "checkpoint": str(checkpoint),
         "metrics": aggregate_transition_benchmark(rows),
         "episodes": rows,
     }

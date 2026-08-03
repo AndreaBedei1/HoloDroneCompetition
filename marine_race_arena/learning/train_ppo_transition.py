@@ -23,6 +23,7 @@ from marine_race_arena.learning.longrun_checkpoint import (
     atomic_save_checkpoint,
     atomic_write_json,
     canonical_hash,
+    capture_rng_state,
     latest_valid_checkpoint,
     load_checkpoint_state,
     restore_model_training_state,
@@ -204,6 +205,42 @@ def _restore_workers(env: Any, worker_states: list[Mapping[str, Any]]) -> None:
         env.env_method("load_worker_state", state, indices=index)
 
 
+def _recreate_training_env(
+    model: Any,
+    config: Mapping[str, Any],
+    run_dir: Path,
+    curriculum: TransitionCurriculumController,
+    worker_states: list[Mapping[str, Any]],
+) -> Any:
+    """Reopen isolated rollout workers after an out-of-process evaluation.
+
+    The caller closes the old vector environment before launching evaluation,
+    so training and evaluation engines never coexist.  Sampler state is loaded
+    before reset; the centrally selected curriculum settings are then applied
+    to every worker before its next geometry is sampled.
+    """
+
+    env = _make_vec_env(config, run_dir, curriculum.difficulty)
+    try:
+        _restore_workers(env, worker_states)
+        env.env_method("set_difficulty", curriculum.difficulty)
+        env.env_method(
+            "set_efficiency_unlocked",
+            curriculum.state.efficiency_reward_active,
+        )
+        env.env_method(
+            "set_total_environment_transitions",
+            int(model.num_timesteps),
+        )
+        env.reset()
+        model.set_env(env)
+        model._last_obs = None
+        return env
+    except BaseException:
+        env.close()
+        raise
+
+
 def _save(
     model: Any,
     run_dir: Path,
@@ -343,7 +380,7 @@ def run_training(args: argparse.Namespace) -> int:
         initial_difficulty=config["curriculum"]["initial_difficulty"],
         maximum_difficulty=config["curriculum"]["maximum_difficulty"],
     )
-    env = _make_vec_env(config, run_dir, curriculum.difficulty)
+    env: Optional[Any] = _make_vec_env(config, run_dir, curriculum.difficulty)
     aliases: Dict[str, Any] = {
         "last": None,
         "latest_safe": None,
@@ -456,27 +493,42 @@ def run_training(args: argparse.Namespace) -> int:
 
             if int(model.num_timesteps) >= next_evaluation:
                 output = run_dir / "evaluations" / f"unseen_{int(model.num_timesteps):09d}"
-                report = evaluate_universal_transition_benchmark(
-                    model,
-                    output_dir=output,
-                    seed=int(config["evaluation"]["seed"]),
-                    difficulty=curriculum.difficulty,
-                    transition_cases=int(config["evaluation"]["transition_cases"]),
-                    full_cases_per_length=int(config["evaluation"]["full_cases_per_length"]),
-                    adapter=str(config["adapter"]),
-                    frames_per_sec=config["holoocean_frames_per_sec"],
-                    max_steps=int(config["max_episode_steps"]),
-                )
-                report["timesteps"] = int(model.num_timesteps)
+                worker_states = _worker_states(env)
+                learner_rng = capture_rng_state()
+                env.close()
+                env = None
+                evaluation_error: Optional[BaseException] = None
+                report = None
+                try:
+                    report = evaluate_universal_transition_benchmark(
+                        model,
+                        output_dir=output,
+                        seed=int(config["evaluation"]["seed"]),
+                        difficulty=curriculum.difficulty,
+                        transition_cases=int(config["evaluation"]["transition_cases"]),
+                        full_cases_per_length=int(config["evaluation"]["full_cases_per_length"]),
+                        adapter=str(config["adapter"]),
+                        frames_per_sec=config["holoocean_frames_per_sec"],
+                        max_steps=int(config["max_episode_steps"]),
+                    )
+                    report["timesteps"] = int(model.num_timesteps)
+                    curriculum.observe_evaluation(
+                        report["metrics"], int(model.num_timesteps)
+                    )
+                except BaseException as exc:
+                    evaluation_error = exc
+                finally:
+                    env = _recreate_training_env(
+                        model, config, run_dir, curriculum, worker_states
+                    )
+                    # Neither evaluator engine launches nor replacement worker
+                    # construction may perturb the learner's stochastic state.
+                    restore_rng_state(learner_rng)
+                if evaluation_error is not None:
+                    raise evaluation_error
+                assert report is not None
                 atomic_write_json(output / "evaluation.json", report)
                 metrics = report["metrics"]
-                promoted = curriculum.observe_evaluation(metrics, int(model.num_timesteps))
-                if promoted:
-                    env.env_method("set_difficulty", curriculum.difficulty)
-                env.env_method(
-                    "set_efficiency_unlocked",
-                    curriculum.state.efficiency_reward_active,
-                )
                 evaluation_state["last"] = report
                 evaluation_state["history"].append(report)
                 selection["last_evaluation_metrics"] = metrics
@@ -539,24 +591,27 @@ def run_training(args: argparse.Namespace) -> int:
             stop_file.unlink()
         return 0
     except Exception as exc:
-        try:
-            _save(
-                model, run_dir, contract, curriculum, env, evaluation_state,
-                aliases, selection, config, status="unverified",
-                reason="exception", stop_reason=repr(exc),
-            )
-            _status(
-                run_dir, state="failed", model=model, curriculum=curriculum,
-                env=env, aliases=aliases, selection=selection, config=config,
-                message=repr(exc),
-            )
-        finally:
-            (run_dir / "failure.txt").write_text(
-                traceback.format_exc(), encoding="utf-8"
-            )
+        if env is not None:
+            try:
+                _save(
+                    model, run_dir, contract, curriculum, env, evaluation_state,
+                    aliases, selection, config, status="unverified",
+                    reason="exception", stop_reason=repr(exc),
+                )
+                _status(
+                    run_dir, state="failed", model=model, curriculum=curriculum,
+                    env=env, aliases=aliases, selection=selection, config=config,
+                    message=repr(exc),
+                )
+            except Exception:
+                pass
+        (run_dir / "failure.txt").write_text(
+            traceback.format_exc(), encoding="utf-8"
+        )
         raise
     finally:
-        env.close()
+        if env is not None:
+            env.close()
 
 
 def status_command(run_dir: str | Path) -> int:
@@ -617,4 +672,3 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

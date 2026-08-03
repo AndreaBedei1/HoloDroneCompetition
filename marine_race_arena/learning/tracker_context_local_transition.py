@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping, Optional, Sequence
 
-from marine_race_arena.controllers.local_course_tracker import LocalCourseTracker
+from marine_race_arena.controllers.local_course_tracker import (
+    LocalCourseTracker,
+    LocalCourseTrackerConfig,
+)
 from marine_race_arena.learning.config import ACTION_DIM
 from marine_race_arena.learning.config_local_transition import (
     TARGET_CHANGED_RECENT_WINDOW_S,
@@ -16,7 +19,32 @@ from marine_race_arena.learning.observation_encoder import (
     _finite,
     _select_beacon_packet,
 )
-from marine_race_arena.learning.tracker_context_sequence import SEQUENCE_TRACKER_CONFIG
+
+
+# HoloOcean's close gate image is commonly cropped into disconnected bars, so
+# its detected centroid is not stable enough to be a mandatory pre-passage
+# condition.  This local-transition-only configuration permits a COMMIT from
+# consecutive close camera + expected-beacon evidence, then retains the full
+# independent DVL/range/disappearance/rear-bearing exit confirmation.  The
+# tighter 0.60 m passage envelope rejects a pass outside the 1.5 m aperture.
+LOCAL_TRANSITION_TRACKER_CONFIG = LocalCourseTrackerConfig(
+    proximity_commit_enabled=True,
+    proximity_commit_range_m=1.0,
+    proximity_commit_bearing_deg=25.0,
+    proximity_commit_confidence_threshold=0.35,
+    proximity_commit_required_frames=2,
+    min_commit_displacement_m=0.10,
+    min_range_for_passage_m=0.60,
+    close_range_required_packets=2,
+    range_rise_margin_m=0.30,
+    rear_exit_range_rise_margin_m=0.15,
+    rear_exit_range_rise_required_packets=2,
+    rear_exit_min_rear_packets=2,
+    rear_bearing_min_deg=90.0,
+    rear_bearing_required_packets=2,
+    visual_disappear_frames=2,
+    exit_clearance_s=0.0,
+)
 
 
 def _wrapped_angle_delta_deg(current: float, previous: float) -> float:
@@ -60,7 +88,7 @@ class OnboardLocalTransitionContextTracker:
             initial_beacon_id=self.initial_beacon_id,
             total_beacons=self.total_beacons,
             laps=self.laps,
-            config=SEQUENCE_TRACKER_CONFIG,
+            config=LOCAL_TRANSITION_TRACKER_CONFIG,
         )
         observation = first_observation or {}
         sensors = observation.get("sensors") if isinstance(observation, Mapping) else {}
@@ -178,4 +206,3 @@ class OnboardLocalTransitionContextTracker:
         )
         self._last_context = context
         return context
-
