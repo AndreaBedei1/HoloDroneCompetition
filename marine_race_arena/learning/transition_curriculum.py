@@ -276,14 +276,35 @@ class TransitionCurriculumController:
             self.state.total_environment_transitions, int(value)
         )
 
-    def observe_evaluation(self, metrics: Mapping[str, Any], total_transitions: int) -> bool:
+    def observe_evaluation(
+        self,
+        metrics: Mapping[str, Any],
+        total_transitions: int,
+        *,
+        thresholds: Optional[Any] = None,
+    ) -> bool:
+        """Record an evaluation and decide whether geometry may be promoted.
+
+        Promotion additionally requires the competence gate, so a policy that
+        produced no safety events by remaining inactive cannot advance the
+        geometric difficulty.  Sequence length is never a curriculum variable.
+        """
+
+        from marine_race_arena.learning.transition_selection import (
+            DEFAULT_COMPETENCE_THRESHOLDS,
+            evaluate_competence_gate,
+        )
+
         self.set_total_environment_transitions(total_transitions)
         rate = float(metrics.get("universal_transition_success_rate", 0.0) or 0.0)
         safety_clean = all(int(metrics.get(key, 0) or 0) == 0 for key in (
             "collision_episodes", "out_of_bounds_episodes", "wrong_direction_events",
             "previous_gate_returns", "missed_gate_dnf", "acquisition_timeouts",
         ))
-        qualifies = safety_clean and rate >= 0.99
+        verdict = evaluate_competence_gate(
+            metrics, thresholds or DEFAULT_COMPETENCE_THRESHOLDS
+        )
+        qualifies = verdict.passed and safety_clean and rate >= 0.99
         self.state.consecutive_qualifying_evaluations = (
             self.state.consecutive_qualifying_evaluations + 1 if qualifies else 0
         )
@@ -291,6 +312,7 @@ class TransitionCurriculumController:
             "total_environment_transitions": int(total_transitions),
             "difficulty": self.difficulty,
             "qualifies": qualifies,
+            "competence_classification": verdict.classification,
             "metrics": dict(metrics),
         })
         stage = DIFFICULTY_BY_KEY[self.difficulty]

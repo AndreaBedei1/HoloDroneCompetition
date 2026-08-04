@@ -36,7 +36,15 @@ class LocalTransitionRewardConfig:
     post_cross_alignment_delta_scale: float = 3.0
     post_cross_range_delta_scale: float = 3.0
     completion_bonus: float = 2.0
+    # Collision shaping is charged per *entry* into contact, never per contact
+    # frame.  Sustained contact adds only a small bounded trickle so hundreds of
+    # consecutive contact frames cannot accumulate without limit, while each new
+    # impact after a genuine separation is still charged in full.
     collision_penalty: float = 50.0
+    collision_entry_penalty_episode_cap: float = 150.0
+    collision_contact_frame_penalty: float = 0.5
+    collision_contact_penalty_episode_cap: float = 10.0
+    collision_separation_frames: int = 3
     out_of_bounds_penalty: float = 60.0
     wrong_direction_penalty: float = 60.0
     missed_gate_penalty: float = 60.0
@@ -93,10 +101,23 @@ class _State:
     previous_gate_distance_m: Optional[float] = None
     safety_paid: Dict[str, bool] = field(default_factory=dict)
     terminal_paid: bool = False
+    in_collision: bool = False
+    clear_frames: int = 0
+    collision_entries: int = 0
+    collision_contact_frames: int = 0
+    collision_entry_penalty_paid: float = 0.0
+    collision_contact_penalty_paid: float = 0.0
 
 
 class LocalTransitionTrainingReward:
-    """Bounded potential reward with one-time transition failures."""
+    """Bounded potential reward with one-time transition failures.
+
+    Collisions are the exception to "one-time per episode": each entry into
+    contact is charged in full so a second impact after a genuine separation is
+    not free, while sustained contact adds only a small bounded trickle.  Both
+    cumulative collision charges are capped per episode and therefore do not
+    scale with sequence length.
+    """
 
     def __init__(self, config: Optional[LocalTransitionRewardConfig] = None) -> None:
         self.config = config or LocalTransitionRewardConfig()
@@ -111,6 +132,77 @@ class LocalTransitionTrainingReward:
         self._state = _State()
         self.acquisition_timeout_triggered = False
         self.previous_gate_return_triggered = False
+
+    # -- collision accounting ------------------------------------------------
+    @property
+    def collision_entries(self) -> int:
+        """Distinct entries into contact after a confirmed separation."""
+
+        return int(self._state.collision_entries)
+
+    @property
+    def collision_contact_frames(self) -> int:
+        """Frames spent in contact, counted separately from entries."""
+
+        return int(self._state.collision_contact_frames)
+
+    @property
+    def collision_episode(self) -> bool:
+        return self._state.collision_entries > 0
+
+    def collision_counters(self) -> Dict[str, Any]:
+        return {
+            "collision_episode": self.collision_episode,
+            "collision_entry": self.collision_entries,
+            "collision_contact_frames": self.collision_contact_frames,
+            "collision_entry_penalty_paid": float(
+                self._state.collision_entry_penalty_paid
+            ),
+            "collision_contact_penalty_paid": float(
+                self._state.collision_contact_penalty_paid
+            ),
+        }
+
+    def _collision_terms(self, step: Any, components: Dict[str, float]) -> None:
+        """Charge each new impact in full; charge sustained contact barely.
+
+        Cumulative collision shaping is capped per episode, so a long contact
+        cannot dominate the return through sheer frame count and the total is
+        independent of how many gates the episode contains.
+        """
+
+        cfg = self.config
+        state = self._state
+        contact = bool(getattr(step, "collision", False)) or bool(
+            getattr(step, "obstacle_collisions", 0)
+        )
+        if not contact:
+            state.clear_frames += 1
+            if state.clear_frames >= cfg.collision_separation_frames:
+                state.in_collision = False
+            return
+        state.clear_frames = 0
+        state.collision_contact_frames += 1
+        if not state.in_collision:
+            state.in_collision = True
+            state.collision_entries += 1
+            budget = max(
+                0.0,
+                cfg.collision_entry_penalty_episode_cap
+                - state.collision_entry_penalty_paid,
+            )
+            charge = min(float(cfg.collision_penalty), budget)
+            state.collision_entry_penalty_paid += charge
+            components["collision_penalty"] -= charge
+            return
+        budget = max(
+            0.0,
+            cfg.collision_contact_penalty_episode_cap
+            - state.collision_contact_penalty_paid,
+        )
+        charge = min(float(cfg.collision_contact_frame_penalty), budget)
+        state.collision_contact_penalty_paid += charge
+        components["collision_contact_penalty"] -= charge
 
     @staticmethod
     def _bounded_delta(previous: Optional[float], current: float, scale: float) -> float:
@@ -140,7 +232,8 @@ class LocalTransitionTrainingReward:
             "post_cross_alignment_delta", "post_cross_range_delta",
             "previous_gate_return_penalty", "post_cross_orbit_penalty",
             "moving_away_penalty", "acquisition_timeout_penalty",
-            "collision_penalty", "out_of_bounds_penalty",
+            "collision_penalty", "collision_contact_penalty",
+            "out_of_bounds_penalty",
             "wrong_direction_penalty", "missed_gate_penalty",
             "action_change_penalty", "jerk_penalty", "energy_penalty",
             "time_cost", "completion", "terminal_failure_penalty",
@@ -274,8 +367,10 @@ class LocalTransitionTrainingReward:
                 state.acquisition_timeout_paid = True
                 self.acquisition_timeout_triggered = True
 
+        # Collisions are charged per entry with a bounded contact trickle; the
+        # remaining safety events stay one-time per episode.
+        self._collision_terms(step, components)
         counter_penalties = (
-            ("collision", "collision_events", cfg.collision_penalty, "collision_penalty"),
             ("out_of_bounds", "out_of_bounds_events", cfg.out_of_bounds_penalty, "out_of_bounds_penalty"),
             ("wrong_direction", "wrong_direction_crossings", cfg.wrong_direction_penalty, "wrong_direction_penalty"),
             ("missed_gate", "missed_gate_attempts", cfg.missed_gate_penalty, "missed_gate_penalty"),

@@ -16,6 +16,11 @@ from marine_race_arena.learning.transition_evaluation import (
     evaluate_checkpoint_universal_transition_benchmark,
     transition_checkpoint_rank_key,
 )
+from marine_race_arena.learning.transition_selection import (
+    SAFETY_PRIORITY,
+    evaluate_competence_gate,
+    select_policy,
+)
 
 
 def _load(path: str | Path) -> Dict[str, Any]:
@@ -120,29 +125,70 @@ def _atomic_write(path: Path, text: str) -> None:
 
 
 def _markdown(report: Mapping[str, Any]) -> str:
+    """Render the three selection stages separately.
+
+    Competence qualification is reported before any safety numbers so a reader
+    can never mistake a low event count from an inactive policy for safety.
+    """
+
+    selection = report["selection"]
     lines = [
         "# Selective warm-start versus scratch",
         "",
         f"Generated: {report['generated_utc']}",
         "",
-        "Selection order: safety, unseen transition success, long-sequence completion, action jerk, acquisition time.",
+        "## 1. Competence qualification (mandatory)",
         "",
-        "| Initialization | Safety clean | Safety events | Transition success | Long completion | Mean jerk | Mean acquisition (s) |",
-        "|---|:---:|---:|---:|---:|---:|---:|",
+        "| Initialization | Classification | Qualified | Failed criteria |",
+        "|---|---|:---:|---|",
     ]
-    for name in ("selective_warm_start", "scratch"):
-        metrics = report["runs"][name]["benchmark"]["metrics"]
-        safety_events = sum(int(metrics.get(key, 0) or 0) for key in (
-            "collision_episodes", "out_of_bounds_episodes", "wrong_direction_events",
-            "previous_gate_returns", "missed_gate_dnf", "acquisition_timeouts",
-        ))
+    names = sorted(report["runs"])
+    for name in names:
+        verdict = selection["qualification"][name]
+        failed = ", ".join(verdict["failed_criteria"]) or "none"
         lines.append(
-            f"| {name} | {metrics['safety_clean']} | {safety_events} | "
+            f"| {name} | `{verdict['classification']}` | {verdict['passed']} | {failed} |"
+        )
+    lines += [
+        "",
+        "## 2. Safety ranking (competent policies only)",
+        "",
+        "Priority: " + ", ".join(SAFETY_PRIORITY) + ".",
+        "",
+        "| Initialization | Ranked | Safety clean | Collision episodes | Collision entries |"
+        " Missed gates | Wrong direction | Previous-gate returns | Acquisition timeouts |"
+        " Transition success | Long completion | Mean jerk |",
+        "|---|:---:|:---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for name in names:
+        metrics = report["runs"][name]["benchmark"]["metrics"]
+        entries = metrics.get("collision_entries")
+        entries_text = (
+            f"{int(entries)}" if entries is not None
+            else f"{int(metrics.get('collision_events', 0) or 0)} (events)"
+        )
+        lines.append(
+            f"| {name} | {name in selection['competent_candidates']} | "
+            f"{metrics['safety_clean']} | {int(metrics.get('collision_episodes', 0) or 0)} | "
+            f"{entries_text} | {int(metrics.get('missed_gate_dnf', 0) or 0)} | "
+            f"{int(metrics.get('wrong_direction_events', 0) or 0)} | "
+            f"{int(metrics.get('previous_gate_returns', 0) or 0)} | "
+            f"{int(metrics.get('acquisition_timeouts', 0) or 0)} | "
             f"{float(metrics.get('universal_transition_success_rate') or 0.0):.4f} | "
             f"{float(metrics.get('long_sequence_completion_score') or 0.0):.4f} | "
-            f"{metrics.get('mean_action_jerk')} | {metrics.get('mean_acquisition_time_s')} |"
+            f"{metrics.get('mean_action_jerk')} |"
         )
-    lines += ["", f"Selected initialization: **{report['selected_initialization']}**.", ""]
+    lines += [
+        "",
+        "## 3. Final selection",
+        "",
+        f"Selected initialization: **{report['selected_initialization']}** "
+        f"({selection['selection_reason']}).",
+        "",
+    ]
+    for name, classification in sorted(selection["rejected_candidates"].items()):
+        lines.append(f"`{name}` excluded as `{classification}`.")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -178,20 +224,26 @@ def main(argv=None) -> int:
         runs[name]["rank_key"] = list(
             transition_checkpoint_rank_key(benchmark["metrics"])
         )
-    selected = max(
-        runs,
-        key=lambda name: transition_checkpoint_rank_key(runs[name]["benchmark"]["metrics"]),
+        runs[name]["competence"] = evaluate_competence_gate(
+            benchmark["metrics"]
+        ).as_dict()
+    # Competence qualification decides who may be ranked at all; safety then
+    # orders the qualified candidates.  Fewer safety events never compensate for
+    # absent task competence.
+    selection = select_policy(
+        {name: runs[name]["benchmark"]["metrics"] for name in runs}
     )
     report = {
-        "schema_version": "universal_transition_ab_comparison_v1",
+        "schema_version": "universal_transition_ab_comparison_v2",
         "generated_utc": now_utc(),
         "controlled_fields": _comparison_contract(warm),
-        "selection_priority": [
-            "safety", "universal_transition_success", "long_sequence_completion",
-            "action_jerk", "acquisition_time",
+        "stages": [
+            "competence_qualification", "safety_ranking", "final_selection",
         ],
+        "safety_priority": list(SAFETY_PRIORITY),
         "runs": runs,
-        "selected_initialization": selected,
+        "selection": selection,
+        "selected_initialization": selection["selected"],
     }
     output = Path(args.output_dir)
     _atomic_write(output / "ab_comparison.json", json.dumps(report, indent=2))

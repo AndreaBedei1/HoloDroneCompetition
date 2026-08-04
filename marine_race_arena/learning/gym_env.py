@@ -173,6 +173,8 @@ class MarineRaceGymEnv(_GYM_BASE):
         self._ctx_source = None
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._last_gates = 0
+        # Evaluation-only motion accounting; never encoded into the observation.
+        self._prev_position: Optional[np.ndarray] = None
         # Training-only: when set and reset() is called without an explicit seed, vary the
         # randomization seed each episode so training sees diverse randomized starts. Eval
         # always passes an explicit seed, so it is unaffected.
@@ -212,6 +214,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         self._ctx_source.reset(obs_dict)
         self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
         self._last_gates = self._episode.referee_progress()["valid_gate_crossings"]
+        self._prev_position = None
         if hasattr(self._reward_fn, "reset"):
             self._reward_fn.reset(self)
         encoded = self._encode(obs_dict)
@@ -249,6 +252,15 @@ class MarineRaceGymEnv(_GYM_BASE):
             z - bounds.z_min,
             bounds.z_max - z,
         )
+        # Scalar step displacement only: enough to detect a policy that refuses
+        # to move, without exposing any pose to the observation or the policy.
+        current_position = np.asarray(position, dtype=np.float64)
+        step_distance = (
+            0.0
+            if self._prev_position is None
+            else float(np.linalg.norm(current_position - self._prev_position))
+        )
+        self._prev_position = current_position
         info.update(
             {
                 "collision_contact_frame": bool(step.collision),
@@ -257,6 +269,7 @@ class MarineRaceGymEnv(_GYM_BASE):
                 "safety_warning_frame": bool(
                     not out_of_bounds_frame and boundary_margin <= 0.5
                 ),
+                "step_distance_m": step_distance,
             }
         )
         return encoded, float(reward), bool(step.terminated), bool(step.truncated), info

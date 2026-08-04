@@ -141,6 +141,71 @@ def selective_warm_start_from_sequence(
     }
 
 
+def warm_start_from_transition_checkpoint(
+    source: Any,
+    target: Any,
+) -> Dict[str, Any]:
+    """Transfer a competent 35-feature policy and value network verbatim.
+
+    Only the network parameters move.  The optimizer, learning-rate schedule,
+    rollout buffer and transition counter all stay fresh, so the new run
+    continues the *behaviour* without inheriting the A/B experiment's optimizer
+    momentum or its progress along that experiment's schedule.
+    """
+
+    source_shape = tuple(getattr(source.observation_space, "shape", ()) or ())
+    target_shape = tuple(getattr(target.observation_space, "shape", ()) or ())
+    expected = (OBS_DIM_LOCAL_TRANSITION,)
+    if source_shape != expected:
+        raise ValueError(
+            f"source policy observation shape is {source_shape}, expected {expected}"
+        )
+    if target_shape != expected:
+        raise ValueError(
+            f"target policy observation shape is {target_shape}, expected {expected}"
+        )
+    source_version = getattr(source, "obs_encoding_version", None)
+    if source_version not in {None, OBS_ENCODING_VERSION_LOCAL_TRANSITION}:
+        raise ValueError(f"source observation version is {source_version!r}")
+
+    source_state = source.policy.state_dict()
+    target_state = target.policy.state_dict()
+    missing = sorted(set(target_state) - set(source_state))
+    mismatched = sorted(
+        name
+        for name in set(target_state) & set(source_state)
+        if tuple(source_state[name].shape) != tuple(target_state[name].shape)
+    )
+    if missing or mismatched:
+        raise ValueError(
+            f"transition checkpoint is not architecture-compatible: "
+            f"missing={missing} mismatched={mismatched}"
+        )
+    updated = {
+        name: source_state[name].detach().clone() for name in target_state
+    }
+    target.policy.load_state_dict(updated, strict=True)
+    if any(not parameter.requires_grad for parameter in target.policy.parameters()):
+        raise ValueError("warm start must not freeze parameters")
+    target.num_timesteps = 0
+    target._n_updates = 0
+    target._current_progress_remaining = 1.0
+    target.local_transition_initialization_mode = "warm_start_transition_checkpoint"
+    return {
+        "source_observation_version": source_version,
+        "source_observation_dim": OBS_DIM_LOCAL_TRANSITION,
+        "target_observation_version": OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+        "target_observation_dim": OBS_DIM_LOCAL_TRANSITION,
+        "copied_tensors": sorted(target_state),
+        "policy_and_value_weights_transferred": True,
+        "optimizer_state_copied": False,
+        "learning_rate_schedule_reset": True,
+        "rollout_state_reset": True,
+        "total_environment_transitions_reset_to_zero": True,
+        "all_parameters_trainable": True,
+    }
+
+
 def initialize_local_transition_policy(
     target: Any,
     *,
@@ -156,12 +221,17 @@ def initialize_local_transition_policy(
             "target_observation_dim": OBS_DIM_LOCAL_TRANSITION,
             "all_parameters_trainable": True,
         }
-    if mode != "selective_warm_start" or not source_checkpoint:
+    if mode not in {"selective_warm_start", "warm_start_transition_checkpoint"}:
+        raise ValueError(f"unknown initialization mode {mode!r}")
+    if not source_checkpoint:
         raise ValueError("warm start requires source_checkpoint")
     from stable_baselines3 import PPO
 
     source = PPO.load(source_checkpoint, device="cpu")
-    report = selective_warm_start_from_sequence(source, target)
+    if mode == "warm_start_transition_checkpoint":
+        report = warm_start_from_transition_checkpoint(source, target)
+    else:
+        report = selective_warm_start_from_sequence(source, target)
     report.update({"mode": mode, "source_checkpoint": source_checkpoint})
     return report
 

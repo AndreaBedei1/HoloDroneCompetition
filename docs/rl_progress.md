@@ -427,3 +427,43 @@ Unevaluated categories now report `None` with an explicit status and reason.
 
 Full details: `docs/rl_final_benchmark.md`; compact results:
 `results/rl_public/final_benchmark/`.
+
+## Universal transition: rejecting the inactive policy
+
+The controlled A/B between `selective_warm_start` and `scratch` was ranked by
+summed safety events. That ranking selected `scratch`, which produced fewer
+events only because it barely moved: 15 gates crossed in 1,012 episodes, 1.5%
+first crossing, 0.2% target switch, 0.0% transition success, mean absolute
+action 0.0034 with no step above 0.05. The scratch-initialized long run
+confirmed the failure: at 100,352 transitions it still scored 0.0% transition
+success and 0% target switch.
+
+Selection is now three separated stages (`transition_selection.py`): a mandatory
+competence gate, then safety ranking among qualified policies only, then
+deterministic final selection. Policies failing the gate are classified
+`degenerate_inactive_policy`, `insufficient_task_competence` or
+`insufficient_evaluation_evidence` and are never ranked. Evaluations report
+explicit anti-inactivity metrics (completed gates, fraction reaching the first
+gate, distance travelled, mean absolute action per axis, non-trivial action
+fraction, collision entries and contact frames separately). Motion is never
+treated as success; the 35-feature onboard observation is unchanged.
+
+Corrected result: `selective_warm_start` is selected, `scratch` is rejected as
+`degenerate_inactive_policy`. The warm start is competent but **not reliable**:
+31.4% transition success with 417 collision episodes, 78 missed gates, 51
+wrong-direction events and 436 acquisition timeouts. Collision shaping now
+charges each impact entry in full with only a small bounded trickle for
+sustained contact, so one long contact can neither dominate the return nor be
+mistaken for many distinct collisions.
+
+The scratch long run and all its checkpoints are preserved unchanged. The
+reliability long run
+(`results/rl/universal_transition/longrun/universal_transition_warm_reliability_seed23001`)
+transfers the validated 40,960-transition warm policy and value networks with a
+fresh optimizer, scheduler, rollout state and transition counter, evaluates on a
+dense early schedule (25k/50k/75k/100k/150k, then every 50k), and stops with a
+rollback record if two consecutive evaluations fall below the initialization
+baseline.
+
+Full details: `docs/ppo_universal_transition.md`; corrected report:
+`results/rl/universal_transition/ab_comparison/ab_comparison_corrected.{json,md}`.

@@ -29,6 +29,17 @@ from marine_race_arena.learning.transition_curriculum import (
 from marine_race_arena.learning.transition_policy import (
     predict_local_transition_action,
 )
+from marine_race_arena.learning.transition_selection import (
+    CompetenceThresholds,
+    DEFAULT_COMPETENCE_THRESHOLDS,
+    evaluate_competence_gate,
+    transition_policy_rank_key,
+)
+
+# A commanded axis below this magnitude is indistinguishable from holding
+# station; the fraction of steps above it separates an active policy from one
+# that only appears safe because it never moves.
+NONTRIVIAL_ACTION_THRESHOLD = 0.05
 
 
 def _atomic_json(path: Path, value: Any) -> None:
@@ -209,6 +220,14 @@ def evaluate_local_transition_episode(
     previous_delta = np.zeros(4, dtype=np.float32)
     jerk_sum = 0.0
     jerk_n = 0
+    # Anti-inactivity accounting.  These never enter the observation; they exist
+    # only so a motionless policy cannot be mistaken for a safe one.
+    absolute_action_sum = np.zeros(4, dtype=np.float64)
+    nontrivial_action_steps = 0
+    distance_travelled_m = 0.0
+    collision_entries = 0
+    collision_contact_frames = 0
+    in_contact = False
     first_cross_step: Optional[int] = None
     target_switch_step: Optional[int] = None
     acquisition_step: Optional[int] = None
@@ -229,6 +248,20 @@ def evaluate_local_transition_episode(
             jerk_n += 1
             previous_delta = delta
             previous_action = action.copy()
+            absolute = np.abs(np.asarray(action, dtype=np.float64))
+            absolute_action_sum += absolute
+            nontrivial_action_steps += int(
+                absolute.max() > NONTRIVIAL_ACTION_THRESHOLD
+            )
+            distance_travelled_m += float(info.get("step_distance_m", 0.0) or 0.0)
+            contact_now = bool(info.get("collision_contact_frame")) or bool(
+                info.get("obstacle_collision_frame")
+            )
+            if contact_now:
+                collision_contact_frames += 1
+                if not in_contact:
+                    collision_entries += 1
+            in_contact = contact_now
             gates = int(info.get("gate_crossings", 0))
             if gates > 0 and first_cross_step is None:
                 first_cross_step = step_count
@@ -326,6 +359,15 @@ def evaluate_local_transition_episode(
                 else round((acquisition_step - first_cross_step) * env.episode.dt, 3)
             ),
             "action_jerk": round(jerk_sum / max(1, jerk_n), 6),
+            "collision_entries": collision_entries,
+            "collision_contact_frames": collision_contact_frames,
+            "action_steps": int(jerk_n),
+            "nontrivial_action_steps": int(nontrivial_action_steps),
+            "mean_absolute_action_per_axis": [
+                round(float(value / max(1, jerk_n)), 6)
+                for value in absolute_action_sum
+            ],
+            "distance_travelled_m": round(float(distance_travelled_m), 4),
             "universal_transition_success": success,
             "full_sequence_completion": (
                 status == "FINISHED"
@@ -352,6 +394,77 @@ def evaluate_local_transition_episode(
         return row
     finally:
         env.close()
+
+
+def _activity_metrics(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Anti-inactivity evidence, ``None`` where a report predates the metric.
+
+    Motion is never treated as success.  These values exist only so a policy
+    that produces few safety events by remaining almost stationary is detected
+    and rejected instead of being ranked as the safest candidate.
+    """
+
+    rows = list(rows)
+    n_eval = max(1, len(rows))
+    completed_gates = sum(int(row.get("gates_completed", 0) or 0) for row in rows)
+    reached_first = sum(bool(row.get("first_gate_crossed")) for row in rows)
+    distances = [
+        float(row["distance_travelled_m"])
+        for row in rows
+        if row.get("distance_travelled_m") is not None
+    ]
+    action_steps = sum(int(row.get("action_steps", 0) or 0) for row in rows)
+    nontrivial_steps = sum(
+        int(row.get("nontrivial_action_steps", 0) or 0) for row in rows
+    )
+    per_axis_rows = [
+        row["mean_absolute_action_per_axis"]
+        for row in rows
+        if row.get("mean_absolute_action_per_axis")
+        and int(row.get("action_steps", 0) or 0) > 0
+    ]
+    weights = [
+        float(row.get("action_steps", 0) or 0)
+        for row in rows
+        if row.get("mean_absolute_action_per_axis")
+        and int(row.get("action_steps", 0) or 0) > 0
+    ]
+    if per_axis_rows:
+        per_axis = np.average(
+            np.asarray(per_axis_rows, dtype=np.float64), axis=0, weights=weights
+        )
+        per_axis_metric = {
+            name: float(per_axis[index])
+            for index, name in enumerate(("surge", "sway", "heave", "yaw"))
+        }
+        mean_absolute_action = float(per_axis.mean())
+    else:
+        per_axis_metric = None
+        mean_absolute_action = None
+    return {
+        "completed_gate_count": completed_gates,
+        "mean_completed_gates_per_episode": completed_gates / n_eval,
+        "fraction_of_episodes_reaching_first_gate": reached_first / n_eval,
+        "mean_distance_travelled_m": (
+            None if not distances else float(np.mean(distances))
+        ),
+        "mean_absolute_action_per_axis": per_axis_metric,
+        "mean_absolute_action": mean_absolute_action,
+        "nontrivial_action_fraction": (
+            None if action_steps <= 0 else nontrivial_steps / action_steps
+        ),
+        "nontrivial_action_threshold": NONTRIVIAL_ACTION_THRESHOLD,
+        "collision_entries": (
+            None
+            if not any("collision_entries" in row for row in rows)
+            else sum(int(row.get("collision_entries", 0) or 0) for row in rows)
+        ),
+        "collision_contact_frames": (
+            None
+            if not any("collision_contact_frames" in row for row in rows)
+            else sum(int(row.get("collision_contact_frames", 0) or 0) for row in rows)
+        ),
+    }
 
 
 def aggregate_transition_benchmark(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
@@ -382,6 +495,7 @@ def aggregate_transition_benchmark(rows: Sequence[Mapping[str, Any]]) -> Dict[st
             )))
     for value in positions.values():
         value["success_rate"] = value["successes"] / max(1, value["n"])
+    activity = _activity_metrics(rows)
     metrics = {
         "n_eval": len(rows),
         "transition_n": len(transition_rows),
@@ -416,7 +530,11 @@ def aggregate_transition_benchmark(rows: Sequence[Mapping[str, Any]]) -> Dict[st
         "full_sequence_success_by_length": by_length,
         "transition_success_by_position": positions,
         "all_actions_policy_generated": all(row.get("action_source") == "ppo_policy" for row in rows),
+        **activity,
     }
+    metrics["acquisition_timeout_rate"] = (
+        None if not rows else metrics["acquisition_timeouts"] / len(rows)
+    )
     metrics["long_sequence_completion_score"] = float(np.mean([
         value["completion_rate"]
         for value in by_length.values() if value["completion_rate"] is not None
@@ -428,70 +546,26 @@ def aggregate_transition_benchmark(rows: Sequence[Mapping[str, Any]]) -> Dict[st
     return metrics
 
 
-def transition_checkpoint_rank_key(metrics: Mapping[str, Any]) -> tuple:
-    safety_events = sum(int(metrics.get(key, 0) or 0) for key in (
-        "collision_episodes", "out_of_bounds_episodes", "wrong_direction_events",
-        "previous_gate_returns", "missed_gate_dnf", "acquisition_timeouts",
-    ))
-    transition = float(metrics.get("universal_transition_success_rate", 0.0) or 0.0)
-    long_completion = float(metrics.get("long_sequence_completion_score", 0.0) or 0.0)
-    jerk = metrics.get("mean_action_jerk")
-    acquisition = metrics.get("mean_acquisition_time_s")
-    return (
-        -safety_events,
-        transition,
-        long_completion,
-        -float("inf") if jerk is None else -float(jerk),
-        -float("inf") if acquisition is None else -float(acquisition),
-    )
+def transition_checkpoint_rank_key(
+    metrics: Mapping[str, Any],
+    thresholds: CompetenceThresholds = DEFAULT_COMPETENCE_THRESHOLDS,
+) -> tuple:
+    """Rank checkpoints by competence qualification first, then by safety.
+
+    The previous key summed safety events only, which ranked a policy that
+    barely moved above one that actually crossed gates.  A checkpoint that fails
+    the competence gate now sorts below every competent checkpoint regardless of
+    how few events it produced.
+    """
+
+    return transition_policy_rank_key(metrics, thresholds)
 
 
-def evaluate_universal_transition_benchmark(
-    model: Any,
-    *,
-    output_dir: str | Path,
-    seed: int,
-    difficulty: str = "G6",
-    transition_cases: int = 1000,
-    full_cases_per_length: int = 5,
-    adapter: str = "holoocean",
-    frames_per_sec: bool | int = False,
-    max_steps: int = 3600,
-) -> Dict[str, Any]:
-    if int(transition_cases) < 1:
-        raise ValueError("transition benchmark requires at least one case")
-    output = Path(output_dir)
-    cases = _benchmark_cases(
-        output=output,
-        seed=int(seed),
-        difficulty=difficulty,
-        transition_cases=int(transition_cases),
-        full_cases_per_length=int(full_cases_per_length),
-    )
-    rows = [
-        _evaluate_case(
-            model,
-            geometry=geometry,
-            output_dir=case_output,
-            adapter=adapter,
-            frames_per_sec=frames_per_sec,
-            max_steps=max_steps,
-            record_trajectory=record_trajectory,
-        )
-        for _, geometry, case_output, record_trajectory in cases
-    ]
-    report = {
-        "schema_version": "universal_transition_benchmark_v1",
-        "observation_version": OBS_ENCODING_VERSION_LOCAL_TRANSITION,
-        "seed": int(seed),
-        "difficulty": difficulty,
-        "transition_cases": int(transition_cases),
-        "full_cases_per_length": int(full_cases_per_length),
-        "metrics": aggregate_transition_benchmark(rows),
-        "episodes": rows,
-    }
-    _atomic_json(output / "evaluation.json", report)
-    return report
+def transition_checkpoint_is_competent(
+    metrics: Mapping[str, Any],
+    thresholds: CompetenceThresholds = DEFAULT_COMPETENCE_THRESHOLDS,
+) -> bool:
+    return evaluate_competence_gate(metrics, thresholds).passed
 
 
 def evaluate_checkpoint_universal_transition_benchmark(

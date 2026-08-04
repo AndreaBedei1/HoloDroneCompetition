@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -12,7 +13,7 @@ import time
 import traceback
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from marine_race_arena.learning.config import ACTION_CONTRACT_VERSION
 from marine_race_arena.learning.config_local_transition import (
@@ -39,13 +40,25 @@ from marine_race_arena.learning.transition_curriculum import (
 )
 from marine_race_arena.learning.transition_env import UniversalTransitionEnv
 from marine_race_arena.learning.transition_evaluation import (
-    evaluate_universal_transition_benchmark,
+    evaluate_checkpoint_universal_transition_benchmark,
     transition_checkpoint_rank_key,
 )
 from marine_race_arena.learning.transition_policy import (
     build_local_transition_ppo,
     initialize_local_transition_policy,
 )
+from marine_race_arena.learning.transition_selection import (
+    baseline_collapse_criteria,
+    evaluate_competence_gate,
+    thresholds_from_mapping,
+)
+
+INITIALIZATION_MODES = (
+    "scratch",
+    "selective_warm_start",
+    "warm_start_transition_checkpoint",
+)
+WARM_START_MODES = ("selective_warm_start", "warm_start_transition_checkpoint")
 
 
 def _load_config(path: str | Path) -> Dict[str, Any]:
@@ -71,8 +84,14 @@ def _load_config(path: str | Path) -> Dict[str, Any]:
     if value["adapter"] == "holoocean" and value["allow_fallback"]:
         raise ValueError("HoloOcean transition training cannot allow fallback")
     mode = value["initialization"].get("mode")
-    if mode not in {"scratch", "selective_warm_start"}:
+    if mode not in INITIALIZATION_MODES:
         raise ValueError("unknown initialization mode")
+    # Validated eagerly so a malformed gate cannot silently fall back to the
+    # defaults on a million-transition run.
+    thresholds_from_mapping(value.get("competence_gate"))
+    schedule = value["evaluation"].get("early_schedule") or []
+    if any(int(point) <= 0 for point in schedule):
+        raise ValueError("early evaluation schedule must be positive")
     return value
 
 
@@ -112,7 +131,7 @@ def _preflight(config: Mapping[str, Any], *, allow_dirty: bool) -> Dict[str, Any
     initialization = config["initialization"]
     source = initialization.get("source_checkpoint")
     actual_sha = None
-    if initialization["mode"] == "selective_warm_start":
+    if initialization["mode"] in WARM_START_MODES:
         if not source or not Path(source).exists():
             raise FileNotFoundError(source)
         actual_sha = sha256_file(source)
@@ -242,23 +261,276 @@ def _recreate_training_env(
 
 
 def _next_evaluation_transition(
-    evaluation_state: Mapping[str, Any], frequency: int
+    evaluation_state: Mapping[str, Any],
+    frequency: int,
+    early_schedule: Sequence[int] = (),
+    target: Optional[int] = None,
 ) -> int:
-    """Return the first scheduled evaluation not present in checkpoint state."""
+    """Return the first scheduled evaluation not present in checkpoint state.
 
-    completed = [
+    Early checkpoints are evaluated on an explicit dense schedule so a collapse
+    of the warm-start behaviour is detected within tens of thousands of
+    transitions rather than after the regular interval.  The training target is
+    always evaluated once, so the final model is validated even when it does not
+    land on a schedule boundary.
+    """
+
+    completed = {
         int(report.get("timesteps", 0) or 0)
         for report in list(evaluation_state.get("history") or [])
         if isinstance(report, Mapping)
-    ]
+    }
     last_completed = max(completed, default=0)
-    return ((last_completed // int(frequency)) + 1) * int(frequency)
+    for point in sorted({int(value) for value in early_schedule}):
+        if point > last_completed:
+            return point
+    regular = ((last_completed // int(frequency)) + 1) * int(frequency)
+    if target is not None and regular > int(target) and int(target) not in completed:
+        return int(target)
+    return regular
+
+
+def _preserve_initialization_baseline(
+    run_dir: Path, config: Mapping[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """Copy the warm-start source into an immutable per-run baseline.
+
+    The baseline is the behaviour this run must not lose.  It is written once
+    and never overwritten, so a rollback target always exists even if the source
+    experiment directory is later moved.
+    """
+
+    initialization = config["initialization"]
+    source = initialization.get("source_checkpoint")
+    if initialization["mode"] not in WARM_START_MODES or not source:
+        return None
+    baseline_dir = run_dir / "baseline"
+    record_path = baseline_dir / "initialization_baseline.json"
+    if record_path.exists():
+        return json.loads(record_path.read_text(encoding="utf-8"))
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    target = baseline_dir / "initialization_policy.zip"
+    tmp = baseline_dir / ".initialization_policy.partial.zip"
+    shutil.copyfile(source, tmp)
+    digest = sha256_file(tmp)
+    if digest != sha256_file(source):
+        tmp.unlink(missing_ok=True)
+        raise OSError("initialization baseline copy hash mismatch")
+    os.replace(tmp, target)
+    record = {
+        "schema_version": "universal_transition_initialization_baseline_v1",
+        "created_utc": now_utc(),
+        "source_checkpoint": str(source),
+        "source_sha256": digest,
+        "baseline_checkpoint": str(target),
+        "baseline_sha256": digest,
+        "immutable": True,
+    }
+    atomic_write_json(record_path, record)
+    return record
+
+
+def _dedicated_benchmark_due(
+    *,
+    metrics: Mapping[str, Any],
+    competent: bool,
+    candidate_best: bool,
+    dedicated_state: Mapping[str, Any],
+    timesteps: int,
+    target: int,
+    config: Mapping[str, Any],
+) -> Optional[str]:
+    """Reason to spend the expensive ~1,000-case benchmark, or ``None``.
+
+    The dense intermediate schedule is cheap; the dedicated benchmark runs only
+    when a checkpoint has actually earned validation, or at final validation.
+    """
+
+    evaluation = config["evaluation"]
+    if int(timesteps) >= int(target):
+        return "final_model_validation"
+    if not competent:
+        return None
+    last = int(dedicated_state.get("last_timesteps", 0) or 0)
+    minimum_interval = int(
+        evaluation.get("dedicated_min_interval_transitions", 0) or 0
+    )
+    if last and int(timesteps) - last < minimum_interval:
+        return None
+    if dedicated_state.get("best_success_rate") is None:
+        return "first_competent_checkpoint"
+    margin = float(evaluation.get("dedicated_material_improvement", 0.05) or 0.0)
+    success = float(metrics.get("universal_transition_success_rate", 0.0) or 0.0)
+    if success >= float(dedicated_state["best_success_rate"]) + margin:
+        return "material_competence_improvement"
+    if candidate_best:
+        return "new_candidate_best_checkpoint"
+    return None
 
 
 def _training_work_pending(current: int, target: int, next_evaluation: int) -> bool:
     """Include a pending target-boundary evaluation without extra training."""
 
     return int(current) < int(target) or int(current) >= int(next_evaluation)
+
+
+def _evaluation_summary(report: Mapping[str, Any], output_dir: str) -> Dict[str, Any]:
+    """Checkpoint-sized view of an evaluation report.
+
+    Keeps everything resume, safety and selection logic reads, and drops the
+    per-episode rows, which remain available on disk.
+    """
+
+    dedicated = report.get("dedicated")
+    return {
+        "schema_version": report.get("schema_version"),
+        "observation_version": report.get("observation_version"),
+        "timesteps": int(report.get("timesteps", 0) or 0),
+        "evaluation_level": report.get("evaluation_level", "intermediate"),
+        "seed": report.get("seed"),
+        "difficulty": report.get("difficulty"),
+        "transition_cases": report.get("transition_cases"),
+        "full_cases_per_length": report.get("full_cases_per_length"),
+        "output_dir": output_dir,
+        "metrics": dict(report.get("metrics") or {}),
+        "competence": report.get("competence"),
+        "dedicated": None if not isinstance(dedicated, Mapping) else {
+            "reason": dedicated.get("reason"),
+            "output_dir": dedicated.get("output_dir"),
+            "transition_cases": dedicated.get("transition_cases"),
+            "metrics": dict(dedicated.get("metrics") or {}),
+        },
+    }
+
+
+def apply_evaluation_selection(
+    metrics: Mapping[str, Any],
+    *,
+    checkpoint_path: str,
+    timesteps: int,
+    aliases: Dict[str, Any],
+    selection: Dict[str, Any],
+    thresholds: Any,
+    rollback_limit: int,
+    baseline_record: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Update checkpoint aliases and rollback state from one evaluation.
+
+    Competence qualification precedes every decision: a policy that avoids
+    safety events by not moving can never be marked competent or safe, become
+    the best checkpoint, or promote geometric difficulty.
+    """
+
+    selection["last_evaluation_metrics"] = dict(metrics)
+    verdict = evaluate_competence_gate(metrics, thresholds)
+    selection["last_competence_verdict"] = verdict.as_dict()
+    candidate_better = verdict.passed and (
+        selection["best_metrics"] is None
+        or transition_checkpoint_rank_key(metrics, thresholds)
+        > transition_checkpoint_rank_key(selection["best_metrics"], thresholds)
+    )
+    safe = (
+        verdict.passed
+        and bool(metrics.get("safety_clean"))
+        and float(metrics.get("universal_transition_success_rate", 0.0) or 0.0) >= 0.99
+    )
+    if verdict.passed:
+        aliases["latest_competent"] = checkpoint_path
+    if safe:
+        aliases["latest_safe_competent"] = checkpoint_path
+    if candidate_better:
+        aliases["best_universal_transition"] = checkpoint_path
+        selection["best_metrics"] = dict(metrics)
+        selection["best_timestep"] = int(timesteps)
+    long_sequence = metrics.get("long_sequence_completion_score")
+    if verdict.passed and long_sequence is not None and (
+        selection["best_long_sequence_score"] is None
+        or float(long_sequence) > float(selection["best_long_sequence_score"])
+    ):
+        aliases["best_long_sequence"] = checkpoint_path
+        selection["best_long_sequence_score"] = float(long_sequence)
+    collapse = baseline_collapse_criteria(metrics)
+    selection["consecutive_baseline_collapses"] = (
+        int(selection["consecutive_baseline_collapses"]) + 1 if collapse else 0
+    )
+    collapsed = int(selection["consecutive_baseline_collapses"]) >= int(rollback_limit)
+    if collapsed:
+        selection["rollback"] = {
+            "triggered_utc": now_utc(),
+            "total_environment_transitions": int(timesteps),
+            "consecutive_evaluations_below_baseline": int(
+                selection["consecutive_baseline_collapses"]
+            ),
+            "failed_criteria": list(collapse),
+            "rollback_checkpoint": (
+                aliases["latest_competent"]
+                or (baseline_record or {}).get("baseline_checkpoint")
+            ),
+            "initialization_baseline": dict(baseline_record or {}) or None,
+            "action": "stop_before_spending_remaining_transitions",
+        }
+    return {
+        "competence": verdict.as_dict(),
+        "competent": verdict.passed,
+        "safe": safe,
+        "candidate_better": candidate_better,
+        "collapsed": collapsed,
+        "collapse_criteria": list(collapse),
+    }
+
+
+def _run_dedicated_benchmark(
+    run_dir: Path,
+    *,
+    model: Any,
+    config: Mapping[str, Any],
+    difficulty: str,
+    reason: str,
+    selection: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Validate an earned checkpoint on the full unseen benchmark.
+
+    Runs against the atomic checkpoint written immediately before evaluation, so
+    the benchmark is resumable per case and independent of the live learner.
+    """
+
+    timesteps = int(model.num_timesteps)
+    evaluation = config["evaluation"]
+    checkpoint = run_dir / "checkpoints" / f"ppo_{timesteps}_steps.zip"
+    output = run_dir / "evaluations" / f"dedicated_{timesteps:09d}"
+    report = evaluate_checkpoint_universal_transition_benchmark(
+        checkpoint,
+        output_dir=output,
+        seed=int(evaluation.get("dedicated_seed", evaluation["seed"])),
+        difficulty=difficulty,
+        transition_cases=int(evaluation["dedicated_transition_cases"]),
+        full_cases_per_length=int(
+            evaluation.get("dedicated_full_cases_per_length", 2)
+        ),
+        adapter=str(config["adapter"]),
+        frames_per_sec=config["holoocean_frames_per_sec"],
+        max_steps=int(config["max_episode_steps"]),
+        parallel_workers=int(evaluation.get("dedicated_parallel_workers", 2)),
+    )
+    metrics = report["metrics"]
+    success = float(metrics.get("universal_transition_success_rate", 0.0) or 0.0)
+    state = selection["dedicated"]
+    state["last_timesteps"] = timesteps
+    previous = state.get("best_success_rate")
+    if previous is None or success > float(previous):
+        state["best_success_rate"] = success
+    state["history"].append({
+        "timesteps": timesteps,
+        "reason": reason,
+        "output_dir": str(output),
+        "universal_transition_success_rate": success,
+    })
+    return {
+        "reason": reason,
+        "output_dir": str(output),
+        "transition_cases": int(report.get("transition_cases", 0)),
+        "metrics": metrics,
+    }
 
 
 def _save(
@@ -333,6 +605,22 @@ def _status(
         "evaluation_history_count": len(curriculum.state.evaluation_history),
         "checkpoint_aliases": dict(aliases),
         "checkpoint_selection_state": dict(selection),
+        "competence_gate": thresholds_from_mapping(
+            config.get("competence_gate")
+        ).as_dict(),
+        "evaluation_schedule": {
+            "early_schedule": list(config["evaluation"].get("early_schedule") or []),
+            "frequency": int(config["evaluation"]["frequency"]),
+            "intermediate_transition_cases": int(
+                config["evaluation"]["transition_cases"]
+            ),
+            "intermediate_full_cases_per_length": int(
+                config["evaluation"]["full_cases_per_length"]
+            ),
+            "dedicated_transition_cases": int(
+                config["evaluation"].get("dedicated_transition_cases", 0) or 0
+            ),
+        },
         "worker_identities": _worker_identities(env),
         "initialization": dict(config["initialization"]),
         "all_actions_policy_generated": True,
@@ -403,13 +691,24 @@ def run_training(args: argparse.Namespace) -> int:
     env: Optional[Any] = _make_vec_env(config, run_dir, curriculum.difficulty)
     aliases: Dict[str, Any] = {
         "last": None,
-        "latest_safe": None,
+        "latest_competent": None,
+        "latest_safe_competent": None,
         "best_universal_transition": None,
+        "best_long_sequence": None,
     }
     selection: Dict[str, Any] = {
         "best_metrics": None,
         "best_timestep": None,
         "last_evaluation_metrics": None,
+        "last_competence_verdict": None,
+        "best_long_sequence_score": None,
+        "consecutive_baseline_collapses": 0,
+        "dedicated": {
+            "last_timesteps": 0,
+            "best_success_rate": None,
+            "history": [],
+        },
+        "rollback": None,
     }
     evaluation_state: Dict[str, Any] = {"history": [], "last": None, "best": None}
     initialization_report = None
@@ -477,8 +776,16 @@ def run_training(args: argparse.Namespace) -> int:
         )
     evaluation_frequency = int(config["evaluation"]["frequency"])
     checkpoint_frequency = int(config["evaluation"]["checkpoint_frequency"])
+    early_schedule = tuple(
+        int(value) for value in (config["evaluation"].get("early_schedule") or ())
+    )
+    thresholds = thresholds_from_mapping(config.get("competence_gate"))
+    rollback_limit = int(
+        config["evaluation"].get("rollback_consecutive_evaluations", 2) or 2
+    )
+    baseline_record = _preserve_initialization_baseline(run_dir, config)
     next_evaluation = _next_evaluation_transition(
-        evaluation_state, evaluation_frequency
+        evaluation_state, evaluation_frequency, early_schedule, target
     )
     next_checkpoint = ((int(model.num_timesteps) // checkpoint_frequency) + 1) * checkpoint_frequency
     _status(
@@ -526,7 +833,7 @@ def run_training(args: argparse.Namespace) -> int:
 
             if int(model.num_timesteps) >= next_evaluation:
                 output = run_dir / "evaluations" / f"unseen_{int(model.num_timesteps):09d}"
-                _save(
+                boundary = _save(
                     model, run_dir, contract, curriculum, env, evaluation_state,
                     aliases, selection, config, status="unverified",
                     reason="pre_evaluation_atomic_boundary",
@@ -544,8 +851,11 @@ def run_training(args: argparse.Namespace) -> int:
                 evaluation_error: Optional[BaseException] = None
                 report = None
                 try:
-                    report = evaluate_universal_transition_benchmark(
-                        model,
+                    # Evaluate the atomic checkpoint written above rather than
+                    # the live model: identical weights, resumable per case, and
+                    # the learner object is never touched by evaluator engines.
+                    report = evaluate_checkpoint_universal_transition_benchmark(
+                        boundary.model_path,
                         output_dir=output,
                         seed=int(config["evaluation"]["seed"]),
                         difficulty=curriculum.difficulty,
@@ -554,10 +864,49 @@ def run_training(args: argparse.Namespace) -> int:
                         adapter=str(config["adapter"]),
                         frames_per_sec=config["holoocean_frames_per_sec"],
                         max_steps=int(config["max_episode_steps"]),
+                        parallel_workers=int(
+                            config["evaluation"].get(
+                                "intermediate_parallel_workers", 1
+                            )
+                        ),
                     )
                     report["timesteps"] = int(model.num_timesteps)
+                    report["evaluation_level"] = "intermediate"
+                    dedicated_reason = _dedicated_benchmark_due(
+                        metrics=report["metrics"],
+                        competent=evaluate_competence_gate(
+                            report["metrics"], thresholds
+                        ).passed,
+                        candidate_best=(
+                            selection["best_metrics"] is None
+                            or transition_checkpoint_rank_key(
+                                report["metrics"], thresholds
+                            )
+                            > transition_checkpoint_rank_key(
+                                selection["best_metrics"], thresholds
+                            )
+                        ),
+                        dedicated_state=selection["dedicated"],
+                        timesteps=int(model.num_timesteps),
+                        target=target,
+                        config=config,
+                    )
+                    if dedicated_reason is not None:
+                        # The learner's engines are already closed here, so the
+                        # dedicated benchmark never coexists with rollout
+                        # workers.
+                        report["dedicated"] = _run_dedicated_benchmark(
+                            run_dir,
+                            model=model,
+                            config=config,
+                            difficulty=curriculum.difficulty,
+                            reason=dedicated_reason,
+                            selection=selection,
+                        )
                     curriculum.observe_evaluation(
-                        report["metrics"], int(model.num_timesteps)
+                        report["metrics"],
+                        int(model.num_timesteps),
+                        thresholds=thresholds,
                     )
                 except BaseException as exc:
                     evaluation_error = exc
@@ -571,40 +920,47 @@ def run_training(args: argparse.Namespace) -> int:
                 if evaluation_error is not None:
                     raise evaluation_error
                 assert report is not None
-                atomic_write_json(output / "evaluation.json", report)
                 metrics = report["metrics"]
-                evaluation_state["last"] = report
-                evaluation_state["history"].append(report)
-                selection["last_evaluation_metrics"] = metrics
-                candidate_better = (
-                    selection["best_metrics"] is None
-                    or transition_checkpoint_rank_key(metrics)
-                    > transition_checkpoint_rank_key(selection["best_metrics"])
+                outcome = apply_evaluation_selection(
+                    metrics,
+                    checkpoint_path=str(
+                        run_dir / "checkpoints"
+                        / f"ppo_{int(model.num_timesteps)}_steps.zip"
+                    ),
+                    timesteps=int(model.num_timesteps),
+                    aliases=aliases,
+                    selection=selection,
+                    thresholds=thresholds,
+                    rollback_limit=rollback_limit,
+                    baseline_record=baseline_record,
                 )
-                safe = bool(metrics["safety_clean"]) and float(
-                    metrics.get("universal_transition_success_rate", 0.0) or 0.0
-                ) >= 0.99
-                checkpoint_path = str(
-                    run_dir / "checkpoints" / f"ppo_{int(model.num_timesteps)}_steps.zip"
-                )
-                if safe:
-                    aliases["latest_safe"] = checkpoint_path
-                if candidate_better:
-                    aliases["best_universal_transition"] = checkpoint_path
-                    selection["best_metrics"] = metrics
-                    selection["best_timestep"] = int(model.num_timesteps)
-                    evaluation_state["best"] = report
+                report["competence"] = outcome["competence"]
+                atomic_write_json(output / "evaluation.json", report)
+                # Only the summary is carried in checkpoint state; per-episode
+                # rows stay in evaluations/*/evaluation.json so that state files
+                # do not grow with every scheduled evaluation.
+                summary = _evaluation_summary(report, str(output))
+                evaluation_state["last"] = summary
+                evaluation_state["history"].append(summary)
+                if outcome["candidate_better"]:
+                    evaluation_state["best"] = summary
+                safe = outcome["safe"]
+                collapsed = outcome["collapsed"]
                 _save(
                     model, run_dir, contract, curriculum, env, evaluation_state,
                     aliases, selection, config,
                     status="safe" if safe else "unsafe",
                     reason="unseen_transition_evaluation",
                 )
-                next_evaluation += evaluation_frequency
+                next_evaluation = _next_evaluation_transition(
+                    evaluation_state, evaluation_frequency, early_schedule, target
+                )
                 next_checkpoint = max(
                     next_checkpoint,
                     int(model.num_timesteps) + checkpoint_frequency,
                 )
+                if collapsed:
+                    stop["requested"] = True
 
             if int(model.num_timesteps) >= next_checkpoint:
                 _save(
@@ -619,7 +975,12 @@ def run_training(args: argparse.Namespace) -> int:
                 message="universal transition PPO actively advancing",
             )
 
-        reason = "graceful_stop" if stop["requested"] or stop_file.exists() else "target_reached"
+        if selection.get("rollback"):
+            reason = "baseline_collapse_rollback"
+        elif stop["requested"] or stop_file.exists():
+            reason = "graceful_stop"
+        else:
+            reason = "target_reached"
         _save(
             model, run_dir, contract, curriculum, env, evaluation_state,
             aliases, selection, config, status="unverified", reason=reason,
@@ -627,7 +988,7 @@ def run_training(args: argparse.Namespace) -> int:
         )
         _status(
             run_dir,
-            state="stopped" if reason == "graceful_stop" else "completed",
+            state="completed" if reason == "target_reached" else "stopped",
             model=model, curriculum=curriculum, env=env, aliases=aliases,
             selection=selection, config=config, message=reason,
         )

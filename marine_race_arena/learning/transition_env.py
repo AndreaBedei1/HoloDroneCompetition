@@ -220,6 +220,15 @@ class UniversalTransitionEnv(_BASE):
             "episode_first_gate_crossed": int(referee.valid_gate_crossings) >= 1,
             "episode_missed_gate_dnf": int(referee.missed_gate_attempts),
             "episode_collisions": int(referee.collision_events) + int(referee.obstacle_collision_events),
+            # Entries and sustained contact frames are reported separately so a
+            # single long contact is never read as many distinct collisions.
+            "episode_collision_entries": int(
+                getattr(reward, "collision_entries", 0)
+            ),
+            "episode_collision_contact_frames": int(
+                getattr(reward, "collision_contact_frames", 0)
+            ),
+            "episode_collision": bool(getattr(reward, "collision_episode", False)),
             "episode_out_of_bounds": int(referee.out_of_bounds_events),
             "episode_wrong_direction": int(referee.wrong_direction_crossings),
             "episode_previous_gate_return": bool(
