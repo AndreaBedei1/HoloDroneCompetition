@@ -123,8 +123,10 @@ HoloOcean shutdown is verified against both the exact `_world_process` handle
 and the generated HoloOcean UUID owned by each adapter. Normal context-manager
 cleanup runs first; if HoloOcean 2.3.0 leaves that child alive (including the
 case where its process handle has already reported exit), the adapter reaps only
-the same-UUID process before the next engine is launched. This prevents idle
-evaluator engines from accumulating across the 1,000-case benchmark.
+the same-UUID process before the next engine is launched. A final ownership
+check enforces zero `Holodeck.exe` children under that sequential worker after
+close; it cannot affect the other evaluator worker. This prevents idle evaluator
+engines from accumulating across the 1,000-case benchmark.
 
 At every evaluation boundary, the trainer first writes a complete atomic
 checkpoint and marks status `evaluating`, then releases rollout workers. If the

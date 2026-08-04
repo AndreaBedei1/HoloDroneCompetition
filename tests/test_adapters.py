@@ -244,3 +244,40 @@ def test_holoocean_close_reaps_same_uuid_process_after_handle_reports_exit() -> 
     assert matching.killed and matching.waited
     assert not unrelated.killed
     assert adapter.env is None
+
+
+def test_holoocean_close_final_sweep_reaps_only_owned_engine_children() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class Process:
+        def __init__(self, pid: int, ppid: int, name: str = "Holodeck.exe") -> None:
+            self.pid = pid
+            self.info = {"pid": pid, "ppid": ppid, "name": name, "cmdline": []}
+            self.killed = False
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, timeout: int) -> None:
+            assert timeout == 5
+
+    owned = Process(301, 777)
+    other_worker = Process(302, 888)
+    unrelated = Process(303, 777, "python.exe")
+    fake_psutil = SimpleNamespace(
+        process_iter=lambda attrs: [owned, other_worker, unrelated],
+        NoSuchProcess=type("NoSuchProcess", (Exception,), {}),
+        AccessDenied=type("AccessDenied", (Exception,), {}),
+        TimeoutExpired=type("TimeoutExpired", (Exception,), {}),
+    )
+    adapter = HoloOceanRaceAdapter(config, arena)
+
+    with (
+        patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
+        patch.dict(sys.modules, {"psutil": fake_psutil}),
+    ):
+        adapter._ensure_owned_holodeck_children_stopped(owner_pid=777)
+
+    assert owned.killed
+    assert not other_worker.killed
+    assert not unrelated.killed

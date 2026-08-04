@@ -275,6 +275,7 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         finally:
             self._ensure_world_process_stopped(world_process)
             self._ensure_uuid_process_stopped(environment_uuid)
+            self._ensure_owned_holodeck_children_stopped()
         if lifecycle_error is not None:
             raise lifecycle_error
 
@@ -362,6 +363,35 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
                     "Holodeck PID %s for UUID %s survived UUID cleanup.",
                     process.pid,
                     environment_uuid,
+                )
+
+    @staticmethod
+    def _ensure_owned_holodeck_children_stopped(owner_pid: Optional[int] = None) -> None:
+        """Enforce zero Holodeck children after a sequential adapter closes."""
+
+        if os.name != "nt":
+            return
+        try:
+            import psutil
+        except ImportError:  # pragma: no cover - psutil is in the RL environment
+            return
+        owner = os.getpid() if owner_pid is None else int(owner_pid)
+        for process in psutil.process_iter(["pid", "ppid", "name"]):
+            try:
+                name = str(process.info.get("name") or "").lower()
+                if name != "holodeck.exe" or int(process.info.get("ppid", -1)) != owner:
+                    continue
+                LOGGER.warning(
+                    "Closed adapter left owned Holodeck PID %s alive; reaping it.",
+                    process.pid,
+                )
+                process.kill()
+                process.wait(timeout=5)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+            except psutil.TimeoutExpired:
+                LOGGER.error(
+                    "Owned Holodeck PID %s survived final cleanup.", process.pid
                 )
 
     @property
