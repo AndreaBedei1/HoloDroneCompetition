@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import subprocess
+import sys
+from types import SimpleNamespace
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -187,4 +189,58 @@ def test_holoocean_close_force_reaps_a_leaked_windows_world_process() -> None:
     assert env.exit_calls == 1
     assert env._world_process.kill_calls == 1
     run.assert_called_once()
+    assert adapter.env is None
+
+
+def test_holoocean_close_reaps_same_uuid_process_after_handle_reports_exit() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class ClosedWorldProcess:
+        def poll(self):
+            return 0
+
+    class Environment:
+        _uuid = "exact-environment-uuid"
+        _world_process = ClosedWorldProcess()
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+    class Process:
+        def __init__(self, pid: int, uuid: str) -> None:
+            self.pid = pid
+            self.info = {
+                "pid": pid,
+                "name": "Holodeck.exe",
+                "cmdline": ["Holodeck", f"--HolodeckUUID={uuid}"],
+            }
+            self.killed = False
+            self.waited = False
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, timeout: int) -> None:
+            assert timeout == 5
+            self.waited = True
+
+    matching = Process(101, "exact-environment-uuid")
+    unrelated = Process(202, "other-environment-uuid")
+    fake_psutil = SimpleNamespace(
+        process_iter=lambda attrs: [matching, unrelated],
+        NoSuchProcess=type("NoSuchProcess", (Exception,), {}),
+        AccessDenied=type("AccessDenied", (Exception,), {}),
+        TimeoutExpired=type("TimeoutExpired", (Exception,), {}),
+    )
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = Environment()
+
+    with (
+        patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
+        patch.dict(sys.modules, {"psutil": fake_psutil}),
+    ):
+        adapter.close()
+
+    assert matching.killed and matching.waited
+    assert not unrelated.killed
     assert adapter.env is None

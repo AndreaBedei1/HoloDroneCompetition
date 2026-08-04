@@ -258,6 +258,7 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         if env is None:
             return
         world_process = getattr(env, "_world_process", None)
+        environment_uuid = getattr(env, "_uuid", None)
         lifecycle_error: Optional[Exception] = None
         try:
             close = getattr(env, "close", None)
@@ -273,6 +274,7 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             lifecycle_error = exc
         finally:
             self._ensure_world_process_stopped(world_process)
+            self._ensure_uuid_process_stopped(environment_uuid)
         if lifecycle_error is not None:
             raise lifecycle_error
 
@@ -323,6 +325,44 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             world_process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             LOGGER.error("Holodeck PID %s remained alive after forced cleanup.", pid)
+
+    @staticmethod
+    def _ensure_uuid_process_stopped(environment_uuid: Any) -> None:
+        """Reap a Windows Holodeck process that outlived its Popen handle."""
+
+        if os.name != "nt" or not environment_uuid:
+            return
+        try:
+            import psutil
+        except ImportError:  # pragma: no cover - psutil is in the RL environment
+            LOGGER.error(
+                "Cannot verify HoloOcean UUID %s cleanup because psutil is unavailable.",
+                environment_uuid,
+            )
+            return
+
+        marker = f"--HolodeckUUID={environment_uuid}"
+        for process in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                name = str(process.info.get("name") or "").lower()
+                command = " ".join(process.info.get("cmdline") or ())
+                if name != "holodeck.exe" or marker not in command:
+                    continue
+                LOGGER.warning(
+                    "HoloOcean UUID %s left Holodeck PID %s alive; reaping it.",
+                    environment_uuid,
+                    process.pid,
+                )
+                process.kill()
+                process.wait(timeout=5)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+            except psutil.TimeoutExpired:
+                LOGGER.error(
+                    "Holodeck PID %s for UUID %s survived UUID cleanup.",
+                    process.pid,
+                    environment_uuid,
+                )
 
     @property
     def active_environment_name(self) -> Optional[str]:
