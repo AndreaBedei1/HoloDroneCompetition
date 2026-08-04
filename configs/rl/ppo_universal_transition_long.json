@@ -4,9 +4,9 @@
   "observation_version": "onboard_local_transition_v1",
   "action_version": "surge_sway_heave_yaw_pm1_v1",
   "initialization": {
-    "mode": "selective_warm_start",
-    "source_checkpoint": "results/rl/ppo_sequence_curriculum/ppo900462_long_sequences_seed23001/checkpoints/ppo_526336_steps.zip",
-    "source_sha256": "7fcb83db85c86eb22c2d7120d01cd1cb43e238f4f4ee27ff866d698ae3b0cf9c"
+    "mode": "scratch",
+    "source_checkpoint": null,
+    "source_sha256": null
   },
   "seed": 23001,
   "worker_seed_base": 43001,

@@ -145,6 +145,43 @@ reproducibility. DVL is configured at 15 Hz in a 30 Hz world, so an emission on
 alternate ticks is correct. The selected default is headless,
 `frames_per_sec=false`, two workers.
 
+## Completed validation
+
+The real parallel benchmark selected two unthrottled workers. One worker with
+`frames_per_sec=false` averaged 7.695 transitions/s and 16.634 s per 128-step
+rollout; two workers averaged 12.316 transitions/s and 10.393 s, a 1.601x
+speedup. The corresponding `frames_per_sec=true` results were 7.413 and 12.381
+transitions/s. Every launch succeeded, camera/IMU/depth frames were valid, and
+the DVL emitted on its expected alternate ticks. Deterministic case generation
+was reproducible; noisy simulator observation traces were not bit-identical.
+
+Both A/B arms trained for exactly 40,960 environment transitions with identical
+seeds, geometries, PPO settings, and evaluation cases. Their final dedicated
+holdouts each contain 1,000 unseen two-gate transitions plus two unseen full
+sequences at every length 3, 5, 8, 12, 17, and 22:
+
+| Initialization | Safety events | Transition success | First crossing | Target switch | Alignment | Range decrease | Long score | Mean jerk |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Selective warm start | 983 | 31.4% | 91.2% | 81.9% | 42.6% | 81.5% | 0.25 | 0.109872 |
+| Scratch | 122 | 0.0% | 1.5% | 0.2% | 0.0% | 0.2% | 0.00 | 0.005676 |
+
+Warm start recorded 417 collision episodes (2,591 collision events), 78 missed
+gates, one previous-gate return, 51 wrong-direction events, and 436 acquisition
+timeouts. Its full-sequence completion rates were 100% at length 3, 50% at
+length 5, and 0% at lengths 8, 12, 17, and 22. Scratch recorded 103 collision
+episodes (539 events), nine missed gates, no previous-gate returns, four
+wrong-direction events, and six acquisition timeouts; it completed none of the
+full sequences.
+
+The configured lexicographic order is safety-event count, transition success,
+long-sequence completion, jerk, then acquisition time. It therefore selected
+`scratch` (rank safety counts 122 versus 983), and the long-run config records
+that result. This is a deliberately literal safety-first selection, not a
+reliability claim: neither arm was safety-clean, scratch learned no useful
+transition behavior, warm reached only 31.4%, and both are far below the 99%
+reliability threshold. Further learning and unseen evaluations are required
+before this policy can be considered reliable.
+
 ## Commands
 
 Run the controlled 40,960-transition A/B comparison and dedicated unseen suite:
