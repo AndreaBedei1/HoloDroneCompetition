@@ -126,7 +126,9 @@ case where its process handle has already reported exit), the adapter reaps only
 the same-UUID process before the next engine is launched. A final ownership
 check enforces zero `Holodeck.exe` children under that sequential worker after
 close; it cannot affect the other evaluator worker. This prevents idle evaluator
-engines from accumulating across the 1,000-case benchmark.
+engines from accumulating across the 1,000-case benchmark. The same exact-owner
+cleanup runs between HoloOcean world-candidate retries because `holoocean.make`
+can raise after spawning Unreal but before returning an environment context.
 
 At every evaluation boundary, the trainer first writes a complete atomic
 checkpoint and marks status `evaluating`, then releases rollout workers. If the

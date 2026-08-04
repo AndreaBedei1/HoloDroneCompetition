@@ -385,11 +385,17 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
                     "Closed adapter left owned Holodeck PID %s alive; reaping it.",
                     process.pid,
                 )
-                process.kill()
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
                 process.wait(timeout=5)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-            except psutil.TimeoutExpired:
+            except (psutil.TimeoutExpired, OSError, subprocess.TimeoutExpired):
                 LOGGER.error(
                     "Owned Holodeck PID %s survived final cleanup.", process.pid
                 )
@@ -422,6 +428,10 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
                 return env
             except Exception as exc:
                 failures.append(f"{environment_name} scenario_cfg failed: {type(exc).__name__}: {exc}")
+                # holoocean.make() can raise after its Unreal child is already
+                # running.  No environment was returned, so the failed
+                # candidate cannot be closed through its context manager.
+                self._ensure_owned_holodeck_children_stopped()
         raise RaceAdapterUnavailable(
             "Could not initialize a custom BlueROV2 HoloOcean scenario for any configured environment. "
             + " | ".join(failures)

@@ -271,13 +271,46 @@ def test_holoocean_close_final_sweep_reaps_only_owned_engine_children() -> None:
         TimeoutExpired=type("TimeoutExpired", (Exception,), {}),
     )
     adapter = HoloOceanRaceAdapter(config, arena)
+    taskkills: list[list[str]] = []
+
+    def taskkill(command, **kwargs):
+        taskkills.append(command)
+        return subprocess.CompletedProcess(command, 0)
 
     with (
         patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
         patch.dict(sys.modules, {"psutil": fake_psutil}),
+        patch(
+            "marine_race_arena.adapters.holoocean_adapter.subprocess.run",
+            side_effect=taskkill,
+        ),
     ):
         adapter._ensure_owned_holodeck_children_stopped(owner_pid=777)
 
-    assert owned.killed
+    assert taskkills == [["taskkill", "/PID", "301", "/T", "/F"]]
     assert not other_worker.killed
     assert not unrelated.killed
+
+
+def test_holoocean_failed_environment_candidate_is_reaped_before_retry() -> None:
+    config, arena, _ = _config_arena_participant()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    expected_environment = object()
+    attempts = 0
+
+    def make(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("engine handshake failed after launch")
+        return expected_environment
+
+    adapter._holoocean = SimpleNamespace(make=make)
+    with patch.object(
+        adapter, "_ensure_owned_holodeck_children_stopped"
+    ) as cleanup:
+        actual = adapter._make_environment()
+
+    assert actual is expected_environment
+    assert attempts == 2
+    cleanup.assert_called_once_with()
