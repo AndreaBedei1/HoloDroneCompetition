@@ -36,6 +36,7 @@ TRAINER_MODULES = {
     "ppo": "marine_race_arena.learning.train_ppo_transition",
     "sac": "marine_race_arena.learning.train_sac_transition",
 }
+SUPERVISOR_MODULE = "marine_race_arena.learning.rl_autonomous_supervisor"
 MAX_RESTART_ATTEMPTS = 3
 
 
@@ -404,6 +405,15 @@ def _algorithm_spec(args: argparse.Namespace, name: str) -> Dict[str, Any]:
     }
 
 
+def _worker_command(state_dir: Path) -> list[str]:
+    # ``__name__`` is ``__main__`` when the public ``python -m`` entry point
+    # calls start().  A detached child must use the importable module name.
+    return [
+        sys.executable, "-m", SUPERVISOR_MODULE,
+        "worker", "--state-dir", str(state_dir),
+    ]
+
+
 def start(args: argparse.Namespace) -> int:
     state_dir = Path(args.state_dir).resolve()
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -427,7 +437,7 @@ def start(args: argparse.Namespace) -> int:
     stderr = (state_dir / "supervisor.stderr.log").open("a", encoding="utf-8")
     try:
         process = subprocess.Popen(
-            [sys.executable, "-m", __name__, "worker", "--state-dir", str(state_dir)],
+            _worker_command(state_dir),
             cwd=config["supervisor_worktree"], stdin=subprocess.DEVNULL,
             stdout=stdout, stderr=stderr, close_fds=True,
             creationflags=_detached_flags(), start_new_session=(os.name != "nt"),

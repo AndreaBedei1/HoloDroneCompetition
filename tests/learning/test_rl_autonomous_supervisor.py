@@ -18,6 +18,19 @@ def test_supervisor_command_never_uses_conda_wrapper(tmp_path):
     assert command[-1] == "--resume"
 
 
+def test_detached_worker_command_uses_importable_module_name(tmp_path):
+    command = supervisor._worker_command(tmp_path.resolve())
+    assert command == [
+        supervisor.sys.executable,
+        "-m",
+        "marine_race_arena.learning.rl_autonomous_supervisor",
+        "worker",
+        "--state-dir",
+        str(tmp_path.resolve()),
+    ]
+    assert "__main__" not in command
+
+
 def test_trainer_matching_ignores_conda_wrappers(monkeypatch):
     class Process:
         def __init__(self, pid, command):
