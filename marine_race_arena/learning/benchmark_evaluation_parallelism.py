@@ -13,6 +13,7 @@ from marine_race_arena.learning.benchmark_transition_parallelism import _Resourc
 from marine_race_arena.learning.holoocean_capacity import (
     MAX_ACTIVE_HOLOOCEAN_ENGINES,
     active_holodeck_processes,
+    reserve_holoocean_engines,
 )
 from marine_race_arena.learning.longrun_checkpoint import atomic_write_json
 from marine_race_arena.learning.provenance import now_utc
@@ -46,19 +47,22 @@ def run_case(
     started = time.perf_counter()
     try:
         monitor.start()
-        report = evaluate_checkpoint_universal_transition_benchmark(
-            checkpoint,
-            output_dir=output / f"workers_{workers}",
-            seed=seed,
-            difficulty="G1",
-            transition_cases=transition_cases,
-            full_cases_per_length=0,
-            adapter="holoocean",
-            frames_per_sec=False,
-            max_steps=3600,
-            parallel_workers=workers,
-            algorithm=algorithm,
-        )
+        with reserve_holoocean_engines(
+            workers, owner=f"{algorithm} evaluation capacity benchmark"
+        ):
+            report = evaluate_checkpoint_universal_transition_benchmark(
+                checkpoint,
+                output_dir=output / f"workers_{workers}",
+                seed=seed,
+                difficulty="G1",
+                transition_cases=transition_cases,
+                full_cases_per_length=0,
+                adapter="holoocean",
+                frames_per_sec=False,
+                max_steps=3600,
+                parallel_workers=workers,
+                algorithm=algorithm,
+            )
         elapsed = time.perf_counter() - started
         return {
             "ok": True,

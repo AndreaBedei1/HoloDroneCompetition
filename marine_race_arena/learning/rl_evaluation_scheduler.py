@@ -9,7 +9,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, Mapping, Optional
 
-from marine_race_arena.learning.holoocean_capacity import capacity_snapshot
+from marine_race_arena.learning.holoocean_capacity import (
+    capacity_snapshot,
+    reserve_holoocean_engines,
+)
 from marine_race_arena.learning.longrun_checkpoint import atomic_append_jsonl
 from marine_race_arena.learning.provenance import now_utc
 
@@ -112,13 +115,16 @@ def scheduled_evaluation(
         allocation.update({"owner": str(owner), "allocated_utc": now_utc()})
         if audit_path is not None:
             atomic_append_jsonl(audit_path, {"event": "allocated", **allocation})
-        try:
-            yield allocation
-        finally:
-            if audit_path is not None:
-                atomic_append_jsonl(audit_path, {
-                    "event": "released",
-                    "owner": str(owner),
-                    "workers": allocation["selected_workers"],
-                    "utc": now_utc(),
-                })
+        with reserve_holoocean_engines(
+            int(allocation["selected_workers"]), owner=str(owner)
+        ):
+            try:
+                yield allocation
+            finally:
+                if audit_path is not None:
+                    atomic_append_jsonl(audit_path, {
+                        "event": "released",
+                        "owner": str(owner),
+                        "workers": allocation["selected_workers"],
+                        "utc": now_utc(),
+                    })
