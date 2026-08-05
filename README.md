@@ -6,6 +6,10 @@ separate concerns. Replaceable adapters isolate simulator-specific sensing and
 actuation; the reference implementation uses HoloOcean with a BlueROV2-class
 vehicle.
 
+The independent multi-step SAC universal-transition arm, global HoloOcean
+capacity guard, equal-budget PPO comparison, and exact track visualizer are
+documented in [`docs/sac_universal_transition.md`](docs/sac_universal_transition.md).
+
 In official mode, controllers operate entirely from onboard information. The
 referee uses privileged simulator state only to validate crossings, violations,
 timing, ranking and team scores. Referee decisions are never returned to vehicle

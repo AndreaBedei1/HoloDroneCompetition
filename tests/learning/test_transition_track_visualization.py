@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+import json
+from contextlib import contextmanager
+
+import numpy as np
+import pytest
+
+from marine_race_arena.learning.transition_curriculum import (
+    TransitionGeometrySampler,
+    generate_transition_track,
+)
+from marine_race_arena.learning.transition_evaluation import (
+    evaluate_local_transition_episode,
+)
+from marine_race_arena.learning.transition_track_visualization import (
+    geometry_from_track,
+    holoocean_flythrough,
+    render_geometry_track,
+    sample_geometries,
+    snapshot_json,
+    track_summary,
+)
+
+
+class _ZeroPolicy:
+    def predict(self, observation, deterministic=True):
+        array = np.asarray(observation)
+        shape = (4,) if array.ndim == 1 else (array.shape[0], 4)
+        return np.zeros(shape, np.float32), None
+
+
+def test_sampler_preview_reproduces_exact_geometries_for_same_seed():
+    kwargs = dict(
+        seed_start=43001, num_tracks=24,
+        difficulties=["G1", "G3", "G6"],
+        episode_types=["transition_focus", "full_sequence"],
+        lengths=[3, 5, 8, 12, 17, 22],
+    )
+    assert sample_geometries(**kwargs) == sample_geometries(**kwargs)
+
+
+def test_track_snapshot_preserves_gate_order_orientation_and_diagnostics(tmp_path):
+    geometry = TransitionGeometrySampler(
+        seed=44, difficulty="G4", transition_focus_fraction=1.0
+    ).sample(force_episode_type="transition_focus")
+    path = generate_transition_track(geometry, tmp_path / "track.json")
+    track = snapshot_json(path)
+    restored = geometry_from_track(track)
+    summary = track_summary(track)
+    assert restored == geometry
+    assert summary["gate_order"] == track["track"]["gate_sequence"]
+    assert summary["gate_centers"] == [gate["position"] for gate in track["gates"]]
+    assert summary["currents_disabled"]
+
+
+def test_geometry_backend_requires_no_holoocean(monkeypatch, tmp_path):
+    geometry = TransitionGeometrySampler(
+        seed=45, difficulty="G1", transition_focus_fraction=1.0
+    ).sample(force_episode_type="transition_focus")
+    path = generate_transition_track(geometry, tmp_path / "track.json")
+    summary = render_geometry_track(snapshot_json(path), speed=20, show=False)
+    assert summary["seed"] == geometry.seed
+    assert summary["sequence_length"] == 2
+
+
+def test_holoocean_backend_obeys_engine_cap(monkeypatch, tmp_path):
+    geometry = TransitionGeometrySampler(
+        seed=46, difficulty="G1", transition_focus_fraction=1.0
+    ).sample(force_episode_type="transition_focus")
+    path = generate_transition_track(geometry, tmp_path / "track.json")
+
+    @contextmanager
+    def denied(*args, **kwargs):
+        raise RuntimeError("HoloOcean engine cap would be exceeded")
+        yield
+
+    monkeypatch.setattr(
+        "marine_race_arena.learning.transition_track_visualization.reserve_holoocean_engines",
+        denied,
+    )
+    with pytest.raises(RuntimeError, match="cap"):
+        holoocean_flythrough(path)
+
+
+def test_render_callback_does_not_change_headless_evaluation_metrics(tmp_path):
+    geometry = TransitionGeometrySampler(
+        seed=47, difficulty="G1", transition_focus_fraction=1.0
+    ).sample(force_episode_type="transition_focus")
+    policy = _ZeroPolicy()
+    headless = evaluate_local_transition_episode(
+        policy, geometry=geometry, output_dir=tmp_path / "headless",
+        adapter="fallback", max_steps=20,
+    )
+    frames = []
+    rendered = evaluate_local_transition_episode(
+        policy, geometry=geometry, output_dir=tmp_path / "rendered",
+        adapter="fallback", max_steps=20,
+        frame_callback=lambda env, step: frames.append(step),
+    )
+    assert rendered == headless
+    assert frames
+
