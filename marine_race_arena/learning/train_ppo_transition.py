@@ -32,6 +32,7 @@ from marine_race_arena.learning.longrun_checkpoint import (
     sha256_file,
 )
 from marine_race_arena.learning.provenance import git_sha, now_utc
+from marine_race_arena.learning.rl_evaluation_scheduler import scheduled_evaluation
 from marine_race_arena.learning.train_multigate_longrun import (
     AbsoluteLearningRateSchedule,
 )
@@ -498,20 +499,26 @@ def _run_dedicated_benchmark(
     evaluation = config["evaluation"]
     checkpoint = run_dir / "checkpoints" / f"ppo_{timesteps}_steps.zip"
     output = run_dir / "evaluations" / f"dedicated_{timesteps:09d}"
-    report = evaluate_checkpoint_universal_transition_benchmark(
-        checkpoint,
-        output_dir=output,
-        seed=int(evaluation.get("dedicated_seed", evaluation["seed"])),
-        difficulty=difficulty,
-        transition_cases=int(evaluation["dedicated_transition_cases"]),
-        full_cases_per_length=int(
-            evaluation.get("dedicated_full_cases_per_length", 2)
-        ),
-        adapter=str(config["adapter"]),
-        frames_per_sec=config["holoocean_frames_per_sec"],
-        max_steps=int(config["max_episode_steps"]),
-        parallel_workers=int(evaluation.get("dedicated_parallel_workers", 2)),
-    )
+    with scheduled_evaluation(
+        evaluation,
+        fixed_workers=int(evaluation.get("dedicated_parallel_workers", 2)),
+        owner=f"ppo:{run_dir.name}:dedicated:{timesteps}",
+        audit_path=run_dir / "logs" / "evaluation_allocation.jsonl",
+    ) as allocation:
+        report = evaluate_checkpoint_universal_transition_benchmark(
+            checkpoint,
+            output_dir=output,
+            seed=int(evaluation.get("dedicated_seed", evaluation["seed"])),
+            difficulty=difficulty,
+            transition_cases=int(evaluation["dedicated_transition_cases"]),
+            full_cases_per_length=int(
+                evaluation.get("dedicated_full_cases_per_length", 2)
+            ),
+            adapter=str(config["adapter"]),
+            frames_per_sec=config["holoocean_frames_per_sec"],
+            max_steps=int(config["max_episode_steps"]),
+            parallel_workers=int(allocation["selected_workers"]),
+        )
     metrics = report["metrics"]
     success = float(metrics.get("universal_transition_success_rate", 0.0) or 0.0)
     state = selection["dedicated"]
@@ -854,22 +861,24 @@ def run_training(args: argparse.Namespace) -> int:
                     # Evaluate the atomic checkpoint written above rather than
                     # the live model: identical weights, resumable per case, and
                     # the learner object is never touched by evaluator engines.
-                    report = evaluate_checkpoint_universal_transition_benchmark(
-                        boundary.model_path,
-                        output_dir=output,
-                        seed=int(config["evaluation"]["seed"]),
-                        difficulty=curriculum.difficulty,
-                        transition_cases=int(config["evaluation"]["transition_cases"]),
-                        full_cases_per_length=int(config["evaluation"]["full_cases_per_length"]),
-                        adapter=str(config["adapter"]),
-                        frames_per_sec=config["holoocean_frames_per_sec"],
-                        max_steps=int(config["max_episode_steps"]),
-                        parallel_workers=int(
-                            config["evaluation"].get(
-                                "intermediate_parallel_workers", 1
-                            )
-                        ),
-                    )
+                    with scheduled_evaluation(
+                        config["evaluation"],
+                        fixed_workers=int(config["evaluation"].get("intermediate_parallel_workers", 1)),
+                        owner=f"ppo:{run_dir.name}:intermediate:{int(model.num_timesteps)}",
+                        audit_path=run_dir / "logs" / "evaluation_allocation.jsonl",
+                    ) as allocation:
+                        report = evaluate_checkpoint_universal_transition_benchmark(
+                            boundary.model_path,
+                            output_dir=output,
+                            seed=int(config["evaluation"]["seed"]),
+                            difficulty=curriculum.difficulty,
+                            transition_cases=int(config["evaluation"]["transition_cases"]),
+                            full_cases_per_length=int(config["evaluation"]["full_cases_per_length"]),
+                            adapter=str(config["adapter"]),
+                            frames_per_sec=config["holoocean_frames_per_sec"],
+                            max_steps=int(config["max_episode_steps"]),
+                            parallel_workers=int(allocation["selected_workers"]),
+                        )
                     report["timesteps"] = int(model.num_timesteps)
                     report["evaluation_level"] = "intermediate"
                     dedicated_reason = _dedicated_benchmark_due(

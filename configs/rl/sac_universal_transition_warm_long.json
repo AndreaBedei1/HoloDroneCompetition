@@ -83,6 +83,11 @@
     "dedicated_transition_cases": 1000,
     "dedicated_full_cases_per_length": 2,
     "dedicated_parallel_workers": 1,
+    "dynamic_parallelism": {
+      "enabled": true,
+      "candidates": [4, 6, 8],
+      "selected_workers": 4
+    },
     "dedicated_min_interval_transitions": 100000,
     "dedicated_material_improvement": 0.05
   }

@@ -95,6 +95,11 @@ def test_long_profile_records_capacity_selected_single_worker_layout():
     assert config["n_envs"] == 1
     assert config["evaluation"]["intermediate_parallel_workers"] == 1
     assert config["evaluation"]["dedicated_parallel_workers"] == 1
+    assert config["evaluation"]["dynamic_parallelism"] == {
+        "enabled": True,
+        "candidates": [4, 6, 8],
+        "selected_workers": 4,
+    }
     assert config["sac"]["critic_warmup_updates"] == 2500
     assert config["sac"]["policy_delay"] == 4
     assert config["sac"]["actor_learning_rate"] == pytest.approx(1e-6)

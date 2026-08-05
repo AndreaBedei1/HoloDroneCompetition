@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
@@ -60,6 +62,26 @@ def _system_memory_percent() -> float | None:
         return None
 
 
+def _gpu_total_memory_mib() -> float | None:
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, check=False, timeout=3,
+        )
+        values = [float(line.strip()) for line in result.stdout.splitlines() if line.strip()]
+        return sum(values) if values else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def ppo_is_in_normal_rollout(run_dir: str | Path) -> bool:
+    try:
+        status = json.loads((Path(run_dir) / "status.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return False
+    return str(status.get("state", "")).lower() == "running"
+
+
 def run_case(
     config: Mapping[str, Any],
     output: Path,
@@ -67,6 +89,7 @@ def run_case(
     workers: int,
     transitions: int,
     ppo_progress: Path,
+    ppo_samples: int = 1,
 ) -> Dict[str, Any]:
     case_config = json.loads(json.dumps(config))
     case_config["n_envs"] = int(workers)
@@ -93,20 +116,62 @@ def run_case(
         launch_time = time.perf_counter() - started
         monitor.start()
         rollout_started = time.perf_counter()
-        vector_steps = int(np.ceil(int(transitions) / int(workers)))
+        collector_steps = int(config["sac"].get("collector_steps", 128))
+        minimum_transitions = max(
+            int(transitions), int(workers) * collector_steps * 4
+        )
+        minimum_vector_steps = int(
+            np.ceil(minimum_transitions / int(workers))
+        )
         latencies = []
-        for _ in range(vector_steps):
+        vector_steps = 0
+        while True:
             action = agent.act(observations, deterministic=False)
             step_started = time.perf_counter()
             observations, _, _, _ = env.step(action)
             latencies.append(time.perf_counter() - step_started)
+            vector_steps += 1
+            if vector_steps < minimum_vector_steps:
+                continue
+            if vector_steps % 32:
+                continue
+            concurrent_samples = max(0, len(_progress_rates(ppo_progress)) - before_count)
+            if concurrent_samples >= max(1, int(ppo_samples)):
+                break
+            if time.perf_counter() - rollout_started >= 900.0:
+                raise RuntimeError(
+                    "PPO emitted no complete concurrent rollout sample in 15 minutes"
+                )
         rollout_time = time.perf_counter() - rollout_started
         monitor.close()
         completed = vector_steps * int(workers)
         sensor = list(env.env_method("sensor_health"))
         resources = monitor.report()
         resources["system_ram_percent"] = _system_memory_percent()
+        resources["gpu_total_memory_mib"] = _gpu_total_memory_mib()
         active_during = active_holodeck_processes()
+        checkpoint_tmp = run_dir / "capacity_checkpoint.pt.tmp"
+        checkpoint = run_dir / "capacity_checkpoint.pt"
+        checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_started = time.perf_counter()
+        import torch
+
+        torch.save(agent.checkpoint_state(), checkpoint_tmp)
+        os.replace(checkpoint_tmp, checkpoint)
+        checkpoint_latency = time.perf_counter() - checkpoint_started
+        checkpoint_integrity = isinstance(
+            torch.load(checkpoint, map_location="cpu", weights_only=False), dict
+        )
+        stale = sum(
+            sum(int(value) for value in row.get("repeated_fingerprints", {}).values())
+            for row in sensor
+        )
+        cadence = {
+            str(index): dict(row.get("observed_presence_rates") or {})
+            for index, row in enumerate(sensor)
+        }
+        mean_latency = statistics.fmean(latencies)
+        jitter = statistics.pstdev(latencies) if len(latencies) > 1 else 0.0
         return {
             "ok": True,
             "workers": int(workers),
@@ -116,18 +181,28 @@ def run_case(
             "rollout_wall_time_s": rollout_time,
             "environment_transitions": completed,
             "sac_transitions_per_second": completed / max(rollout_time, 1e-9),
-            "mean_vector_step_latency_s": statistics.fmean(latencies),
+            "sac_transitions_per_second_per_worker": completed / max(rollout_time * workers, 1e-9),
+            "mean_vector_step_latency_s": mean_latency,
             "p95_vector_step_latency_s": float(np.percentile(latencies, 95)),
+            "rollout_jitter_s": jitter,
+            "rollout_jitter_coefficient": jitter / max(mean_latency, 1e-9),
             "worker_identities": identities,
             "sensor_health": sensor,
+            "sensor_cadence": cadence,
+            "stale_observations": stale,
             "sensor_contract_valid": all(
                 bool(row.get("sensor_contract_valid")) for row in sensor
             ),
+            "engine_launch_failures": 0,
+            "worker_crashes": 0,
+            "checkpoint_latency_s": checkpoint_latency,
+            "checkpoint_integrity_valid": checkpoint_integrity,
             "resources": resources,
             "engines_before": before_engines,
             "engines_during": active_during,
             "ppo_throughput_before": ppo_before,
             "ppo_progress_rows_before": before_count,
+            "required_ppo_progress_samples": int(ppo_samples),
         }
     except Exception as exc:
         monitor.close()
@@ -135,6 +210,8 @@ def run_case(
             "ok": False,
             "workers": int(workers),
             "error": f"{type(exc).__name__}: {exc}",
+            "engine_launch_failures": 1 if env is None else 0,
+            "worker_crashes": 0 if env is None else 1,
             "engines_before": before_engines,
             "resources": monitor.report(),
             "ppo_throughput_before": ppo_before,
@@ -177,22 +254,36 @@ def finalize_case(row: Dict[str, Any], ppo_progress: Path) -> Dict[str, Any]:
         "orphan_engine_pids": orphan_pids,
         "ppo_throughput_during": ppo_during,
         "ppo_throughput_degradation_fraction": degradation,
+        "aggregate_transitions_per_second": (
+            float(row.get("sac_transitions_per_second", 0.0) or 0.0)
+            + float(ppo_during or 0.0)
+        ),
     })
+    row["aggregate_transitions_per_second_per_worker"] = (
+        float(row["aggregate_transitions_per_second"])
+        / max(1, int(row.get("workers", 0)) + 2)
+    )
     resources = row.get("resources") or {}
     ram = resources.get("system_ram_percent")
     gpu_memory = (resources.get("gpu_memory_mib") or {}).get("peak")
-    # nvidia-smi does not expose total memory in the shared monitor, so the
-    # strict VRAM percentage check is recorded as unavailable rather than guessed.
+    total_vram = resources.get("gpu_total_memory_mib")
+    vram_percent = (
+        None if gpu_memory is None or not total_vram
+        else 100.0 * float(gpu_memory) / float(total_vram)
+    )
     row["stable"] = bool(
         row.get("ok")
         and row.get("sensor_contract_valid")
         and not orphan_pids
         and int(row.get("total_active_engines", 99)) <= MAX_ACTIVE_HOLOOCEAN_ENGINES
-        and (degradation is None or degradation <= 0.25)
         and (ram is None or float(ram) < 90.0)
+        and (vram_percent is None or vram_percent < 90.0)
+        and bool(row.get("checkpoint_integrity_valid", True))
+        and int(row.get("engine_launch_failures", 0)) == 0
+        and int(row.get("worker_crashes", 0)) == 0
     )
     row["vram_peak_mib"] = gpu_memory
-    row["vram_percent_check"] = "unavailable_without_total-memory query"
+    row["vram_percent"] = vram_percent
     return row
 
 
@@ -200,12 +291,13 @@ def _select(cases: list[Mapping[str, Any]]) -> int | None:
     stable = [row for row in cases if row.get("stable")]
     if not stable:
         return None
-    # Reject larger layouts once throughput gain is below 5 percent.
+    # Optimize aggregate useful throughput. PPO slowdown is reported, but is not
+    # itself a rejection criterion.
     selected = stable[0]
     for row in stable[1:]:
-        previous = float(selected["sac_transitions_per_second"])
-        current = float(row["sac_transitions_per_second"])
-        if current >= previous * 1.05:
+        previous = float(selected["aggregate_transitions_per_second"])
+        current = float(row["aggregate_transitions_per_second"])
+        if current >= previous * 1.10:
             selected = row
     return int(selected["workers"])
 
@@ -214,14 +306,16 @@ def _markdown(report: Mapping[str, Any]) -> str:
     lines = [
         "# Concurrent PPO/SAC HoloOcean capacity benchmark",
         "",
-        "| SAC workers | Total engines | SAC transitions/s | PPO degradation | Sensors | Orphans | Stable |",
-        "|---:|---:|---:|---:|:---:|---:|:---:|",
+        "| SAC workers | Total engines | PPO t/s | SAC t/s | Aggregate t/s | PPO degradation | Sensors | Orphans | Stable |",
+        "|---:|---:|---:|---:|---:|---:|:---:|---:|:---:|",
     ]
     for row in report["cases"]:
         degradation = row.get("ppo_throughput_degradation_fraction")
         lines.append(
             f"| {row['workers']} | {row.get('total_active_engines', 'n/a')} | "
+            f"{row.get('ppo_throughput_during') or 0:.3f} | "
             f"{row.get('sac_transitions_per_second', 0):.3f} | "
+            f"{row.get('aggregate_transitions_per_second', 0):.3f} | "
             f"{'n/a' if degradation is None else f'{100*degradation:.1f}%'} | "
             f"{row.get('sensor_contract_valid')} | "
             f"{len(row.get('orphan_engine_pids', []))} | {row.get('stable')} |"
@@ -236,21 +330,33 @@ def main(argv=None) -> int:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--ppo-run", required=True)
     parser.add_argument("--workers", default="1,2,4,6,8")
-    parser.add_argument("--transitions", type=int, default=128)
+    parser.add_argument("--transitions", type=int, default=1024)
+    parser.add_argument("--ppo-samples", type=int, default=1)
     args = parser.parse_args(argv)
     config = _load_config(args.config)
     output = Path(args.output_dir)
+    if not ppo_is_in_normal_rollout(args.ppo_run):
+        raise RuntimeError("PPO must be in normal rollout before capacity benchmarking")
     ppo_progress = Path(args.ppo_run) / "logs" / "progress.jsonl"
     cases = []
+    consecutive_no_gain = 0
+    best_aggregate = 0.0
     for workers in [int(value) for value in args.workers.split(",") if value.strip()]:
         row = run_case(
             config, output, workers=workers,
             transitions=args.transitions, ppo_progress=ppo_progress,
+            ppo_samples=args.ppo_samples,
         )
         row = finalize_case(row, ppo_progress)
         cases.append(row)
         print(json.dumps(row, indent=2), flush=True)
-        if not row.get("stable"):
+        aggregate = float(row.get("aggregate_transitions_per_second", 0.0) or 0.0)
+        if row.get("stable") and aggregate >= 1.10 * max(best_aggregate, 1e-12):
+            best_aggregate = max(best_aggregate, aggregate)
+            consecutive_no_gain = 0
+        else:
+            consecutive_no_gain += 1
+        if consecutive_no_gain >= 2:
             break
     report = {
         "schema_version": "concurrent_ppo_sac_capacity_v1",
