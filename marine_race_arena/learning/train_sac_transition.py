@@ -236,9 +236,6 @@ def _make_vec_env(config: Mapping[str, Any], run_dir: Path, difficulty: str):
         env = DummyVecEnv(factories) if n_envs == 1 else SubprocVecEnv(
             factories, start_method="spawn"
         )
-    identities = list(env.env_method("worker_identity"))
-    if config["adapter"] == "holoocean":
-        assert_unique_holoocean_uuids(identities)
     return env
 
 
@@ -256,6 +253,20 @@ def _worker_states(env: Any) -> list[Mapping[str, Any]]:
 
 def _worker_identities(env: Any) -> list[Mapping[str, Any]]:
     return list(env.env_method("worker_identity"))
+
+
+def _validate_initialized_worker_identities(
+    env: Any, config: Mapping[str, Any]
+) -> None:
+    """Validate engine ownership only after reset has launched HoloOcean.
+
+    UniversalTransitionEnv intentionally creates its adapter lazily on the
+    first reset.  Querying identities in ``_make_vec_env`` therefore observes
+    a legitimate empty UUID and rejects every real worker before it can start.
+    """
+
+    if config["adapter"] == "holoocean":
+        assert_unique_holoocean_uuids(_worker_identities(env))
 
 
 def _restore_workers(env: Any, states: Sequence[Mapping[str, Any]]) -> None:
@@ -575,6 +586,7 @@ def run_training(args: argparse.Namespace) -> int:
         atomic_write_json(run_dir / "reward_config.json", dict(config.get("reward") or {}))
 
         observations = np.asarray(env.reset(), dtype=np.float32)
+        _validate_initialized_worker_identities(env, config)
         env.env_method("set_total_environment_transitions", total_transitions)
         target = int(config["new_environment_steps"])
         target -= target % int(config["n_envs"])
@@ -754,6 +766,7 @@ def run_training(args: argparse.Namespace) -> int:
                 env.env_method("set_efficiency_unlocked", curriculum.state.efficiency_reward_active)
                 env.env_method("set_total_environment_transitions", total_transitions)
                 observations = np.asarray(env.reset(), dtype=np.float32)
+                _validate_initialized_worker_identities(env, config)
                 restore_rng_state(learner_rng)
                 outcome = apply_evaluation_selection(
                     report["metrics"], checkpoint_path=str(boundary.model_path),

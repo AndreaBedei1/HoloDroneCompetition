@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import pytest
 
 from marine_race_arena.learning import holoocean_capacity
+from marine_race_arena.learning import train_sac_transition
 
 
 def test_unique_holoocean_uuid_ownership():
@@ -43,3 +44,27 @@ def test_capacity_accounting_never_terminates_cross_run_processes(monkeypatch, t
         assert engines == holoocean_capacity.active_holodeck_processes()
     assert engines == holoocean_capacity.active_holodeck_processes()
 
+
+def test_sac_validates_holoocean_uuid_only_after_lazy_reset():
+    class LazyIdentityEnv:
+        initialized = False
+
+        def reset(self):
+            self.initialized = True
+            return [[0.0] * 35]
+
+        def env_method(self, name):
+            assert name == "worker_identity"
+            return [{
+                "holoocean_uuid": "sac-worker-0" if self.initialized else None,
+            }]
+
+    env = LazyIdentityEnv()
+    with pytest.raises(RuntimeError, match="did not report"):
+        train_sac_transition._validate_initialized_worker_identities(
+            env, {"adapter": "holoocean"}
+        )
+    env.reset()
+    train_sac_transition._validate_initialized_worker_identities(
+        env, {"adapter": "holoocean"}
+    )
