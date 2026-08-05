@@ -104,7 +104,11 @@ def test_long_profile_records_capacity_selected_single_worker_layout():
 def test_squashed_actor_bounds_and_conservative_state_dependent_std():
     import torch
 
-    actor = SquashedGaussianActor(initial_std=0.075)
+    actor = SquashedGaussianActor(
+        initial_std=0.075,
+        log_std_min=-5.0,
+        log_std_max=-1.5,
+    )
     observations = torch.randn(1024, 35) * 3
     actions, log_probability, means = actor.sample(observations)
     assert actions.shape == (1024, 4)
@@ -116,6 +120,10 @@ def test_squashed_actor_bounds_and_conservative_state_dependent_std():
     assert torch.all(actor.log_std_head.bias >= LOG_STD_MIN)
     assert torch.all(actor.log_std_head.bias <= LOG_STD_MAX)
     assert np.isclose(float(actor.log_std_head.bias[0].exp().detach()), 0.075)
+    with torch.no_grad():
+        actor.log_std_head.bias.fill_(10.0)
+        _, clipped_log_std = actor._distribution_parameters(observations)
+    assert torch.allclose(clipped_log_std, torch.full_like(clipped_log_std, -1.5))
 
 
 class _FakeObservationSpace:
@@ -232,7 +240,11 @@ def test_critic_warmup_leaves_actor_and_entropy_unchanged():
 
 
 def test_delayed_actor_update_counts_and_checkpoint_state():
-    agent = SACTransitionAgent(hidden_sizes=(16, 16))
+    agent = SACTransitionAgent(
+        hidden_sizes=(16, 16),
+        log_std_min=-5.0,
+        log_std_max=-1.5,
+    )
     rng = np.random.default_rng(19)
     batch = {
         "observations": rng.normal(size=(32, 35)).astype(np.float32),
@@ -252,6 +264,8 @@ def test_delayed_actor_update_counts_and_checkpoint_state():
     assert restored.gradient_updates == 2
     assert restored.actor_updates == 1
     assert restored.entropy_updates == 1
+    assert restored.log_std_min == pytest.approx(-5.0)
+    assert restored.log_std_max == pytest.approx(-1.5)
 
 
 def test_actor_update_schedule_survives_absolute_resume_count():
