@@ -405,6 +405,29 @@ def _algorithm_spec(args: argparse.Namespace, name: str) -> Dict[str, Any]:
     }
 
 
+def _git_relative_path_is_ignored(worktree: Path, relative: Path) -> bool:
+    result = subprocess.run(
+        ["git", "check-ignore", "--quiet", "--no-index", "--", str(relative)],
+        cwd=str(worktree), capture_output=True, text=True, check=False,
+    )
+    return result.returncode == 0
+
+
+def _validate_runtime_output_path(path: Path, worktrees: Iterable[Path]) -> None:
+    resolved = path.resolve()
+    for worktree in worktrees:
+        root = worktree.resolve()
+        try:
+            relative = resolved.relative_to(root)
+        except ValueError:
+            continue
+        if not _git_relative_path_is_ignored(root, relative):
+            raise ValueError(
+                f"supervisor runtime output inside a training worktree must be "
+                f"git-ignored: {resolved}"
+            )
+
+
 def _worker_command(state_dir: Path) -> list[str]:
     # ``__name__`` is ``__main__`` when the public ``python -m`` entry point
     # calls start().  A detached child must use the importable module name.
@@ -416,6 +439,12 @@ def _worker_command(state_dir: Path) -> list[str]:
 
 def start(args: argparse.Namespace) -> int:
     state_dir = Path(args.state_dir).resolve()
+    comparison_output = Path(args.comparison_output).resolve()
+    worktrees = [
+        Path(args.ppo_worktree).resolve(), Path(args.sac_worktree).resolve(),
+    ]
+    _validate_runtime_output_path(state_dir, worktrees)
+    _validate_runtime_output_path(comparison_output, worktrees)
     state_dir.mkdir(parents=True, exist_ok=True)
     existing = _read_json(state_dir / "status.json")
     if int(existing.get("pid", 0) or 0) and _pid_alive(int(existing["pid"])):
@@ -426,7 +455,7 @@ def start(args: argparse.Namespace) -> int:
         "created_utc": now_utc(),
         "interval_seconds": int(args.interval_seconds),
         "supervisor_worktree": str(Path(args.supervisor_worktree).resolve()),
-        "comparison_output": str(Path(args.comparison_output).resolve()),
+        "comparison_output": str(comparison_output),
         "algorithms": {
             "ppo": _algorithm_spec(args, "ppo"),
             "sac": _algorithm_spec(args, "sac"),

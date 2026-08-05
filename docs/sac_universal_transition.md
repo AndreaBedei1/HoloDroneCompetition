@@ -156,6 +156,9 @@ conda run -n marine_race_rl --no-capture-output python -m marine_race_arena.lear
 
 Stopping the supervisor deliberately leaves trainers running. Stop each trainer
 with its own safe-stop command above when an atomic training stop is desired.
+Supervisor state and live comparison output must remain outside a training
+worktree or under a git-ignored path; the launcher defaults both to
+`results\rl\autonomous_supervisor` so trainer preflight remains clean.
 The supervisor validates the latest atomic checkpoint before any resume, never
 starts from zero over checkpoint history, limits automatic restart attempts to
 three, and only terminates exact PID/create-time HoloOcean descendants it

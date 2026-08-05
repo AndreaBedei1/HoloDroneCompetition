@@ -3,6 +3,7 @@ from __future__ import annotations
 from argparse import Namespace
 from pathlib import Path
 import json
+import pytest
 
 from marine_race_arena.learning import rl_autonomous_supervisor as supervisor
 
@@ -29,6 +30,26 @@ def test_detached_worker_command_uses_importable_module_name(tmp_path):
         str(tmp_path.resolve()),
     ]
     assert "__main__" not in command
+
+
+def test_runtime_output_inside_worktree_must_be_git_ignored(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        supervisor, "_git_relative_path_is_ignored", lambda *_args: False,
+    )
+    with pytest.raises(ValueError, match="must be git-ignored"):
+        supervisor._validate_runtime_output_path(
+            tmp_path / "runtime", [tmp_path],
+        )
+
+
+def test_runtime_output_accepts_ignored_or_external_paths(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        supervisor, "_git_relative_path_is_ignored", lambda *_args: True,
+    )
+    supervisor._validate_runtime_output_path(tmp_path / "runtime", [tmp_path])
+    supervisor._validate_runtime_output_path(
+        tmp_path.parent / "external-runtime", [tmp_path],
+    )
 
 
 def test_trainer_matching_ignores_conda_wrappers(monkeypatch):

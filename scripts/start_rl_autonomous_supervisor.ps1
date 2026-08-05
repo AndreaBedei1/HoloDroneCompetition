@@ -7,7 +7,7 @@ param(
     [Parameter(Mandatory=$true)][string]$SacConfig,
     [int]$SacWorkers = 6,
     [string]$StateDir = "results\rl\autonomous_supervisor",
-    [string]$ComparisonOutput = "results\rl_public\universal_transition_ppo_vs_sac"
+    [string]$ComparisonOutput = "results\rl\autonomous_supervisor\comparison"
 )
 
 $ErrorActionPreference = "Stop"
