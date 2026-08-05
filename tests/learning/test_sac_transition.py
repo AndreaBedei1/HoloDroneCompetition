@@ -87,6 +87,15 @@ def test_sac_observation_and_action_contract_is_exact():
     assert actor.action_dim == 4
 
 
+def test_long_profile_records_capacity_selected_single_worker_layout():
+    config = json.loads(Path(
+        "configs/rl/sac_universal_transition_warm_long.json"
+    ).read_text(encoding="utf-8"))
+    assert config["n_envs"] == 1
+    assert config["evaluation"]["intermediate_parallel_workers"] == 1
+    assert config["evaluation"]["dedicated_parallel_workers"] == 1
+
+
 def test_squashed_actor_bounds_and_conservative_state_dependent_std():
     import torch
 
@@ -101,7 +110,7 @@ def test_squashed_actor_bounds_and_conservative_state_dependent_std():
     assert torch.allclose(actor.log_std_head.weight, torch.zeros_like(actor.log_std_head.weight))
     assert torch.all(actor.log_std_head.bias >= LOG_STD_MIN)
     assert torch.all(actor.log_std_head.bias <= LOG_STD_MAX)
-    assert np.isclose(float(actor.log_std_head.bias[0].exp()), 0.075)
+    assert np.isclose(float(actor.log_std_head.bias[0].exp().detach()), 0.075)
 
 
 class _FakeObservationSpace:

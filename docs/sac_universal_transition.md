@@ -111,7 +111,13 @@ reservations and refuses any launch beyond ten total engines. SAC closes its
 rollout engines before evaluators and cleanup remains scoped to worker-owned
 UUIDs.
 
+The concurrent benchmark on 2026-08-05 selected one SAC worker. One worker
+delivered 6.921 transitions/s with three total engines and valid sensor cadence;
+two workers delivered 7.867 transitions/s but degraded PPO throughput by 31.1%,
+above the 25% rejection threshold. The long profile therefore uses one rollout
+worker and one evaluator worker. The benchmark stopped at the first unstable
+layout, so 4/6/8 SAC workers were intentionally not launched.
+
 PPO and SAC may only be ranked after unseen evaluations at equal new-environment
 budgets. Neither is reliable until repeated unseen transition success reaches
 at least 99% with strong safety and long-sequence chaining.
-
