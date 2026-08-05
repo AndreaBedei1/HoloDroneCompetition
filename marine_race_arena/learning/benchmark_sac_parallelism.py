@@ -82,6 +82,16 @@ def ppo_is_in_normal_rollout(run_dir: str | Path) -> bool:
     return str(status.get("state", "")).lower() == "running"
 
 
+def wait_for_ppo_normal_rollout(
+    run_dir: str | Path, *, timeout_seconds: float
+) -> None:
+    started = time.monotonic()
+    while not ppo_is_in_normal_rollout(run_dir):
+        if time.monotonic() - started >= float(timeout_seconds):
+            raise TimeoutError("PPO did not return to normal rollout before timeout")
+        time.sleep(60.0)
+
+
 def run_case(
     config: Mapping[str, Any],
     output: Path,
@@ -332,16 +342,21 @@ def main(argv=None) -> int:
     parser.add_argument("--workers", default="1,2,4,6,8")
     parser.add_argument("--transitions", type=int, default=1024)
     parser.add_argument("--ppo-samples", type=int, default=1)
+    parser.add_argument("--ppo-wait-timeout", type=float, default=21600.0)
     args = parser.parse_args(argv)
     config = _load_config(args.config)
     output = Path(args.output_dir)
-    if not ppo_is_in_normal_rollout(args.ppo_run):
-        raise RuntimeError("PPO must be in normal rollout before capacity benchmarking")
+    wait_for_ppo_normal_rollout(
+        args.ppo_run, timeout_seconds=args.ppo_wait_timeout
+    )
     ppo_progress = Path(args.ppo_run) / "logs" / "progress.jsonl"
     cases = []
     consecutive_no_gain = 0
     best_aggregate = 0.0
     for workers in [int(value) for value in args.workers.split(",") if value.strip()]:
+        wait_for_ppo_normal_rollout(
+            args.ppo_run, timeout_seconds=args.ppo_wait_timeout
+        )
         row = run_case(
             config, output, workers=workers,
             transitions=args.transitions, ppo_progress=ppo_progress,

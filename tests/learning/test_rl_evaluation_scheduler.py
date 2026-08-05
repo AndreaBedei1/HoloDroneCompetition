@@ -1,6 +1,7 @@
 from marine_race_arena.learning import benchmark_evaluation_parallelism
 from marine_race_arena.learning import benchmark_sac_parallelism
 from marine_race_arena.learning import rl_evaluation_scheduler as scheduler
+import pytest
 
 
 def test_dynamic_evaluator_allocation_respects_measured_choice_and_free_slots():
@@ -48,3 +49,16 @@ def test_training_layout_uses_aggregate_not_ppo_slowdown():
         },
     ]
     assert benchmark_sac_parallelism._select(rows) == 2
+
+
+def test_capacity_wait_times_out_if_ppo_is_not_in_rollout(monkeypatch):
+    monkeypatch.setattr(
+        benchmark_sac_parallelism, "ppo_is_in_normal_rollout", lambda run: False
+    )
+    monkeypatch.setattr(
+        benchmark_sac_parallelism.time, "monotonic", lambda: 10.0
+    )
+    with pytest.raises(TimeoutError):
+        benchmark_sac_parallelism.wait_for_ppo_normal_rollout(
+            "run", timeout_seconds=0.0
+        )
