@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import pytest
 
 from marine_race_arena.learning import holoocean_capacity
+from marine_race_arena.learning import benchmark_sac_parallelism
 from marine_race_arena.learning import train_sac_transition
 
 
@@ -68,3 +69,27 @@ def test_sac_validates_holoocean_uuid_only_after_lazy_reset():
     train_sac_transition._validate_initialized_worker_identities(
         env, {"adapter": "holoocean"}
     )
+
+
+def test_capacity_benchmark_does_not_call_recycled_ppo_engine_an_orphan(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        benchmark_sac_parallelism,
+        "active_holodeck_processes",
+        lambda: [{"pid": 202, "parent_pid": 20, "uuid": "ppo-new"}],
+    )
+    row = {
+        "ok": True,
+        "sensor_contract_valid": True,
+        "total_active_engines": 3,
+        "engines_before": [{"pid": 201, "parent_pid": 20, "uuid": "ppo-old"}],
+        "resources": {"system_ram_percent": 20.0},
+        "ppo_progress_rows_before": 0,
+        "ppo_throughput_before": None,
+    }
+    result = benchmark_sac_parallelism.finalize_case(
+        row, tmp_path / "missing-progress.jsonl"
+    )
+    assert result["orphan_engine_pids"] == []
+    assert result["stable"] is True

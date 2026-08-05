@@ -158,7 +158,20 @@ def finalize_case(row: Dict[str, Any], ppo_progress: Path) -> Dict[str, Any]:
         else max(0.0, (float(before) - float(ppo_during)) / max(float(before), 1e-9))
     )
     before_pids = {int(value["pid"]) for value in row.get("engines_before", [])}
-    orphan_pids = [int(value["pid"]) for value in after if int(value["pid"]) not in before_pids]
+    before_owners = {
+        int(value["parent_pid"])
+        for value in row.get("engines_before", [])
+        if value.get("parent_pid") is not None
+    }
+    # PPO workers legitimately recycle their Holodeck process between episodes.
+    # A new engine PID with the same parent is still PPO-owned, not an orphan
+    # left by the benchmark case that just closed.
+    orphan_pids = [
+        int(value["pid"])
+        for value in after
+        if int(value["pid"]) not in before_pids
+        and int(value.get("parent_pid", -1)) not in before_owners
+    ]
     row.update({
         "engines_after": after,
         "orphan_engine_pids": orphan_pids,
@@ -257,4 +270,3 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
