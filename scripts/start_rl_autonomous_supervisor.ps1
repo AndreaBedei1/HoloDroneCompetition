@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory=$true)][string]$SacWorktree,
     [Parameter(Mandatory=$true)][string]$SacRun,
     [Parameter(Mandatory=$true)][string]$SacConfig,
-    [int]$SacWorkers = 1,
+    [int]$SacWorkers = 6,
     [string]$StateDir = "results\rl\autonomous_supervisor",
     [string]$ComparisonOutput = "results\rl_public\universal_transition_ppo_vs_sac"
 )

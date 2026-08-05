@@ -88,17 +88,17 @@ def test_sac_observation_and_action_contract_is_exact():
     assert actor.action_dim == 4
 
 
-def test_long_profile_records_capacity_selected_single_worker_layout():
+def test_long_profile_records_measured_capacity_layouts():
     config = json.loads(Path(
         "configs/rl/sac_universal_transition_warm_long.json"
     ).read_text(encoding="utf-8"))
-    assert config["n_envs"] == 1
+    assert config["n_envs"] == 6
     assert config["evaluation"]["intermediate_parallel_workers"] == 1
     assert config["evaluation"]["dedicated_parallel_workers"] == 1
     assert config["evaluation"]["dynamic_parallelism"] == {
         "enabled": True,
         "candidates": [4, 6, 8],
-        "selected_workers": 4,
+        "selected_workers": 6,
     }
     assert config["sac"]["critic_warmup_updates"] == 2500
     assert config["sac"]["policy_delay"] == 4

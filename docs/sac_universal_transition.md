@@ -118,6 +118,12 @@ checkpoint integrity/latency, CPU/RAM/GPU/VRAM and ownership-safe orphan checks.
 It requires normal PPO rollout, tests through 1/2/4/6/8 SAC workers, and stops
 only after two consecutive layouts fail to improve aggregate throughput by 10%.
 
+The 2026-08-05 concurrent benchmark selected six SAC rollout workers alongside
+the preserved two-worker PPO run. That layout sustained 6.142 SAC and 6.808 PPO
+environment transitions/s (12.951 aggregate transitions/s). Eight SAC workers
+remained stable under the ten-engine cap but reduced aggregate throughput to
+10.857 transitions/s, so the long profile records `n_envs = 6`.
+
 Evaluation scaling is measured separately:
 
 ```bat
@@ -130,10 +136,15 @@ the scheduler then allocates the measured worker count subject to the live
 ten-engine cap. Case generation, seeds, limits, per-case atomic writes and
 missing-case resume semantics are unchanged.
 
+The corresponding 48-case evaluation benchmark selected six evaluator workers:
+four workers left an orphan during the measured case, while six completed stably
+at 0.0784 cases/s. Eight was also stable but improved throughput by less than the
+10% selection threshold.
+
 Detached autonomous supervisor launch:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start_rl_autonomous_supervisor.ps1 -PpoWorktree C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition -PpoRun results\rl\universal_transition\longrun\universal_transition_warm_reliability_seed23001 -PpoConfig configs\rl\ppo_universal_transition_warm_reliability.json -SacWorktree C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition-sac -SacRun results\rl\universal_transition\sac\universal_transition_multistep_sac_seed23001 -SacConfig configs\rl\sac_universal_transition_warm_long.json -SacWorkers 1
+powershell -ExecutionPolicy Bypass -File scripts\start_rl_autonomous_supervisor.ps1 -PpoWorktree C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition -PpoRun results\rl\universal_transition\longrun\universal_transition_warm_reliability_seed23001 -PpoConfig configs\rl\ppo_universal_transition_warm_reliability.json -SacWorktree C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition-sac -SacRun results\rl\universal_transition\sac\universal_transition_multistep_sac_seed23001 -SacConfig configs\rl\sac_universal_transition_warm_long.json -SacWorkers 6
 ```
 
 Supervisor status and stop:
