@@ -21,9 +21,9 @@
   "max_episode_steps": 3600,
   "sac": {
     "hidden_sizes": [256, 256],
-    "actor_learning_rate": 0.00003,
+    "actor_learning_rate": 0.000001,
     "critic_learning_rate": 0.0001,
-    "entropy_learning_rate": 0.00003,
+    "entropy_learning_rate": 0.00001,
     "n_step": 3,
     "gamma": 0.995,
     "tau": 0.005,
@@ -34,6 +34,10 @@
     "target_entropy": -4,
     "initial_alpha": 0.02,
     "initial_std": 0.075,
+    "log_std_min": -5.0,
+    "log_std_max": -1.5,
+    "critic_warmup_updates": 2500,
+    "policy_delay": 4,
     "collector_steps": 128,
     "updates_per_transition": 0.25,
     "replay_composition": {

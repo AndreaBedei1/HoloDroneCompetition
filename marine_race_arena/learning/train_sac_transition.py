@@ -388,6 +388,8 @@ def _status(
         "total_environment_transitions": int(total_transitions),
         "target_environment_transitions": int(target),
         "gradient_updates": int(agent.gradient_updates),
+        "actor_updates": int(agent.actor_updates),
+        "entropy_updates": int(agent.entropy_updates),
         "entropy_coefficient": float(agent.alpha),
         "last_losses": None if last_losses is None else dict(last_losses),
         "replay_size": int(replay.size),
@@ -399,6 +401,8 @@ def _status(
         "action_version": ACTION_CONTRACT_VERSION,
         "architecture": "multistep_sac_twin_q",
         "n_step": int(config["sac"]["n_step"]),
+        "critic_warmup_updates": int(config["sac"].get("critic_warmup_updates", 0)),
+        "policy_delay": int(config["sac"].get("policy_delay", 1)),
         "n_envs": int(config["n_envs"]),
         "difficulty": curriculum.difficulty,
         "difficulty_entry_transitions": curriculum.state.difficulty_entry_transitions,
@@ -414,6 +418,24 @@ def _status(
     }
     atomic_write_json(run_dir / "status.json", value)
     return value
+
+
+def should_update_actor(
+    completed_critic_updates: int,
+    *,
+    critic_warmup_updates: int,
+    policy_delay: int,
+) -> bool:
+    """Return whether the next critic update also advances the policy."""
+
+    completed = int(completed_critic_updates)
+    warmup = int(critic_warmup_updates)
+    delay = int(policy_delay)
+    if warmup < 0:
+        raise ValueError("critic_warmup_updates must be non-negative")
+    if delay < 1:
+        raise ValueError("policy_delay must be at least one")
+    return completed >= warmup and (completed - warmup) % delay == 0
 
 
 def _run_dedicated(
@@ -538,6 +560,8 @@ def run_training(args: argparse.Namespace) -> int:
                 target_entropy=sac["target_entropy"],
                 initial_alpha=sac["initial_alpha"],
                 initial_std=sac["initial_std"],
+                log_std_min=sac.get("log_std_min", -5.0),
+                log_std_max=sac.get("log_std_max", 1.0),
             )
             source = _resolve_source_checkpoint(config["initialization"]["source_checkpoint"])
             initialization_report = transfer_ppo_mean_actor(
@@ -620,6 +644,12 @@ def run_training(args: argparse.Namespace) -> int:
         learning_starts = int(config["sac"]["learning_starts"])
         batch_size = int(config["sac"]["batch_size"])
         updates_per_transition = float(config["sac"].get("updates_per_transition", 0.25))
+        critic_warmup_updates = int(config["sac"].get("critic_warmup_updates", 0))
+        policy_delay = int(config["sac"].get("policy_delay", 1))
+        if critic_warmup_updates < 0:
+            raise ValueError("critic_warmup_updates must be non-negative")
+        if policy_delay < 1:
+            raise ValueError("policy_delay must be at least one")
         while total_transitions < target and not stop["requested"] and not stop_file.exists():
             block_start = time.perf_counter()
             block_transitions = 0
@@ -676,7 +706,16 @@ def run_training(args: argparse.Namespace) -> int:
                         batch = replay.sample(batch_size)
                         replay_time += time.perf_counter() - sampled
                         updated = time.perf_counter()
-                        last_losses = agent.update(batch)
+                        update_actor = should_update_actor(
+                            agent.gradient_updates,
+                            critic_warmup_updates=critic_warmup_updates,
+                            policy_delay=policy_delay,
+                        )
+                        last_losses = agent.update(
+                            batch,
+                            update_actor=update_actor,
+                            update_entropy=update_actor,
+                        )
                         update_time += time.perf_counter() - updated
                         update_credit -= 1.0
                         block_updates += 1

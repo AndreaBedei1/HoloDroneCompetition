@@ -59,6 +59,8 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
         action_dim: int = ACTION_DIM,
         hidden_sizes: Sequence[int] = (256, 256),
         initial_std: float = 0.075,
+        log_std_min: float = LOG_STD_MIN,
+        log_std_max: float = LOG_STD_MAX,
     ):
         torch, nn = _torch()
 
@@ -81,6 +83,13 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
                 self.action_dim = int(action_dim)
                 self.hidden_sizes = tuple(map(int, hidden_sizes))
                 self.initial_std = float(initial_std)
+                self.log_std_min = float(log_std_min)
+                self.log_std_max = float(log_std_max)
+                if not self.log_std_min < self.log_std_max:
+                    raise ValueError("log_std_min must be smaller than log_std_max")
+                initial_log_std = math.log(self.initial_std)
+                if not self.log_std_min <= initial_log_std <= self.log_std_max:
+                    raise ValueError("initial_std must fall within the log_std clip")
 
             def _distribution_parameters(self, observations):
                 features = self.policy_net(observations)
@@ -94,7 +103,7 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
                 )
                 pre_tanh_mean = torch.atanh(bounded_mean)
                 log_std = torch.clamp(
-                    self.log_std_head(features), LOG_STD_MIN, LOG_STD_MAX
+                    self.log_std_head(features), self.log_std_min, self.log_std_max
                 )
                 return pre_tanh_mean, log_std
 
@@ -138,7 +147,7 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
                     "action_dim": self.action_dim,
                     "hidden_sizes": list(self.hidden_sizes),
                     "initial_std": self.initial_std,
-                    "log_std_clip": [LOG_STD_MIN, LOG_STD_MAX],
+                    "log_std_clip": [self.log_std_min, self.log_std_max],
                 }
 
         return _Actor()
@@ -263,13 +272,16 @@ class SACTransitionAgent:
         target_entropy: float = -4.0,
         initial_alpha: float = 0.02,
         initial_std: float = 0.075,
+        log_std_min: float = LOG_STD_MIN,
+        log_std_max: float = LOG_STD_MAX,
         device: str = "cpu",
     ) -> None:
         import torch
 
         self.device = torch.device(device)
         self.actor = SquashedGaussianActor(
-            observation_dim, action_dim, hidden_sizes, initial_std
+            observation_dim, action_dim, hidden_sizes, initial_std,
+            log_std_min, log_std_max,
         ).to(self.device)
         self.critic = TwinQCritic(
             observation_dim, action_dim, hidden_sizes
@@ -295,10 +307,14 @@ class SACTransitionAgent:
         self.tau = float(tau)
         self.target_entropy = float(target_entropy)
         self.gradient_updates = 0
+        self.actor_updates = 0
+        self.entropy_updates = 0
         self.observation_dim = int(observation_dim)
         self.action_dim = int(action_dim)
         self.hidden_sizes = tuple(map(int, hidden_sizes))
         self.initial_std = float(initial_std)
+        self.log_std_min = float(log_std_min)
+        self.log_std_max = float(log_std_max)
         self.learning_rates = {
             "actor": float(actor_learning_rate),
             "critic": float(critic_learning_rate),
@@ -329,7 +345,13 @@ class SACTransitionAgent:
 
         return self.act(observation, deterministic=deterministic), None
 
-    def update(self, batch: Mapping[str, np.ndarray]) -> Dict[str, float]:
+    def update(
+        self,
+        batch: Mapping[str, np.ndarray],
+        *,
+        update_actor: bool = True,
+        update_entropy: bool | None = None,
+    ) -> Dict[str, float]:
         import torch
         import torch.nn.functional as functional
 
@@ -362,23 +384,45 @@ class SACTransitionAgent:
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10.0)
         self.critic_optimizer.step()
 
-        sampled_actions, log_probability, _ = self.actor.sample(observations)
-        actor_q1, actor_q2 = self.critic(observations, sampled_actions)
-        actor_loss = (
-            self.log_alpha.detach().exp() * log_probability
-            - torch.minimum(actor_q1, actor_q2)
-        ).mean()
-        self.actor_optimizer.zero_grad(set_to_none=True)
-        actor_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
-        self.actor_optimizer.step()
+        if update_entropy is None:
+            update_entropy = update_actor
+        if update_entropy and not update_actor:
+            raise ValueError("entropy updates require an actor update")
 
-        alpha_loss = -(
-            self.log_alpha * (log_probability + self.target_entropy).detach()
-        ).mean()
-        self.entropy_optimizer.zero_grad(set_to_none=True)
-        alpha_loss.backward()
-        self.entropy_optimizer.step()
+        if update_actor:
+            sampled_actions, log_probability, _ = self.actor.sample(observations)
+            actor_q1, actor_q2 = self.critic(observations, sampled_actions)
+            actor_loss = (
+                self.log_alpha.detach().exp() * log_probability
+                - torch.minimum(actor_q1, actor_q2)
+            ).mean()
+            self.actor_optimizer.zero_grad(set_to_none=True)
+            actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
+            self.actor_optimizer.step()
+            self.actor_updates += 1
+
+            alpha_loss = -(
+                self.log_alpha * (log_probability + self.target_entropy).detach()
+            ).mean()
+            if update_entropy:
+                self.entropy_optimizer.zero_grad(set_to_none=True)
+                alpha_loss.backward()
+                self.entropy_optimizer.step()
+                self.entropy_updates += 1
+        else:
+            # Preserve finite learner diagnostics during critic-only warm-up
+            # without constructing gradients through either policy optimizer.
+            with torch.no_grad():
+                sampled_actions, log_probability, _ = self.actor.sample(observations)
+                actor_q1, actor_q2 = self.critic(observations, sampled_actions)
+                actor_loss = (
+                    self.log_alpha.exp() * log_probability
+                    - torch.minimum(actor_q1, actor_q2)
+                ).mean()
+                alpha_loss = -(
+                    self.log_alpha * (log_probability + self.target_entropy)
+                ).mean()
 
         with torch.no_grad():
             for target_parameter, parameter in zip(
@@ -395,6 +439,7 @@ class SACTransitionAgent:
             "entropy_coefficient": self.alpha,
             "mean_target_q": float(target.mean().detach().cpu()),
             "mean_log_probability": float(log_probability.mean().detach().cpu()),
+            "actor_updated": float(bool(update_actor)),
         }
         if not all(math.isfinite(value) for value in values.values()):
             raise FloatingPointError(f"non-finite SAC update: {values}")
@@ -408,6 +453,8 @@ class SACTransitionAgent:
                 "action_dim": self.action_dim,
                 "hidden_sizes": list(self.hidden_sizes),
                 "initial_std": self.initial_std,
+                "log_std_min": self.log_std_min,
+                "log_std_max": self.log_std_max,
                 "learning_rates": dict(self.learning_rates),
                 "tau": self.tau,
                 "target_entropy": self.target_entropy,
@@ -420,6 +467,8 @@ class SACTransitionAgent:
             "entropy_optimizer": self.entropy_optimizer.state_dict(),
             "log_alpha": self.log_alpha.detach().cpu(),
             "gradient_updates": self.gradient_updates,
+            "actor_updates": self.actor_updates,
+            "entropy_updates": self.entropy_updates,
         }
 
     @classmethod
@@ -447,6 +496,10 @@ class SACTransitionAgent:
         with torch.no_grad():
             agent.log_alpha.copy_(torch.as_tensor(state["log_alpha"], device=agent.device))
         agent.gradient_updates = int(state.get("gradient_updates", 0))
+        # Version-1 checkpoints written before delayed actor updates performed
+        # one actor and entropy update for every critic update.
+        agent.actor_updates = int(state.get("actor_updates", agent.gradient_updates))
+        agent.entropy_updates = int(state.get("entropy_updates", agent.actor_updates))
         return agent
 
 

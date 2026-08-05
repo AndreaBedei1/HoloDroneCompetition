@@ -34,6 +34,7 @@ from marine_race_arena.learning.sac_transition_policy import (
     transfer_ppo_mean_actor,
 )
 from marine_race_arena.learning.train_ppo_transition import apply_evaluation_selection
+from marine_race_arena.learning.train_sac_transition import should_update_actor
 from marine_race_arena.learning.transition_selection import (
     DEFAULT_COMPETENCE_THRESHOLDS,
 )
@@ -94,6 +95,10 @@ def test_long_profile_records_capacity_selected_single_worker_layout():
     assert config["n_envs"] == 1
     assert config["evaluation"]["intermediate_parallel_workers"] == 1
     assert config["evaluation"]["dedicated_parallel_workers"] == 1
+    assert config["sac"]["critic_warmup_updates"] == 2500
+    assert config["sac"]["policy_delay"] == 4
+    assert config["sac"]["actor_learning_rate"] == pytest.approx(1e-6)
+    assert config["sac"]["log_std_max"] == pytest.approx(-1.5)
 
 
 def test_squashed_actor_bounds_and_conservative_state_dependent_std():
@@ -198,6 +203,71 @@ def test_entropy_tuning_and_losses_remain_finite():
     assert agent.gradient_updates == 1
     assert all(np.isfinite(value) for value in losses.values())
     assert agent.alpha != before
+
+
+def test_critic_warmup_leaves_actor_and_entropy_unchanged():
+    import torch
+
+    agent = SACTransitionAgent(hidden_sizes=(16, 16))
+    actor_before = {
+        name: value.detach().clone() for name, value in agent.actor.state_dict().items()
+    }
+    alpha_before = agent.log_alpha.detach().clone()
+    rng = np.random.default_rng(17)
+    batch = {
+        "observations": rng.normal(size=(32, 35)).astype(np.float32),
+        "actions": rng.uniform(-1, 1, size=(32, 4)).astype(np.float32),
+        "rewards": rng.normal(size=32).astype(np.float32),
+        "next_observations": rng.normal(size=(32, 35)).astype(np.float32),
+        "discounts": np.full(32, 0.99, np.float32),
+    }
+    losses = agent.update(batch, update_actor=False, update_entropy=False)
+    assert agent.gradient_updates == 1
+    assert agent.actor_updates == 0
+    assert agent.entropy_updates == 0
+    assert losses["actor_updated"] == 0.0
+    assert torch.equal(agent.log_alpha, alpha_before)
+    for name, value in agent.actor.state_dict().items():
+        assert torch.equal(value, actor_before[name])
+
+
+def test_delayed_actor_update_counts_and_checkpoint_state():
+    agent = SACTransitionAgent(hidden_sizes=(16, 16))
+    rng = np.random.default_rng(19)
+    batch = {
+        "observations": rng.normal(size=(32, 35)).astype(np.float32),
+        "actions": rng.uniform(-1, 1, size=(32, 4)).astype(np.float32),
+        "rewards": rng.normal(size=32).astype(np.float32),
+        "next_observations": rng.normal(size=(32, 35)).astype(np.float32),
+        "discounts": np.full(32, 0.99, np.float32),
+    }
+    agent.update(batch, update_actor=False)
+    losses = agent.update(batch, update_actor=True)
+    assert agent.gradient_updates == 2
+    assert agent.actor_updates == 1
+    assert agent.entropy_updates == 1
+    assert losses["actor_updated"] == 1.0
+    state = agent.checkpoint_state()
+    restored = SACTransitionAgent.from_checkpoint_state(state)
+    assert restored.gradient_updates == 2
+    assert restored.actor_updates == 1
+    assert restored.entropy_updates == 1
+
+
+def test_actor_update_schedule_survives_absolute_resume_count():
+    decisions = [
+        should_update_actor(
+            update,
+            critic_warmup_updates=2500,
+            policy_delay=4,
+        )
+        for update in range(2498, 2509)
+    ]
+    assert decisions == [False, False, True, False, False, False, True, False, False, False, True]
+    with pytest.raises(ValueError, match="non-negative"):
+        should_update_actor(0, critic_warmup_updates=-1, policy_delay=4)
+    with pytest.raises(ValueError, match="at least one"):
+        should_update_actor(0, critic_warmup_updates=0, policy_delay=0)
 
 
 def test_full_three_step_return_and_bootstrap_discount():
