@@ -69,12 +69,17 @@ def _timing(run: Path, algorithm: str) -> Dict[str, Any]:
         float(row["learner_updates_per_second"])
         for row in progress if row.get("learner_updates_per_second") is not None
     ]
+    status = {}
+    try:
+        status = json.loads((run / "status.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        pass
+    workers = int(status.get("n_envs", 0) or 0)
+    mean_rate = None if not rates else statistics.fmean(rates)
     return {
         "algorithm": algorithm,
         "progress_samples": len(progress),
-        "mean_environment_transitions_per_second": (
-            None if not rates else statistics.fmean(rates)
-        ),
+        "mean_environment_transitions_per_second": mean_rate,
         "mean_learner_updates_per_second": (
             None if not update_rates else statistics.fmean(update_rates)
         ),
@@ -88,7 +93,15 @@ def _timing(run: Path, algorithm: str) -> Dict[str, Any]:
             float(row.get("replay_sampling_wall_time_s", 0.0) or 0.0)
             for row in progress
         ),
-        "resource_metrics": "available only when capacity benchmark monitoring is enabled",
+        "rollout_workers": workers or None,
+        "rollout_engine_seconds_per_1000_transitions": (
+            None if not workers or not mean_rate
+            else 1000.0 * workers / mean_rate
+        ),
+        "resource_cost_scope": (
+            "actual rollout throughput and configured rollout engines; CPU/GPU/"
+            "RAM/VRAM are reported by the separate concurrent capacity benchmark"
+        ),
     }
 
 
@@ -187,4 +200,3 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
