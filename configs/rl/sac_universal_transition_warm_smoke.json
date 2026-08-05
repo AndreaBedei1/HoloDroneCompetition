@@ -1,0 +1,76 @@
+{
+  "run_name": "smoke_universal_transition_multistep_sac_seed23001",
+  "output_root": "results/rl/universal_transition/sac/smoke",
+  "observation_version": "onboard_local_transition_v1",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "initialization": {
+    "mode": "ppo_actor_mean_warm_start",
+    "source_checkpoint": "results/rl/universal_transition/ab_comparison/ab_selective_warm_atomic_v3_seed23001/checkpoints/ppo_40960_steps.zip",
+    "source_sha256": "74b1f83c6f9c740dcc307b271ff1393dd86de9e210e3a8788036f7c91a708747",
+    "parity_samples": 2048,
+    "parity_tolerance": 0.000002
+  },
+  "seed": 23001,
+  "worker_seed_base": 63001,
+  "torch_threads": 1,
+  "new_environment_steps": 2048,
+  "n_envs": 1,
+  "adapter": "holoocean",
+  "allow_fallback": false,
+  "holoocean_frames_per_sec": false,
+  "max_episode_steps": 600,
+  "sac": {
+    "hidden_sizes": [256, 256],
+    "actor_learning_rate": 0.00003,
+    "critic_learning_rate": 0.0001,
+    "entropy_learning_rate": 0.00003,
+    "n_step": 3,
+    "gamma": 0.995,
+    "tau": 0.005,
+    "batch_size": 512,
+    "replay_capacity": 1000000,
+    "learning_starts": 10000,
+    "automatic_entropy": true,
+    "target_entropy": -4,
+    "initial_alpha": 0.02,
+    "initial_std": 0.075,
+    "collector_steps": 128,
+    "updates_per_transition": 0.25,
+    "replay_composition": {
+      "general": 0.35,
+      "transition": 0.30,
+      "success": 0.20,
+      "safety": 0.15
+    },
+    "event_categories": [
+      "general", "pre_crossing", "crossing", "post_target_switch",
+      "successful_transition", "collision_entry", "missed_gate",
+      "acquisition_timeout", "wrong_direction", "out_of_bounds"
+    ]
+  },
+  "curriculum": {
+    "initial_difficulty": "G1",
+    "maximum_difficulty": "G6",
+    "transition_focus_fraction": 1.0
+  },
+  "competence_gate": {
+    "min_transition_cases": 2
+  },
+  "reward": {},
+  "evaluation": {
+    "early_schedule": [2048],
+    "frequency": 999999,
+    "checkpoint_frequency": 2048,
+    "seed": 88001,
+    "transition_cases": 2,
+    "full_cases_per_length": 0,
+    "intermediate_parallel_workers": 1,
+    "rollback_consecutive_evaluations": 2,
+    "dedicated_seed": 88001,
+    "dedicated_transition_cases": 2,
+    "dedicated_full_cases_per_length": 0,
+    "dedicated_parallel_workers": 1,
+    "dedicated_min_interval_transitions": 0,
+    "dedicated_material_improvement": 0.05
+  }
+}

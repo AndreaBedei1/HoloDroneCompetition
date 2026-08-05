@@ -161,12 +161,22 @@ def _evaluate_checkpoint_batch(
     adapter: str,
     frames_per_sec: bool | int,
     max_steps: int,
+    algorithm: str = "ppo",
 ) -> list[tuple[int, Dict[str, Any]]]:
     """Spawn-safe evaluator worker; owns one model and one engine at a time."""
 
-    from stable_baselines3 import PPO
+    if algorithm == "ppo":
+        from stable_baselines3 import PPO
 
-    model = PPO.load(checkpoint, device="cpu")
+        model = PPO.load(checkpoint, device="cpu")
+    elif algorithm == "sac":
+        from marine_race_arena.learning.sac_transition_policy import (
+            load_sac_transition_policy,
+        )
+
+        model = load_sac_transition_policy(checkpoint, device="cpu")
+    else:
+        raise ValueError(f"unknown transition evaluation algorithm {algorithm!r}")
     rows = []
     for ordinal, geometry, output_dir, record_trajectory in cases:
         rows.append((ordinal, _evaluate_case(
@@ -191,6 +201,7 @@ def evaluate_local_transition_episode(
     max_steps: int = 3600,
     transition_window_steps: int = 30,
     record_trajectory: bool = False,
+    frame_callback: Optional[Any] = None,
 ) -> Dict[str, Any]:
     output = Path(output_dir)
     track_path = generate_transition_track(
@@ -211,6 +222,8 @@ def evaluate_local_transition_episode(
         reward_fn=reward,
     )
     obs, _ = env.reset(seed=geometry.seed)
+    if frame_callback is not None:
+        frame_callback(env, 0)
     if adapter == "holoocean":
         setter = getattr(env.episode.context.adapter, "set_participant_body_velocity", None)
         if callable(setter):
@@ -243,6 +256,8 @@ def evaluate_local_transition_episode(
             action = predict_local_transition_action(model, obs)
             obs, _, terminated, truncated, info = env.step(action)
             step_count = int(info["step_count"])
+            if frame_callback is not None:
+                frame_callback(env, step_count)
             delta = action - previous_action
             jerk_sum += float(np.linalg.norm(delta - previous_delta))
             jerk_n += 1
@@ -580,6 +595,7 @@ def evaluate_checkpoint_universal_transition_benchmark(
     frames_per_sec: bool | int = False,
     max_steps: int = 3600,
     parallel_workers: int = 2,
+    algorithm: str = "ppo",
 ) -> Dict[str, Any]:
     """Resume-safe checkpoint benchmark across isolated evaluator processes."""
 
@@ -606,7 +622,8 @@ def evaluate_checkpoint_universal_transition_benchmark(
 
     if pending and workers == 1:
         for ordinal, row in _evaluate_checkpoint_batch(
-            str(checkpoint), pending, adapter, frames_per_sec, int(max_steps)
+            str(checkpoint), pending, adapter, frames_per_sec, int(max_steps),
+            algorithm,
         ):
             rows_by_ordinal[ordinal] = row
     elif pending:
@@ -624,6 +641,7 @@ def evaluate_checkpoint_universal_transition_benchmark(
                     adapter,
                     frames_per_sec,
                     int(max_steps),
+                    algorithm,
                 )
                 for chunk in chunks
             ]
@@ -644,6 +662,7 @@ def evaluate_checkpoint_universal_transition_benchmark(
         "transition_cases": int(transition_cases),
         "full_cases_per_length": int(full_cases_per_length),
         "parallel_workers": workers,
+        "algorithm": algorithm,
         "checkpoint": str(checkpoint),
         "metrics": aggregate_transition_benchmark(rows),
         "episodes": rows,
