@@ -14,6 +14,7 @@ import numpy as np
 from marine_race_arena.learning.sequence_curriculum import (
     BASE_TRACK,
     SequenceGeometry,
+    _atomic_json,
     generate_sequence_track,
 )
 
@@ -391,7 +392,5 @@ def generate_transition_track(
         data["race"]["max_duration_s"] = 30
     data["holoocean_frames_per_sec"] = frames_per_sec
     data["universal_transition"] = asdict(geometry)
-    tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    tmp.replace(target)
+    _atomic_json(target, data)
     return target

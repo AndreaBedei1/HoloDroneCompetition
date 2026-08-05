@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
@@ -75,7 +76,19 @@ def _atomic_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(value, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    # Windows can briefly deny replacement while HoloOcean, Defender, or the
+    # indexer releases a just-created track. The temporary file is already
+    # complete, so bounded retries preserve the atomic-write contract.
+    delay = 0.01
+    for attempt in range(20):
+        try:
+            tmp.replace(path)
+            break
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(delay)
+            delay = min(0.25, delay * 1.5)
 
 
 def _pattern_deltas(

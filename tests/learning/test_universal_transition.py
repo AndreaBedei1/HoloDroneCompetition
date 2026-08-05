@@ -465,6 +465,28 @@ def test_checkpoint_benchmark_parallel_cases_are_atomic_and_resumable(tmp_path):
     assert mtimes == [path.stat().st_mtime_ns for path in case_files]
 
 
+def test_track_atomic_write_retries_transient_windows_permission_error(
+    monkeypatch, tmp_path
+):
+    from marine_race_arena.learning import sequence_curriculum
+
+    target = tmp_path / "track.json"
+    original = Path.replace
+    attempts = 0
+
+    def flaky_replace(self, destination):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError("transient Windows sharing violation")
+        return original(self, destination)
+
+    monkeypatch.setattr(Path, "replace", flaky_replace)
+    sequence_curriculum._atomic_json(target, {"complete": True})
+    assert attempts == 2
+    assert json.loads(target.read_text(encoding="utf-8")) == {"complete": True}
+
+
 def test_vectorized_config_counts_total_rollout_across_workers():
     from marine_race_arena.learning.train_ppo_transition import _load_config
 
