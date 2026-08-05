@@ -414,6 +414,7 @@ def rendered_long_sequence_evaluation(
                     adapter="holoocean", frames_per_sec=False,
                     max_steps=3600, record_trajectory=True,
                     frame_callback=recorder,
+                    action_source=f"{algorithm}_policy",
                 )
             finally:
                 recorder.close()
@@ -435,4 +436,3 @@ def rendered_long_sequence_evaluation(
     }
     atomic_write_json(output / "evaluation.json", report)
     return report
-

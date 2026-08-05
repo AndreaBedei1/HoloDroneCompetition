@@ -138,6 +138,7 @@ def _evaluate_case(
     frames_per_sec: bool | int,
     max_steps: int,
     record_trajectory: bool,
+    action_source: str = "ppo_policy",
 ) -> Dict[str, Any]:
     completed = _completed_case(output_dir, geometry)
     if completed is not None:
@@ -150,6 +151,7 @@ def _evaluate_case(
         frames_per_sec=frames_per_sec,
         max_steps=max_steps,
         record_trajectory=record_trajectory,
+        action_source=action_source,
     )
     _atomic_json(output_dir / "episode.json", row)
     return row
@@ -187,6 +189,7 @@ def _evaluate_checkpoint_batch(
             frames_per_sec=frames_per_sec,
             max_steps=max_steps,
             record_trajectory=record_trajectory,
+            action_source=f"{algorithm}_policy",
         )))
     return rows
 
@@ -202,6 +205,7 @@ def evaluate_local_transition_episode(
     transition_window_steps: int = 30,
     record_trajectory: bool = False,
     frame_callback: Optional[Any] = None,
+    action_source: str = "ppo_policy",
 ) -> Dict[str, Any]:
     output = Path(output_dir)
     track_path = generate_transition_track(
@@ -399,7 +403,7 @@ def evaluate_local_transition_episode(
             "referee_tracker_first_crossing_mismatch": bool(
                 first_crossed and int(tracker_diagnostics["local_completed"]) < 1
             ),
-            "action_source": "ppo_policy",
+            "action_source": str(action_source),
         }
         if record_trajectory:
             _atomic_json(output / "trajectory.json", {
@@ -544,7 +548,10 @@ def aggregate_transition_benchmark(rows: Sequence[Mapping[str, Any]]) -> Dict[st
         ])),
         "full_sequence_success_by_length": by_length,
         "transition_success_by_position": positions,
-        "all_actions_policy_generated": all(row.get("action_source") == "ppo_policy" for row in rows),
+        "all_actions_policy_generated": all(
+            row.get("action_source") in {"ppo_policy", "sac_policy"}
+            for row in rows
+        ),
         **activity,
     }
     metrics["acquisition_timeout_rate"] = (

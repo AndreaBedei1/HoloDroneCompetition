@@ -11,6 +11,7 @@ from marine_race_arena.learning.transition_curriculum import (
     generate_transition_track,
 )
 from marine_race_arena.learning.transition_evaluation import (
+    aggregate_transition_benchmark,
     evaluate_local_transition_episode,
 )
 from marine_race_arena.learning.transition_track_visualization import (
@@ -101,3 +102,14 @@ def test_render_callback_does_not_change_headless_evaluation_metrics(tmp_path):
     assert rendered == headless
     assert frames
 
+
+def test_rendered_sac_evaluation_records_sac_policy_provenance(tmp_path):
+    geometry = TransitionGeometrySampler(
+        seed=48, difficulty="G1", transition_focus_fraction=1.0
+    ).sample(force_episode_type="transition_focus")
+    row = evaluate_local_transition_episode(
+        _ZeroPolicy(), geometry=geometry, output_dir=tmp_path / "sac",
+        adapter="fallback", max_steps=5, action_source="sac_policy",
+    )
+    assert row["action_source"] == "sac_policy"
+    assert aggregate_transition_benchmark([row])["all_actions_policy_generated"]
