@@ -11,6 +11,7 @@ from marine_race_arena.learning.transition_curriculum import (
     generate_transition_track,
 )
 from marine_race_arena.learning.transition_evaluation import (
+    _configure_render_camera,
     aggregate_transition_benchmark,
     evaluate_local_transition_episode,
 )
@@ -113,3 +114,20 @@ def test_rendered_sac_evaluation_records_sac_policy_provenance(tmp_path):
     )
     assert row["action_source"] == "sac_policy"
     assert aggregate_transition_benchmark([row])["all_actions_policy_generated"]
+
+
+def test_render_camera_is_not_exposed_to_policy_sensor_profile(tmp_path):
+    geometry = TransitionGeometrySampler(
+        seed=49, difficulty="G1", transition_focus_fraction=1.0
+    ).sample(force_episode_type="transition_focus")
+    path = generate_transition_track(geometry, tmp_path / "track.json")
+    assert _configure_render_camera(path, "chase") == "RenderCamera"
+    track = json.loads(path.read_text(encoding="utf-8"))
+    sensors = track["participants"][0]["sensors"]
+    assert "RenderCamera" not in sensors["allowed_sensors"]
+    render = [
+        value for value in sensors["holoocean_sensors"]
+        if value.get("sensor_name") == "RenderCamera"
+    ]
+    assert len(render) == 1
+    assert render[0]["location"] == [-3.0, 0.0, 1.2]

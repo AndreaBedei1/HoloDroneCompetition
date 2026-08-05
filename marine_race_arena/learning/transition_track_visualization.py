@@ -229,12 +229,16 @@ def render_geometry_track(
     return summary
 
 
-def _camera_frame(env: Any) -> Optional[np.ndarray]:
+def _camera_frame(env: Any, sensor_name: str = "FrontCamera") -> Optional[np.ndarray]:
     context = env.episode.context
-    data = context.adapter.get_allowed_sensor_data(
-        env.episode.participant_id, context.participant.config.sensors
-    )
-    value = data.get("FrontCamera")
+    if sensor_name == "FrontCamera":
+        data = context.adapter.get_allowed_sensor_data(
+            env.episode.participant_id, context.participant.config.sensors
+        )
+    else:
+        state = context.adapter.get_participant_state(env.episode.participant_id)
+        data = dict(state.raw_sensors)
+    value = data.get(sensor_name)
     if value is None:
         return None
     frame = np.asarray(value)
@@ -252,16 +256,18 @@ class FrameRecorder:
         output_video: Optional[str | Path] = None,
         fps: int = 30,
         window_name: str = "Universal transition evaluation",
+        sensor_name: str = "FrontCamera",
     ) -> None:
         self.live = bool(live)
         self.output_video = None if output_video is None else Path(output_video)
         self.fps = int(fps)
         self.window_name = str(window_name)
+        self.sensor_name = str(sensor_name)
         self._writer = None
         self.frames = 0
 
     def __call__(self, env: Any, step: int) -> None:
-        frame = _camera_frame(env)
+        frame = _camera_frame(env, self.sensor_name)
         if frame is None:
             return
         if self.output_video is not None:
@@ -329,8 +335,18 @@ def holoocean_flythrough(
                 yaw = math.degrees(math.atan2(delta[1], delta[0]))
                 for fraction in np.linspace(0.0, 1.0, frames_per_segment, endpoint=False):
                     point = previous + fraction * delta
+                    forward = delta / max(float(np.linalg.norm(delta)), 1e-9)
+                    pitch = 0.0
+                    if camera == "chase":
+                        point = point - 3.0 * forward + np.asarray([0.0, 0.0, 1.2])
+                        pitch = -12.0
+                    elif camera == "spectator":
+                        point = point - 6.0 * forward + np.asarray([0.0, 0.0, 4.0])
+                        pitch = -28.0
+                    elif camera != "first_person":
+                        raise ValueError(f"unknown preview camera {camera!r}")
                     context.adapter.teleport_participant(
-                        env.episode.participant_id, point.tolist(), (0.0, 0.0, yaw)
+                        env.episode.participant_id, point.tolist(), (0.0, pitch, yaw)
                     )
                     context.adapter.step(env.episode.dt)
                     recorder(env, frame_index)
@@ -406,6 +422,7 @@ def rendered_long_sequence_evaluation(
         recorder = FrameRecorder(
             live=live, output_video=video,
             window_name=f"{algorithm.upper()} length {geometry.gate_count}",
+            sensor_name="FrontCamera" if camera == "first_person" else "RenderCamera",
         )
         with reserve_holoocean_engines(1, owner=f"rendered {algorithm} evaluation"):
             try:
@@ -415,6 +432,7 @@ def rendered_long_sequence_evaluation(
                     max_steps=3600, record_trajectory=True,
                     frame_callback=recorder,
                     action_source=f"{algorithm}_policy",
+                    render_camera=camera,
                 )
             finally:
                 recorder.close()

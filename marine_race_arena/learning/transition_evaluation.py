@@ -49,6 +49,46 @@ def _atomic_json(path: Path, value: Any) -> None:
     tmp.replace(path)
 
 
+def _configure_render_camera(track_path: str | Path, camera: str) -> str:
+    """Add a video-only camera without exposing it to the policy profile."""
+
+    mode = str(camera)
+    if mode == "first_person":
+        return "FrontCamera"
+    offsets = {
+        "chase": ([-3.0, 0.0, 1.2], [0.0, -12.0, 0.0]),
+        "spectator": ([-6.0, 0.0, 4.0], [0.0, -28.0, 0.0]),
+    }
+    if mode not in offsets:
+        raise ValueError(f"unknown render camera {mode!r}")
+    location, rotation = offsets[mode]
+    path = Path(track_path)
+    track = json.loads(path.read_text(encoding="utf-8"))
+    sensors = track["participants"][0]["sensors"]
+    configured = sensors["holoocean_sensors"]
+    configured[:] = [
+        value for value in configured
+        if value.get("sensor_name") != "RenderCamera"
+    ]
+    configured.append({
+        "sensor_type": "RGBCamera",
+        "sensor_name": "RenderCamera",
+        "socket": "CameraSocket",
+        "location": location,
+        "rotation": rotation,
+        "Hz": 30,
+        "configuration": {
+            "CaptureWidth": 640,
+            "CaptureHeight": 480,
+            "FovAngle": 90.0,
+        },
+    })
+    # Deliberately do not add RenderCamera to allowed_sensors: it is consumed
+    # only by FrameRecorder, never by the 35-feature policy encoder.
+    _atomic_json(path, track)
+    return "RenderCamera"
+
+
 def _geometry_with_length(geometry: TransitionGeometry, gate_count: int) -> TransitionGeometry:
     if geometry.gate_count == gate_count:
         return geometry
@@ -206,6 +246,7 @@ def evaluate_local_transition_episode(
     record_trajectory: bool = False,
     frame_callback: Optional[Any] = None,
     action_source: str = "ppo_policy",
+    render_camera: Optional[str] = None,
 ) -> Dict[str, Any]:
     output = Path(output_dir)
     track_path = generate_transition_track(
@@ -213,6 +254,8 @@ def evaluate_local_transition_episode(
         output / "track.json",
         frames_per_sec=frames_per_sec,
     )
+    if render_camera is not None:
+        _configure_render_camera(track_path, render_camera)
     reward = LocalTransitionTrainingReward()
     env = MarineRaceGymEnv(
         str(track_path),
