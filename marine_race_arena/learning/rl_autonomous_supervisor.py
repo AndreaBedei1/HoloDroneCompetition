@@ -23,6 +23,13 @@ from marine_race_arena.learning.longrun_checkpoint import (
     latest_valid_checkpoint,
 )
 from marine_race_arena.learning.provenance import now_utc
+from marine_race_arena.learning.holoocean_capacity_benchmark import sample_resources
+from marine_race_arena.learning.rl_resource_governor import (
+    ResourceGovernor, evaluation_order, policy_from_mapping,
+)
+from marine_race_arena.learning.train_ppo_transition import (
+    supported_worker_shardings,
+)
 from marine_race_arena.learning.sac_transition_checkpoint import (
     latest_valid_sac_checkpoint,
 )
@@ -309,6 +316,76 @@ def _write_supervisor_state(state_dir: Path, value: Mapping[str, Any]) -> None:
     atomic_append_jsonl(state_dir / "history.jsonl", dict(value))
 
 
+_SUPERVISOR_TO_GOVERNOR = {
+    "TRAINING": "training",
+    "RESUMING": "training",
+    "EVALUATING": "evaluating",
+    "PAUSED": "paused",
+    "COMPLETED": "completed",
+    "FAILED": "failed",
+    "COLLAPSED": "collapsed",
+    "STOPPED": "stopped",
+    "INSPECT": "paused",
+}
+
+
+def _build_governor(config: Mapping[str, Any]) -> ResourceGovernor:
+    """Governor bound to the measured engine ceiling and supported shardings."""
+
+    policy = policy_from_mapping(config.get("governor"))
+    supported = {
+        "ppo": tuple(sorted(supported_worker_shardings())),
+        "sac": tuple(
+            int(value) for value in
+            (config.get("sac_worker_options") or (2, 4, 6, 8, 10, 12))
+        ),
+    }
+    return ResourceGovernor(policy, supported=supported)
+
+
+def _governor_cycle(
+    config: Mapping[str, Any],
+    rows: Mapping[str, Any],
+    governor: ResourceGovernor,
+) -> tuple:
+    """Plan the engine layout for this cycle without disturbing live rollouts."""
+
+    states = {
+        name: _SUPERVISOR_TO_GOVERNOR.get(str(row.get("state", "")), "paused")
+        for name, row in rows.items()
+    }
+    for name, row in rows.items():
+        if row.get("collapsed"):
+            states[name] = "collapsed"
+    resources = sample_resources()
+    throughput = {
+        name: float(
+            (row.get("trainer_status") or {}).get(
+                "environment_transitions_per_second", 0.0
+            ) or 0.0
+        )
+        for name, row in rows.items()
+    }
+    # Resharding is only ever applied by a trainer restart at an atomic
+    # boundary; the supervisor plans it and records the decision.
+    plan = governor.plan(
+        states, now=time.time(),
+        at_atomic_boundary=all(
+            str(row.get("state", "")) not in {"TRAINING", "RESUMING"}
+            for row in rows.values()
+        ),
+        marginal_throughput=throughput,
+        resources=resources,
+    )
+    if plan["apply"]:
+        governor.commit(plan["desired"], now=time.time())
+    plan["algorithm_states"] = states
+    plan["evaluation_order"] = evaluation_order(
+        [name for name, state in states.items() if state == "evaluating"], {}
+    )
+    return plan, resources
+
+
 def worker(state_dir: Path, *, once: bool = False) -> int:
     config_path = state_dir / "config.json"
     config = _read_json(config_path)
@@ -316,6 +393,7 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
         raise FileNotFoundError(config_path)
     previous = _read_json(state_dir / "status.json")
     retries = dict(previous.get("restart_attempts") or {})
+    governor = _build_governor(config)
     state_dir.mkdir(parents=True, exist_ok=True)
     log_path = state_dir / "supervisor.log"
     while True:
@@ -347,6 +425,12 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
             else "PAUSED" if any(row["state"] == "PAUSED" for row in rows.values())
             else "INSPECT"
         )
+        governor_plan = None
+        resources = None
+        try:
+            governor_plan, resources = _governor_cycle(config, rows, governor)
+        except Exception as exc:  # governor problems must never stop training
+            errors.append(f"governor: {type(exc).__name__}: {exc}")
         signature = {
             name: _evaluation_signature(Path(spec["run_dir"]))
             for name, spec in config["algorithms"].items()
@@ -370,6 +454,8 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
                 previous.get("comparison_signature")
                 if comparison_error else signature
             ),
+            "governor": governor_plan,
+            "resources": resources,
             "comparison_updated": comparison_updated,
             "comparison_error": comparison_error,
             "errors": errors,
