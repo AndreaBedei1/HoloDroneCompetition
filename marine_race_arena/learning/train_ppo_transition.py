@@ -58,8 +58,64 @@ INITIALIZATION_MODES = (
     "scratch",
     "selective_warm_start",
     "warm_start_transition_checkpoint",
+    "parallel_continuation",
 )
 WARM_START_MODES = ("selective_warm_start", "warm_start_transition_checkpoint")
+# Adding rollout workers must not silently multiply the PPO batch.  The
+# effective rollout stays within this tolerance of the successful 2,048-step
+# configuration so the continuation remains comparable to the policy history it
+# extends.
+BASELINE_ROLLOUT_SIZE = 2048
+ROLLOUT_SIZE_TOLERANCE = 0.25
+BASELINE_BATCH_SIZE = 256
+MINIBATCH_ALIGNMENT = 64
+
+
+def supported_worker_shardings(
+    baseline: int = BASELINE_ROLLOUT_SIZE,
+    tolerance: float = ROLLOUT_SIZE_TOLERANCE,
+    worker_counts: Sequence[int] = (1, 2, 4, 6, 8, 10, 12, 16),
+    batch_size: int = BASELINE_BATCH_SIZE,
+) -> Dict[int, int]:
+    """Return ``{n_envs: n_steps_per_env}`` keeping the rollout near ``baseline``.
+
+    The total rollout must stay within ``tolerance`` of the size the parent run
+    learned with and must remain an exact multiple of the minibatch size, so a
+    reshard changes only *who collects* the transitions, never the number of
+    gradient steps PPO takes per rollout.  ``n_steps`` is a multiple of 64.
+    """
+
+    low = baseline * (1.0 - float(tolerance))
+    high = baseline * (1.0 + float(tolerance))
+    out: Dict[int, int] = {}
+    for workers in worker_counts:
+        best = None
+        for steps in range(MINIBATCH_ALIGNMENT, baseline + 1, MINIBATCH_ALIGNMENT):
+            rollout = int(workers) * steps
+            if not low <= rollout <= high or rollout % int(batch_size):
+                continue
+            score = (abs(rollout - baseline), steps)
+            if best is None or score < best[0]:
+                best = (score, steps)
+        if best is not None:
+            out[int(workers)] = int(best[1])
+    return out
+
+
+def reshard_workers(config: Dict[str, Any], n_envs: int) -> Dict[str, Any]:
+    """Apply a supported worker sharding, preserving the effective rollout."""
+
+    shardings = supported_worker_shardings()
+    if int(n_envs) not in shardings:
+        raise ValueError(
+            f"worker count {n_envs} has no sharding within "
+            f"{ROLLOUT_SIZE_TOLERANCE:.0%} of {BASELINE_ROLLOUT_SIZE}; "
+            f"supported: {sorted(shardings)}"
+        )
+    steps = shardings[int(n_envs)]
+    config["n_envs"] = int(n_envs)
+    config["ppo"]["n_steps"] = int(steps)
+    return config
 
 
 def _load_config(path: str | Path) -> Dict[str, Any]:
@@ -80,8 +136,20 @@ def _load_config(path: str | Path) -> Dict[str, Any]:
     if int(value["n_envs"]) < 1:
         raise ValueError("n_envs must be positive")
     rollout = int(value["n_envs"]) * int(value["ppo"]["n_steps"])
-    if rollout != 2048:
-        raise ValueError(f"total rollout size must remain 2048, got {rollout}")
+    low = BASELINE_ROLLOUT_SIZE * (1.0 - ROLLOUT_SIZE_TOLERANCE)
+    high = BASELINE_ROLLOUT_SIZE * (1.0 + ROLLOUT_SIZE_TOLERANCE)
+    if not low <= rollout <= high:
+        raise ValueError(
+            f"total rollout size must stay within {ROLLOUT_SIZE_TOLERANCE:.0%} of "
+            f"{BASELINE_ROLLOUT_SIZE}, got {rollout}"
+        )
+    if int(value["ppo"]["n_steps"]) % MINIBATCH_ALIGNMENT:
+        raise ValueError(
+            f"n_steps must be a multiple of {MINIBATCH_ALIGNMENT} so every "
+            "worker sharding yields the same minibatch count"
+        )
+    if rollout % int(value["ppo"]["batch_size"]):
+        raise ValueError("rollout size must divide evenly into PPO minibatches")
     if value["adapter"] == "holoocean" and value["allow_fallback"]:
         raise ValueError("HoloOcean transition training cannot allow fallback")
     mode = value["initialization"].get("mode")
@@ -121,7 +189,12 @@ def _preflight(config: Mapping[str, Any], *, allow_dirty: bool) -> Dict[str, Any
         ["git", "branch", "--show-current"], check=True,
         capture_output=True, text=True,
     ).stdout.strip()
-    if branch != "feature/rl-universal-gate-transition":
+    # The PPO trainer runs from either the PPO worktree or the SAC worktree,
+    # whose branch also carries the parallel-continuation and governor code.
+    if branch not in {
+        "feature/rl-universal-gate-transition",
+        "feature/rl-multistep-sac-transition",
+    }:
         raise ValueError(f"wrong branch {branch!r}")
     dirty = bool(subprocess.run(
         ["git", "status", "--porcelain"], check=True,
@@ -138,6 +211,10 @@ def _preflight(config: Mapping[str, Any], *, allow_dirty: bool) -> Dict[str, Any
         actual_sha = sha256_file(source)
         if actual_sha != initialization.get("source_sha256"):
             raise ValueError("warm-start checkpoint hash mismatch")
+    elif initialization["mode"] == "parallel_continuation":
+        parent_path, parent_manifest = _parent_checkpoint(config)
+        source = str(parent_path)
+        actual_sha = parent_manifest["model_sha256"]
     return {
         "checked_utc": now_utc(),
         "branch": branch,
@@ -208,6 +285,47 @@ def _make_vec_env(config: Mapping[str, Any], run_dir: Path, difficulty: str):
     # Explicit spawn is required on Windows and prevents HoloOcean handles from
     # being inherited across simulation processes.
     return SubprocVecEnv(factories, start_method="spawn")
+
+
+def close_vec_env_safely(env: Any, *, timeout: float = 60.0) -> Dict[str, Any]:
+    """Close rollout workers without masking a failure or blocking forever.
+
+    When a worker dies -- a HoloOcean engine start can time out under load --
+    SubprocVecEnv.close() waits on a pipe that will never answer.  In the
+    production run that turned a recoverable engine timeout into a process that
+    hung for hours holding the run directory.  Closing is therefore bounded: on
+    timeout the worker processes are terminated directly so the trainer can exit
+    cleanly and be resumed from its last atomic checkpoint.
+    """
+
+    import threading
+
+    if env is None:
+        return {"closed": True, "method": "no_env"}
+    outcome: Dict[str, Any] = {"closed": False, "method": "graceful"}
+
+    def _close():
+        try:
+            env.close()
+            outcome["closed"] = True
+        except BaseException as exc:  # a dead worker must not mask the cause
+            outcome["error"] = repr(exc)
+
+    thread = threading.Thread(target=_close, daemon=True)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive() or not outcome["closed"]:
+        outcome["method"] = "forced"
+        for process in list(getattr(env, "processes", []) or []):
+            try:
+                if process.is_alive():
+                    process.terminate()
+                    process.join(timeout=10)
+                if process.is_alive():
+                    process.kill()
+            except BaseException:
+                continue
+    return outcome
 
 
 def _worker_states(env: Any) -> list[Mapping[str, Any]]:
@@ -303,7 +421,10 @@ def _preserve_initialization_baseline(
 
     initialization = config["initialization"]
     source = initialization.get("source_checkpoint")
-    if initialization["mode"] not in WARM_START_MODES or not source:
+    if initialization["mode"] == "parallel_continuation":
+        # The verified parent is the behaviour the continuation must not lose.
+        source = str(_parent_checkpoint(config)[0])
+    elif initialization["mode"] not in WARM_START_MODES or not source:
         return None
     baseline_dir = run_dir / "baseline"
     record_path = baseline_dir / "initialization_baseline.json"
@@ -668,6 +789,129 @@ def _build_new_model(config: Mapping[str, Any], env: Any):
     return model, report
 
 
+def _parent_checkpoint(config: Mapping[str, Any]):
+    """Resolve and hash-verify the parent checkpoint of a continuation."""
+
+    initialization = config["initialization"]
+    parent_run = Path(initialization["parent_run_dir"])
+    declared = initialization.get("parent_checkpoint")
+    if not declared:
+        raise ValueError("parallel_continuation requires parent_checkpoint")
+    path = Path(declared)
+    if not path.is_absolute() and not path.exists():
+        path = parent_run / "checkpoints" / Path(declared).name
+    if not path.exists():
+        raise FileNotFoundError(path)
+    manifest = path.parent / f"{path.stem}.manifest.json"
+    if not manifest.exists():
+        raise FileNotFoundError(manifest)
+    value = json.loads(manifest.read_text(encoding="utf-8"))
+    digest = sha256_file(path)
+    if digest != value["model_sha256"]:
+        raise ValueError("parent checkpoint hash does not match its manifest")
+    declared_sha = initialization.get("parent_sha256")
+    if declared_sha and declared_sha != digest:
+        raise ValueError("parent checkpoint hash does not match the config")
+    if value["observation_version"] != OBS_ENCODING_VERSION_LOCAL_TRANSITION:
+        raise ValueError("parent checkpoint uses a different observation contract")
+    if int(value["policy_observation_dim"]) != OBS_DIM_LOCAL_TRANSITION:
+        raise ValueError("parent checkpoint uses a different observation dimension")
+    if value["action_version"] != ACTION_CONTRACT_VERSION:
+        raise ValueError("parent checkpoint uses a different action contract")
+    return path, value
+
+
+def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
+    """Continue a verified parent run under a new worker sharding.
+
+    Everything that defines *where the policy is in its learning trajectory* is
+    inherited: actor and critic weights, optimizer moments, learning-rate
+    schedule progress, total transition count, curriculum, evaluation history
+    and checkpoint ranking.  Only the transient rollout collection state is
+    rebuilt, because the worker count changed.
+    """
+
+    from stable_baselines3 import PPO
+
+    path, manifest = _parent_checkpoint(config)
+    parent_state = json.loads(
+        (path.parent / f"{path.stem}.state.json").read_text(encoding="utf-8")
+    )
+    model = PPO.load(str(path), env=env, device="cpu")
+    if tuple(model.observation_space.shape) != (OBS_DIM_LOCAL_TRANSITION,):
+        raise ValueError("parent observation shape changed")
+    # SB3 stores n_steps in the ZIP; the reshard changes it, and the rollout
+    # buffer must be rebuilt for the new (n_envs, n_steps) geometry.
+    model.n_steps = int(config["ppo"]["n_steps"])
+    model.n_envs = int(env.num_envs)
+    model._setup_model()
+    model.set_env(env)
+    model._last_obs = None
+    restore_model_training_state(model, parent_state["model_training"])
+    if int(model.num_timesteps) != int(manifest["total_timesteps"]):
+        raise ValueError("parent model and sidecar disagree on total timesteps")
+    report = {
+        "mode": "parallel_continuation",
+        "parent_run_dir": str(config["initialization"]["parent_run_dir"]),
+        "parent_checkpoint": str(path),
+        "parent_sha256": manifest["model_sha256"],
+        "parent_total_environment_transitions": int(manifest["total_timesteps"]),
+        "parent_status": manifest.get("status"),
+        "parent_reason": manifest.get("reason"),
+        "reshard_reason": config["initialization"].get(
+            "reshard_reason", "increase measured valid transitions per second"
+        ),
+        "previous_n_envs": int(
+            config["initialization"].get("parent_n_envs", 0) or 0
+        ),
+        "previous_n_steps": int(
+            config["initialization"].get("parent_n_steps", 0) or 0
+        ),
+        "n_envs": int(config["n_envs"]),
+        "n_steps": int(config["ppo"]["n_steps"]),
+        "rollout_size": int(config["n_envs"]) * int(config["ppo"]["n_steps"]),
+        "actor_and_critic_weights_preserved": True,
+        "optimizer_state_preserved": True,
+        "learning_rate_schedule_preserved": True,
+        "total_environment_transitions_preserved": int(model.num_timesteps),
+        "rollout_buffer_reset": True,
+        "workers_recreated": True,
+        "target_environment_transitions": int(config["new_environment_steps"]),
+    }
+    return model, report, parent_state
+
+
+def _inherit_parent_history(
+    parent_state: Mapping[str, Any],
+    *,
+    curriculum: TransitionCurriculumController,
+    aliases: Dict[str, Any],
+    selection: Dict[str, Any],
+    evaluation_state: Dict[str, Any],
+) -> None:
+    """Carry ranking, curriculum and evaluation history into the continuation."""
+
+    curriculum.load_state_dict(parent_state["curriculum"])
+    extra = dict(parent_state.get("extra") or {})
+    for key, value in (extra.get("checkpoint_aliases") or {}).items():
+        if key in aliases and value:
+            aliases[key] = value
+    parent_selection = dict(extra.get("checkpoint_selection_state") or {})
+    for key in (
+        "best_metrics", "best_timestep", "last_evaluation_metrics",
+        "last_competence_verdict", "best_long_sequence_score",
+        "consecutive_baseline_collapses", "dedicated",
+    ):
+        if parent_selection.get(key) is not None:
+            selection[key] = parent_selection[key]
+    parent_evaluation = dict(parent_state.get("evaluation") or {})
+    if parent_evaluation.get("history"):
+        evaluation_state["history"] = list(parent_evaluation["history"])
+    for key in ("last", "best"):
+        if parent_evaluation.get(key) is not None:
+            evaluation_state[key] = parent_evaluation[key]
+
+
 def run_training(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     if args.run_dir:
@@ -677,8 +921,7 @@ def run_training(args: argparse.Namespace) -> int:
     if args.steps is not None:
         config["new_environment_steps"] = int(args.steps)
     if args.n_envs is not None:
-        config["n_envs"] = int(args.n_envs)
-        config["ppo"]["n_steps"] = 2048 // int(args.n_envs)
+        reshard_workers(config, int(args.n_envs))
     import torch
     torch.set_num_threads(max(1, int(config.get("torch_threads", 1))))
     try:
@@ -745,6 +988,28 @@ def run_training(args: argparse.Namespace) -> int:
             "set_efficiency_unlocked", curriculum.state.efficiency_reward_active
         )
         model._last_obs = None
+        env.reset()
+    elif config["initialization"]["mode"] == "parallel_continuation":
+        if any((run_dir / "checkpoints").glob("*.manifest.json")):
+            raise ValueError("run contains checkpoints; use --resume")
+        model, initialization_report, parent_state = _continue_from_parent(
+            config, env, run_dir
+        )
+        _inherit_parent_history(
+            parent_state, curriculum=curriculum, aliases=aliases,
+            selection=selection, evaluation_state=evaluation_state,
+        )
+        # Worker sampler state is deliberately not restored: the reshard changes
+        # the worker count, so each worker starts a fresh deterministic sampler
+        # from its own seed while everything defining the learning trajectory is
+        # inherited from the parent.
+        env.env_method("set_difficulty", curriculum.difficulty)
+        env.env_method(
+            "set_efficiency_unlocked", curriculum.state.efficiency_reward_active
+        )
+        env.env_method(
+            "set_total_environment_transitions", int(model.num_timesteps)
+        )
         env.reset()
     else:
         if any((run_dir / "checkpoints").glob("*.manifest.json")):
@@ -853,7 +1118,7 @@ def run_training(args: argparse.Namespace) -> int:
                 )
                 worker_states = _worker_states(env)
                 learner_rng = capture_rng_state()
-                env.close()
+                close_vec_env_safely(env)
                 env = None
                 evaluation_error: Optional[BaseException] = None
                 report = None
@@ -1025,7 +1290,7 @@ def run_training(args: argparse.Namespace) -> int:
         raise
     finally:
         if env is not None:
-            env.close()
+            close_vec_env_safely(env)
 
 
 def status_command(run_dir: str | Path) -> int:
@@ -1069,7 +1334,10 @@ def main(argv=None) -> int:
     train.add_argument("--config", required=True)
     train.add_argument("--run-dir")
     train.add_argument("--steps", type=int)
-    train.add_argument("--n-envs", type=int, choices=(1, 2, 4))
+    train.add_argument(
+        "--n-envs", type=int,
+        choices=tuple(sorted(supported_worker_shardings())),
+    )
     train.add_argument("--resume", action="store_true")
     train.add_argument("--allow-dirty-smoke", action="store_true")
     status = sub.add_parser("status")
