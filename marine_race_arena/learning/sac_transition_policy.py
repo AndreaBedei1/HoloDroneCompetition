@@ -28,6 +28,17 @@ LOG_STD_MIN = -5.0
 LOG_STD_MAX = 1.0
 ACTION_EPSILON = 1e-6
 
+# The Gaussian location is the inverse tanh of the bounded mean head, which
+# preserves the deterministic PPO action exactly.  Unbounded, that inverse has
+# derivative 1/(1-m^2): the collapsed v1 actor reached a mean Jacobian of 30,121
+# and a p95 of 493,448, so a single mean-head component approaching +-1 raised
+# the effective actor step by five orders of magnitude and drove the policy into
+# permanent tanh saturation.  Bounding the pre-tanh location caps that
+# amplification.  The warm anchor's largest mean-head magnitude is 0.605 and its
+# largest Jacobian is 1.6, so the default bound is inert at initialization while
+# capping any runaway at 14.2.
+DEFAULT_PRE_TANH_LIMIT = 2.0
+
 
 def compute_sac_bootstrap_target(
     rewards: Any,
@@ -61,6 +72,7 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
         initial_std: float = 0.075,
         log_std_min: float = LOG_STD_MIN,
         log_std_max: float = LOG_STD_MAX,
+        pre_tanh_limit: float = DEFAULT_PRE_TANH_LIMIT,
     ):
         torch, nn = _torch()
 
@@ -85,6 +97,10 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
                 self.initial_std = float(initial_std)
                 self.log_std_min = float(log_std_min)
                 self.log_std_max = float(log_std_max)
+                self.pre_tanh_limit = float(pre_tanh_limit)
+                if self.pre_tanh_limit <= 0.0:
+                    raise ValueError("pre_tanh_limit must be positive")
+                self.mean_clip = float(math.tanh(self.pre_tanh_limit))
                 if not self.log_std_min < self.log_std_max:
                     raise ValueError("log_std_min must be smaller than log_std_max")
                 initial_log_std = math.log(self.initial_std)
@@ -96,10 +112,12 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
                 # PPO emits an unsquashed Gaussian mean and clips it at the
                 # action boundary.  Inverting tanh after that clip makes the SAC
                 # deterministic action identical without copying PPO variance.
+                # The clip is at tanh(pre_tanh_limit), not at 1, so the inverse
+                # tanh Jacobian stays bounded by 1/(1-mean_clip^2) instead of
+                # diverging as a mean-head component approaches the action
+                # boundary.
                 bounded_mean = torch.clamp(
-                    self.mean_head(features),
-                    -1.0 + ACTION_EPSILON,
-                    1.0 - ACTION_EPSILON,
+                    self.mean_head(features), -self.mean_clip, self.mean_clip
                 )
                 pre_tanh_mean = torch.atanh(bounded_mean)
                 log_std = torch.clamp(
@@ -141,6 +159,38 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
             def forward(self, observations):
                 return self.deterministic(observations)
 
+            def health(self, observations) -> Dict[str, float]:
+                """Training-only saturation/conditioning probe (never an input)."""
+
+                with torch.no_grad():
+                    features = self.policy_net(observations)
+                    raw = self.mean_head(features)
+                    bounded = torch.clamp(raw, -self.mean_clip, self.mean_clip)
+                    action = torch.tanh(torch.atanh(bounded))
+                    jacobian = 1.0 / (1.0 - bounded.pow(2))
+                    log_std = torch.clamp(
+                        self.log_std_head(features),
+                        self.log_std_min, self.log_std_max,
+                    )
+                absolute = action.abs()
+                axes = ("surge", "sway", "heave", "yaw")
+                return {
+                    "mean_absolute_action": float(absolute.mean()),
+                    **{
+                        f"mean_absolute_action_{name}": float(absolute[:, index].mean())
+                        for index, name in enumerate(axes[: absolute.shape[1]])
+                    },
+                    "max_absolute_action_axis": float(absolute.mean(dim=0).max()),
+                    "action_saturation_fraction": float((absolute > 0.95).float().mean()),
+                    "mean_head_clipped_fraction": float(
+                        (raw.abs() >= self.mean_clip).float().mean()
+                    ),
+                    "pre_tanh_jacobian_mean": float(jacobian.mean()),
+                    "pre_tanh_jacobian_p95": float(jacobian.flatten().quantile(0.95)),
+                    "pre_tanh_jacobian_max": float(jacobian.max()),
+                    "policy_std_mean": float(log_std.exp().mean()),
+                }
+
             def config(self) -> Dict[str, Any]:
                 return {
                     "observation_dim": self.observation_dim,
@@ -148,9 +198,27 @@ class SquashedGaussianActor:  # wrapped below to avoid importing torch at module
                     "hidden_sizes": list(self.hidden_sizes),
                     "initial_std": self.initial_std,
                     "log_std_clip": [self.log_std_min, self.log_std_max],
+                    "pre_tanh_limit": self.pre_tanh_limit,
+                    "mean_clip": self.mean_clip,
+                    "maximum_pre_tanh_jacobian": 1.0 / (1.0 - self.mean_clip ** 2),
                 }
 
         return _Actor()
+
+
+def action_drift(current_actions: Any, anchor_actions: Any) -> Dict[str, float]:
+    """Per-sample deterministic action drift between the actor and its anchor."""
+
+    import torch
+
+    delta = (current_actions - anchor_actions).abs()
+    per_sample = delta.mean(dim=-1)
+    return {
+        "anchor_mean_drift": float(per_sample.mean()),
+        "anchor_p95_drift": float(per_sample.flatten().quantile(0.95)),
+        "anchor_max_drift": float(per_sample.max()),
+        "anchor_mean_squared_drift": float(delta.pow(2).mean()),
+    }
 
 
 class TwinQCritic:
@@ -274,15 +342,50 @@ class SACTransitionAgent:
         initial_std: float = 0.075,
         log_std_min: float = LOG_STD_MIN,
         log_std_max: float = LOG_STD_MAX,
+        pre_tanh_limit: float = DEFAULT_PRE_TANH_LIMIT,
+        gradient_clip_actor: float = 1.0,
+        gradient_clip_critic: float = 5.0,
+        critic_loss: str = "huber",
+        huber_delta: float = 10.0,
+        alpha_min: float = 0.001,
+        alpha_max: float = 0.02,
+        anchor_coefficient: float = 0.0,
+        anchor_target_drift: float = 0.05,
+        anchor_coefficient_min: float = 0.0,
+        anchor_coefficient_max: float = 1000.0,
+        anchor_increase_factor: float = 1.5,
+        anchor_decrease_factor: float = 0.8,
         device: str = "cpu",
     ) -> None:
         import torch
 
+        if critic_loss not in {"huber", "mse"}:
+            raise ValueError(f"unknown critic loss {critic_loss!r}")
+        if not 0.0 < float(alpha_min) <= float(alpha_max):
+            raise ValueError("alpha bounds must satisfy 0 < alpha_min <= alpha_max")
         self.device = torch.device(device)
         self.actor = SquashedGaussianActor(
             observation_dim, action_dim, hidden_sizes, initial_std,
-            log_std_min, log_std_max,
+            log_std_min, log_std_max, pre_tanh_limit,
         ).to(self.device)
+        # Frozen copy of the competent warm initialization.  Training-only: it
+        # never produces an action for evaluation or inference.
+        self.anchor_actor = copy.deepcopy(self.actor).to(self.device)
+        for parameter in self.anchor_actor.parameters():
+            parameter.requires_grad_(False)
+        self.anchor_actor.eval()
+        self.anchor_coefficient = float(anchor_coefficient)
+        self.anchor_target_drift = float(anchor_target_drift)
+        self.anchor_coefficient_min = float(anchor_coefficient_min)
+        self.anchor_coefficient_max = float(anchor_coefficient_max)
+        self.anchor_increase_factor = float(anchor_increase_factor)
+        self.anchor_decrease_factor = float(anchor_decrease_factor)
+        self.gradient_clip_actor = float(gradient_clip_actor)
+        self.gradient_clip_critic = float(gradient_clip_critic)
+        self.critic_loss_kind = str(critic_loss)
+        self.huber_delta = float(huber_delta)
+        self.alpha_min = float(alpha_min)
+        self.alpha_max = float(alpha_max)
         self.critic = TwinQCritic(
             observation_dim, action_dim, hidden_sizes
         ).to(self.device)
@@ -378,11 +481,30 @@ class SACTransitionAgent:
             )
 
         q1, q2 = self.critic(observations, actions)
-        critic_loss = functional.mse_loss(q1, target) + functional.mse_loss(q2, target)
+        if self.critic_loss_kind == "huber":
+            # Multi-step targets built from strong one-time safety penalties
+            # produce heavy-tailed TD errors; squaring them let a handful of
+            # samples dominate the critic step (v1 reached a critic loss of 543).
+            critic_loss = functional.huber_loss(
+                q1, target, delta=self.huber_delta
+            ) + functional.huber_loss(q2, target, delta=self.huber_delta)
+        else:
+            critic_loss = functional.mse_loss(q1, target) + functional.mse_loss(q2, target)
         self.critic_optimizer.zero_grad(set_to_none=True)
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10.0)
+        critic_grad_norm = float(torch.nn.utils.clip_grad_norm_(
+            self.critic.parameters(), self.gradient_clip_critic
+        ))
         self.critic_optimizer.step()
+        td_error = torch.minimum(
+            (q1 - target).abs(), (q2 - target).abs()
+        ).detach().flatten()
+        actor_grad_norm = 0.0
+        anchor_metrics = {
+            "anchor_mean_drift": 0.0, "anchor_p95_drift": 0.0,
+            "anchor_max_drift": 0.0, "anchor_mean_squared_drift": 0.0,
+        }
+        anchor_penalty = 0.0
 
         if update_entropy is None:
             update_entropy = update_actor
@@ -390,17 +512,35 @@ class SACTransitionAgent:
             raise ValueError("entropy updates require an actor update")
 
         if update_actor:
-            sampled_actions, log_probability, _ = self.actor.sample(observations)
+            sampled_actions, log_probability, deterministic_action = self.actor.sample(
+                observations
+            )
             actor_q1, actor_q2 = self.critic(observations, sampled_actions)
-            actor_loss = (
+            sac_actor_loss = (
                 self.log_alpha.detach().exp() * log_probability
                 - torch.minimum(actor_q1, actor_q2)
             ).mean()
+            # Protected phase: penalize deterministic drift from the frozen warm
+            # actor so the competent behaviour cannot be destroyed faster than
+            # the critics can justify replacing it.
+            with torch.no_grad():
+                anchor_action = self.anchor_actor.deterministic(observations)
+            drift = deterministic_action - anchor_action
+            anchor_term = drift.pow(2).mean()
+            anchor_penalty = float(anchor_term.detach().cpu())
+            actor_loss = sac_actor_loss + self.anchor_coefficient * anchor_term
             self.actor_optimizer.zero_grad(set_to_none=True)
             actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
+            actor_grad_norm = float(torch.nn.utils.clip_grad_norm_(
+                self.actor.parameters(), self.gradient_clip_actor
+            ))
             self.actor_optimizer.step()
             self.actor_updates += 1
+            with torch.no_grad():
+                anchor_metrics = action_drift(
+                    self.actor.deterministic(observations), anchor_action
+                )
+            self._adapt_anchor_coefficient(anchor_metrics["anchor_mean_drift"])
 
             alpha_loss = -(
                 self.log_alpha * (log_probability + self.target_entropy).detach()
@@ -410,6 +550,7 @@ class SACTransitionAgent:
                 alpha_loss.backward()
                 self.entropy_optimizer.step()
                 self.entropy_updates += 1
+                self._clamp_alpha()
         else:
             # Preserve finite learner diagnostics during critic-only warm-up
             # without constructing gradients through either policy optimizer.
@@ -438,12 +579,86 @@ class SACTransitionAgent:
             "alpha_loss": float(alpha_loss.detach().cpu()),
             "entropy_coefficient": self.alpha,
             "mean_target_q": float(target.mean().detach().cpu()),
+            "target_q_p05": float(target.flatten().quantile(0.05).detach().cpu()),
+            "target_q_p95": float(target.flatten().quantile(0.95).detach().cpu()),
+            "mean_q": float(torch.minimum(q1, q2).mean().detach().cpu()),
+            "q_p05": float(torch.minimum(q1, q2).flatten().quantile(0.05).detach().cpu()),
+            "q_p95": float(torch.minimum(q1, q2).flatten().quantile(0.95).detach().cpu()),
+            "td_error_p50": float(td_error.quantile(0.50).cpu()),
+            "td_error_p95": float(td_error.quantile(0.95).cpu()),
+            "td_error_max": float(td_error.max().cpu()),
+            "actor_gradient_norm": actor_grad_norm,
+            "critic_gradient_norm": critic_grad_norm,
+            "anchor_coefficient": self.anchor_coefficient,
+            "anchor_penalty": anchor_penalty,
+            **anchor_metrics,
             "mean_log_probability": float(log_probability.mean().detach().cpu()),
             "actor_updated": float(bool(update_actor)),
         }
         if not all(math.isfinite(value) for value in values.values()):
             raise FloatingPointError(f"non-finite SAC update: {values}")
         return values
+
+    def _clamp_alpha(self) -> None:
+        """Keep the entropy coefficient inside the verified safe interval."""
+
+        import torch
+
+        with torch.no_grad():
+            self.log_alpha.clamp_(
+                math.log(self.alpha_min), math.log(self.alpha_max)
+            )
+
+    def _adapt_anchor_coefficient(self, mean_drift: float) -> None:
+        """Raise the anchor immediately on drift; lower it only on demand.
+
+        The coefficient is never reduced here.  Relaxation is an explicit,
+        evaluation-driven decision (see ``relax_anchor``) so a transition-count
+        threshold alone can never remove the protection.
+        """
+
+        if self.anchor_coefficient_max <= 0.0:
+            return
+        if mean_drift > self.anchor_target_drift:
+            base = max(self.anchor_coefficient, 1e-3)
+            self.anchor_coefficient = min(
+                self.anchor_coefficient_max, base * self.anchor_increase_factor
+            )
+
+    def relax_anchor(self) -> float:
+        """Reduce the anchor after a competent official evaluation."""
+
+        self.anchor_coefficient = max(
+            self.anchor_coefficient_min,
+            self.anchor_coefficient * self.anchor_decrease_factor,
+        )
+        return self.anchor_coefficient
+
+    def set_anchor_from_actor(self) -> None:
+        """Freeze the current actor as the anchor (used only at initialization)."""
+
+        self.anchor_actor.load_state_dict(self.actor.state_dict())
+        for parameter in self.anchor_actor.parameters():
+            parameter.requires_grad_(False)
+        self.anchor_actor.eval()
+
+    def anchor_health(self, observations: np.ndarray) -> Dict[str, float]:
+        """Drift and saturation probe on real replay observations."""
+
+        import torch
+
+        array = torch.as_tensor(
+            np.asarray(observations, dtype=np.float32), device=self.device
+        )
+        with torch.no_grad():
+            current = self.actor.deterministic(array)
+            anchor = self.anchor_actor.deterministic(array)
+        return {
+            **self.actor.health(array),
+            **action_drift(current, anchor),
+            "anchor_coefficient": self.anchor_coefficient,
+            "entropy_coefficient": self.alpha,
+        }
 
     def checkpoint_state(self) -> Dict[str, Any]:
         return {
@@ -455,10 +670,24 @@ class SACTransitionAgent:
                 "initial_std": self.initial_std,
                 "log_std_min": self.log_std_min,
                 "log_std_max": self.log_std_max,
+                "pre_tanh_limit": self.actor.pre_tanh_limit,
+                "gradient_clip_actor": self.gradient_clip_actor,
+                "gradient_clip_critic": self.gradient_clip_critic,
+                "critic_loss": self.critic_loss_kind,
+                "huber_delta": self.huber_delta,
+                "alpha_min": self.alpha_min,
+                "alpha_max": self.alpha_max,
+                "anchor_target_drift": self.anchor_target_drift,
+                "anchor_coefficient_min": self.anchor_coefficient_min,
+                "anchor_coefficient_max": self.anchor_coefficient_max,
+                "anchor_increase_factor": self.anchor_increase_factor,
+                "anchor_decrease_factor": self.anchor_decrease_factor,
                 "learning_rates": dict(self.learning_rates),
                 "tau": self.tau,
                 "target_entropy": self.target_entropy,
             },
+            "anchor_coefficient": self.anchor_coefficient,
+            "anchor_actor": self.anchor_actor.state_dict(),
             "actor": self.actor.state_dict(),
             "critic": self.critic.state_dict(),
             "target_critic": self.target_critic.state_dict(),
@@ -479,15 +708,29 @@ class SACTransitionAgent:
             raise ValueError("unsupported SAC agent checkpoint")
         config = dict(state["config"])
         learning_rates = dict(config.pop("learning_rates"))
+        # Version-1 checkpoints predate the bounded pre-tanh location and the
+        # anchored actor phase; they are loaded with the legacy unbounded limit
+        # so historical evidence stays reproducible.
+        config.setdefault("pre_tanh_limit", math.atanh(1.0 - ACTION_EPSILON))
+        alpha = float(torch.as_tensor(state["log_alpha"]).exp())
+        config.setdefault("alpha_min", min(alpha, 0.001))
+        config.setdefault("alpha_max", max(alpha, 0.02))
         agent = cls(
             **config,
             actor_learning_rate=learning_rates["actor"],
             critic_learning_rate=learning_rates["critic"],
             entropy_learning_rate=learning_rates["entropy"],
-            initial_alpha=float(torch.as_tensor(state["log_alpha"]).exp()),
+            initial_alpha=alpha,
+            anchor_coefficient=float(state.get("anchor_coefficient", 0.0) or 0.0),
             device=device,
         )
         agent.actor.load_state_dict(state["actor"], strict=True)
+        anchor_state = state.get("anchor_actor")
+        agent.anchor_actor.load_state_dict(
+            anchor_state if anchor_state is not None else state["actor"], strict=True
+        )
+        for parameter in agent.anchor_actor.parameters():
+            parameter.requires_grad_(False)
         agent.critic.load_state_dict(state["critic"], strict=True)
         agent.target_critic.load_state_dict(state["target_critic"], strict=True)
         agent.actor_optimizer.load_state_dict(state["actor_optimizer"])

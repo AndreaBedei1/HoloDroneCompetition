@@ -201,21 +201,38 @@ def test_twin_critic_target_uses_stored_discount_and_entropy():
     assert terminal.item() == pytest.approx(2.0)
 
 
-def test_entropy_tuning_and_losses_remain_finite():
-    agent = SACTransitionAgent(hidden_sizes=(16, 16))
-    before = agent.alpha
+def _entropy_batch():
     rng = np.random.default_rng(7)
-    batch = {
+    return {
         "observations": rng.normal(size=(32, 35)).astype(np.float32),
         "actions": rng.uniform(-1, 1, size=(32, 4)).astype(np.float32),
         "rewards": rng.normal(size=32).astype(np.float32),
         "next_observations": rng.normal(size=(32, 35)).astype(np.float32),
         "discounts": np.full(32, 0.99, np.float32),
     }
-    losses = agent.update(batch)
+
+
+def test_entropy_tuning_and_losses_remain_finite():
+    # Bounds widened so this exercises tuning itself; the narrow repaired
+    # default interval is covered by the bounding test below.
+    agent = SACTransitionAgent(
+        hidden_sizes=(16, 16), alpha_min=1e-6, alpha_max=1.0,
+    )
+    before = agent.alpha
+    losses = agent.update(_entropy_batch())
     assert agent.gradient_updates == 1
     assert all(np.isfinite(value) for value in losses.values())
     assert agent.alpha != before
+
+
+def test_default_alpha_bounds_pin_the_entropy_coefficient():
+    """The repaired defaults must not let alpha grow without bound."""
+
+    agent = SACTransitionAgent(hidden_sizes=(16, 16))
+    assert (agent.alpha_min, agent.alpha_max) == (0.001, 0.02)
+    for _ in range(10):
+        agent.update(_entropy_batch())
+        assert agent.alpha_min <= agent.alpha <= agent.alpha_max
 
 
 def test_critic_warmup_leaves_actor_and_entropy_unchanged():

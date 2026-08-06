@@ -51,6 +51,7 @@ from marine_race_arena.learning.sac_transition_checkpoint import (
 from marine_race_arena.learning.sac_transition_policy import (
     SACTransitionAgent,
     transfer_ppo_mean_actor,
+    DEFAULT_PRE_TANH_LIMIT,
 )
 from marine_race_arena.learning.train_ppo_transition import (
     _dedicated_benchmark_due,
@@ -100,15 +101,20 @@ def _load_config(path: str | Path) -> Dict[str, Any]:
         "batch_size": 512,
         "replay_capacity": 1_000_000,
         "learning_starts": 10_000,
-        "automatic_entropy": True,
+        "automatic_entropy": False,
         "target_entropy": -4.0,
     }
     for key, expected in defaults.items():
         if key not in sac:
             raise ValueError(f"SAC config missing {key}")
         if key == "automatic_entropy":
-            if bool(sac[key]) is not expected:
-                raise ValueError("automatic SAC entropy tuning is required")
+            # Entropy tuning is frozen during the protected actor phase; alpha
+            # is additionally clamped to a narrow verified interval.
+            if bool(sac[key]) and not (
+                0.0 < float(sac.get("alpha_min", 0.001))
+                <= float(sac.get("alpha_max", 0.02))
+            ):
+                raise ValueError("automatic entropy tuning requires alpha bounds")
         elif not np.isclose(float(sac[key]), float(expected)):
             raise ValueError(f"initial SAC engineering default changed: {key}")
     if int(config["n_envs"]) < 1:
@@ -558,6 +564,7 @@ def run_training(args: argparse.Namespace) -> int:
             if any((run_dir / "checkpoints").glob("*.manifest.json")):
                 raise ValueError("SAC run contains checkpoints; use --resume")
             sac = config["sac"]
+            anchor = dict(sac.get("anchor") or {})
             agent = SACTransitionAgent(
                 hidden_sizes=sac["hidden_sizes"],
                 actor_learning_rate=sac["actor_learning_rate"],
@@ -569,6 +576,22 @@ def run_training(args: argparse.Namespace) -> int:
                 initial_std=sac["initial_std"],
                 log_std_min=sac.get("log_std_min", -5.0),
                 log_std_max=sac.get("log_std_max", 1.0),
+                pre_tanh_limit=sac.get("pre_tanh_limit", DEFAULT_PRE_TANH_LIMIT),
+                gradient_clip_actor=sac.get("gradient_clip_actor", 1.0),
+                gradient_clip_critic=sac.get("gradient_clip_critic", 5.0),
+                critic_loss=sac.get("critic_loss", "huber"),
+                huber_delta=sac.get("huber_delta", 10.0),
+                alpha_min=sac.get("alpha_min", 0.001),
+                alpha_max=sac.get("alpha_max", 0.02),
+                anchor_coefficient=(
+                    float(anchor.get("initial_coefficient", 0.0))
+                    if anchor.get("enabled", False) else 0.0
+                ),
+                anchor_target_drift=float(anchor.get("target_mean_drift", 0.05)),
+                anchor_coefficient_min=float(anchor.get("coefficient_min", 0.0)),
+                anchor_coefficient_max=float(anchor.get("coefficient_max", 1000.0)),
+                anchor_increase_factor=float(anchor.get("increase_factor", 1.5)),
+                anchor_decrease_factor=float(anchor.get("decrease_factor", 0.8)),
             )
             source = _resolve_source_checkpoint(config["initialization"]["source_checkpoint"])
             initialization_report = transfer_ppo_mean_actor(
@@ -576,6 +599,9 @@ def run_training(args: argparse.Namespace) -> int:
                 validation_samples=int(config["initialization"].get("parity_samples", 2048)),
                 tolerance=float(config["initialization"].get("parity_tolerance", 2e-6)),
             )
+            # The anchor is the competent warm behaviour, so it must be frozen
+            # *after* the PPO transfer, never before it.
+            agent.set_anchor_from_actor()
             initialization_report.update({
                 "mode": "ppo_actor_mean_warm_start",
                 "source_sha256": sha256_file(source),
@@ -583,6 +609,14 @@ def run_training(args: argparse.Namespace) -> int:
                 "target_critics_initialized_from_scratch": True,
                 "entropy_initialized_independently": True,
                 "replay_initial_size": 0,
+                "anchor_actor_frozen_from_warm_transfer": True,
+                "anchor_coefficient": agent.anchor_coefficient,
+                "pre_tanh_limit": agent.actor.pre_tanh_limit,
+                "maximum_pre_tanh_jacobian": agent.actor.config()[
+                    "maximum_pre_tanh_jacobian"
+                ],
+                "predecessor_replay_imported": False,
+                "predecessor_optimizer_state_imported": False,
             })
             replay = StratifiedReplayBuffer(
                 capacity=int(sac["replay_capacity"]),
