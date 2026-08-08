@@ -14,6 +14,8 @@ from marine_race_arena.adapters.visual_spawner import HoloOceanVisualSpawner
 from marine_race_arena.arena.gate_factory import VisualGate
 from marine_race_arena.arena.obstacle import OBSTACLE_PHYSICS_DYNAMIC, Obstacle
 from marine_race_arena.config.schema import Vector3
+from marine_race_arena.learning.rl_engine_health import qualify_engine_start
+from marine_race_arena.learning.rl_engine_startup import engine_start_slot
 from marine_race_arena.participants.participant import RaceParticipant
 
 LOGGER = logging.getLogger(__name__)
@@ -417,17 +419,31 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             scenario = self._build_scenario(environment_name)
             try:
                 LOGGER.info("Trying HoloOcean scenario config for %s.", environment_name)
-                env = self._holoocean.make(
-                    scenario_cfg=scenario,
-                    show_viewport=not self.headless,
-                    ticks_per_sec=scenario.get("ticks_per_sec", 30),
-                    frames_per_sec=scenario.get("frames_per_sec", True),
-                )
+                # Serialise the *actual* engine birth.  Everything else -- the
+                # vector-env construction, already-warm engines, the learner --
+                # runs unconstrained; only this window is exclusive.
+                with engine_start_slot(
+                    owner=f"{environment_name} pid={os.getpid()}",
+                    on_wait=self._on_engine_start_wait,
+                ):
+                    env = self._holoocean.make(
+                        scenario_cfg=scenario,
+                        show_viewport=not self.headless,
+                        ticks_per_sec=scenario.get("ticks_per_sec", 30),
+                        frames_per_sec=scenario.get("frames_per_sec", True),
+                    )
+                    # A live Holodeck.exe is not a healthy engine.  Qualify it
+                    # before releasing the slot so a half-initialised engine can
+                    # never be handed to a learner as if it were ready.
+                    self._last_engine_health = qualify_engine_start(
+                        env, environment_name=environment_name
+                    )
                 self._active_environment_name = environment_name
                 LOGGER.info("Initialized HoloOcean environment %s.", environment_name)
                 return env
             except Exception as exc:
                 failures.append(f"{environment_name} scenario_cfg failed: {type(exc).__name__}: {exc}")
+                self._record_engine_start_failure(environment_name, exc)
                 # holoocean.make() can raise after its Unreal child is already
                 # running.  No environment was returned, so the failed
                 # candidate cannot be closed through its context manager.
@@ -436,6 +452,35 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             "Could not initialize a custom BlueROV2 HoloOcean scenario for any configured environment. "
             + " | ".join(failures)
         )
+
+    @staticmethod
+    def _on_engine_start_wait(record: Mapping[str, Any]) -> None:
+        LOGGER.info(
+            "%s: waiting %.1fs for a HoloOcean start slot (holders: %s).",
+            record.get("state"),
+            float(record.get("waited_seconds", 0.0)),
+            record.get("current_owners"),
+        )
+
+    def _record_engine_start_failure(self, environment_name: str, exc: BaseException) -> None:
+        """Keep enough forensic detail to classify the failure after the fact."""
+
+        self._last_engine_health = {
+            "healthy": False,
+            "environment_name": environment_name,
+            "stage": "make",
+            "error": f"{type(exc).__name__}: {exc}",
+            "pid": os.getpid(),
+        }
+        LOGGER.warning(
+            "HoloOcean engine start failed for %s: %s", environment_name, exc
+        )
+
+    @property
+    def last_engine_health(self) -> Optional[Dict[str, Any]]:
+        """Diagnostics from the most recent engine start attempt."""
+
+        return getattr(self, "_last_engine_health", None)
 
     def _environment_candidates(self) -> list[str]:
         candidates = [

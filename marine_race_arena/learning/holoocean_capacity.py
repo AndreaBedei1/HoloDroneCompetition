@@ -10,11 +10,52 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, Mapping
 
+from marine_race_arena.learning.rl_evaluation_lock import (
+    backoff_delays,
+    is_contention_error,
+)
+
 
 MAX_ACTIVE_HOLOOCEAN_ENGINES = 10
 _REGISTRY = Path(tempfile.gettempdir()) / "holodrone_holoocean_capacity"
 _LOCK = _REGISTRY / "registry.lock"
 _RESERVATIONS = _REGISTRY / "reservations.json"
+_REGISTRY_LOCK_TIMEOUT_SECONDS = 120.0
+
+
+def _try_exclusive_lock(handle) -> bool:
+    """Non-blocking exclusive lock; ``False`` means another process holds it."""
+
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        import fcntl
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError as exc:
+        if is_contention_error(exc):
+            return False
+        raise
+
+
+def _release_lock(handle) -> None:
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
 
 
 def active_holodeck_processes() -> list[Dict[str, Any]]:
@@ -61,30 +102,40 @@ def _pid_alive(pid: int) -> bool:
 
 @contextmanager
 def _registry_lock() -> Iterator[None]:
+    """Serialise registry access without ever reading the locked byte.
+
+    The previous implementation read byte 0 to decide whether the file needed
+    initialising.  ``msvcrt.locking`` is a *mandatory* range lock on Windows, so
+    that read raised ``PermissionError`` in whichever process arrived second --
+    the same defect that killed PPO through the evaluation lock.  The byte is now
+    created with an exclusive ``open(..., "xb")`` and never read again.
+    """
+
     _REGISTRY.mkdir(parents=True, exist_ok=True)
-    with _LOCK.open("a+b") as handle:
-        handle.seek(0)
-        if handle.tell() == 0 and handle.read(1) == b"":
-            handle.write(b"0")
-            handle.flush()
-        handle.seek(0)
-        if os.name == "nt":
-            import msvcrt
-
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-            try:
-                yield
-            finally:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-        else:  # pragma: no cover - Windows is the production platform
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    if not _LOCK.exists():
+        try:
+            with open(_LOCK, "xb") as creator:
+                creator.write(b"0")
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            if not is_contention_error(exc):
+                raise
+    with open(_LOCK, "r+b") as handle:
+        started = time.time()
+        attempt = 0
+        while not _try_exclusive_lock(handle):
+            attempt += 1
+            if time.time() - started > _REGISTRY_LOCK_TIMEOUT_SECONDS:
+                raise TimeoutError(
+                    "HoloOcean capacity registry lock not acquired after "
+                    f"{time.time() - started:.1f}s"
+                )
+            time.sleep(backoff_delays(attempt)[-1])
+        try:
+            yield
+        finally:
+            _release_lock(handle)
 
 
 def _read_reservations() -> list[Dict[str, Any]]:

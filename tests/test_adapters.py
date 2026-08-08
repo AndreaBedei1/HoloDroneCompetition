@@ -7,6 +7,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from marine_race_arena.adapters import AdapterSelectionError, FallbackRaceAdapter, RaceAdapterUnavailable, select_adapter
 from marine_race_arena.adapters.holoocean_adapter import HoloOceanRaceAdapter
 from marine_race_arena.arena.arena_builder import ArenaBuilder
@@ -292,10 +294,26 @@ def test_holoocean_close_final_sweep_reaps_only_owned_engine_children() -> None:
     assert not unrelated.killed
 
 
+class _QualifyingEngine:
+    """A stub that behaves like a genuinely healthy engine.
+
+    A returned environment must now pass startup qualification, so the stub owns
+    a UUID and answers ticks with advancing sensor data.
+    """
+
+    def __init__(self, uuid: str = "stub-uuid") -> None:
+        self._uuid = uuid
+        self._ticks = 0
+
+    def tick(self):
+        self._ticks += 1
+        return {"PoseSensor": float(self._ticks)}
+
+
 def test_holoocean_failed_environment_candidate_is_reaped_before_retry() -> None:
     config, arena, _ = _config_arena_participant()
     adapter = HoloOceanRaceAdapter(config, arena)
-    expected_environment = object()
+    expected_environment = _QualifyingEngine()
     attempts = 0
 
     def make(**kwargs):
@@ -314,3 +332,23 @@ def test_holoocean_failed_environment_candidate_is_reaped_before_retry() -> None
     assert actual is expected_environment
     assert attempts == 2
     cleanup.assert_called_once_with()
+    assert adapter.last_engine_health["healthy"] is True
+
+
+def test_holoocean_environment_that_never_qualifies_is_not_returned() -> None:
+    """A live engine that cannot answer ticks must never reach a learner."""
+
+    config, arena, _ = _config_arena_participant()
+    adapter = HoloOceanRaceAdapter(config, arena)
+
+    class _DeadOnArrival:
+        _uuid = "stub-uuid"
+
+        def tick(self):
+            raise RuntimeError("engine went away")
+
+    adapter._holoocean = SimpleNamespace(make=lambda **kwargs: _DeadOnArrival())
+    with patch.object(adapter, "_ensure_owned_holodeck_children_stopped"):
+        with pytest.raises(RaceAdapterUnavailable):
+            adapter._make_environment()
+    assert adapter.last_engine_health["healthy"] is False

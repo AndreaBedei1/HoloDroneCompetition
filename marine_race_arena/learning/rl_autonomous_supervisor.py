@@ -50,14 +50,44 @@ MAX_RESTART_ATTEMPTS = 3
 # as a crash is what let pure lock contention end a healthy PPO run.
 RESTART_BUDGETS = {
     "evaluation_lock_contention": None,   # unlimited: not a failure
+    "engine_start_slot_wait": None,       # unlimited: queued, not broken
+    "engine_worker_start_retry": 8,       # engine flakiness, not a learner fault
     "transient_engine_startup": 5,
     "unexpected_trainer_crash": 3,
     "invalid_checkpoint": 0,              # never retry blindly
     "learning_collapse": 0,               # never restart identical training
     "unknown": 3,
 }
+#: Reasons that describe *waiting*, not failing.  An algorithm in one of these
+#: keeps its restart counter untouched.
+NON_FAILURE_REASONS = frozenset(
+    {"evaluation_lock_contention", "engine_start_slot_wait"}
+)
+#: Seconds between launching one algorithm and the next, so two trainers never
+#: race to create their first engines in the same instant.
+DEFAULT_ALGORITHM_LAUNCH_STAGGER_SECONDS = 20.0
 # States an algorithm can rest in while the supervisor keeps managing the others.
 TERMINAL_ALGORITHM_STATES = {"PAUSED", "FAILED", "COMPLETED"}
+
+
+def _failure_text(run_dir: Path) -> str:
+    """Read whichever failure artefact the trainer wrote.
+
+    PPO writes ``failure.txt`` and SAC writes ``failure.json``.  Only the former
+    used to be read, so every SAC failure fell through to the generic
+    ``unexpected_trainer_crash`` bucket and burned the strictest budget.
+    """
+
+    parts = []
+    for name in ("failure.txt", "failure.json"):
+        path = run_dir / name
+        if not path.exists():
+            continue
+        try:
+            parts.append(path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    return "\n".join(parts).lower()
 
 
 def classify_failure_reason(run_dir: Path, status: Mapping[str, Any]) -> str:
@@ -66,18 +96,25 @@ def classify_failure_reason(run_dir: Path, status: Mapping[str, Any]) -> str:
     message = str(status.get("message", "") or "").lower()
     if _collapsed(status):
         return "learning_collapse"
-    text = ""
-    failure = run_dir / "failure.txt"
-    if failure.exists():
-        try:
-            text = failure.read_text(encoding="utf-8", errors="replace").lower()
-        except OSError:
-            text = ""
+    text = _failure_text(run_dir)
     haystack = message + " " + text
     if "waiting_for_evaluation_slot" in haystack or (
         "permission denied" in haystack and "evaluation" in haystack
     ) or "evaluation.lock" in haystack:
         return "evaluation_lock_contention"
+    if "waiting_for_engine_start_slot" in haystack:
+        return "engine_start_slot_wait"
+    # A rollout worker dying takes the whole vector env down through the pipe.
+    # That is an *engine* problem, not evidence that the learner is broken, so it
+    # gets its own generous budget instead of the strict trainer-crash one.
+    if (
+        "brokenpipeerror" in haystack
+        or "eoferror" in haystack
+        or "winerror 109" in haystack
+        or "winerror 232" in haystack
+        or "engine_startup_failed" in haystack
+    ):
+        return "engine_worker_start_retry"
     if "timed out or error waiting for engine" in haystack or (
         "holoocean" in haystack and "timeout" in haystack
     ):
@@ -316,11 +353,12 @@ def inspect_algorithm(
         return result
     reason = classify_failure_reason(run_dir, status)
     result["failure_reason"] = reason
-    if reason == "evaluation_lock_contention":
-        # The trainer was queued for the shared evaluation turn, not broken:
-        # relaunch it and do not spend any restart budget.
+    if reason in NON_FAILURE_REASONS:
+        # The trainer was queued for a shared turn -- the evaluation lock or an
+        # engine-start slot -- not broken.  Relaunch it and spend no budget.
         retries = 0
         result["restart_attempts"] = 0
+        result["waiting"] = True
     if budget_exhausted(reason, retries):
         budget = restart_budget(reason)
         result.update(
@@ -473,12 +511,35 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
             return 0
         rows: Dict[str, Any] = {}
         errors = []
+        stagger = float(
+            config.get(
+                "algorithm_launch_stagger_seconds",
+                DEFAULT_ALGORITHM_LAUNCH_STAGGER_SECONDS,
+            )
+        )
+        launched_this_cycle = False
         for name in ("ppo", "sac"):
             spec = config["algorithms"][name]
             before = dict((previous.get("algorithms") or {}).get(name) or {})
+            if launched_this_cycle:
+                # Staged startup: never let two trainers create their first
+                # engines in the same instant.  The second algorithm is deferred
+                # to the next cycle so the first can bring its workers up and
+                # prove healthy before it competes for engine-start slots.
+                rows[name] = {
+                    "algorithm": name, "run_dir": str(spec["run_dir"]),
+                    "state": "WAITING_FOR_ENGINE_START_SLOT",
+                    "reason": "staged_startup_after_sibling_launch",
+                    "restart_attempts": int(retries.get(name, 0)),
+                    "trainer_pids": [], "owned_engines": [],
+                }
+                continue
             row = inspect_algorithm(spec, before, int(retries.get(name, 0)))
             retries[name] = int(row.get("restart_attempts", retries.get(name, 0)))
             rows[name] = row
+            if row.get("launched_pid"):
+                launched_this_cycle = True
+                time.sleep(stagger)
             if row["state"] == "FAILED":
                 errors.append(f"{name}: {row.get('error', 'failed')}")
         # A failed algorithm is recorded, never fatal: the supervisor keeps
@@ -491,6 +552,9 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
             "EVALUATING" if any(row["state"] == "EVALUATING" for row in rows.values())
             else "RESUMING" if any(row["state"] == "RESUMING" for row in rows.values())
             else "TRAINING" if any(row["state"] == "TRAINING" for row in rows.values())
+            else "WAITING_FOR_ENGINE_START_SLOT" if any(
+                row["state"] == "WAITING_FOR_ENGINE_START_SLOT" for row in rows.values()
+            )
             else "COMPLETED" if all(row["state"] == "COMPLETED" for row in rows.values())
             else "PAUSED" if any(row["state"] == "PAUSED" for row in rows.values())
             else "FAILED" if all(row["state"] == "FAILED" for row in rows.values())

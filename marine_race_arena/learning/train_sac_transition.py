@@ -43,6 +43,11 @@ from marine_race_arena.learning.sac_replay_buffer import (
     classify_replay_event,
     is_legal_bootstrap_truncation,
 )
+from marine_race_arena.learning.sac_health_gates import (
+    CriticHealthMonitor,
+    CriticHealthThresholds,
+    DEFAULT_CRITIC_HEALTH,
+)
 from marine_race_arena.learning.sac_transition_checkpoint import (
     atomic_save_sac_checkpoint,
     latest_valid_sac_checkpoint,
@@ -227,6 +232,72 @@ def _make_worker(
         max_episode_steps=max_episode_steps,
         reward_config=reward_config,
     )
+
+
+def _new_critic_health_monitor(config: Mapping[str, Any]) -> CriticHealthMonitor:
+    """Build the live critic-divergence detector from the run configuration."""
+
+    settings = dict(config.get("critic_health") or {})
+    fields = {
+        key: settings[key]
+        for key in CriticHealthThresholds.__dataclass_fields__
+        if key in settings
+    }
+    thresholds = CriticHealthThresholds(**fields) if fields else DEFAULT_CRITIC_HEALTH
+    clip = config.get("sac", {}).get("gradient_clip_critic")
+    return CriticHealthMonitor(
+        thresholds, **({"gradient_clip": float(clip)} if clip else {})
+    )
+
+
+def _recover_from_critic_divergence(
+    *, agent: SACTransitionAgent, replay: StratifiedReplayBuffer,
+    accumulator: MultiWorkerNStepAccumulator, run_dir: Path, contract: str,
+    total_transitions: int, curriculum: TransitionCurriculumController, env: Any,
+    evaluation_state: Any, aliases: Mapping[str, Any], selection: Mapping[str, Any],
+    config: Mapping[str, Any], health: Mapping[str, Any],
+) -> tuple:
+    """Freeze the actor, rebuild the critics from it, keep the replay.
+
+    Returns the recovered agent and a provenance record.  The actor is copied
+    verbatim through the diagnostic checkpoint, so its behaviour is bit-identical
+    across the rebuild -- competence earned by the actor is never discarded to
+    fix a critic.
+    """
+
+    diagnostic = _save(
+        agent=agent, replay=replay, accumulator=accumulator, run_dir=run_dir,
+        contract=contract, total_transitions=total_transitions,
+        curriculum=curriculum, env=env, evaluation_state=evaluation_state,
+        aliases=aliases, selection=selection, config=config,
+        reason="critic_divergence_diagnostic",
+    )
+    sac = dict(config["sac"])
+    before = sha256_file(diagnostic.model_path)
+    recovered, report = rebuild_critics_from_actor(
+        diagnostic.model_path,
+        anchor_coefficient=float(sac.get("anchor", {}).get("coefficient", 10.0)),
+        critic_learning_rate=float(sac["critic_learning_rate"]),
+        actor_learning_rate=float(sac["actor_learning_rate"]),
+        entropy_learning_rate=float(sac.get("entropy_learning_rate", 1e-6)),
+        tau=float(sac["tau"]),
+    )
+    record = {
+        "utc": now_utc(),
+        "event": "critic_rebuild_after_divergence",
+        "gradient_updates": int(agent.gradient_updates),
+        "total_environment_transitions": int(total_transitions),
+        "diagnostic_checkpoint": str(diagnostic.model_path),
+        "diagnostic_sha256": before,
+        "health_reasons": list(health.get("reasons") or []),
+        "action": health.get("action"),
+        "replay_preserved": True,
+        "replay_size": int(replay.size),
+        "actor_preserved": bool(report.get("actor_transferred")),
+        "critics_reinitialized": bool(report.get("critic_1_reinitialized")),
+    }
+    atomic_append_jsonl(run_dir / "logs" / "critic_health.jsonl", record)
+    return recovered, record
 
 
 def _make_vec_env(config: Mapping[str, Any], run_dir: Path, difficulty: str):
@@ -723,6 +794,10 @@ def run_training(args: argparse.Namespace) -> int:
         rollback_limit = int(config["evaluation"].get("rollback_consecutive_evaluations", 2))
         update_credit = 0.0
         last_losses = None
+        critic_health = _new_critic_health_monitor(config)
+        actor_frozen = False
+        actor_unfreeze_after = 0
+        critic_recoveries: list = []
         stop = {"requested": False}
 
         def request_stop(signum=None, frame=None):
@@ -811,12 +886,49 @@ def run_training(args: argparse.Namespace) -> int:
                         )
                         last_losses = agent.update(
                             batch,
-                            update_actor=update_actor,
-                            update_entropy=update_actor,
+                            update_actor=update_actor and not actor_frozen,
+                            update_entropy=update_actor and not actor_frozen,
                         )
                         update_time += time.perf_counter() - updated
                         update_credit -= 1.0
                         block_updates += 1
+
+                        health = critic_health.observe(
+                            last_losses, updates=int(agent.gradient_updates)
+                        )
+                        if health.get("should_pause") and not actor_frozen:
+                            # Critic divergence is not actor incompetence.  Freeze
+                            # the actor, rebuild only the critics from it, and keep
+                            # the replay: exactly the v2 -> v3 recovery, but applied
+                            # automatically instead of after a lost run.
+                            agent, recovery = _recover_from_critic_divergence(
+                                agent=agent, replay=replay, accumulator=accumulator,
+                                run_dir=run_dir, contract=contract,
+                                total_transitions=total_transitions,
+                                curriculum=curriculum, env=env,
+                                evaluation_state=evaluation_state, aliases=aliases,
+                                selection=selection, config=config, health=health,
+                            )
+                            critic_health = _new_critic_health_monitor(config)
+                            actor_frozen = True
+                            actor_unfreeze_after = (
+                                int(agent.gradient_updates)
+                                + int(config["sac"].get("critic_warmup_updates", 10_000))
+                            )
+                            critic_recoveries.append(recovery)
+                        elif (
+                            actor_frozen
+                            and int(agent.gradient_updates) >= actor_unfreeze_after
+                            and not health.get("diverging")
+                        ):
+                            # Only give the actor back once the *rebuilt* critics
+                            # have proven healthy for a full warmup window.
+                            actor_frozen = False
+                            atomic_append_jsonl(
+                                run_dir / "logs" / "critic_health.jsonl",
+                                {"utc": now_utc(), "event": "actor_unfrozen",
+                                 "gradient_updates": int(agent.gradient_updates)},
+                            )
 
             elapsed = time.perf_counter() - block_start
             atomic_append_jsonl(run_dir / "logs" / "progress.jsonl", {
