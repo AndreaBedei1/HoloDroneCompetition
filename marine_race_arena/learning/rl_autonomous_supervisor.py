@@ -45,6 +45,59 @@ TRAINER_MODULES = {
 }
 SUPERVISOR_MODULE = "marine_race_arena.learning.rl_autonomous_supervisor"
 MAX_RESTART_ATTEMPTS = 3
+# Restart budgets are per *reason*.  Waiting for the shared evaluation turn is
+# normal operation and must never consume a trainer's restart budget: counting it
+# as a crash is what let pure lock contention end a healthy PPO run.
+RESTART_BUDGETS = {
+    "evaluation_lock_contention": None,   # unlimited: not a failure
+    "transient_engine_startup": 5,
+    "unexpected_trainer_crash": 3,
+    "invalid_checkpoint": 0,              # never retry blindly
+    "learning_collapse": 0,               # never restart identical training
+    "unknown": 3,
+}
+# States an algorithm can rest in while the supervisor keeps managing the others.
+TERMINAL_ALGORITHM_STATES = {"PAUSED", "FAILED", "COMPLETED"}
+
+
+def classify_failure_reason(run_dir: Path, status: Mapping[str, Any]) -> str:
+    """Why a trainer is not running, so the retry budget can match the cause."""
+
+    message = str(status.get("message", "") or "").lower()
+    if _collapsed(status):
+        return "learning_collapse"
+    text = ""
+    failure = run_dir / "failure.txt"
+    if failure.exists():
+        try:
+            text = failure.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            text = ""
+    haystack = message + " " + text
+    if "waiting_for_evaluation_slot" in haystack or (
+        "permission denied" in haystack and "evaluation" in haystack
+    ) or "evaluation.lock" in haystack:
+        return "evaluation_lock_contention"
+    if "timed out or error waiting for engine" in haystack or (
+        "holoocean" in haystack and "timeout" in haystack
+    ):
+        return "transient_engine_startup"
+    if "checkpoint" in haystack and (
+        "invalid" in haystack or "hash" in haystack or "contract" in haystack
+    ):
+        return "invalid_checkpoint"
+    if text or message:
+        return "unexpected_trainer_crash"
+    return "unknown"
+
+
+def restart_budget(reason: str) -> Optional[int]:
+    return RESTART_BUDGETS.get(str(reason), MAX_RESTART_ATTEMPTS)
+
+
+def budget_exhausted(reason: str, attempts: int) -> bool:
+    budget = restart_budget(reason)
+    return budget is not None and int(attempts) >= int(budget)
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -261,8 +314,19 @@ def inspect_algorithm(
     if _target_reached(status) or str(status.get("state", "")).lower() == "completed":
         result["state"] = "COMPLETED"
         return result
-    if retries >= MAX_RESTART_ATTEMPTS:
-        result.update(state="FAILED", error="automatic restart limit reached")
+    reason = classify_failure_reason(run_dir, status)
+    result["failure_reason"] = reason
+    if reason == "evaluation_lock_contention":
+        # The trainer was queued for the shared evaluation turn, not broken:
+        # relaunch it and do not spend any restart budget.
+        retries = 0
+        result["restart_attempts"] = 0
+    if budget_exhausted(reason, retries):
+        budget = restart_budget(reason)
+        result.update(
+            state="PAUSED" if reason == "learning_collapse" else "FAILED",
+            error=f"restart budget exhausted for {reason} (limit {budget})",
+        )
         return result
     if checkpoint is None and not bool(spec.get("allow_fresh_start", False)):
         result.update(state="FAILED", error="no valid atomic checkpoint")
@@ -417,12 +481,19 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
             rows[name] = row
             if row["state"] == "FAILED":
                 errors.append(f"{name}: {row.get('error', 'failed')}")
-        state = "FAILED" if errors else (
+        # A failed algorithm is recorded, never fatal: the supervisor keeps
+        # managing every other algorithm.
+        manageable = [
+            name for name, row in rows.items()
+            if row["state"] not in TERMINAL_ALGORITHM_STATES
+        ]
+        state = (
             "EVALUATING" if any(row["state"] == "EVALUATING" for row in rows.values())
             else "RESUMING" if any(row["state"] == "RESUMING" for row in rows.values())
             else "TRAINING" if any(row["state"] == "TRAINING" for row in rows.values())
             else "COMPLETED" if all(row["state"] == "COMPLETED" for row in rows.values())
             else "PAUSED" if any(row["state"] == "PAUSED" for row in rows.values())
+            else "FAILED" if all(row["state"] == "FAILED" for row in rows.values())
             else "INSPECT"
         )
         governor_plan = None
@@ -447,7 +518,8 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
                 comparison_error = f"{type(exc).__name__}: {exc}"
         value = {
             "schema_version": "rl_autonomous_supervisor_v1",
-            "updated_utc": now_utc(), "state": "FAILED" if errors else state,
+            "updated_utc": now_utc(), "state": state,
+            "manageable_algorithms": manageable,
             "pid": os.getpid(), "check_interval_seconds": int(config["interval_seconds"]),
             "algorithms": rows, "restart_attempts": retries,
             "comparison_signature": (
@@ -468,7 +540,11 @@ def worker(state_dir: Path, *, once: bool = False) -> int:
                 "errors": errors,
             }, separators=(",", ":")) + "\n")
         previous = value
-        if once or value["state"] in {"FAILED", "COMPLETED"}:
+        if once:
+            return 0
+        # Exit only when nothing remains to manage; a single failed algorithm
+        # never stops supervision of the other.
+        if not manageable and bool(config.get("exit_when_idle", True)):
             return 1 if value["state"] == "FAILED" else 0
         time.sleep(int(config["interval_seconds"]))
 
