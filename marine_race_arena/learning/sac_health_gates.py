@@ -131,6 +131,136 @@ def evaluate_health(
     return bool(reasons), tuple(reasons)
 
 
+@dataclass(frozen=True)
+class CriticHealthThresholds:
+    """Divergence limits measured against a rolling recent baseline.
+
+    SAC v2 was only stopped after two catastrophic *evaluations*; by then the
+    critics had been drifting for a long time (mean target Q -63, p05 -216,
+    TD-error tail 192, critic loss 181). These limits catch that drift from the
+    learner statistics alone, long before an evaluation is due.
+    """
+
+    max_q_drift_rate_per_1k_updates: float = 5.0
+    max_q_spread_growth_ratio: float = 4.0
+    max_td_p95_growth_ratio: float = 4.0
+    max_critic_loss_growth_ratio: float = 8.0
+    max_clipped_gradient_fraction: float = 0.80
+    minimum_baseline_samples: int = 20
+    consecutive_violations: int = 3
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "schema_version": HEALTH_GATE_VERSION,
+            "max_q_drift_rate_per_1k_updates": self.max_q_drift_rate_per_1k_updates,
+            "max_q_spread_growth_ratio": self.max_q_spread_growth_ratio,
+            "max_td_p95_growth_ratio": self.max_td_p95_growth_ratio,
+            "max_critic_loss_growth_ratio": self.max_critic_loss_growth_ratio,
+            "max_clipped_gradient_fraction": self.max_clipped_gradient_fraction,
+            "minimum_baseline_samples": self.minimum_baseline_samples,
+            "consecutive_violations": self.consecutive_violations,
+        }
+
+
+DEFAULT_CRITIC_HEALTH = CriticHealthThresholds()
+
+
+class CriticHealthMonitor:
+    """Rolling critic-divergence detector with a protective pause action."""
+
+    def __init__(
+        self,
+        thresholds: CriticHealthThresholds = DEFAULT_CRITIC_HEALTH,
+        *,
+        window: int = 200,
+        gradient_clip: float = 5.0,
+    ) -> None:
+        self.thresholds = thresholds
+        self.window = int(window)
+        self.gradient_clip = float(gradient_clip)
+        self.samples: list[Dict[str, Any]] = []
+        self.consecutive = 0
+        self.baseline: Optional[Dict[str, float]] = None
+
+    @staticmethod
+    def _mean(values: Sequence[float]) -> float:
+        values = [float(v) for v in values if _finite(v)]
+        return sum(values) / len(values) if values else 0.0
+
+    def observe(self, metrics: Mapping[str, Any], *, updates: int = 0) -> Dict[str, Any]:
+        sample = {
+            "updates": int(updates),
+            "mean_q": float(metrics.get("mean_q", 0.0) or 0.0),
+            "q_p05": float(metrics.get("q_p05", 0.0) or 0.0),
+            "q_p95": float(metrics.get("q_p95", 0.0) or 0.0),
+            "td_error_p95": float(metrics.get("td_error_p95", 0.0) or 0.0),
+            "critic_loss": float(metrics.get("critic_loss", 0.0) or 0.0),
+            "critic_gradient_norm": float(
+                metrics.get("critic_gradient_norm", 0.0) or 0.0
+            ),
+        }
+        self.samples.append(sample)
+        if len(self.samples) > self.window:
+            self.samples.pop(0)
+        reasons: list[str] = []
+        if len(self.samples) >= int(self.thresholds.minimum_baseline_samples):
+            half = len(self.samples) // 2
+            early, late = self.samples[:half], self.samples[half:]
+            if self.baseline is None:
+                self.baseline = {
+                    "q_spread": abs(self._mean([s["q_p95"] for s in early])
+                                    - self._mean([s["q_p05"] for s in early])),
+                    "td_p95": abs(self._mean([s["td_error_p95"] for s in early])),
+                    "critic_loss": abs(self._mean([s["critic_loss"] for s in early])),
+                }
+            span = max(1.0, late[-1]["updates"] - early[0]["updates"])
+            drift = abs(self._mean([s["mean_q"] for s in late])
+                        - self._mean([s["mean_q"] for s in early]))
+            if drift / span * 1000.0 > self.thresholds.max_q_drift_rate_per_1k_updates:
+                reasons.append("q_median_drift")
+            spread = abs(self._mean([s["q_p95"] for s in late])
+                         - self._mean([s["q_p05"] for s in late]))
+            base_spread = max(1e-6, self.baseline["q_spread"])
+            if spread / base_spread > self.thresholds.max_q_spread_growth_ratio:
+                reasons.append("q_spread_expansion")
+            td = abs(self._mean([s["td_error_p95"] for s in late]))
+            if td / max(1e-6, self.baseline["td_p95"]) > self.thresholds.max_td_p95_growth_ratio:
+                reasons.append("td_error_growth")
+            loss = abs(self._mean([s["critic_loss"] for s in late]))
+            if loss / max(1e-6, self.baseline["critic_loss"]) > self.thresholds.max_critic_loss_growth_ratio:
+                reasons.append("critic_loss_explosion")
+            clipped = sum(
+                1 for s in late
+                if s["critic_gradient_norm"] >= self.gradient_clip - 1e-6
+            ) / max(1, len(late))
+            if clipped > self.thresholds.max_clipped_gradient_fraction:
+                reasons.append("critic_gradients_pinned_at_clip")
+        self.consecutive = self.consecutive + 1 if reasons else 0
+        should_pause = self.consecutive >= int(self.thresholds.consecutive_violations)
+        return {
+            "schema_version": HEALTH_GATE_VERSION,
+            "updates": int(updates),
+            "diverging": bool(reasons),
+            "reasons": reasons,
+            "consecutive_violations": self.consecutive,
+            "should_pause": should_pause,
+            "action": (
+                # The actor is competent; only the critics are rebuilt.
+                "checkpoint_freeze_actor_and_rebuild_critics"
+                if should_pause else None
+            ),
+            "baseline": dict(self.baseline or {}),
+        }
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {
+            "schema_version": HEALTH_GATE_VERSION,
+            "consecutive": int(self.consecutive),
+            "baseline": dict(self.baseline or {}),
+            "samples": list(self.samples[-self.window:]),
+        }
+
+
 class HealthMonitor:
     """Track sustained violations across successive health samples."""
 

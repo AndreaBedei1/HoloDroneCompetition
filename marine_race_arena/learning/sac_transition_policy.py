@@ -746,6 +746,89 @@ class SACTransitionAgent:
         return agent
 
 
+def rebuild_critics_from_actor(
+    source_checkpoint: str | Path,
+    *,
+    device: str = "cpu",
+    anchor_coefficient: float = 10.0,
+    **overrides: Any,
+) -> tuple:
+    """Keep a validated actor, discard degraded critics, start clean.
+
+    SAC v2 lost competence because its critics drifted (mean target Q reached
+    -63 with a p05 of -216 and a TD-error tail of 192) while the actor itself
+    stayed well behaved.  Actor competence and critic health are therefore
+    checkpointed and restored independently: the actor transfers verbatim and
+    becomes its own anchor, while both critics, both target critics, all critic
+    optimizer state and the entropy state are rebuilt from scratch.
+    """
+
+    import torch
+
+    payload = torch.load(str(source_checkpoint), map_location=device, weights_only=False)
+    state = payload.get("agent", payload)
+    if state.get("schema_version") != "sac_transition_agent_v1":
+        raise ValueError("unsupported SAC agent checkpoint for critic rebuild")
+    config = dict(state["config"])
+    learning_rates = dict(config.pop("learning_rates"))
+    config.setdefault("pre_tanh_limit", DEFAULT_PRE_TANH_LIMIT)
+    config.pop("alpha_min", None)
+    config.pop("alpha_max", None)
+    settings = {
+        "actor_learning_rate": learning_rates["actor"],
+        "critic_learning_rate": learning_rates["critic"],
+        "entropy_learning_rate": learning_rates["entropy"],
+    }
+    settings.update(overrides)
+    # Explicit overrides win over whatever the degraded run was configured with.
+    for key in settings:
+        config.pop(key, None)
+    agent = cls_factory(config, settings, anchor_coefficient, device)
+    # Actor only: nothing else crosses over from the degraded run.
+    agent.actor.load_state_dict(state["actor"], strict=True)
+    agent.set_anchor_from_actor()
+    report = {
+        "schema_version": "sac_actor_only_critic_rebuild_v1",
+        "source_checkpoint": str(source_checkpoint),
+        "actor_transferred": True,
+        "anchor_actor_frozen_from_transferred_actor": True,
+        "critic_1_reinitialized": True,
+        "critic_2_reinitialized": True,
+        "target_critic_1_reinitialized": True,
+        "target_critic_2_reinitialized": True,
+        "critic_optimizer_reinitialized": True,
+        "actor_optimizer_reinitialized": True,
+        "entropy_state_reinitialized": True,
+        "replay_imported": False,
+        "source_gradient_updates": int(state.get("gradient_updates", 0)),
+        "pre_tanh_limit": agent.actor.pre_tanh_limit,
+        "maximum_pre_tanh_jacobian": agent.actor.config()[
+            "maximum_pre_tanh_jacobian"
+        ],
+        "anchor_coefficient": agent.anchor_coefficient,
+    }
+    return agent, report
+
+
+def cls_factory(config, settings, anchor_coefficient, device):
+    return SACTransitionAgent(
+        **config, **settings, anchor_coefficient=float(anchor_coefficient),
+        device=device,
+    )
+
+
+def critics_are_independent(agent: Any, reference: Any) -> bool:
+    """True when no critic tensor was inherited from ``reference``."""
+
+    import torch
+
+    left = agent.critic.state_dict()
+    right = reference.critic.state_dict()
+    return not any(
+        torch.allclose(left[name], right[name]) for name in left if left[name].numel()
+    )
+
+
 def load_sac_transition_policy(checkpoint: str | Path, *, device: str = "cpu") -> SACTransitionAgent:
     import torch
 

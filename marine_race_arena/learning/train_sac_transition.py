@@ -51,6 +51,7 @@ from marine_race_arena.learning.sac_transition_checkpoint import (
 from marine_race_arena.learning.sac_transition_policy import (
     SACTransitionAgent,
     transfer_ppo_mean_actor,
+    rebuild_critics_from_actor,
     DEFAULT_PRE_TANH_LIMIT,
 )
 from marine_race_arena.learning.train_ppo_transition import (
@@ -94,16 +95,28 @@ def _load_config(path: str | Path) -> Dict[str, Any]:
     if config["adapter"] == "holoocean" and bool(config["allow_fallback"]):
         raise ValueError("real SAC training cannot enable fallback")
     sac = config["sac"]
+    # Contract-critical values are pinned exactly; the two stability knobs the
+    # critic rebuild is allowed to retune are range-checked instead, so a
+    # deliberate change is possible but a typo still fails loudly.
     defaults = {
         "n_step": 3,
         "gamma": 0.995,
-        "tau": 0.005,
         "batch_size": 512,
         "replay_capacity": 1_000_000,
-        "learning_starts": 10_000,
         "automatic_entropy": False,
         "target_entropy": -4.0,
     }
+    ranges = {
+        "tau": (0.001, 0.01),
+        "learning_starts": (5_000, 50_000),
+    }
+    for key, (low, high) in ranges.items():
+        if key not in sac:
+            raise ValueError(f"SAC config missing {key}")
+        if not low <= float(sac[key]) <= high:
+            raise ValueError(
+                f"SAC {key}={sac[key]} outside the validated range [{low}, {high}]"
+            )
     for key, expected in defaults.items():
         if key not in sac:
             raise ValueError(f"SAC config missing {key}")
@@ -170,12 +183,14 @@ def _preflight(config: Mapping[str, Any], *, allow_dirty: bool) -> Dict[str, Any
     if dirty and not allow_dirty:
         raise ValueError("commit and push SAC implementation before a non-smoke run")
     initialization = dict(config["initialization"])
-    if initialization.get("mode") != "ppo_actor_mean_warm_start":
-        raise ValueError("SAC must start from the common competent PPO actor")
+    if initialization.get("mode") not in {
+        "ppo_actor_mean_warm_start", "actor_only_critic_rebuild",
+    }:
+        raise ValueError("unsupported SAC initialization mode")
     source = _resolve_source_checkpoint(initialization["source_checkpoint"])
     digest = sha256_file(source)
     if digest != initialization.get("source_sha256"):
-        raise ValueError("SAC PPO actor source hash mismatch")
+        raise ValueError("SAC actor source hash mismatch")
     return {
         "checked_utc": now_utc(),
         "branch": branch,
@@ -565,6 +580,17 @@ def run_training(args: argparse.Namespace) -> int:
                 raise ValueError("SAC run contains checkpoints; use --resume")
             sac = config["sac"]
             anchor = dict(sac.get("anchor") or {})
+            anchor_coefficient = (
+                float(anchor.get("initial_coefficient", 0.0))
+                if anchor.get("enabled", False) else 0.0
+            )
+            anchor_settings = {
+                "anchor_target_drift": float(anchor.get("target_mean_drift", 0.05)),
+                "anchor_coefficient_min": float(anchor.get("coefficient_min", 0.0)),
+                "anchor_coefficient_max": float(anchor.get("coefficient_max", 1000.0)),
+                "anchor_increase_factor": float(anchor.get("increase_factor", 1.5)),
+                "anchor_decrease_factor": float(anchor.get("decrease_factor", 0.8)),
+            }
             agent = SACTransitionAgent(
                 hidden_sizes=sac["hidden_sizes"],
                 actor_learning_rate=sac["actor_learning_rate"],
@@ -583,41 +609,72 @@ def run_training(args: argparse.Namespace) -> int:
                 huber_delta=sac.get("huber_delta", 10.0),
                 alpha_min=sac.get("alpha_min", 0.001),
                 alpha_max=sac.get("alpha_max", 0.02),
-                anchor_coefficient=(
-                    float(anchor.get("initial_coefficient", 0.0))
-                    if anchor.get("enabled", False) else 0.0
-                ),
-                anchor_target_drift=float(anchor.get("target_mean_drift", 0.05)),
-                anchor_coefficient_min=float(anchor.get("coefficient_min", 0.0)),
-                anchor_coefficient_max=float(anchor.get("coefficient_max", 1000.0)),
-                anchor_increase_factor=float(anchor.get("increase_factor", 1.5)),
-                anchor_decrease_factor=float(anchor.get("decrease_factor", 0.8)),
+                anchor_coefficient=anchor_coefficient,
+                **anchor_settings,
             )
             source = _resolve_source_checkpoint(config["initialization"]["source_checkpoint"])
-            initialization_report = transfer_ppo_mean_actor(
-                agent.actor, source,
-                validation_samples=int(config["initialization"].get("parity_samples", 2048)),
-                tolerance=float(config["initialization"].get("parity_tolerance", 2e-6)),
-            )
-            # The anchor is the competent warm behaviour, so it must be frozen
-            # *after* the PPO transfer, never before it.
-            agent.set_anchor_from_actor()
-            initialization_report.update({
-                "mode": "ppo_actor_mean_warm_start",
-                "source_sha256": sha256_file(source),
-                "critics_initialized_from_scratch": True,
-                "target_critics_initialized_from_scratch": True,
-                "entropy_initialized_independently": True,
-                "replay_initial_size": 0,
-                "anchor_actor_frozen_from_warm_transfer": True,
-                "anchor_coefficient": agent.anchor_coefficient,
-                "pre_tanh_limit": agent.actor.pre_tanh_limit,
-                "maximum_pre_tanh_jacobian": agent.actor.config()[
-                    "maximum_pre_tanh_jacobian"
-                ],
-                "predecessor_replay_imported": False,
-                "predecessor_optimizer_state_imported": False,
-            })
+            if config["initialization"]["mode"] == "actor_only_critic_rebuild":
+                # Actor competence and critic health are restored independently:
+                # the validated actor transfers verbatim and becomes its own
+                # anchor, while both critics, both targets, every optimizer and
+                # the entropy state are rebuilt and the replay starts empty.
+                agent, initialization_report = rebuild_critics_from_actor(
+                    source,
+                    anchor_coefficient=anchor_coefficient,
+                    actor_learning_rate=sac["actor_learning_rate"],
+                    critic_learning_rate=sac["critic_learning_rate"],
+                    entropy_learning_rate=sac["entropy_learning_rate"],
+                    tau=sac["tau"],
+                    target_entropy=sac["target_entropy"],
+                    initial_alpha=sac["initial_alpha"],
+                    initial_std=sac["initial_std"],
+                    log_std_min=sac.get("log_std_min", -5.0),
+                    log_std_max=sac.get("log_std_max", -2.0),
+                    pre_tanh_limit=sac.get("pre_tanh_limit", DEFAULT_PRE_TANH_LIMIT),
+                    gradient_clip_actor=sac.get("gradient_clip_actor", 1.0),
+                    gradient_clip_critic=sac.get("gradient_clip_critic", 5.0),
+                    critic_loss=sac.get("critic_loss", "huber"),
+                    huber_delta=sac.get("huber_delta", 10.0),
+                    alpha_min=sac.get("alpha_min", 0.001),
+                    alpha_max=sac.get("alpha_max", 0.02),
+                    **anchor_settings,
+                )
+                initialization_report.update({
+                    "mode": "actor_only_critic_rebuild",
+                    "source_sha256": sha256_file(source),
+                    "predecessor_run": config["initialization"].get(
+                        "failed_predecessor_run"),
+                    "predecessor_replay_imported": False,
+                    "predecessor_optimizer_state_imported": False,
+                    "replay_initial_size": 0,
+                })
+            else:
+                initialization_report = transfer_ppo_mean_actor(
+                    agent.actor, source,
+                    validation_samples=int(
+                        config["initialization"].get("parity_samples", 2048)),
+                    tolerance=float(
+                        config["initialization"].get("parity_tolerance", 2e-6)),
+                )
+                # The anchor is the competent warm behaviour, so it must be
+                # frozen *after* the PPO transfer, never before it.
+                agent.set_anchor_from_actor()
+                initialization_report.update({
+                    "mode": "ppo_actor_mean_warm_start",
+                    "source_sha256": sha256_file(source),
+                    "critics_initialized_from_scratch": True,
+                    "target_critics_initialized_from_scratch": True,
+                    "entropy_initialized_independently": True,
+                    "replay_initial_size": 0,
+                    "anchor_actor_frozen_from_warm_transfer": True,
+                    "anchor_coefficient": agent.anchor_coefficient,
+                    "pre_tanh_limit": agent.actor.pre_tanh_limit,
+                    "maximum_pre_tanh_jacobian": agent.actor.config()[
+                        "maximum_pre_tanh_jacobian"
+                    ],
+                    "predecessor_replay_imported": False,
+                    "predecessor_optimizer_state_imported": False,
+                })
             replay = StratifiedReplayBuffer(
                 capacity=int(sac["replay_capacity"]),
                 seed=int(config["seed"]) + 71,
