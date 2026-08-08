@@ -270,3 +270,53 @@ def test_an_engine_start_slot_wait_is_not_a_failure(tmp_path):
     reason = classify_failure_reason(run_dir, {})
     assert reason == "engine_start_slot_wait"
     assert reason in NON_FAILURE_REASONS
+
+
+# ------------------------------------------------- live trainer discovery
+
+
+def test_interpreter_flags_do_not_hide_a_live_trainer(monkeypatch):
+    """A trainer the supervisor cannot see gets a duplicate launched onto it."""
+
+    from types import SimpleNamespace
+
+    from marine_race_arena.learning import rl_autonomous_supervisor as sup
+
+    module = "marine_race_arena.learning.train_ppo_transition"
+    here = os.getcwd()
+
+    def make(cmdline):
+        return SimpleNamespace(
+            pid=4242,
+            info={"pid": 4242, "name": "python.exe", "cmdline": cmdline},
+            cwd=lambda: here,
+        )
+
+    plain = make(["python.exe", "-m", module, "train"])
+    flagged = make(["python.exe", "-X", "faulthandler", "-m", module, "train"])
+    unrelated = make(["python.exe", "-m", "some.other.module"])
+    no_module = make(["python.exe", "script.py"])
+
+    monkeypatch.setattr(
+        sup, "_processes", lambda: [plain, flagged, unrelated, no_module]
+    )
+    found = sup._trainer_processes(module, here)
+    assert len(found) == 2, "both the plain and the flagged trainer must be seen"
+
+
+def test_trainer_discovery_still_rejects_a_different_module(monkeypatch):
+    from types import SimpleNamespace
+
+    from marine_race_arena.learning import rl_autonomous_supervisor as sup
+
+    here = os.getcwd()
+    other = SimpleNamespace(
+        pid=1,
+        info={"pid": 1, "name": "python.exe",
+              "cmdline": ["python.exe", "-m", "marine_race_arena.learning.train_sac_transition"]},
+        cwd=lambda: here,
+    )
+    monkeypatch.setattr(sup, "_processes", lambda: [other])
+    assert sup._trainer_processes(
+        "marine_race_arena.learning.train_ppo_transition", here
+    ) == []

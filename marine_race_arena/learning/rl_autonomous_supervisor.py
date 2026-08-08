@@ -153,18 +153,42 @@ def _processes() -> Iterable[Any]:
     return psutil.process_iter(["pid", "name", "cmdline", "create_time"])
 
 
+#: Interpreter options that consume the following token as their value.
+_PYTHON_VALUE_FLAGS = frozenset({"-X", "-W", "--check-hash-based-pycs"})
+
+
+def _module_flag_index(cmdline: list) -> Optional[int]:
+    """Index of ``-m`` in a genuine ``python [flags] -m <module>`` command line.
+
+    Only interpreter *flags* may precede ``-m``.  Requiring ``-m`` at index 1
+    made any flag (``-X faulthandler``) hide a live trainer, and an unseen
+    trainer is dangerous: the supervisor would launch a duplicate onto the same
+    run directory.  Accepting ``-m`` anywhere is equally wrong, because conda's
+    launcher (``conda.exe run python -m ...``) repeats the arguments and would
+    then be mistaken for a second real trainer.
+    """
+
+    if len(cmdline) < 3:
+        return None
+    index = 1
+    while index < len(cmdline) - 1:
+        token = str(cmdline[index])
+        if token == "-m":
+            return index
+        if not token.startswith("-"):
+            return None  # a script or wrapper argument: not the real trainer
+        index += 2 if token in _PYTHON_VALUE_FLAGS else 1
+    return None
+
+
 def _trainer_processes(module: str, worktree: str | Path | None = None) -> list[Any]:
     matches = []
     expected_cwd = None if worktree is None else os.path.normcase(os.path.abspath(worktree))
     for process in _processes():
         try:
             cmdline = list(process.info.get("cmdline") or [])
-            # The real trainer is ``python -m ...``.  Conda's launcher and
-            # conda-script Python wrapper may repeat the same arguments later
-            # in their command line and must not count as trainers.
-            if len(cmdline) < 3 or cmdline[1] != "-m":
-                continue
-            if cmdline[2] != module:
+            marker = _module_flag_index(cmdline)
+            if marker is None or cmdline[marker + 1] != module:
                 continue
             if expected_cwd is not None:
                 cwd = os.path.normcase(os.path.abspath(process.cwd()))
