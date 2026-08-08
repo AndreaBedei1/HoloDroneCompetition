@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
-import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, Mapping, Optional
@@ -14,47 +11,15 @@ from marine_race_arena.learning.holoocean_capacity import (
     reserve_holoocean_engines,
 )
 from marine_race_arena.learning.longrun_checkpoint import atomic_append_jsonl
+from marine_race_arena.learning.rl_evaluation_lock import (
+    WAITING_STATE, evaluation_lock,
+)
 from marine_race_arena.learning.provenance import now_utc
 
 
-_SCHEDULER_ROOT = Path(tempfile.gettempdir()) / "holodrone_evaluation_scheduler"
-_SCHEDULER_LOCK = _SCHEDULER_ROOT / "evaluation.lock"
-
-
-@contextmanager
-def _exclusive_evaluation_lock() -> Iterator[None]:
-    """Serialize PPO/SAC evaluations without coupling either algorithm."""
-
-    _SCHEDULER_ROOT.mkdir(parents=True, exist_ok=True)
-    with _SCHEDULER_LOCK.open("a+b") as handle:
-        handle.seek(0)
-        if handle.read(1) == b"":
-            handle.seek(0)
-            handle.write(b"0")
-            handle.flush()
-        handle.seek(0)
-        if os.name == "nt":
-            import msvcrt
-
-            while True:
-                try:
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-                    break
-                except OSError:
-                    time.sleep(1.0)
-            try:
-                yield
-            finally:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-        else:  # pragma: no cover - production is Windows
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+# The lock itself lives in rl_evaluation_lock: contention is normal operation
+# and must never surface as a trainer failure.
+_exclusive_evaluation_lock = evaluation_lock
 
 
 def select_evaluation_workers(
@@ -107,12 +72,20 @@ def scheduled_evaluation(
 ) -> Iterator[Dict[str, Any]]:
     """Wait for the shared evaluation turn and hold it until engines close."""
 
-    with _exclusive_evaluation_lock():
+    def _record_wait(record):
+        if audit_path is not None:
+            atomic_append_jsonl(audit_path, {"event": "waiting", **record})
+
+    with evaluation_lock(str(owner), on_wait=_record_wait) as lease:
         allocation = select_evaluation_workers(
             evaluation_config,
             fixed_workers=fixed_workers,
         )
-        allocation.update({"owner": str(owner), "allocated_utc": now_utc()})
+        allocation.update({
+            "owner": str(owner), "allocated_utc": now_utc(),
+            "lock_waited_seconds": lease["waited_seconds"],
+            "lock_wait_cycles": lease["wait_cycles"],
+        })
         if audit_path is not None:
             atomic_append_jsonl(audit_path, {"event": "allocated", **allocation})
         with reserve_holoocean_engines(
