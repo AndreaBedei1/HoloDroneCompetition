@@ -6,7 +6,9 @@ import importlib
 import logging
 import math
 import os
+import random
 import subprocess
+import time
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter, RaceAdapterError, RaceAdapterUnavailable
@@ -19,6 +21,43 @@ from marine_race_arena.learning.rl_engine_startup import engine_start_slot
 from marine_race_arena.participants.participant import RaceParticipant
 
 LOGGER = logging.getLogger(__name__)
+
+#: Per-engine handshake retries.  The real failure observed in production was
+#: ``OpenSemaphore`` returning ERROR_FILE_NOT_FOUND for
+#: ``Global\HOLODECK_LOADING_SEM<uuid>``: the named kernel object the client
+#: waits on never appeared.  BrokenPipeError/EOFError in the vector-env parent
+#: were only the downstream symptom of the worker then exiting.  One engine
+#: losing its handshake must cost one engine restart, not a whole trainer.
+ENGINE_HANDSHAKE_BACKOFF = (2.0, 4.0, 8.0, 15.0, 20.0, 20.0, 20.0, 20.0)
+
+#: Substrings identifying a handshake/startup failure that a fresh UUID can fix.
+_HANDSHAKE_SIGNATURES = (
+    "opensemaphore",
+    "holodeck_loading_sem",
+    "timed out waiting for binary to load",
+    "timed out or error waiting for engine",
+    "createsemaphore",
+    "openfilemapping",
+    "the system cannot find the file specified",
+    "impossibile trovare il file specificato",
+)
+
+
+def is_engine_handshake_failure(exc: BaseException) -> bool:
+    """Whether this failure is a retryable engine handshake problem."""
+
+    from marine_race_arena.learning.rl_engine_health import EngineStartupFailed
+
+    if isinstance(exc, EngineStartupFailed):
+        return True
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(signature in text for signature in _HANDSHAKE_SIGNATURES)
+
+
+def _jittered(delay: float) -> float:
+    """Spread concurrent retries so they do not collide again in lockstep."""
+
+    return max(0.0, float(delay) * (1.0 + random.uniform(-0.25, 0.25)))
 
 
 class HoloOceanRaceAdapter(BaseRaceAdapter):
@@ -417,37 +456,61 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         failures: list[str] = []
         for environment_name in self._environment_candidates():
             scenario = self._build_scenario(environment_name)
-            try:
-                LOGGER.info("Trying HoloOcean scenario config for %s.", environment_name)
-                # Serialise the *actual* engine birth.  Everything else -- the
-                # vector-env construction, already-warm engines, the learner --
-                # runs unconstrained; only this window is exclusive.
-                with engine_start_slot(
-                    owner=f"{environment_name} pid={os.getpid()}",
-                    on_wait=self._on_engine_start_wait,
-                ):
-                    env = self._holoocean.make(
-                        scenario_cfg=scenario,
-                        show_viewport=not self.headless,
-                        ticks_per_sec=scenario.get("ticks_per_sec", 30),
-                        frames_per_sec=scenario.get("frames_per_sec", True),
+            for attempt, delay in enumerate(ENGINE_HANDSHAKE_BACKOFF, start=1):
+                try:
+                    LOGGER.info(
+                        "Trying HoloOcean scenario config for %s (attempt %d/%d).",
+                        environment_name, attempt, len(ENGINE_HANDSHAKE_BACKOFF),
                     )
-                    # A live Holodeck.exe is not a healthy engine.  Qualify it
-                    # before releasing the slot so a half-initialised engine can
-                    # never be handed to a learner as if it were ready.
-                    self._last_engine_health = qualify_engine_start(
-                        env, environment_name=environment_name
+                    # Serialise the *actual* engine birth.  Everything else --
+                    # the vector-env construction, already-warm engines, the
+                    # learner -- runs unconstrained; only this window is
+                    # exclusive.
+                    with engine_start_slot(
+                        owner=f"{environment_name} pid={os.getpid()}",
+                        on_wait=self._on_engine_start_wait,
+                    ):
+                        env = self._holoocean.make(
+                            scenario_cfg=scenario,
+                            show_viewport=not self.headless,
+                            ticks_per_sec=scenario.get("ticks_per_sec", 30),
+                            frames_per_sec=scenario.get("frames_per_sec", True),
+                        )
+                        # A live Holodeck.exe is not a healthy engine.  Qualify
+                        # it before releasing the slot so a half-initialised
+                        # engine can never be handed to a learner as ready.
+                        self._last_engine_health = qualify_engine_start(
+                            env, environment_name=environment_name
+                        )
+                    self._active_environment_name = environment_name
+                    self._engine_start_attempts = attempt
+                    LOGGER.info(
+                        "Initialized HoloOcean environment %s on attempt %d.",
+                        environment_name, attempt,
                     )
-                self._active_environment_name = environment_name
-                LOGGER.info("Initialized HoloOcean environment %s.", environment_name)
-                return env
-            except Exception as exc:
-                failures.append(f"{environment_name} scenario_cfg failed: {type(exc).__name__}: {exc}")
-                self._record_engine_start_failure(environment_name, exc)
-                # holoocean.make() can raise after its Unreal child is already
-                # running.  No environment was returned, so the failed
-                # candidate cannot be closed through its context manager.
-                self._ensure_owned_holodeck_children_stopped()
+                    return env
+                except Exception as exc:
+                    self._record_engine_start_failure(environment_name, exc, attempt)
+                    # holoocean.make() can raise after its Unreal child is
+                    # already running.  No environment was returned, so the
+                    # failed candidate cannot be closed through its context
+                    # manager -- reap only this process's own engines.
+                    self._ensure_owned_holodeck_children_stopped()
+                    retryable = is_engine_handshake_failure(exc)
+                    last = attempt >= len(ENGINE_HANDSHAKE_BACKOFF)
+                    if not retryable or last:
+                        failures.append(
+                            f"{environment_name} scenario_cfg failed after "
+                            f"{attempt} attempt(s): {type(exc).__name__}: {exc}"
+                        )
+                        break
+                    # A fresh holoocean.make() allocates a brand-new UUID, so
+                    # the retry never reuses the named object that failed.
+                    LOGGER.warning(
+                        "engine_handshake_retry for %s: %s; retrying in %.1fs "
+                        "with a fresh UUID.", environment_name, exc, delay,
+                    )
+                    time.sleep(_jittered(delay))
         raise RaceAdapterUnavailable(
             "Could not initialize a custom BlueROV2 HoloOcean scenario for any configured environment. "
             + " | ".join(failures)
@@ -462,18 +525,28 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             record.get("current_owners"),
         )
 
-    def _record_engine_start_failure(self, environment_name: str, exc: BaseException) -> None:
+    def _record_engine_start_failure(
+        self, environment_name: str, exc: BaseException, attempt: int = 1
+    ) -> None:
         """Keep enough forensic detail to classify the failure after the fact."""
 
+        handshake = is_engine_handshake_failure(exc)
         self._last_engine_health = {
             "healthy": False,
             "environment_name": environment_name,
             "stage": "make",
+            "attempt": int(attempt),
             "error": f"{type(exc).__name__}: {exc}",
+            "classification": (
+                "engine_handshake_retry" if handshake else "engine_start_failed"
+            ),
+            "retryable": handshake,
             "pid": os.getpid(),
         }
         LOGGER.warning(
-            "HoloOcean engine start failed for %s: %s", environment_name, exc
+            "HoloOcean engine start failed for %s (attempt %d, %s): %s",
+            environment_name, attempt,
+            "engine_handshake_retry" if handshake else "fatal", exc,
         )
 
     @property
