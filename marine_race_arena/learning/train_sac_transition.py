@@ -285,7 +285,9 @@ def _recover_from_critic_divergence(
     actor_sha_before = actor_parameter_sha256(agent)
     recovered, report = rebuild_critics_from_actor(
         diagnostic.model_path,
-        anchor_coefficient=float(sac.get("anchor", {}).get("coefficient", 10.0)),
+        anchor_coefficient=float(
+            (sac.get("anchor") or {}).get("initial_coefficient", 10.0)
+        ),
         critic_learning_rate=float(sac["critic_learning_rate"]),
         actor_learning_rate=float(sac["actor_learning_rate"]),
         entropy_learning_rate=float(sac.get("entropy_learning_rate", 1e-6)),
