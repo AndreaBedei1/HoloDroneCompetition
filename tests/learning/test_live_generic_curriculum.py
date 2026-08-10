@@ -331,3 +331,52 @@ def test_the_env_logs_at_episode_end_with_matching_geometry():
     tail = body.split("if terminated or truncated:", 1)[1]
     assert "append_episode(" in tail
     assert "geometry=self.current_geometry" in tail
+
+
+# ------------------------------------------- enabling must be explicit
+
+
+def test_an_empty_config_never_silently_disables_the_curriculum():
+    """Regression: `{} or None` collapsed to None and the run fell back.
+
+    The first live launch logged curriculum_stage=None and gate counts drawn
+    from the legacy FULL_SEQUENCE_LENGTHS tuple, i.e. the curriculum was dead
+    code again.  Enabling is now explicit and observable.
+    """
+
+    from marine_race_arena.learning.transition_env import _build_sequence_curriculum
+
+    assert _build_sequence_curriculum({}) is None
+    assert _build_sequence_curriculum({"enabled": False}) is None
+    built = _build_sequence_curriculum({"enabled": True})
+    assert isinstance(built, GenericSequenceCurriculum)
+    assert built.stage["name"] == STAGES[0]["name"]
+
+
+def test_unknown_curriculum_keys_are_rejected_not_ignored():
+    from marine_race_arena.learning.transition_env import _build_sequence_curriculum
+
+    with pytest.raises(ValueError, match="unknown sequence_curriculum keys"):
+        _build_sequence_curriculum({"enabled": True, "typo": 1})
+
+
+def test_both_shipped_configs_actually_enable_the_curriculum():
+    for name in ("configs/rl/ppo_universal_transition_generic_sequence_v3.json",
+                 "configs/rl/sac_universal_transition_v5_generic_sequence.json"):
+        config = json.loads(Path(name).read_text(encoding="utf-8"))
+        assert config["sequence_curriculum"].get("enabled") is True, name
+
+
+def test_a_curriculum_backed_env_reports_its_stage_on_every_episode():
+    """curriculum_stage=None in a log row means the curriculum is not running."""
+
+    sampler, curriculum = _sampler(stage=1)
+    rows = [
+        episode_row(utc="t", algorithm="ppo", run="r", worker_id=0,
+                    geometry=sampler.sample())
+        for _ in range(200)
+    ]
+    assert all(r["curriculum_stage"] == STAGES[1]["name"] for r in rows)
+    assert {r["gate_count"] for r in rows} - {3, 5, 8, 12, 17, 22}, (
+        "gate counts confined to the legacy tuple means the fallback is active"
+    )

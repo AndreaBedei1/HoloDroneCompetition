@@ -115,7 +115,9 @@
     "inactive_windows": 4,
     "minimum_episodes": 10
   },
-  "sequence_curriculum": {},
+  "sequence_curriculum": {
+    "enabled": true
+  },
   "provenance": {
     "git_sha": "9104e3e3f83c9090edf6ddca6f66502bb4de87b6",
     "curriculum_version": "generic_sequence_curriculum_v1",

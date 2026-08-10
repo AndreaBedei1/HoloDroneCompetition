@@ -346,7 +346,7 @@ def _make_vec_env(config: Mapping[str, Any], run_dir: Path, difficulty: str):
             frames_per_sec=config["holoocean_frames_per_sec"],
             max_episode_steps=int(config["max_episode_steps"]),
             reward_config=dict(config.get("reward") or {}),
-            sequence_curriculum=dict(config.get("sequence_curriculum") or {}) or None,
+            sequence_curriculum=dict(config.get("sequence_curriculum") or {}),
         )
         for index in range(n_envs)
     ]

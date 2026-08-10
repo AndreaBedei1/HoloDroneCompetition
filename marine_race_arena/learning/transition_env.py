@@ -41,6 +41,29 @@ from marine_race_arena.learning.transition_curriculum import (
 _BASE = gym.Env if gym is not None else object
 
 
+def _build_sequence_curriculum(spec: Any) -> Optional[GenericSequenceCurriculum]:
+    """Construct the live curriculum from config, or return ``None``.
+
+    An empty mapping must NOT silently mean "disabled": that is precisely how
+    the curriculum stayed dead code while the logs showed the old coin flip.
+    Enabling is explicit, and unknown keys are rejected rather than ignored.
+    """
+
+    if spec is None or isinstance(spec, GenericSequenceCurriculum):
+        return spec
+    if not isinstance(spec, Mapping):
+        raise TypeError(f"unsupported sequence_curriculum {type(spec).__name__}")
+    settings = dict(spec)
+    if not settings.pop("enabled", False):
+        return None
+    allowed = {"stages", "promotion", "demotion"}
+    unknown = sorted(set(settings) - allowed)
+    if unknown:
+        raise ValueError(f"unknown sequence_curriculum keys {unknown}")
+    kwargs = {k: v for k, v in settings.items() if v}
+    return GenericSequenceCurriculum(**kwargs)
+
+
 class UniversalTransitionEnv(_BASE):
     """Exactly one simulator and one sampler, owned by one worker process."""
 
@@ -88,11 +111,7 @@ class UniversalTransitionEnv(_BASE):
         self.log_episode_composition = bool(log_episode_composition)
         # The generic sequence curriculum, when configured, replaces the binary
         # focus/full-sequence coin flip with a real length mixture.
-        self.sequence_curriculum = (
-            GenericSequenceCurriculum(**dict(sequence_curriculum))
-            if isinstance(sequence_curriculum, Mapping) and sequence_curriculum
-            else (sequence_curriculum or None)
-        )
+        self.sequence_curriculum = _build_sequence_curriculum(sequence_curriculum)
         self.sampler = TransitionGeometrySampler(
             seed=self.sampler_seed,
             difficulty=difficulty,
