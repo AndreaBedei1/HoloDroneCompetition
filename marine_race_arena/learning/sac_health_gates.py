@@ -131,14 +131,32 @@ def evaluate_health(
     return bool(reasons), tuple(reasons)
 
 
+#: Explicit lifecycle of a critic generation.  A freshly rebuilt critic starts
+#: in BASELINE_BUILDING and is *never* judged until it has settled.
+PHASE_BASELINE = "BASELINE_BUILDING"
+PHASE_HEALTHY = "HEALTHY"
+PHASE_WARNING = "WARNING"
+PHASE_DIVERGING = "DIVERGING"
+PHASE_RECOVERING = "RECOVERING"
+CRITIC_PHASES = (
+    PHASE_BASELINE, PHASE_HEALTHY, PHASE_WARNING, PHASE_DIVERGING, PHASE_RECOVERING,
+)
+
+
 @dataclass(frozen=True)
 class CriticHealthThresholds:
-    """Divergence limits measured against a rolling recent baseline.
+    """Divergence limits measured against an *established* baseline.
 
-    SAC v2 was only stopped after two catastrophic *evaluations*; by then the
-    critics had been drifting for a long time (mean target Q -63, p05 -216,
-    TD-error tail 192, critic loss 181). These limits catch that drift from the
-    learner statistics alone, long before an evaluation is due.
+    SAC v2 was only stopped after two catastrophic evaluations; by then the
+    critics had drifted a long way (mean target Q -63, p05 -216, TD-error tail
+    192, critic loss 181).  These limits catch that from learner statistics
+    alone.  All of them are ratios against a baseline this critic generation
+    actually reached, never the literal v2 numbers, so an equivalent future
+    divergence at a different scale is caught just the same.
+
+    The baseline requirements exist because SAC v3 fired at 22 updates: a fresh
+    critic necessarily moves away from its random initial Q distribution while
+    it learns, and reading that as divergence caused an endless rebuild loop.
     """
 
     max_q_drift_rate_per_1k_updates: float = 5.0
@@ -146,8 +164,13 @@ class CriticHealthThresholds:
     max_td_p95_growth_ratio: float = 4.0
     max_critic_loss_growth_ratio: float = 8.0
     max_clipped_gradient_fraction: float = 0.80
-    minimum_baseline_samples: int = 20
+    # A critic generation must produce this much evidence before it may be judged.
+    minimum_baseline_samples: int = 200
+    minimum_baseline_updates: int = 2_000
+    minimum_baseline_windows: int = 2
+    window_samples: int = 100
     consecutive_violations: int = 3
+    recovery_windows: int = 2
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -158,34 +181,160 @@ class CriticHealthThresholds:
             "max_critic_loss_growth_ratio": self.max_critic_loss_growth_ratio,
             "max_clipped_gradient_fraction": self.max_clipped_gradient_fraction,
             "minimum_baseline_samples": self.minimum_baseline_samples,
+            "minimum_baseline_updates": self.minimum_baseline_updates,
+            "minimum_baseline_windows": self.minimum_baseline_windows,
+            "window_samples": self.window_samples,
             "consecutive_violations": self.consecutive_violations,
+            "recovery_windows": self.recovery_windows,
         }
 
 
 DEFAULT_CRITIC_HEALTH = CriticHealthThresholds()
 
 
+def critic_health_thresholds_from_mapping(
+    value: Optional[Mapping[str, Any]],
+    base: CriticHealthThresholds = DEFAULT_CRITIC_HEALTH,
+) -> CriticHealthThresholds:
+    if not value:
+        return base
+    known = set(base.as_dict()) - {"schema_version"}
+    unknown = sorted(set(value) - known)
+    if unknown:
+        raise ValueError(f"unknown critic health threshold keys {unknown}")
+    typed = {key: type(getattr(base, key))(value[key]) for key in value}
+    return replace(base, **typed)
+
+
 class CriticHealthMonitor:
-    """Rolling critic-divergence detector with a protective pause action."""
+    """Stateful critic-divergence detector scoped to one critic generation.
+
+    ``generation`` increments on every rebuild.  Each generation re-enters
+    BASELINE_BUILDING, so statistics are never compared across a rebuild -- the
+    comparison that made SAC v3 rebuild itself forever.
+    """
 
     def __init__(
         self,
         thresholds: CriticHealthThresholds = DEFAULT_CRITIC_HEALTH,
         *,
-        window: int = 200,
+        window: int = 2_000,
         gradient_clip: float = 5.0,
+        generation: int = 0,
     ) -> None:
         self.thresholds = thresholds
         self.window = int(window)
         self.gradient_clip = float(gradient_clip)
+        self.generation = int(generation)
         self.samples: list[Dict[str, Any]] = []
         self.consecutive = 0
+        self.healthy_windows = 0
         self.baseline: Optional[Dict[str, float]] = None
+        self.phase = PHASE_BASELINE
+        self.updates_at_generation_start: Optional[int] = None
+
+    # ------------------------------------------------------------ helpers
 
     @staticmethod
     def _mean(values: Sequence[float]) -> float:
         values = [float(v) for v in values if _finite(v)]
         return sum(values) / len(values) if values else 0.0
+
+    @property
+    def samples_in_generation(self) -> int:
+        return len(self.samples)
+
+    @property
+    def updates_in_generation(self) -> int:
+        if not self.samples or self.updates_at_generation_start is None:
+            return 0
+        return int(self.samples[-1]["updates"]) - int(self.updates_at_generation_start)
+
+    def is_healthy(self) -> bool:
+        """Only a settled, non-drifting critic generation counts as healthy."""
+
+        return self.phase == PHASE_HEALTHY
+
+    def baseline_established(self) -> bool:
+        return self.baseline is not None
+
+    def begin_generation(self, generation: Optional[int] = None) -> None:
+        """Restart the lifecycle after a critic rebuild or restore."""
+
+        self.generation = (
+            self.generation + 1 if generation is None else int(generation)
+        )
+        self.samples.clear()
+        self.consecutive = 0
+        self.healthy_windows = 0
+        self.baseline = None
+        self.phase = PHASE_BASELINE
+        self.updates_at_generation_start = None
+
+    def _baseline_ready(self) -> bool:
+        t = self.thresholds
+        return (
+            len(self.samples) >= int(t.minimum_baseline_samples)
+            and self.updates_in_generation >= int(t.minimum_baseline_updates)
+            and len(self.samples) >= int(t.minimum_baseline_windows) * int(t.window_samples)
+        )
+
+    def _establish_baseline(self) -> None:
+        """Freeze the baseline from the *settled tail* of the baseline phase.
+
+        Using the earliest samples would anchor on a randomly initialised
+        critic, which is exactly what made normal early learning look like
+        divergence.
+        """
+
+        t = self.thresholds
+        tail = self.samples[-int(t.minimum_baseline_windows) * int(t.window_samples):]
+        self.baseline = {
+            "mean_q": self._mean([s["mean_q"] for s in tail]),
+            "q_spread": abs(self._mean([s["q_p95"] for s in tail])
+                            - self._mean([s["q_p05"] for s in tail])),
+            "td_p95": abs(self._mean([s["td_error_p95"] for s in tail])),
+            "critic_loss": abs(self._mean([s["critic_loss"] for s in tail])),
+            "updates": float(tail[-1]["updates"]),
+        }
+
+    def _window_reasons(self) -> list:
+        t = self.thresholds
+        window = self.samples[-int(t.window_samples):]
+        base = self.baseline or {}
+        reasons: list = []
+
+        span = max(1.0, float(window[-1]["updates"]) - float(base.get("updates", 0.0)))
+        drift = abs(self._mean([s["mean_q"] for s in window]) - float(base.get("mean_q", 0.0)))
+        if drift / span * 1000.0 > t.max_q_drift_rate_per_1k_updates:
+            reasons.append("q_median_drift")
+
+        spread = abs(self._mean([s["q_p95"] for s in window])
+                     - self._mean([s["q_p05"] for s in window]))
+        if spread / max(1e-6, float(base.get("q_spread", 0.0))) > t.max_q_spread_growth_ratio:
+            reasons.append("q_spread_expansion")
+
+        td = abs(self._mean([s["td_error_p95"] for s in window]))
+        if td / max(1e-6, float(base.get("td_p95", 0.0))) > t.max_td_p95_growth_ratio:
+            reasons.append("td_error_growth")
+
+        loss = abs(self._mean([s["critic_loss"] for s in window]))
+        if loss / max(1e-6, float(base.get("critic_loss", 0.0))) > t.max_critic_loss_growth_ratio:
+            reasons.append("critic_loss_explosion")
+
+        clipped = sum(
+            1 for s in window
+            if s["critic_gradient_norm"] >= self.gradient_clip - 1e-6
+        ) / max(1, len(window))
+        if clipped > t.max_clipped_gradient_fraction:
+            reasons.append("critic_gradients_pinned_at_clip")
+
+        for s in window[-1:]:
+            if not all(_finite(s[k]) for k in ("mean_q", "critic_loss", "td_error_p95")):
+                reasons.append("non_finite_critic_statistics")
+        return reasons
+
+    # ------------------------------------------------------------- public
 
     def observe(self, metrics: Mapping[str, Any], *, updates: int = 0) -> Dict[str, Any]:
         sample = {
@@ -193,56 +342,61 @@ class CriticHealthMonitor:
             "mean_q": float(metrics.get("mean_q", 0.0) or 0.0),
             "q_p05": float(metrics.get("q_p05", 0.0) or 0.0),
             "q_p95": float(metrics.get("q_p95", 0.0) or 0.0),
+            "mean_target_q": float(metrics.get("mean_target_q", 0.0) or 0.0),
             "td_error_p95": float(metrics.get("td_error_p95", 0.0) or 0.0),
+            "td_error_max": float(metrics.get("td_error_max", 0.0) or 0.0),
             "critic_loss": float(metrics.get("critic_loss", 0.0) or 0.0),
             "critic_gradient_norm": float(
                 metrics.get("critic_gradient_norm", 0.0) or 0.0
             ),
         }
+        if self.updates_at_generation_start is None:
+            self.updates_at_generation_start = int(updates)
         self.samples.append(sample)
         if len(self.samples) > self.window:
             self.samples.pop(0)
-        reasons: list[str] = []
-        if len(self.samples) >= int(self.thresholds.minimum_baseline_samples):
-            half = len(self.samples) // 2
-            early, late = self.samples[:half], self.samples[half:]
-            if self.baseline is None:
-                self.baseline = {
-                    "q_spread": abs(self._mean([s["q_p95"] for s in early])
-                                    - self._mean([s["q_p05"] for s in early])),
-                    "td_p95": abs(self._mean([s["td_error_p95"] for s in early])),
-                    "critic_loss": abs(self._mean([s["critic_loss"] for s in early])),
-                }
-            span = max(1.0, late[-1]["updates"] - early[0]["updates"])
-            drift = abs(self._mean([s["mean_q"] for s in late])
-                        - self._mean([s["mean_q"] for s in early]))
-            if drift / span * 1000.0 > self.thresholds.max_q_drift_rate_per_1k_updates:
-                reasons.append("q_median_drift")
-            spread = abs(self._mean([s["q_p95"] for s in late])
-                         - self._mean([s["q_p05"] for s in late]))
-            base_spread = max(1e-6, self.baseline["q_spread"])
-            if spread / base_spread > self.thresholds.max_q_spread_growth_ratio:
-                reasons.append("q_spread_expansion")
-            td = abs(self._mean([s["td_error_p95"] for s in late]))
-            if td / max(1e-6, self.baseline["td_p95"]) > self.thresholds.max_td_p95_growth_ratio:
-                reasons.append("td_error_growth")
-            loss = abs(self._mean([s["critic_loss"] for s in late]))
-            if loss / max(1e-6, self.baseline["critic_loss"]) > self.thresholds.max_critic_loss_growth_ratio:
-                reasons.append("critic_loss_explosion")
-            clipped = sum(
-                1 for s in late
-                if s["critic_gradient_norm"] >= self.gradient_clip - 1e-6
-            ) / max(1, len(late))
-            if clipped > self.thresholds.max_clipped_gradient_fraction:
-                reasons.append("critic_gradients_pinned_at_clip")
-        self.consecutive = self.consecutive + 1 if reasons else 0
-        should_pause = self.consecutive >= int(self.thresholds.consecutive_violations)
+
+        reasons: list = []
+        if self.baseline is None:
+            if self._baseline_ready():
+                self._establish_baseline()
+                self.phase = PHASE_HEALTHY
+            # While BASELINE_BUILDING nothing can trigger, by construction.
+        else:
+            reasons = self._window_reasons()
+            if reasons:
+                self.consecutive += 1
+                self.healthy_windows = 0
+                self.phase = (
+                    PHASE_DIVERGING
+                    if self.consecutive >= int(self.thresholds.consecutive_violations)
+                    else PHASE_WARNING
+                )
+            else:
+                self.consecutive = 0
+                self.healthy_windows += 1
+                if self.phase in (PHASE_WARNING, PHASE_DIVERGING, PHASE_RECOVERING):
+                    self.phase = (
+                        PHASE_HEALTHY
+                        if self.healthy_windows >= int(self.thresholds.recovery_windows)
+                        else PHASE_RECOVERING
+                    )
+                else:
+                    self.phase = PHASE_HEALTHY
+
+        should_pause = self.phase == PHASE_DIVERGING
         return {
             "schema_version": HEALTH_GATE_VERSION,
             "updates": int(updates),
+            "generation": int(self.generation),
+            "phase": self.phase,
+            "baseline_established": self.baseline is not None,
+            "samples_in_generation": len(self.samples),
+            "updates_in_generation": self.updates_in_generation,
             "diverging": bool(reasons),
             "reasons": reasons,
             "consecutive_violations": self.consecutive,
+            "healthy_windows": self.healthy_windows,
             "should_pause": should_pause,
             "action": (
                 # The actor is competent; only the critics are rebuilt.
@@ -255,10 +409,27 @@ class CriticHealthMonitor:
     def state_dict(self) -> Dict[str, Any]:
         return {
             "schema_version": HEALTH_GATE_VERSION,
+            "generation": int(self.generation),
+            "phase": self.phase,
             "consecutive": int(self.consecutive),
+            "healthy_windows": int(self.healthy_windows),
             "baseline": dict(self.baseline or {}),
+            "updates_at_generation_start": self.updates_at_generation_start,
             "samples": list(self.samples[-self.window:]),
         }
+
+    def load_state_dict(self, value: Mapping[str, Any]) -> None:
+        if value.get("schema_version") != HEALTH_GATE_VERSION:
+            raise ValueError("unsupported SAC critic health state")
+        self.generation = int(value.get("generation", 0))
+        self.phase = str(value.get("phase", PHASE_BASELINE))
+        self.consecutive = int(value.get("consecutive", 0))
+        self.healthy_windows = int(value.get("healthy_windows", 0))
+        baseline = value.get("baseline") or {}
+        self.baseline = {k: float(v) for k, v in baseline.items()} or None
+        start = value.get("updates_at_generation_start")
+        self.updates_at_generation_start = None if start is None else int(start)
+        self.samples = [dict(s) for s in (value.get("samples") or [])]
 
 
 class HealthMonitor:

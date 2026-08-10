@@ -43,10 +43,15 @@ from marine_race_arena.learning.sac_replay_buffer import (
     classify_replay_event,
     is_legal_bootstrap_truncation,
 )
+from marine_race_arena.learning.sac_actor_gate import (
+    ActorFreezeGate,
+    actor_gate_policy_from_mapping,
+)
 from marine_race_arena.learning.sac_health_gates import (
     CriticHealthMonitor,
     CriticHealthThresholds,
     DEFAULT_CRITIC_HEALTH,
+    critic_health_thresholds_from_mapping,
 )
 from marine_race_arena.learning.sac_transition_checkpoint import (
     atomic_save_sac_checkpoint,
@@ -55,6 +60,7 @@ from marine_race_arena.learning.sac_transition_checkpoint import (
 )
 from marine_race_arena.learning.sac_transition_policy import (
     SACTransitionAgent,
+    actor_parameter_sha256,
     transfer_ppo_mean_actor,
     rebuild_critics_from_actor,
     DEFAULT_PRE_TANH_LIMIT,
@@ -237,17 +243,18 @@ def _make_worker(
 def _new_critic_health_monitor(config: Mapping[str, Any]) -> CriticHealthMonitor:
     """Build the live critic-divergence detector from the run configuration."""
 
-    settings = dict(config.get("critic_health") or {})
-    fields = {
-        key: settings[key]
-        for key in CriticHealthThresholds.__dataclass_fields__
-        if key in settings
-    }
-    thresholds = CriticHealthThresholds(**fields) if fields else DEFAULT_CRITIC_HEALTH
+    thresholds = critic_health_thresholds_from_mapping(config.get("critic_health"))
     clip = config.get("sac", {}).get("gradient_clip_critic")
     return CriticHealthMonitor(
         thresholds, **({"gradient_clip": float(clip)} if clip else {})
     )
+
+
+def _new_actor_gate(config: Mapping[str, Any]) -> ActorFreezeGate:
+    """Build the actor freeze gate; it owns the only counter that matters."""
+
+    policy = actor_gate_policy_from_mapping(config.get("actor_gate"))
+    return ActorFreezeGate(policy)
 
 
 def _recover_from_critic_divergence(
@@ -256,13 +263,14 @@ def _recover_from_critic_divergence(
     total_transitions: int, curriculum: TransitionCurriculumController, env: Any,
     evaluation_state: Any, aliases: Mapping[str, Any], selection: Mapping[str, Any],
     config: Mapping[str, Any], health: Mapping[str, Any],
+    actor_gate: Any = None,
 ) -> tuple:
     """Freeze the actor, rebuild the critics from it, keep the replay.
 
     Returns the recovered agent and a provenance record.  The actor is copied
     verbatim through the diagnostic checkpoint, so its behaviour is bit-identical
     across the rebuild -- competence earned by the actor is never discarded to
-    fix a critic.
+    fix a critic.  The actor parameter hash is asserted equal before and after.
     """
 
     diagnostic = _save(
@@ -274,6 +282,7 @@ def _recover_from_critic_divergence(
     )
     sac = dict(config["sac"])
     before = sha256_file(diagnostic.model_path)
+    actor_sha_before = actor_parameter_sha256(agent)
     recovered, report = rebuild_critics_from_actor(
         diagnostic.model_path,
         anchor_coefficient=float(sac.get("anchor", {}).get("coefficient", 10.0)),
@@ -282,6 +291,14 @@ def _recover_from_critic_divergence(
         entropy_learning_rate=float(sac.get("entropy_learning_rate", 1e-6)),
         tau=float(sac["tau"]),
     )
+    actor_sha_after = actor_parameter_sha256(recovered)
+    if actor_sha_after != actor_sha_before:
+        # Losing the actor to fix a critic is the one outcome this whole
+        # mechanism exists to prevent; fail loudly rather than silently.
+        raise RuntimeError(
+            "critic rebuild altered the actor: "
+            f"{actor_sha_before} -> {actor_sha_after}"
+        )
     record = {
         "utc": now_utc(),
         "event": "critic_rebuild_after_divergence",
@@ -289,12 +306,18 @@ def _recover_from_critic_divergence(
         "total_environment_transitions": int(total_transitions),
         "diagnostic_checkpoint": str(diagnostic.model_path),
         "diagnostic_sha256": before,
+        "actor_sha256_before": actor_sha_before,
+        "actor_sha256_after": actor_sha_after,
+        "actor_unchanged": True,
         "health_reasons": list(health.get("reasons") or []),
+        "health_phase": health.get("phase"),
+        "critic_generation": int(health.get("generation", 0)),
         "action": health.get("action"),
         "replay_preserved": True,
         "replay_size": int(replay.size),
         "actor_preserved": bool(report.get("actor_transferred")),
         "critics_reinitialized": bool(report.get("critic_1_reinitialized")),
+        "actor_gate_before": (actor_gate.describe() if actor_gate is not None else None),
     }
     atomic_append_jsonl(run_dir / "logs" / "critic_health.jsonl", record)
     return recovered, record
@@ -445,6 +468,7 @@ def _save(
     evaluation_state: Mapping[str, Any], aliases: Dict[str, Any],
     selection: Mapping[str, Any], config: Mapping[str, Any], reason: str,
     status: str = "unverified", stop_reason: Optional[str] = None,
+    actor_gate: Any = None, critic_health: Any = None,
 ):
     path = run_dir / "checkpoints" / f"sac_{int(total_transitions)}_steps.pt"
     aliases["last"] = str(path)
@@ -462,6 +486,10 @@ def _save(
         reason=reason,
         status=status,
         stop_reason=stop_reason,
+        actor_gate_state=(actor_gate.state_dict() if actor_gate is not None else None),
+        critic_health_state=(
+            critic_health.state_dict() if critic_health is not None else None
+        ),
     )
 
 
@@ -472,7 +500,7 @@ def _status(
     curriculum: TransitionCurriculumController, env: Any,
     aliases: Mapping[str, Any], selection: Mapping[str, Any],
     config: Mapping[str, Any], last_losses: Optional[Mapping[str, float]],
-    message: str,
+    message: str, actor_gate: Any = None, critic_health: Any = None,
 ) -> Dict[str, Any]:
     value = {
         "updated_utc": now_utc(),
@@ -484,6 +512,13 @@ def _status(
         "actor_updates": int(agent.actor_updates),
         "entropy_updates": int(agent.entropy_updates),
         "entropy_coefficient": float(agent.alpha),
+        "actor_gate": (actor_gate.describe() if actor_gate is not None else None),
+        "critic_health_phase": (
+            critic_health.phase if critic_health is not None else None
+        ),
+        "critic_generation": (
+            int(critic_health.generation) if critic_health is not None else None
+        ),
         "last_losses": None if last_losses is None else dict(last_losses),
         "replay_size": int(replay.size),
         "replay_capacity": int(replay.capacity),
@@ -620,6 +655,11 @@ def run_training(args: argparse.Namespace) -> int:
         n_workers=int(config["n_envs"]),
     )
     initialization_report = None
+    # Built before the resume branch: a resumed run must be able to restore
+    # the persisted freeze/generation state into these objects.
+    critic_health = _new_critic_health_monitor(config)
+    actor_gate = _new_actor_gate(config)
+    actor_ever_active = not actor_gate.actor_frozen
     env = _make_vec_env(config, run_dir, curriculum.difficulty)
     try:
         if args.resume:
@@ -640,6 +680,14 @@ def run_training(args: argparse.Namespace) -> int:
             aliases.update(state.get("checkpoint_aliases") or {})
             selection.update(state.get("checkpoint_selection_state") or {})
             evaluation_state.update(state.get("evaluation") or {})
+            # Restore the freeze/generation state verbatim.  Recomputing it from
+            # the restored agent.gradient_updates would resurrect the SAC v3 bug
+            # on every resume.
+            if state.get("actor_gate"):
+                actor_gate.load_state_dict(state["actor_gate"])
+                actor_ever_active = not actor_gate.actor_frozen
+            if state.get("critic_health"):
+                critic_health.load_state_dict(state["critic_health"])
             restore_rng_state(state["rng"])
             atomic_append_jsonl(run_dir / "logs" / "resume.jsonl", {
                 "utc": now_utc(), "checkpoint": str(checkpoint.model_path),
@@ -794,9 +842,6 @@ def run_training(args: argparse.Namespace) -> int:
         rollback_limit = int(config["evaluation"].get("rollback_consecutive_evaluations", 2))
         update_credit = 0.0
         last_losses = None
-        critic_health = _new_critic_health_monitor(config)
-        actor_frozen = False
-        actor_unfreeze_after = 0
         critic_recoveries: list = []
         stop = {"requested": False}
 
@@ -811,6 +856,7 @@ def run_training(args: argparse.Namespace) -> int:
             target=target, agent=agent, replay=replay, accumulator=accumulator,
             curriculum=curriculum, env=env, aliases=aliases, selection=selection,
             config=config, last_losses=last_losses, message="multi-step SAC initialized",
+            actor_gate=actor_gate, critic_health=critic_health,
         )
 
         collector_steps = int(config["sac"].get("collector_steps", 128))
@@ -879,24 +925,44 @@ def run_training(args: argparse.Namespace) -> int:
                         batch = replay.sample(batch_size)
                         replay_time += time.perf_counter() - sampled
                         updated = time.perf_counter()
-                        update_actor = should_update_actor(
-                            agent.gradient_updates,
-                            critic_warmup_updates=critic_warmup_updates,
-                            policy_delay=policy_delay,
+                        # The actor's turn depends only on this critic
+                        # generation's own progress, never on an absolute
+                        # optimizer counter that a rebuild resets to zero.
+                        actor_gate.consider_unfreeze(
+                            critic_healthy=critic_health.is_healthy()
+                        )
+                        if actor_gate.should_update_actor() and not actor_ever_active:
+                            actor_ever_active = True
+                            atomic_append_jsonl(
+                                run_dir / "logs" / "critic_health.jsonl",
+                                {"utc": now_utc(), "event": "actor_unfrozen",
+                                 "total_environment_transitions": total_transitions,
+                                 **actor_gate.describe()},
+                            )
+                        update_actor = (
+                            actor_gate.should_update_actor()
+                            and should_update_actor(
+                                actor_gate.critic_updates_since_rebuild,
+                                critic_warmup_updates=0,
+                                policy_delay=policy_delay,
+                            )
                         )
                         last_losses = agent.update(
                             batch,
-                            update_actor=update_actor and not actor_frozen,
-                            update_entropy=update_actor and not actor_frozen,
+                            update_actor=update_actor,
+                            update_entropy=update_actor,
                         )
                         update_time += time.perf_counter() - updated
                         update_credit -= 1.0
                         block_updates += 1
+                        actor_gate.record_critic_update()
+                        if update_actor:
+                            actor_gate.record_actor_update()
 
                         health = critic_health.observe(
                             last_losses, updates=int(agent.gradient_updates)
                         )
-                        if health.get("should_pause") and not actor_frozen:
+                        if health.get("should_pause"):
                             # Critic divergence is not actor incompetence.  Freeze
                             # the actor, rebuild only the critics from it, and keep
                             # the replay: exactly the v2 -> v3 recovery, but applied
@@ -908,27 +974,15 @@ def run_training(args: argparse.Namespace) -> int:
                                 curriculum=curriculum, env=env,
                                 evaluation_state=evaluation_state, aliases=aliases,
                                 selection=selection, config=config, health=health,
+                                actor_gate=actor_gate,
                             )
-                            critic_health = _new_critic_health_monitor(config)
-                            actor_frozen = True
-                            actor_unfreeze_after = (
-                                int(agent.gradient_updates)
-                                + int(config["sac"].get("critic_warmup_updates", 10_000))
-                            )
+                            # A new critic generation: the detector restarts in
+                            # BASELINE_BUILDING and the gate restarts its own
+                            # counter, so neither can be judged against the
+                            # previous generation's statistics.
+                            critic_health.begin_generation()
+                            actor_gate.on_critic_rebuild()
                             critic_recoveries.append(recovery)
-                        elif (
-                            actor_frozen
-                            and int(agent.gradient_updates) >= actor_unfreeze_after
-                            and not health.get("diverging")
-                        ):
-                            # Only give the actor back once the *rebuilt* critics
-                            # have proven healthy for a full warmup window.
-                            actor_frozen = False
-                            atomic_append_jsonl(
-                                run_dir / "logs" / "critic_health.jsonl",
-                                {"utc": now_utc(), "event": "actor_unfrozen",
-                                 "gradient_updates": int(agent.gradient_updates)},
-                            )
 
             elapsed = time.perf_counter() - block_start
             atomic_append_jsonl(run_dir / "logs" / "progress.jsonl", {
@@ -957,6 +1011,7 @@ def run_training(args: argparse.Namespace) -> int:
                     env=env, evaluation_state=evaluation_state, aliases=aliases,
                     selection=selection, config=config,
                     reason="pre_evaluation_atomic_boundary",
+                    actor_gate=actor_gate, critic_health=critic_health,
                 )
                 checkpoint_time = time.perf_counter() - checkpoint_started
                 _status(
@@ -965,6 +1020,7 @@ def run_training(args: argparse.Namespace) -> int:
                     curriculum=curriculum, env=env, aliases=aliases, selection=selection,
                     config=config, last_losses=last_losses,
                     message="SAC rollout engines will close before evaluation",
+                    actor_gate=actor_gate, critic_health=critic_health,
                 )
                 worker_states = _worker_states(env)
                 learner_rng = capture_rng_state()
@@ -1044,6 +1100,7 @@ def run_training(args: argparse.Namespace) -> int:
                     env=env, evaluation_state=evaluation_state, aliases=aliases,
                     selection=selection, config=config,
                     reason="unseen_transition_evaluation",
+                    actor_gate=actor_gate, critic_health=critic_health,
                     status="safe" if outcome["safe"] else "unsafe",
                 )
                 atomic_append_jsonl(run_dir / "logs" / "timing.jsonl", {
@@ -1067,6 +1124,7 @@ def run_training(args: argparse.Namespace) -> int:
                     total_transitions=total_transitions, curriculum=curriculum,
                     env=env, evaluation_state=evaluation_state, aliases=aliases,
                     selection=selection, config=config, reason="periodic",
+                    actor_gate=actor_gate, critic_health=critic_health,
                 )
                 atomic_append_jsonl(run_dir / "logs" / "timing.jsonl", {
                     "utc": now_utc(), "timesteps": total_transitions,
@@ -1080,6 +1138,7 @@ def run_training(args: argparse.Namespace) -> int:
                     curriculum=curriculum, env=env, aliases=aliases, selection=selection,
                     config=config, last_losses=last_losses,
                     message="independent multi-step SAC actively advancing",
+                    actor_gate=actor_gate, critic_health=critic_health,
                 )
 
         reason = (
@@ -1101,6 +1160,7 @@ def run_training(args: argparse.Namespace) -> int:
             agent=agent, replay=replay, accumulator=accumulator,
             curriculum=curriculum, env=env, aliases=aliases, selection=selection,
             config=config, last_losses=last_losses, message=reason,
+            actor_gate=actor_gate, critic_health=critic_health,
         )
         stop_file.unlink(missing_ok=True)
         return 0

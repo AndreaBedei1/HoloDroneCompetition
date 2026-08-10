@@ -829,6 +829,28 @@ def critics_are_independent(agent: Any, reference: Any) -> bool:
     )
 
 
+def actor_parameter_sha256(agent: Any) -> str:
+    """Stable content hash of the actor's parameters only.
+
+    Used to assert that a critic rebuild left the actor bit-identical.  Critics,
+    target critics, optimizers and entropy state are deliberately excluded --
+    those are meant to change.
+    """
+
+    import hashlib
+
+    import torch
+
+    digest = hashlib.sha256()
+    state = agent.actor.state_dict()
+    for name in sorted(state):
+        digest.update(name.encode("utf-8"))
+        digest.update(
+            torch.as_tensor(state[name]).detach().cpu().contiguous().numpy().tobytes()
+        )
+    return digest.hexdigest()
+
+
 def load_sac_transition_policy(checkpoint: str | Path, *, device: str = "cpu") -> SACTransitionAgent:
     import torch
 

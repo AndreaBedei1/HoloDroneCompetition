@@ -10,6 +10,7 @@ import pytest
 import torch
 
 from marine_race_arena.learning.sac_health_gates import (
+    PHASE_DIVERGING,
     CriticHealthMonitor,
     CriticHealthThresholds,
     DEFAULT_CRITIC_HEALTH,
@@ -123,6 +124,32 @@ def test_a_rebuilt_run_starts_with_an_empty_replay():
 # ------------------------------------------------------- critic health
 
 
+#: Fast baseline for tests: real runs demand far more evidence, but the
+#: property under test is the detector's response *after* a baseline exists.
+FAST_BASELINE = CriticHealthThresholds(
+    minimum_baseline_samples=40, minimum_baseline_updates=100,
+    minimum_baseline_windows=1, window_samples=40,
+)
+
+
+def _settled(step):
+    return {
+        "mean_q": -3.0 + 0.01 * ((-1) ** step),
+        "q_p05": -9.0, "q_p95": 1.0, "td_error_p95": 2.0,
+        "critic_loss": 4.0, "critic_gradient_norm": 0.6,
+    }
+
+
+def _with_baseline(thresholds=FAST_BASELINE, gradient_clip=5.0):
+    """A monitor that has already reached HEALTHY on a settled critic."""
+
+    monitor = CriticHealthMonitor(thresholds, gradient_clip=gradient_clip)
+    for step in range(120):
+        monitor.observe(_settled(step), updates=step * 10)
+    assert monitor.is_healthy()
+    return monitor
+
+
 def _diverging(step):
     return {
         "mean_q": -3.0 - step * 2.0,
@@ -143,32 +170,33 @@ def _healthy(step):
 
 
 def test_v2_divergence_signature_is_detected_before_an_evaluation():
-    monitor = CriticHealthMonitor()
+    monitor = _with_baseline()
     record = None
-    for step in range(40):
-        record = monitor.observe(_diverging(step), updates=step * 100)
+    for step in range(120):
+        record = monitor.observe(_diverging(step), updates=1_200 + step * 100)
     assert record["should_pause"] is True
+    assert record["phase"] == PHASE_DIVERGING
     assert "q_median_drift" in record["reasons"]
     assert "td_error_growth" in record["reasons"]
     assert "q_spread_expansion" in record["reasons"]
 
 
 def test_an_exploding_critic_loss_is_flagged_on_its_own():
-    monitor = CriticHealthMonitor()
+    monitor = _with_baseline()
     record = None
-    for step in range(40):
+    for step in range(120):
         sample = _healthy(step)
         # Loss alone runs away by far more than the 8x growth threshold.
-        sample["critic_loss"] = 1.0 * (1.35 ** step)
-        record = monitor.observe(sample, updates=step * 100)
+        sample["critic_loss"] = 4.0 * (1.10 ** step)
+        record = monitor.observe(sample, updates=1_200 + step * 100)
     assert "critic_loss_explosion" in record["reasons"]
 
 
 def test_protective_action_preserves_the_actor():
-    monitor = CriticHealthMonitor()
+    monitor = _with_baseline()
     record = None
-    for step in range(40):
-        record = monitor.observe(_diverging(step), updates=step * 100)
+    for step in range(120):
+        record = monitor.observe(_diverging(step), updates=1_200 + step * 100)
     # Actor competence and critic health are separable: rebuild the critics,
     # never discard the actor.
     assert record["action"] == "checkpoint_freeze_actor_and_rebuild_critics"
@@ -182,21 +210,19 @@ def test_healthy_critics_never_trigger():
 
 
 def test_detector_waits_for_a_baseline():
-    monitor = CriticHealthMonitor(
-        CriticHealthThresholds(minimum_baseline_samples=20)
-    )
-    for step in range(10):
+    monitor = CriticHealthMonitor()
+    for step in range(150):
         record = monitor.observe(_diverging(step), updates=step * 100)
         assert not record["diverging"], "must not judge before a baseline exists"
 
 
 def test_pinned_critic_gradients_are_flagged():
-    monitor = CriticHealthMonitor(gradient_clip=5.0)
+    monitor = _with_baseline()
     record = None
-    for step in range(40):
+    for step in range(120):
         sample = _healthy(step)
         sample["critic_gradient_norm"] = 5.0
-        record = monitor.observe(sample, updates=step * 100)
+        record = monitor.observe(sample, updates=1_200 + step * 100)
     assert "critic_gradients_pinned_at_clip" in record["reasons"]
 
 

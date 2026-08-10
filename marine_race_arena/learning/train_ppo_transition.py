@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import shutil
@@ -821,6 +822,49 @@ def _parent_checkpoint(config: Mapping[str, Any]):
     return path, value
 
 
+def policy_parameter_sha256(model: Any) -> str:
+    """Content hash of a PPO policy's parameters (weights + log_std)."""
+
+    import hashlib
+
+    import torch
+
+    digest = hashlib.sha256()
+    state = model.policy.state_dict()
+    for name in sorted(state):
+        digest.update(name.encode("utf-8"))
+        digest.update(
+            torch.as_tensor(state[name]).detach().cpu().contiguous().numpy().tobytes()
+        )
+    return digest.hexdigest()
+
+
+def assert_policy_matches_parent(model: Any, parent_path: "str | Path") -> Dict[str, Any]:
+    """Fail loudly when a continuation is not actually continuing anything.
+
+    A continuation that quietly starts from random weights is indistinguishable
+    from a healthy run until the first unseen evaluation returns 0% -- which is
+    exactly how ~51k transitions were spent training a fresh network that the
+    reports still described as an 84%-success continuation.
+    """
+
+    from stable_baselines3 import PPO
+
+    parent = PPO.load(str(parent_path), device="cpu")
+    live_hash = policy_parameter_sha256(model)
+    parent_hash = policy_parameter_sha256(parent)
+    if live_hash != parent_hash:
+        raise ValueError(
+            "parallel continuation did not preserve the parent policy: "
+            f"live {live_hash} != parent {parent_hash}"
+        )
+    return {
+        "policy_parity_verified": True,
+        "policy_sha256": live_hash,
+        "parent_checkpoint": str(parent_path),
+    }
+
+
 def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
     """Continue a verified parent run under a new worker sharding.
 
@@ -840,16 +884,30 @@ def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
     model = PPO.load(str(path), env=env, device="cpu")
     if tuple(model.observation_space.shape) != (OBS_DIM_LOCAL_TRANSITION,):
         raise ValueError("parent observation shape changed")
-    # SB3 stores n_steps in the ZIP; the reshard changes it, and the rollout
-    # buffer must be rebuilt for the new (n_envs, n_steps) geometry.
+    # ``_setup_model`` rebuilds the rollout buffer for the new (n_envs, n_steps)
+    # geometry -- but it also constructs a brand new randomly initialised policy
+    # and optimizer, silently discarding everything ``PPO.load`` just restored.
+    # That is how a run advertised as a continuation of an 84%-success parent
+    # actually trained a fresh network: |theta| fell from 488.75 to the 34.13
+    # initialisation scale and log_std reverted to SB3's 0.0 default, so the
+    # deterministic policy emitted ~0 actions at every evaluation.  Snapshot the
+    # weights and optimizer moments first, then put them back.
+    policy_state = copy.deepcopy(model.policy.state_dict())
+    optimizer_state = copy.deepcopy(model.policy.optimizer.state_dict())
     model.n_steps = int(config["ppo"]["n_steps"])
     model.n_envs = int(env.num_envs)
     model._setup_model()
+    model.policy.load_state_dict(policy_state)
+    model.policy.optimizer.load_state_dict(optimizer_state)
     model.set_env(env)
     model._last_obs = None
     restore_model_training_state(model, parent_state["model_training"])
     if int(model.num_timesteps) != int(manifest["total_timesteps"]):
         raise ValueError("parent model and sidecar disagree on total timesteps")
+    # Matching counters prove nothing about the weights.  Compare the live
+    # policy against the parent on disk: this is the assertion that would have
+    # stopped the lost run on its very first rollout.
+    parity = assert_policy_matches_parent(model, path)
     report = {
         "mode": "parallel_continuation",
         "parent_run_dir": str(config["initialization"]["parent_run_dir"]),
@@ -877,6 +935,7 @@ def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
         "rollout_buffer_reset": True,
         "workers_recreated": True,
         "target_environment_transitions": int(config["new_environment_steps"]),
+        **parity,
     }
     return model, report, parent_state
 

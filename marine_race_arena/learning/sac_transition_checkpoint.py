@@ -64,6 +64,8 @@ def atomic_save_sac_checkpoint(
     reason: str,
     status: str = "unverified",
     stop_reason: Optional[str] = None,
+    actor_gate_state: Optional[Mapping[str, Any]] = None,
+    critic_health_state: Optional[Mapping[str, Any]] = None,
 ) -> ValidSACCheckpoint:
     import torch
 
@@ -107,6 +109,11 @@ def atomic_save_sac_checkpoint(
         "initialization": dict(initialization),
         "worker_identities": [dict(value) for value in worker_identities],
         "stop_reason": stop_reason,
+        # Freeze/generation state must survive a resume.  Reconstructing it from
+        # agent.gradient_updates is precisely the arithmetic that stranded the
+        # SAC v3 actor in FROZEN for an entire 362k-transition run.
+        "actor_gate": dict(actor_gate_state or {}),
+        "critic_health": dict(critic_health_state or {}),
     }
     state_tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
     manifest = {

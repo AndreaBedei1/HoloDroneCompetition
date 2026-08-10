@@ -90,16 +90,19 @@ def test_actor_is_frozen_then_released_only_after_a_healthy_window():
 
     source = Path(trainer.__file__).read_text(encoding="utf-8")
     body = source.split("def run_training", 1)[1]
-    assert "actor_frozen = True" in body
-    assert "actor_unfreeze_after" in body
-    # The unfreeze must be conditional on the detector being quiet.
-    assert 'not health.get("diverging")' in body
+    assert "actor_gate.on_critic_rebuild()" in body
+    assert "critic_health.begin_generation()" in body
+    # The unfreeze must be conditional on a settled, healthy critic generation.
+    assert "critic_healthy=critic_health.is_healthy()" in body
+    # The stale-counter arithmetic must stay deleted.
+    assert "actor_unfreeze_after" not in body
 
 
 def test_update_actor_is_suppressed_while_frozen():
     source = Path(trainer.__file__).read_text(encoding="utf-8")
-    assert "update_actor=update_actor and not actor_frozen" in source
-    assert "update_entropy=update_actor and not actor_frozen" in source
+    assert "actor_gate.should_update_actor()" in source
+    assert "update_actor=update_actor," in source
+    assert "update_entropy=update_actor," in source
 
 
 def test_recovery_record_documents_provenance():
