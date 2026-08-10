@@ -334,12 +334,18 @@ def test_policy_manifest_documents_the_split():
 
 
 def test_mixture_matches_the_requested_initial_distribution():
+    """S0 deliberately starts gentle: half the episodes stay on two gates.
+
+    Introducing chaining must not destroy the transition competence the
+    inherited policies already have.
+    """
+
     curriculum = GenericSequenceCurriculum()
     mixture = curriculum.mixture
-    assert mixture["focus"] == pytest.approx(0.30)
-    assert mixture["short"] == pytest.approx(0.30)
-    assert mixture["medium"] == pytest.approx(0.25)
-    assert mixture["long"] == pytest.approx(0.15)
+    assert mixture["focus"] == pytest.approx(0.50)
+    assert mixture["short"] == pytest.approx(0.35)
+    assert mixture["medium"] == pytest.approx(0.15)
+    assert mixture["long"] == pytest.approx(0.00)
     assert sum(mixture.values()) == pytest.approx(1.0)
 
 
@@ -374,8 +380,17 @@ def test_sampled_lengths_follow_the_mixture_and_stay_in_range():
 
 def test_promotion_requires_repeated_measured_generalization():
     curriculum = GenericSequenceCurriculum()
-    good = {"n_eval": 112, "universal_transition_success_rate": 0.80,
-            "long_sequence_completion_score": 0.60, "collision_episodes": 10}
+    good = {
+        "n_eval": 112,
+        "universal_transition_success_rate": 0.80,
+        # S0 -> S1 is judged on measured 3-5 gate completion, not the blended
+        # long-sequence score, so the bar cannot be cleared by short episodes
+        # alone.
+        "full_sequence_success_by_length": {
+            "3": {"completion_rate": 0.75}, "5": {"completion_rate": 0.75},
+        },
+        "collision_episodes": 10,
+    }
     first = curriculum.observe_validation(good, 100_000)
     assert not first["promoted"], "one good evaluation is not enough"
     second = curriculum.observe_validation(good, 200_000)

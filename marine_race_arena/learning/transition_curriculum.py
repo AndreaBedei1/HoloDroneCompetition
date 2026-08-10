@@ -11,6 +11,10 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 
 import numpy as np
 
+from marine_race_arena.learning.generic_sequence_curriculum import (
+    GenericSequenceCurriculum,
+)
+
 from marine_race_arena.learning.sequence_curriculum import (
     BASE_TRACK,
     SequenceGeometry,
@@ -61,6 +65,10 @@ class TransitionGeometry:
     initial_lateral_offset_m: float
     start_distance_m: float
     initial_body_velocity_m_s: Tuple[float, float, float]
+    #: Provenance, set by the sampler.  Never observable by the policy.
+    dataset_split: Optional[str] = None
+    sequence_bucket: Optional[str] = None
+    curriculum_stage: Optional[str] = None
 
     @property
     def geometry_group(self) -> str:
@@ -75,6 +83,7 @@ class TransitionWorkerState:
     difficulty: str = "G1"
     total_environment_transitions: int = 0
     sample_counts: Dict[str, int] = field(default_factory=dict)
+    bucket_counts: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -133,6 +142,8 @@ class TransitionGeometrySampler:
         seed: int,
         difficulty: str = "G1",
         transition_focus_fraction: float = 0.70,
+        sequence_curriculum: Any = None,
+        dataset_split: str = "train",
     ) -> None:
         if difficulty not in DIFFICULTY_BY_KEY:
             raise ValueError(f"unknown transition difficulty {difficulty!r}")
@@ -140,6 +151,12 @@ class TransitionGeometrySampler:
             raise ValueError("transition focus fraction must be in [0, 1]")
         self.seed = int(seed)
         self.transition_focus_fraction = float(transition_focus_fraction)
+        # When a generic sequence curriculum is attached it *replaces* the
+        # binary focus/full-sequence coin flip: episode length is drawn from the
+        # current stage mixture instead.  This is the difference between the
+        # curriculum existing and the curriculum running.
+        self.sequence_curriculum = sequence_curriculum
+        self.dataset_split = str(dataset_split)
         self.rng = np.random.default_rng(self.seed)
         self.state = TransitionWorkerState(difficulty=difficulty)
 
@@ -157,10 +174,30 @@ class TransitionGeometrySampler:
             self.state.total_environment_transitions, int(value)
         )
 
+    def _episode_seed(self) -> int:
+        """Draw an episode seed from this sampler's dataset band.
+
+        Enforcing the band here rather than by convention is what makes
+        TRAIN/VALIDATION/TEST separation real: a rollout worker physically
+        cannot emit a validation or test seed.
+        """
+
+        from marine_race_arena.learning.rl_holdout_policy import seed_group
+
+        group = seed_group(self.dataset_split)
+        span = int(group.end) - int(group.start)
+        return int(group.start) + int(self.rng.integers(0, span))
+
+    def bucket_counts(self) -> Dict[str, int]:
+        """Observed episode counts per length bucket for this worker."""
+
+        return dict(self.state.bucket_counts)
+
     def state_dict(self) -> Dict[str, Any]:
         return {
             "schema_version": "transition_worker_sampler_v1",
             "seed": self.seed,
+            "dataset_split": self.dataset_split,
             "transition_focus_fraction": self.transition_focus_fraction,
             "rng_state": self.rng.bit_generator.state,
             "state": asdict(self.state),
@@ -181,16 +218,28 @@ class TransitionGeometrySampler:
 
     def sample(self, *, force_episode_type: Optional[str] = None) -> TransitionGeometry:
         difficulty = DIFFICULTY_BY_KEY[self.difficulty]
-        episode_type = force_episode_type or (
-            "transition_focus"
-            if self.rng.random() < self.transition_focus_fraction
-            else "full_sequence"
-        )
-        if episode_type not in {"transition_focus", "full_sequence"}:
-            raise ValueError(episode_type)
-        gate_count = 2 if episode_type == "transition_focus" else int(
-            self.rng.choice(FULL_SEQUENCE_LENGTHS)
-        )
+        if force_episode_type is not None:
+            if force_episode_type not in {"transition_focus", "full_sequence"}:
+                raise ValueError(force_episode_type)
+            episode_type = force_episode_type
+            gate_count = 2 if episode_type == "transition_focus" else int(
+                self.rng.choice(FULL_SEQUENCE_LENGTHS)
+            )
+            bucket = "focus" if gate_count <= 2 else None
+        elif self.sequence_curriculum is not None:
+            gate_count = int(self.sequence_curriculum.sample_gate_count(self.rng))
+            bucket = self.sequence_curriculum.bucket_of_gate_count(gate_count)
+            episode_type = "transition_focus" if gate_count <= 2 else "full_sequence"
+        else:
+            episode_type = (
+                "transition_focus"
+                if self.rng.random() < self.transition_focus_fraction
+                else "full_sequence"
+            )
+            gate_count = 2 if episode_type == "transition_focus" else int(
+                self.rng.choice(FULL_SEQUENCE_LENGTHS)
+            )
+            bucket = "focus" if gate_count <= 2 else None
         allowed_patterns = ["aligned", "yaw", "elevation", "combined", "varied"]
         if self.difficulty in {"G5", "G6"}:
             allowed_patterns += ["official_serpent", "combined", "varied"]
@@ -208,7 +257,7 @@ class TransitionGeometrySampler:
             difficulty=self.difficulty,
             episode_type=episode_type,
             pattern=pattern,
-            seed=int(self.rng.integers(0, 2**31 - 1)),
+            seed=self._episode_seed(),
             gate_count=gate_count,
             spacings_m=spacings,
             turn_deltas_deg=turns,
@@ -229,9 +278,25 @@ class TransitionGeometrySampler:
                 float(self.rng.uniform(-0.5 * velocity_cap, 0.5 * velocity_cap)),
                 float(self.rng.uniform(-0.35 * velocity_cap, 0.35 * velocity_cap)),
             ),
+            # Provenance travels with the episode so the composition log and the
+            # split assertions read exactly what the policy trained on.  None of
+            # it is observable by the policy.
+            dataset_split=self.dataset_split,
+            sequence_bucket=(
+                bucket if bucket
+                else GenericSequenceCurriculum.bucket_of_gate_count(gate_count)
+            ),
+            curriculum_stage=(
+                self.sequence_curriculum.stage["name"]
+                if self.sequence_curriculum is not None else None
+            ),
         )
         key = geometry.geometry_group
         self.state.sample_counts[key] = self.state.sample_counts.get(key, 0) + 1
+        realised = geometry.sequence_bucket
+        self.state.bucket_counts[realised] = (
+            self.state.bucket_counts.get(realised, 0) + 1
+        )
         return geometry
 
 

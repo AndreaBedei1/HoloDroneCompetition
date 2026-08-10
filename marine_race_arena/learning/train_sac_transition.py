@@ -225,6 +225,7 @@ def _make_worker(
     transition_focus_fraction: float, adapter: str, allow_fallback: bool,
     frames_per_sec: bool | int, max_episode_steps: int,
     reward_config: Mapping[str, Any],
+    sequence_curriculum: Mapping[str, Any] | None = None,
 ):
     return UniversalTransitionEnv(
         run_dir=run_dir,
@@ -237,6 +238,9 @@ def _make_worker(
         frames_per_sec=frames_per_sec,
         max_episode_steps=max_episode_steps,
         reward_config=reward_config,
+        sequence_curriculum=sequence_curriculum,
+        dataset_split="train",
+        algorithm="sac",
     )
 
 
@@ -342,6 +346,7 @@ def _make_vec_env(config: Mapping[str, Any], run_dir: Path, difficulty: str):
             frames_per_sec=config["holoocean_frames_per_sec"],
             max_episode_steps=int(config["max_episode_steps"]),
             reward_config=dict(config.get("reward") or {}),
+            sequence_curriculum=dict(config.get("sequence_curriculum") or {}) or None,
         )
         for index in range(n_envs)
     ]

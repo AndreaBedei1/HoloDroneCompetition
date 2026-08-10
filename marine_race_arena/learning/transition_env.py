@@ -23,6 +23,14 @@ from marine_race_arena.learning.reward_local_transition import (
     LocalTransitionRewardConfig,
     LocalTransitionTrainingReward,
 )
+from marine_race_arena.learning.provenance import now_utc
+from marine_race_arena.learning.episode_composition_log import (
+    append_episode,
+    episode_row,
+)
+from marine_race_arena.learning.generic_sequence_curriculum import (
+    GenericSequenceCurriculum,
+)
 from marine_race_arena.learning.transition_curriculum import (
     TransitionGeometry,
     TransitionGeometrySampler,
@@ -51,6 +59,10 @@ class UniversalTransitionEnv(_BASE):
         frames_per_sec: bool | int = False,
         max_episode_steps: int = 3600,
         reward_config: Optional[Mapping[str, Any]] = None,
+        sequence_curriculum: Optional[Mapping[str, Any]] = None,
+        dataset_split: str = "train",
+        algorithm: str = "unknown",
+        log_episode_composition: bool = True,
     ) -> None:
         if gym is None:  # pragma: no cover
             raise ImportError("gymnasium is required")
@@ -63,10 +75,30 @@ class UniversalTransitionEnv(_BASE):
         self.logs_dir = self.worker_dir / "logs"
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # A rollout worker may only ever draw TRAIN episodes.  Asserting it in
+        # the constructor makes validation/test leakage impossible rather than
+        # merely discouraged.
+        if str(dataset_split) != "train":
+            raise ValueError(
+                "rollout workers must sample from the TRAIN split, got "
+                f"{dataset_split!r}"
+            )
+        self.dataset_split = str(dataset_split)
+        self.algorithm = str(algorithm)
+        self.log_episode_composition = bool(log_episode_composition)
+        # The generic sequence curriculum, when configured, replaces the binary
+        # focus/full-sequence coin flip with a real length mixture.
+        self.sequence_curriculum = (
+            GenericSequenceCurriculum(**dict(sequence_curriculum))
+            if isinstance(sequence_curriculum, Mapping) and sequence_curriculum
+            else (sequence_curriculum or None)
+        )
         self.sampler = TransitionGeometrySampler(
             seed=self.sampler_seed,
             difficulty=difficulty,
             transition_focus_fraction=transition_focus_fraction,
+            sequence_curriculum=self.sequence_curriculum,
+            dataset_split=self.dataset_split,
         )
         self.adapter_name = str(adapter)
         self.allow_fallback = bool(allow_fallback)
@@ -203,6 +235,27 @@ class UniversalTransitionEnv(_BASE):
         info["transition_focus_window_complete"] = focus_window_complete
         if terminated or truncated:
             info.update(self._terminal_metrics())
+            # active_episode.json is overwritten every episode, so this
+            # append-only row is the only durable record of what the policy
+            # actually trained on.  Written at episode end so the geometry and
+            # its outcome always describe the same episode.
+            if self.log_episode_composition and self.current_geometry is not None:
+                append_episode(self.run_dir, episode_row(
+                    utc=now_utc(),
+                    algorithm=self.algorithm,
+                    run=self.run_dir.name,
+                    worker_id=self.worker_id,
+                    geometry=self.current_geometry,
+                    outcome={
+                        "gates_completed": info.get("completed_gate_count"),
+                        "collision": bool(info.get("collision_episode", False)),
+                        "missed_gate": bool(info.get("missed_gate_dnf", False)),
+                        "wrong_direction": int(info.get("wrong_direction_events", 0) or 0),
+                        "out_of_bounds": bool(info.get("out_of_bounds", False)),
+                        "timeout": bool(truncated and not terminated),
+                        "steps": int(self._jerk_samples),
+                    },
+                ))
         return observation, reward, terminated, truncated, info
 
     def _terminal_metrics(self) -> Dict[str, Any]:
