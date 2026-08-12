@@ -23,6 +23,18 @@ ACTOR_GATE_VERSION = "sac_actor_gate_v1"
 
 STATE_FROZEN = "FROZEN"
 STATE_ACTIVE = "ACTIVE"
+STATE_LIVELOCK = "CRITIC_WARMUP_LIVELOCK"
+
+
+class CriticWarmupLivelock(RuntimeError):
+    """Critic warm-up keeps restarting, so the actor can never activate.
+
+    SAC v5 rebuilt its critics seven times, every time at exactly
+    gradient_updates=4004, and spent 471,108 transitions with actor_updates=0.
+    The individual rebuilds each looked locally reasonable, so nothing surfaced
+    a fault.  This makes never-activating warm-up an explicit, loud condition
+    rather than an invisible loop.
+    """ 
 
 
 @dataclass(frozen=True)
@@ -35,6 +47,10 @@ class ActorGatePolicy:
     require_critic_healthy: bool = True
     #: Start frozen on a brand-new run so the actor never chases random critics.
     start_frozen: bool = True
+    #: Critic rebuilds tolerated *before the actor has ever activated* before
+    #: declaring a livelock.  This is a safety trip, never a shortcut: it pauses
+    #: the run for diagnosis rather than activating onto unhealthy critics.
+    max_critic_rebuilds_before_actor_activation: int = 3
 
     def as_dict(self) -> Dict[str, Any]:
         return {"schema_version": ACTOR_GATE_VERSION, **asdict(self)}
@@ -76,6 +92,8 @@ class ActorFreezeGate:
         self.critic_updates_since_rebuild = 0
         self.actor_frozen = bool(policy.start_frozen)
         self.total_actor_updates = 0
+        self.rebuilds_before_activation = 0
+        self.ever_activated = not bool(policy.start_frozen)
         self.unfroze_at_generation: Optional[int] = None
         self.unfroze_at_updates_since_rebuild: Optional[int] = None
         self.last_reason = "initialised_frozen" if policy.start_frozen else "initialised_active"
@@ -88,10 +106,34 @@ class ActorFreezeGate:
         self.critic_rebuild_generation += 1
         self.critic_updates_since_rebuild = 0
         self.actor_frozen = True
+        if not self.ever_activated:
+            # Only rebuilds that happen before the actor has *ever* trained
+            # count toward the livelock trip; ordinary recovery afterwards is
+            # healthy behaviour.
+            self.rebuilds_before_activation += 1
         self.unfroze_at_generation = None
         self.unfroze_at_updates_since_rebuild = None
         self.last_reason = "frozen_after_critic_rebuild"
         return self.describe()
+
+    def livelock_detected(self) -> bool:
+        """Has critic warm-up restarted too many times without ever activating?"""
+
+        limit = int(self.policy.max_critic_rebuilds_before_actor_activation)
+        return (
+            not self.ever_activated
+            and limit > 0
+            and self.rebuilds_before_activation >= limit
+        )
+
+    def assert_not_livelocked(self) -> None:
+        if self.livelock_detected():
+            raise CriticWarmupLivelock(
+                f"{STATE_LIVELOCK}: critic warm-up restarted "
+                f"{self.rebuilds_before_activation} times without the actor "
+                "ever activating; pausing for diagnosis rather than training "
+                "critics indefinitely"
+            )
 
     def record_critic_update(self, count: int = 1) -> None:
         self.critic_updates_since_rebuild += int(count)
@@ -120,6 +162,7 @@ class ActorFreezeGate:
             self.last_reason = "waiting_for_critic_health"
             return False
         self.actor_frozen = False
+        self.ever_activated = True
         self.unfroze_at_generation = self.critic_rebuild_generation
         self.unfroze_at_updates_since_rebuild = self.critic_updates_since_rebuild
         self.last_reason = "unfrozen_after_healthy_critic_warmup"
@@ -133,6 +176,8 @@ class ActorFreezeGate:
 
     @property
     def state(self) -> str:
+        if self.livelock_detected():
+            return STATE_LIVELOCK
         return STATE_FROZEN if self.actor_frozen else STATE_ACTIVE
 
     def describe(self) -> Dict[str, Any]:
@@ -144,6 +189,9 @@ class ActorFreezeGate:
             "critic_updates_since_rebuild": int(self.critic_updates_since_rebuild),
             "actor_unfreeze_min_updates": int(self.policy.actor_unfreeze_min_updates),
             "total_actor_updates": int(self.total_actor_updates),
+            "rebuilds_before_activation": int(self.rebuilds_before_activation),
+            "ever_activated": bool(self.ever_activated),
+            "livelock_detected": self.livelock_detected(),
             "unfroze_at_generation": self.unfroze_at_generation,
             "unfroze_at_updates_since_rebuild": self.unfroze_at_updates_since_rebuild,
             "reason": self.last_reason,
@@ -166,6 +214,8 @@ class ActorFreezeGate:
         )
         self.actor_frozen = bool(value.get("actor_frozen", True))
         self.total_actor_updates = int(value.get("total_actor_updates", 0))
+        self.rebuilds_before_activation = int(value.get("rebuilds_before_activation", 0))
+        self.ever_activated = bool(value.get("ever_activated", False))
         self.unfroze_at_generation = value.get("unfroze_at_generation")
         self.unfroze_at_updates_since_rebuild = value.get(
             "unfroze_at_updates_since_rebuild"

@@ -199,6 +199,8 @@ def test_baseline_requires_samples_updates_and_windows():
     t = CriticHealthThresholds(
         minimum_baseline_samples=50, minimum_baseline_updates=5_000,
         minimum_baseline_windows=1, window_samples=50,
+        minimum_post_baseline_updates=50, drift_window_updates=50,
+        settling_windows=1,
     )
     monitor = CriticHealthMonitor(t)
     # Plenty of samples, but nowhere near enough updates.
@@ -215,6 +217,8 @@ def test_after_baseline_a_healthy_critic_stays_healthy():
         CriticHealthThresholds(
             minimum_baseline_samples=50, minimum_baseline_updates=100,
             minimum_baseline_windows=1, window_samples=50,
+            minimum_post_baseline_updates=50, drift_window_updates=50,
+            healthy_windows_after_baseline=2, settling_windows=1,
         )
     )
     for step in range(400):
@@ -227,6 +231,8 @@ def test_real_divergence_is_still_caught_after_the_baseline():
     t = CriticHealthThresholds(
         minimum_baseline_samples=50, minimum_baseline_updates=100,
         minimum_baseline_windows=1, window_samples=50, consecutive_violations=3,
+        minimum_post_baseline_updates=50, drift_window_updates=50,
+        healthy_windows_after_baseline=2, settling_windows=1,
     )
     monitor = CriticHealthMonitor(t)
     for step in range(200):
@@ -262,6 +268,8 @@ def test_one_transient_window_is_only_a_warning():
     t = CriticHealthThresholds(
         minimum_baseline_samples=50, minimum_baseline_updates=100,
         minimum_baseline_windows=1, window_samples=50, consecutive_violations=3,
+        minimum_post_baseline_updates=50, drift_window_updates=50,
+        healthy_windows_after_baseline=2, settling_windows=1,
     )
     monitor = CriticHealthMonitor(t)
     for step in range(200):
@@ -281,6 +289,8 @@ def test_a_rebuild_restarts_the_lifecycle():
         CriticHealthThresholds(
             minimum_baseline_samples=50, minimum_baseline_updates=100,
             minimum_baseline_windows=1, window_samples=50,
+            minimum_post_baseline_updates=50, drift_window_updates=50,
+            healthy_windows_after_baseline=2, settling_windows=1,
         )
     )
     for step in range(200):
@@ -300,6 +310,8 @@ def test_critic_health_state_round_trips():
         CriticHealthThresholds(
             minimum_baseline_samples=50, minimum_baseline_updates=100,
             minimum_baseline_windows=1, window_samples=50,
+            minimum_post_baseline_updates=50, drift_window_updates=50,
+            healthy_windows_after_baseline=2, settling_windows=1,
         )
     )
     for step in range(200):

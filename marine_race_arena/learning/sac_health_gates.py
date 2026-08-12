@@ -134,12 +134,18 @@ def evaluate_health(
 #: Explicit lifecycle of a critic generation.  A freshly rebuilt critic starts
 #: in BASELINE_BUILDING and is *never* judged until it has settled.
 PHASE_BASELINE = "BASELINE_BUILDING"
+PHASE_POST_BASELINE = "POST_BASELINE_OBSERVATION"
 PHASE_HEALTHY = "HEALTHY"
 PHASE_WARNING = "WARNING"
 PHASE_DIVERGING = "DIVERGING"
 PHASE_RECOVERING = "RECOVERING"
+#: The critic never settled within the allowed warm-up: a diagnostic, not a
+#: rebuild trigger.  Rebuilding a critic that is merely slow produces the
+#: endless loop this phase exists to surface instead.
+PHASE_BASELINE_NOT_SETTLING = "BASELINE_NOT_SETTLING"
 CRITIC_PHASES = (
-    PHASE_BASELINE, PHASE_HEALTHY, PHASE_WARNING, PHASE_DIVERGING, PHASE_RECOVERING,
+    PHASE_BASELINE, PHASE_POST_BASELINE, PHASE_HEALTHY, PHASE_WARNING,
+    PHASE_DIVERGING, PHASE_RECOVERING, PHASE_BASELINE_NOT_SETTLING,
 )
 
 
@@ -171,6 +177,30 @@ class CriticHealthThresholds:
     window_samples: int = 100
     consecutive_violations: int = 3
     recovery_windows: int = 2
+    #: Updates that must accumulate AFTER the baseline freezes before any drift
+    #: verdict may be issued.  SAC v5 divided by a span of 1-3 updates here and
+    #: rebuilt every generation at exactly update 4004.
+    minimum_post_baseline_updates: int = 1_000
+    #: Drift is a window-to-window comparison; the per-1k rate is never
+    #: extrapolated from a span shorter than this.
+    drift_window_updates: int = 1_000
+    #: Consecutive clean windows after the baseline before declaring HEALTHY.
+    healthy_windows_after_baseline: int = 2
+    #: The baseline must sit in a locally settled region, evidenced by this many
+    #: consecutive windows whose trend magnitude is small.
+    settling_windows: int = 2
+    #: "Settled" is relative: window-over-window movement in mean Q below this
+    #: fraction of the observed Q spread.
+    settling_relative_tolerance: float = 0.15
+    #: Give up trying to establish a baseline after this many updates and report
+    #: BASELINE_NOT_SETTLING rather than looping.
+    maximum_baseline_updates: int = 40_000
+    #: Rolling window over which the gradient-clip hit fraction is measured.
+    clip_fraction_window: int = 500
+    #: Clipping must rise this much ABOVE the baseline regime to count as a
+    #: fault.  Measured on the real replay, this critic clips on ~100% of
+    #: updates from the start; that is its operating point, not divergence.
+    max_clip_fraction_increase: float = 0.25
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -186,6 +216,14 @@ class CriticHealthThresholds:
             "window_samples": self.window_samples,
             "consecutive_violations": self.consecutive_violations,
             "recovery_windows": self.recovery_windows,
+            "minimum_post_baseline_updates": self.minimum_post_baseline_updates,
+            "drift_window_updates": self.drift_window_updates,
+            "healthy_windows_after_baseline": self.healthy_windows_after_baseline,
+            "settling_windows": self.settling_windows,
+            "settling_relative_tolerance": self.settling_relative_tolerance,
+            "maximum_baseline_updates": self.maximum_baseline_updates,
+            "clip_fraction_window": self.clip_fraction_window,
+            "max_clip_fraction_increase": self.max_clip_fraction_increase,
         }
 
 
@@ -232,6 +270,7 @@ class CriticHealthMonitor:
         self.baseline: Optional[Dict[str, float]] = None
         self.phase = PHASE_BASELINE
         self.updates_at_generation_start: Optional[int] = None
+        self.baseline_windows_settled = 0
 
     # ------------------------------------------------------------ helpers
 
@@ -258,6 +297,47 @@ class CriticHealthMonitor:
     def baseline_established(self) -> bool:
         return self.baseline is not None
 
+    @property
+    def post_baseline_updates(self) -> int:
+        """Updates accumulated since the baseline froze."""
+
+        if self.baseline is None or not self.samples:
+            return 0
+        return int(self.samples[-1]["updates"]) - int(self.baseline["updates"])
+
+    def effective_drift_span(self) -> float:
+        """Span used to normalise the drift rate.
+
+        Never smaller than ``drift_window_updates``.  Dividing by the real span
+        of 1-3 updates immediately after the baseline froze is what turned
+        ordinary critic learning into an apparent 5+/1k drift and rebuilt SAC v5
+        seven times at exactly update 4004.
+        """
+
+        return max(float(self.thresholds.drift_window_updates),
+                   float(self.post_baseline_updates))
+
+    def _clip_fraction(self, window: Sequence[Mapping[str, Any]]) -> float:
+        if not window:
+            return 0.0
+        hits = sum(1 for s in window
+                   if float(s["critic_gradient_norm"]) >= self.gradient_clip - 1e-6)
+        return hits / len(window)
+
+    def clip_hit_fraction(self) -> float:
+        """Fraction of recent updates whose critic gradient hit the clip."""
+
+        return self._clip_fraction(
+            self.samples[-int(self.thresholds.clip_fraction_window):]
+        )
+
+    def baseline_clip_fraction(self) -> Optional[float]:
+        """The clip regime this critic generation settled into."""
+
+        if self.baseline is None:
+            return None
+        return float(self.baseline.get("clip_fraction", 0.0))
+
     def begin_generation(self, generation: Optional[int] = None) -> None:
         """Restart the lifecycle after a critic rebuild or restore."""
 
@@ -270,14 +350,49 @@ class CriticHealthMonitor:
         self.baseline = None
         self.phase = PHASE_BASELINE
         self.updates_at_generation_start = None
+        self.baseline_windows_settled = 0
+
+    def _locally_settled(self) -> bool:
+        """Is the critic in a locally stable region right now?
+
+        Compares the two most recent windows.  Movement is judged relative to
+        the observed Q spread, so a critic operating at any scale is treated
+        the same.  This is deliberately loose: it asks for a plateau, not
+        convergence.
+        """
+
+        t = self.thresholds
+        width = int(t.window_samples)
+        if len(self.samples) < 2 * width:
+            return False
+        previous = self.samples[-2 * width:-width]
+        current = self.samples[-width:]
+        prev_q = self._mean([s["mean_q"] for s in previous])
+        curr_q = self._mean([s["mean_q"] for s in current])
+        spread = abs(self._mean([s["q_p95"] for s in current])
+                     - self._mean([s["q_p05"] for s in current]))
+        # Scale on the Q spread, never on |mean_q|: a critic drifting linearly
+        # forever would otherwise look settled once its magnitude grew large.
+        scale = max(1.0, spread)
+        return abs(curr_q - prev_q) / scale <= float(t.settling_relative_tolerance)
 
     def _baseline_ready(self) -> bool:
+        """Enough evidence AND a locally settled region.
+
+        Freezing purely because ``updates == minimum_baseline_updates`` anchors
+        the baseline on a critic that is still moving fast, which then reads as
+        divergence a few updates later.
+        """
+
         t = self.thresholds
-        return (
+        enough = (
             len(self.samples) >= int(t.minimum_baseline_samples)
             and self.updates_in_generation >= int(t.minimum_baseline_updates)
             and len(self.samples) >= int(t.minimum_baseline_windows) * int(t.window_samples)
         )
+        if not enough:
+            return False
+        return self.baseline_windows_settled >= int(t.settling_windows)
 
     def _establish_baseline(self) -> None:
         """Freeze the baseline from the *settled tail* of the baseline phase.
@@ -296,6 +411,11 @@ class CriticHealthMonitor:
             "td_p95": abs(self._mean([s["td_error_p95"] for s in tail])),
             "critic_loss": abs(self._mean([s["critic_loss"] for s in tail])),
             "updates": float(tail[-1]["updates"]),
+            # Some critics operate permanently at their gradient clip: on the
+            # real SAC replay the clip-hit fraction was 0.89-1.00 from the very
+            # first update.  That is this critic's regime, not a deterioration,
+            # so clipping is judged as a change against it.
+            "clip_fraction": self._clip_fraction(tail),
         }
 
     def _window_reasons(self) -> list:
@@ -304,7 +424,10 @@ class CriticHealthMonitor:
         base = self.baseline or {}
         reasons: list = []
 
-        span = max(1.0, float(window[-1]["updates"]) - float(base.get("updates", 0.0)))
+        # Window-to-window comparison against the settled reference, with the
+        # span floored at a full drift window so a freshly frozen baseline can
+        # never produce a divide-by-one extrapolation.
+        span = self.effective_drift_span()
         drift = abs(self._mean([s["mean_q"] for s in window]) - float(base.get("mean_q", 0.0)))
         if drift / span * 1000.0 > t.max_q_drift_rate_per_1k_updates:
             reasons.append("q_median_drift")
@@ -322,11 +445,15 @@ class CriticHealthMonitor:
         if loss / max(1e-6, float(base.get("critic_loss", 0.0))) > t.max_critic_loss_growth_ratio:
             reasons.append("critic_loss_explosion")
 
-        clipped = sum(
-            1 for s in window
-            if s["critic_gradient_norm"] >= self.gradient_clip - 1e-6
-        ) / max(1, len(window))
-        if clipped > t.max_clipped_gradient_fraction:
+        # Clipping only signals a fault when it rises materially above the
+        # regime the baseline established.  A critic that has been clipping on
+        # every update since initialisation is simply operating at its clip.
+        clip_now = self.clip_hit_fraction()
+        clip_base = float((base or {}).get("clip_fraction", 0.0))
+        if (
+            clip_now > t.max_clipped_gradient_fraction
+            and clip_now - clip_base > t.max_clip_fraction_increase
+        ):
             reasons.append("critic_gradients_pinned_at_clip")
 
         for s in window[-1:]:
@@ -356,12 +483,30 @@ class CriticHealthMonitor:
         if len(self.samples) > self.window:
             self.samples.pop(0)
 
+        t = self.thresholds
         reasons: list = []
         if self.baseline is None:
+            # Track how long the critic has looked locally stable.  The
+            # baseline may only freeze inside a settled region.
+            if self._locally_settled():
+                self.baseline_windows_settled += 1
+            else:
+                self.baseline_windows_settled = 0
             if self._baseline_ready():
                 self._establish_baseline()
-                self.phase = PHASE_HEALTHY
-            # While BASELINE_BUILDING nothing can trigger, by construction.
+                self.phase = PHASE_POST_BASELINE
+            elif self.updates_in_generation >= int(t.maximum_baseline_updates):
+                # Never settled.  Surface it as a diagnostic; rebuilding a
+                # merely slow critic is what produces an endless loop.
+                self.phase = PHASE_BASELINE_NOT_SETTLING
+            else:
+                self.phase = PHASE_BASELINE
+            # While building a baseline nothing can trigger, by construction.
+        elif self.post_baseline_updates < int(t.minimum_post_baseline_updates):
+            # POST_BASELINE_OBSERVATION: statistics are collected but no drift
+            # verdict is issued.  This window is exactly where SAC v5 divided by
+            # a span of 1-3 updates and rebuilt itself seven times.
+            self.phase = PHASE_POST_BASELINE
         else:
             reasons = self._window_reasons()
             if reasons:
@@ -369,7 +514,7 @@ class CriticHealthMonitor:
                 self.healthy_windows = 0
                 self.phase = (
                     PHASE_DIVERGING
-                    if self.consecutive >= int(self.thresholds.consecutive_violations)
+                    if self.consecutive >= int(t.consecutive_violations)
                     else PHASE_WARNING
                 )
             else:
@@ -378,8 +523,14 @@ class CriticHealthMonitor:
                 if self.phase in (PHASE_WARNING, PHASE_DIVERGING, PHASE_RECOVERING):
                     self.phase = (
                         PHASE_HEALTHY
-                        if self.healthy_windows >= int(self.thresholds.recovery_windows)
+                        if self.healthy_windows >= int(t.recovery_windows)
                         else PHASE_RECOVERING
+                    )
+                elif self.phase == PHASE_POST_BASELINE:
+                    self.phase = (
+                        PHASE_HEALTHY
+                        if self.healthy_windows >= int(t.healthy_windows_after_baseline)
+                        else PHASE_POST_BASELINE
                     )
                 else:
                     self.phase = PHASE_HEALTHY
@@ -393,6 +544,11 @@ class CriticHealthMonitor:
             "baseline_established": self.baseline is not None,
             "samples_in_generation": len(self.samples),
             "updates_in_generation": self.updates_in_generation,
+            "post_baseline_updates": self.post_baseline_updates,
+            "effective_drift_span": self.effective_drift_span(),
+            "clip_hit_fraction": round(self.clip_hit_fraction(), 4),
+            "baseline_clip_fraction": self.baseline_clip_fraction(),
+            "baseline_windows_settled": self.baseline_windows_settled,
             "diverging": bool(reasons),
             "reasons": reasons,
             "consecutive_violations": self.consecutive,
@@ -413,6 +569,7 @@ class CriticHealthMonitor:
             "phase": self.phase,
             "consecutive": int(self.consecutive),
             "healthy_windows": int(self.healthy_windows),
+            "baseline_windows_settled": int(self.baseline_windows_settled),
             "baseline": dict(self.baseline or {}),
             "updates_at_generation_start": self.updates_at_generation_start,
             "samples": list(self.samples[-self.window:]),
@@ -425,6 +582,7 @@ class CriticHealthMonitor:
         self.phase = str(value.get("phase", PHASE_BASELINE))
         self.consecutive = int(value.get("consecutive", 0))
         self.healthy_windows = int(value.get("healthy_windows", 0))
+        self.baseline_windows_settled = int(value.get("baseline_windows_settled", 0))
         baseline = value.get("baseline") or {}
         self.baseline = {k: float(v) for k, v in baseline.items()} or None
         start = value.get("updates_at_generation_start")

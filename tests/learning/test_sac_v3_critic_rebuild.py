@@ -129,6 +129,10 @@ def test_a_rebuilt_run_starts_with_an_empty_replay():
 FAST_BASELINE = CriticHealthThresholds(
     minimum_baseline_samples=40, minimum_baseline_updates=100,
     minimum_baseline_windows=1, window_samples=40,
+    # The detector now refuses a verdict until a full post-baseline
+    # observation window; shrink it too or nothing can ever reach HEALTHY.
+    minimum_post_baseline_updates=40, drift_window_updates=40,
+    healthy_windows_after_baseline=2, settling_windows=1,
 )
 
 
@@ -144,9 +148,9 @@ def _with_baseline(thresholds=FAST_BASELINE, gradient_clip=5.0):
     """A monitor that has already reached HEALTHY on a settled critic."""
 
     monitor = CriticHealthMonitor(thresholds, gradient_clip=gradient_clip)
-    for step in range(120):
+    for step in range(200):
         monitor.observe(_settled(step), updates=step * 10)
-    assert monitor.is_healthy()
+    assert monitor.is_healthy(), f"helper failed to settle: phase={monitor.phase}"
     return monitor
 
 
@@ -217,12 +221,18 @@ def test_detector_waits_for_a_baseline():
 
 
 def test_pinned_critic_gradients_are_flagged():
+    """Clipping counts only once it fills the rolling window and rises above
+    the baseline regime, so the window must actually be flushed here."""
+
     monitor = _with_baseline()
+    baseline_clip = monitor.baseline_clip_fraction()
+    assert baseline_clip == pytest.approx(0.0), "helper baseline must be unclipped"
     record = None
-    for step in range(120):
+    for step in range(700):
         sample = _healthy(step)
         sample["critic_gradient_norm"] = 5.0
-        record = monitor.observe(sample, updates=1_200 + step * 100)
+        record = monitor.observe(sample, updates=2_000 + step * 100)
+    assert monitor.clip_hit_fraction() > 0.9
     assert "critic_gradients_pinned_at_clip" in record["reasons"]
 
 
