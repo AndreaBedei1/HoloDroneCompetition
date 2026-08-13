@@ -869,6 +869,74 @@ def _optimizer_activity(model: Any, before: Any) -> Dict[str, Any]:
     }
 
 
+def _install_continuation_schedule(model: Any, config: Mapping[str, Any]) -> None:
+    """Give the continuation its own learning-rate schedule.
+
+    ``AbsoluteLearningRateSchedule`` ratchets: ``last_value = min(last_value,
+    value)``, deliberately so that *extending* a run can never restart a decayed
+    schedule.  The parent's schedule arrives exhausted
+    (current_progress_remaining 0.0, last_value at its floor), so a continuation
+    that inherits it can never reach its own configured rate no matter what the
+    optimizer param groups say -- SB3 re-reads the schedule on every ``train()``
+    call and would immediately pull the rate back down.
+
+    A new continuation is not an extension: it gets a fresh schedule over its
+    own horizon, which is the one path the ratchet's docstring leaves open.
+    """
+
+    ppo = config["ppo"]
+    schedule = AbsoluteLearningRateSchedule(
+        float(ppo["learning_rate"]),
+        float(ppo["final_learning_rate"]),
+        str(ppo["learning_rate_schedule"]),
+    )
+    model.learning_rate = schedule
+    model.lr_schedule = schedule
+    # The new run starts at the beginning of its own horizon.
+    model._current_progress_remaining = 1.0
+
+
+def assert_learning_rate_applied(
+    model: Any, *, expected: float, restored: float, configured: float,
+    tolerance: float = 1e-12,
+) -> Dict[str, Any]:
+    """Fail loudly unless every optimizer param group runs the intended rate.
+
+    A run that reports one learning rate in its manifest while the optimizer
+    uses another is indistinguishable from a healthy run until someone reads
+    the raw parameter deltas weeks later.
+    """
+
+    groups = [float(g["lr"]) for g in model.policy.optimizer.param_groups]
+    wrong = [value for value in groups if abs(value - float(expected)) > tolerance]
+    if wrong:
+        raise ValueError(
+            "PPO continuation learning rate not applied: expected "
+            f"{expected!r}, optimizer param groups {groups!r}"
+        )
+    schedule = getattr(model, "learning_rate", None)
+    schedule_value = None
+    if callable(schedule):
+        # SB3 re-reads the schedule at the start of every train(); if it does
+        # not yield the intended rate the param groups will simply be undone.
+        schedule_value = float(schedule(float(model._current_progress_remaining)))
+        if abs(schedule_value - float(expected)) > max(tolerance, 1e-9):
+            raise ValueError(
+                "PPO continuation schedule does not yield the intended rate: "
+                f"expected {expected!r}, schedule returns {schedule_value!r}"
+            )
+    elif hasattr(schedule, "last_value"):
+        schedule_value = float(schedule.last_value)
+    return {
+        "configured_initial_lr": float(configured),
+        "restored_parent_lr": float(restored),
+        "effective_optimizer_lr": groups[0],
+        "optimizer_param_group_lrs": groups,
+        "scheduler_reported_lr": schedule_value,
+        "lr_rewarm_verified": True,
+    }
+
+
 def _apply_learning_rate(model: Any, learning_rate: float) -> None:
     """Set the optimizer rate and keep the schedule consistent with it."""
 
@@ -964,6 +1032,24 @@ def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
     model.set_env(env)
     model._last_obs = None
     restore_model_training_state(model, parent_state["model_training"])
+    # ``restore_model_training_state`` restores the parent's *learning rate* as
+    # well as its optimizer moments and schedule progress: it assigns the stored
+    # rate onto every optimizer param group and reloads the schedule's
+    # last_value.  A continuation that asks for a different rate therefore had
+    # its request silently discarded -- PPO v4 advertised 7e-6 and actually ran
+    # at 3.489754098360656e-06, byte-identical to its parent.  Historical
+    # moments stay useful; the historical *rate* must not outrank the new run's
+    # explicit policy, so it is re-established here, after the restore.
+    restored_learning_rate = float(model.policy.optimizer.param_groups[0]["lr"])
+    continuation_learning_rate = float(config["ppo"]["learning_rate"])
+    _install_continuation_schedule(model, config)
+    _apply_learning_rate(model, continuation_learning_rate)
+    learning_rate_report = assert_learning_rate_applied(
+        model,
+        expected=continuation_learning_rate,
+        restored=restored_learning_rate,
+        configured=continuation_learning_rate,
+    )
     if int(model.num_timesteps) != int(manifest["total_timesteps"]):
         raise ValueError("parent model and sidecar disagree on total timesteps")
     # Matching counters prove nothing about the weights.  Compare the live
@@ -998,6 +1084,7 @@ def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
         "workers_recreated": True,
         "target_environment_transitions": int(config["new_environment_steps"]),
         **parity,
+        **learning_rate_report,
     }
     return model, report, parent_state
 
@@ -1225,9 +1312,14 @@ def run_training(args: argparse.Namespace) -> int:
                     rewarm.observe(activity, timesteps=int(model.num_timesteps))
                     if rewarm is not None else None
                 )
-                if rewarm_record is not None and rewarm_record["changed"]:
-                    _apply_learning_rate(model, rewarm.learning_rate)
+                if rewarm_record is not None:
+                    # Log EVERY rollout, not only rate changes.  Logging only
+                    # changes made "controller never fired" indistinguishable
+                    # from "controller never ran", which is exactly why v4's
+                    # zero decisions could not be diagnosed from its logs.
                     atomic_append_jsonl(run_dir / "logs" / "lr_rewarm.jsonl", rewarm_record)
+                    if rewarm_record["changed"]:
+                        _apply_learning_rate(model, rewarm.learning_rate)
                 curriculum.set_total_environment_transitions(int(model.num_timesteps))
                 env.env_method(
                     "set_total_environment_transitions", int(model.num_timesteps)

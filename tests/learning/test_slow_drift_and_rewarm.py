@@ -290,3 +290,123 @@ def test_activity_reports_relative_parameter_movement():
     a = _optimizer_activity(model, before)
     assert a["relative_policy_update"] == pytest.approx(0.01, rel=1e-3)
     assert a["approx_kl"] == 0.0
+
+
+# --------------------------------------- continuation learning-rate integrity
+
+
+def test_restore_overwrites_the_learning_rate_this_is_the_v4_bug():
+    """Root cause: the parent's rate is reimposed on every param group."""
+
+    from marine_race_arena.learning.longrun_checkpoint import (
+        restore_model_training_state,
+    )
+
+    class _Sched:
+        def __init__(self): self.multiplier = 1.0; self.last_value = 7e-6
+        def load_state_dict(self, s):
+            self.multiplier = float(s.get("multiplier", self.multiplier))
+            self.last_value = float(s.get("last_value", self.last_value))
+
+    class _M:
+        def __init__(self, lr):
+            self.policy = type("P", (), {})()
+            self.policy.optimizer = type("O", (), {})()
+            self.policy.optimizer.param_groups = [{"lr": lr}, {"lr": lr}]
+            self.learning_rate = _Sched()
+            self.num_timesteps = 528384
+            self._n_updates = 0
+            self._current_progress_remaining = 1.0
+
+    m = _M(7e-6)
+    restore_model_training_state(m, {
+        "num_timesteps": 528384, "n_updates": 100,
+        "current_progress_remaining": 0.0,
+        "learning_rate_schedule": {"last_value": 3.489754098360656e-06, "multiplier": 1.0},
+        "optimizer_learning_rates": [3.489754098360656e-06] * 2,
+    })
+    assert all(g["lr"] == pytest.approx(3.489754098360656e-06)
+               for g in m.policy.optimizer.param_groups)
+
+
+def test_an_exhausted_inherited_schedule_can_never_reach_the_new_rate():
+    """The ratchet is deliberate; a continuation needs its OWN schedule."""
+
+    from marine_race_arena.learning.train_multigate_longrun import (
+        AbsoluteLearningRateSchedule,
+    )
+
+    inherited = AbsoluteLearningRateSchedule(7e-6, 3e-6, "linear")
+    inherited.last_value = 3.489754098360656e-06
+    assert inherited(1.0) == pytest.approx(3.489754098360656e-06)
+
+    fresh = AbsoluteLearningRateSchedule(7e-6, 3e-6, "linear")
+    assert fresh(1.0) == pytest.approx(7e-6)
+
+
+def test_the_continuation_installs_a_fresh_schedule_after_the_restore():
+    from pathlib import Path
+
+    from marine_race_arena.learning import train_ppo_transition as trainer
+
+    body = Path(trainer.__file__).read_text(encoding="utf-8").split(
+        "def _continue_from_parent", 1)[1]
+    restore = body.index("restore_model_training_state(model")
+    install = body.index("_install_continuation_schedule(model, config)")
+    apply_ = body.index("_apply_learning_rate(model, continuation_learning_rate)")
+    verify = body.index("assert_learning_rate_applied(")
+    assert restore < install < apply_ < verify, (
+        "order must be restore -> new schedule -> apply rate -> verify")
+
+
+def test_the_assertion_rejects_a_mismatched_optimizer_rate():
+    from marine_race_arena.learning.train_ppo_transition import (
+        assert_learning_rate_applied,
+    )
+
+    class _M:
+        def __init__(self):
+            self.policy = type("P", (), {})()
+            self.policy.optimizer = type("O", (), {})()
+            self.policy.optimizer.param_groups = [{"lr": 7e-6}, {"lr": 3.49e-6}]
+            self.learning_rate = None
+            self._current_progress_remaining = 1.0
+
+    with pytest.raises(ValueError, match="learning rate not applied"):
+        assert_learning_rate_applied(_M(), expected=7e-6, restored=3.49e-6,
+                                     configured=7e-6)
+
+
+def test_the_assertion_reports_every_param_group_and_marks_verified():
+    from marine_race_arena.learning.train_ppo_transition import (
+        assert_learning_rate_applied,
+    )
+
+    class _M:
+        def __init__(self):
+            self.policy = type("P", (), {})()
+            self.policy.optimizer = type("O", (), {})()
+            self.policy.optimizer.param_groups = [{"lr": 7e-6}, {"lr": 7e-6}]
+            self.learning_rate = None
+            self._current_progress_remaining = 1.0
+
+    report = assert_learning_rate_applied(_M(), expected=7e-6, restored=3.49e-6,
+                                          configured=7e-6)
+    assert report["lr_rewarm_verified"] is True
+    assert report["effective_optimizer_lr"] == pytest.approx(7e-6)
+    assert report["restored_parent_lr"] == pytest.approx(3.49e-6)
+    assert len(report["optimizer_param_group_lrs"]) == 2
+
+
+def test_every_rollout_is_logged_not_only_rate_changes():
+    from pathlib import Path
+
+    from marine_race_arena.learning import train_ppo_transition as trainer
+
+    body = Path(trainer.__file__).read_text(encoding="utf-8").split(
+        "def run_training", 1)[1]
+    log_at = body.index('atomic_append_jsonl(run_dir / "logs" / "lr_rewarm.jsonl"')
+    change_at = body.index('if rewarm_record["changed"]:')
+    assert log_at < change_at, (
+        "the activity record must be written before/independently of the "
+        "changed branch, so a controller that never fires is still observable")
