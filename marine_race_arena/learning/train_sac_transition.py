@@ -936,7 +936,7 @@ def run_training(args: argparse.Namespace) -> int:
                         # generation's own progress, never on an absolute
                         # optimizer counter that a rebuild resets to zero.
                         actor_gate.consider_unfreeze(
-                            critic_healthy=critic_health.is_healthy()
+                            critic_healthy=critic_health.healthy_for_actor_activation()
                         )
                         if actor_gate.should_update_actor() and not actor_ever_active:
                             actor_ever_active = True

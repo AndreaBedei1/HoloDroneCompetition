@@ -92,8 +92,9 @@ def test_actor_is_frozen_then_released_only_after_a_healthy_window():
     body = source.split("def run_training", 1)[1]
     assert "actor_gate.on_critic_rebuild()" in body
     assert "critic_health.begin_generation()" in body
-    # The unfreeze must be conditional on a settled, healthy critic generation.
-    assert "critic_healthy=critic_health.is_healthy()" in body
+    # The unfreeze must be conditional on a settled, healthy critic generation
+    # that is ALSO free of cumulative slow drift.
+    assert "critic_healthy=critic_health.healthy_for_actor_activation()" in body
     # The stale-counter arithmetic must stay deleted.
     assert "actor_unfreeze_after" not in body
 

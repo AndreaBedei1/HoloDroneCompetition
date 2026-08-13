@@ -143,6 +143,12 @@ PHASE_RECOVERING = "RECOVERING"
 #: rebuild trigger.  Rebuilding a critic that is merely slow produces the
 #: endless loop this phase exists to surface instead.
 PHASE_BASELINE_NOT_SETTLING = "BASELINE_NOT_SETTLING"
+#: Slow cumulative drift is a distinct failure mode from fast divergence: a
+#: rate of 0.6/1k updates passes every rate threshold yet still moves mean Q by
+#: 10+ over 17k updates.  These reason codes are deliberately NOT the same as
+#: the fast-rate ones.
+REASON_CUMULATIVE_WARNING = "CUMULATIVE_Q_DRIFT_WARNING"
+REASON_CUMULATIVE_DIVERGING = "CUMULATIVE_Q_DRIFT_DIVERGING"
 CRITIC_PHASES = (
     PHASE_BASELINE, PHASE_POST_BASELINE, PHASE_HEALTHY, PHASE_WARNING,
     PHASE_DIVERGING, PHASE_RECOVERING, PHASE_BASELINE_NOT_SETTLING,
@@ -201,6 +207,21 @@ class CriticHealthThresholds:
     #: fault.  Measured on the real replay, this critic clips on ~100% of
     #: updates from the start; that is its operating point, not divergence.
     max_clip_fraction_increase: float = 0.25
+    # ---- cumulative (slow) drift, normalised against the settled baseline ----
+    #: |median Q shift| / baseline Q spread beyond which the critic has moved a
+    #: long way from where it settled, however slowly it got there.
+    max_cumulative_q_shift_ratio: float = 2.0
+    #: Same for the lower tail, which moves first when values run away.
+    max_cumulative_q_p05_shift_ratio: float = 3.0
+    #: Q span growth relative to the baseline span.
+    max_cumulative_q_span_ratio: float = 3.0
+    #: Corroborating deterioration ratios (vs baseline) required to escalate.
+    cumulative_td_growth_ratio: float = 2.0
+    cumulative_loss_growth_ratio: float = 2.0
+    cumulative_gradient_growth_ratio: float = 3.0
+    #: Windows of sustained cumulative evidence before WARNING / DIVERGING.
+    cumulative_warning_windows: int = 3
+    cumulative_diverging_windows: int = 6
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -224,6 +245,14 @@ class CriticHealthThresholds:
             "maximum_baseline_updates": self.maximum_baseline_updates,
             "clip_fraction_window": self.clip_fraction_window,
             "max_clip_fraction_increase": self.max_clip_fraction_increase,
+            "max_cumulative_q_shift_ratio": self.max_cumulative_q_shift_ratio,
+            "max_cumulative_q_p05_shift_ratio": self.max_cumulative_q_p05_shift_ratio,
+            "max_cumulative_q_span_ratio": self.max_cumulative_q_span_ratio,
+            "cumulative_td_growth_ratio": self.cumulative_td_growth_ratio,
+            "cumulative_loss_growth_ratio": self.cumulative_loss_growth_ratio,
+            "cumulative_gradient_growth_ratio": self.cumulative_gradient_growth_ratio,
+            "cumulative_warning_windows": self.cumulative_warning_windows,
+            "cumulative_diverging_windows": self.cumulative_diverging_windows,
         }
 
 
@@ -271,6 +300,9 @@ class CriticHealthMonitor:
         self.phase = PHASE_BASELINE
         self.updates_at_generation_start: Optional[int] = None
         self.baseline_windows_settled = 0
+        self.cumulative_windows = 0
+        self.cumulative_reasons: list = []
+        self.cumulative_warning = False
 
     # ------------------------------------------------------------ helpers
 
@@ -331,6 +363,20 @@ class CriticHealthMonitor:
             self.samples[-int(self.thresholds.clip_fraction_window):]
         )
 
+    def cumulative_diverging(self) -> bool:
+        """Sustained cumulative displacement WITH corroborating deterioration."""
+
+        return (
+            len(self.cumulative_reasons) > 1
+            and self.cumulative_windows
+            >= int(self.thresholds.cumulative_diverging_windows)
+        )
+
+    def healthy_for_actor_activation(self) -> bool:
+        """The actor may only start learning on a critic under no drift warning."""
+
+        return self.is_healthy() and not self.cumulative_warning
+
     def baseline_clip_fraction(self) -> Optional[float]:
         """The clip regime this critic generation settled into."""
 
@@ -351,6 +397,9 @@ class CriticHealthMonitor:
         self.phase = PHASE_BASELINE
         self.updates_at_generation_start = None
         self.baseline_windows_settled = 0
+        self.cumulative_windows = 0
+        self.cumulative_reasons = []
+        self.cumulative_warning = False
 
     def _locally_settled(self) -> bool:
         """Is the critic in a locally stable region right now?
@@ -416,7 +465,71 @@ class CriticHealthMonitor:
             # first update.  That is this critic's regime, not a deterioration,
             # so clipping is judged as a change against it.
             "clip_fraction": self._clip_fraction(tail),
+            "q_p05": self._mean([s["q_p05"] for s in tail]),
+            "q_p95": self._mean([s["q_p95"] for s in tail]),
+            "mean_target_q": self._mean([s["mean_target_q"] for s in tail]),
+            "td_p50": abs(self._mean([s.get("td_error_p50", 0.0) for s in tail])),
+            "gradient_norm": abs(self._mean([s["critic_gradient_norm"] for s in tail])),
         }
+
+    def cumulative_displacement(self) -> Dict[str, Any]:
+        """How far the critic has moved from its settled baseline, normalised.
+
+        Deliberately independent of any per-1000-update rate: a rate of
+        0.6/1k passes every rate threshold yet still shifts mean Q by more than
+        10 across 17k updates.  Everything is expressed as a ratio against the
+        baseline's own Q spread so the measure is scale-free.
+        """
+
+        base = self.baseline
+        if base is None or not self.samples:
+            return {}
+        t = self.thresholds
+        window = self.samples[-int(t.window_samples):]
+        spread = max(1e-6, abs(float(base.get("q_spread", 0.0))))
+        q_now = self._mean([s["mean_q"] for s in window])
+        p05_now = self._mean([s["q_p05"] for s in window])
+        span_now = abs(self._mean([s["q_p95"] for s in window]) - p05_now)
+        td_now = abs(self._mean([s["td_error_p95"] for s in window]))
+        loss_now = abs(self._mean([s["critic_loss"] for s in window]))
+        grad_now = abs(self._mean([s["critic_gradient_norm"] for s in window]))
+        return {
+            "q_shift_ratio": abs(q_now - float(base.get("mean_q", 0.0))) / spread,
+            "q_p05_shift_ratio": abs(p05_now - float(base.get("q_p05", 0.0))) / spread,
+            "q_span_ratio": span_now / spread,
+            "td_growth_ratio": td_now / max(1e-6, float(base.get("td_p95", 0.0))),
+            "loss_growth_ratio": loss_now / max(1e-6, float(base.get("critic_loss", 0.0))),
+            "gradient_growth_ratio": grad_now / max(1e-6, float(base.get("gradient_norm", 0.0))),
+            "updates_since_baseline": self.post_baseline_updates,
+        }
+
+    def _cumulative_reasons(self) -> list:
+        """Cumulative displacement, and whether anything corroborates it.
+
+        A large Q shift on its own is not divergence -- a critic legitimately
+        walks to the fixed point implied by the return distribution.  It only
+        escalates when TD error, loss or gradients deteriorate alongside it.
+        """
+
+        t = self.thresholds
+        d = self.cumulative_displacement()
+        if not d:
+            return []
+        displaced = (
+            d["q_shift_ratio"] > t.max_cumulative_q_shift_ratio
+            or d["q_p05_shift_ratio"] > t.max_cumulative_q_p05_shift_ratio
+            or d["q_span_ratio"] > t.max_cumulative_q_span_ratio
+        )
+        if not displaced:
+            return []
+        corroborating = [
+            name for name, ok in (
+                ("td_error_deterioration", d["td_growth_ratio"] > t.cumulative_td_growth_ratio),
+                ("critic_loss_deterioration", d["loss_growth_ratio"] > t.cumulative_loss_growth_ratio),
+                ("critic_gradient_growth", d["gradient_growth_ratio"] > t.cumulative_gradient_growth_ratio),
+            ) if ok
+        ]
+        return ["cumulative_q_displacement"] + corroborating
 
     def _window_reasons(self) -> list:
         t = self.thresholds
@@ -470,6 +583,7 @@ class CriticHealthMonitor:
             "q_p05": float(metrics.get("q_p05", 0.0) or 0.0),
             "q_p95": float(metrics.get("q_p95", 0.0) or 0.0),
             "mean_target_q": float(metrics.get("mean_target_q", 0.0) or 0.0),
+            "td_error_p50": float(metrics.get("td_error_p50", 0.0) or 0.0),
             "td_error_p95": float(metrics.get("td_error_p95", 0.0) or 0.0),
             "td_error_max": float(metrics.get("td_error_max", 0.0) or 0.0),
             "critic_loss": float(metrics.get("critic_loss", 0.0) or 0.0),
@@ -509,6 +623,23 @@ class CriticHealthMonitor:
             self.phase = PHASE_POST_BASELINE
         else:
             reasons = self._window_reasons()
+            # The cumulative dimension runs alongside the fast-rate one and is
+            # reported separately; it never masks a fast-divergence verdict.
+            cumulative = self._cumulative_reasons()
+            self.cumulative_reasons = cumulative
+            if cumulative:
+                self.cumulative_windows += 1
+            else:
+                self.cumulative_windows = 0
+            corroborated = len(cumulative) > 1  # displacement + >=1 deterioration
+            if (
+                corroborated
+                and self.cumulative_windows >= int(t.cumulative_diverging_windows)
+            ):
+                reasons = list(reasons) + [REASON_CUMULATIVE_DIVERGING] + cumulative
+            elif self.cumulative_windows >= int(t.cumulative_warning_windows):
+                # Displacement alone, or not yet sustained enough: warn only.
+                self.cumulative_warning = True
             if reasons:
                 self.consecutive += 1
                 self.healthy_windows = 0
@@ -548,6 +679,17 @@ class CriticHealthMonitor:
             "effective_drift_span": self.effective_drift_span(),
             "clip_hit_fraction": round(self.clip_hit_fraction(), 4),
             "baseline_clip_fraction": self.baseline_clip_fraction(),
+            "cumulative": self.cumulative_displacement(),
+            "cumulative_reasons": list(self.cumulative_reasons),
+            "cumulative_windows": int(self.cumulative_windows),
+            "cumulative_warning": bool(
+                self.cumulative_warning and not self.cumulative_diverging()
+            ),
+            "cumulative_state": (
+                REASON_CUMULATIVE_DIVERGING if self.cumulative_diverging()
+                else REASON_CUMULATIVE_WARNING if self.cumulative_warning
+                else None
+            ),
             "baseline_windows_settled": self.baseline_windows_settled,
             "diverging": bool(reasons),
             "reasons": reasons,
@@ -570,6 +712,9 @@ class CriticHealthMonitor:
             "consecutive": int(self.consecutive),
             "healthy_windows": int(self.healthy_windows),
             "baseline_windows_settled": int(self.baseline_windows_settled),
+            "cumulative_windows": int(self.cumulative_windows),
+            "cumulative_reasons": list(self.cumulative_reasons),
+            "cumulative_warning": bool(self.cumulative_warning),
             "baseline": dict(self.baseline or {}),
             "updates_at_generation_start": self.updates_at_generation_start,
             "samples": list(self.samples[-self.window:]),
@@ -583,6 +728,9 @@ class CriticHealthMonitor:
         self.consecutive = int(value.get("consecutive", 0))
         self.healthy_windows = int(value.get("healthy_windows", 0))
         self.baseline_windows_settled = int(value.get("baseline_windows_settled", 0))
+        self.cumulative_windows = int(value.get("cumulative_windows", 0))
+        self.cumulative_reasons = list(value.get("cumulative_reasons") or [])
+        self.cumulative_warning = bool(value.get("cumulative_warning", False))
         baseline = value.get("baseline") or {}
         self.baseline = {k: float(v) for k, v in baseline.items()} or None
         start = value.get("updates_at_generation_start")

@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+
+import numpy as np
 import os
 import shutil
 import signal
@@ -22,6 +24,7 @@ from marine_race_arena.learning.config_local_transition import (
     OBS_ENCODING_VERSION_LOCAL_TRANSITION,
 )
 from marine_race_arena.learning.longrun_checkpoint import (
+    atomic_append_jsonl,
     atomic_save_checkpoint,
     atomic_write_json,
     canonical_hash,
@@ -31,6 +34,10 @@ from marine_race_arena.learning.longrun_checkpoint import (
     restore_model_training_state,
     restore_rng_state,
     sha256_file,
+)
+from marine_race_arena.learning.ppo_lr_rewarm import (
+    LearningRateRewarm,
+    rewarm_policy_from_mapping,
 )
 from marine_race_arena.learning.provenance import git_sha, now_utc
 from marine_race_arena.learning.rl_evaluation_scheduler import scheduled_evaluation
@@ -827,6 +834,56 @@ def _parent_checkpoint(config: Mapping[str, Any]):
     return path, value
 
 
+def _policy_vector(model: Any):
+    """Flat snapshot of the policy parameters, for measuring update magnitude."""
+
+    import torch
+
+    return torch.cat([p.detach().reshape(-1).clone() for p in model.policy.parameters()])
+
+
+def _optimizer_activity(model: Any, before: Any) -> Dict[str, Any]:
+    """What the last PPO update actually did.
+
+    ``approx_kl`` and ``clip_fraction`` come from SB3's own logger; the
+    parameter movement is measured directly because a near-zero KL with a
+    near-zero clip fraction is exactly what a stalled optimizer looks like.
+    """
+
+    import torch
+
+    logged = dict(getattr(getattr(model, "logger", None), "name_to_value", {}) or {})
+    after = _policy_vector(model)
+    with torch.no_grad():
+        delta = float((after - before).norm())
+        scale = float(before.norm())
+    return {
+        "approx_kl": float(logged.get("train/approx_kl", 0.0) or 0.0),
+        "clip_fraction": float(logged.get("train/clip_fraction", 0.0) or 0.0),
+        "entropy_loss": float(logged.get("train/entropy_loss", 0.0) or 0.0),
+        "value_loss": float(logged.get("train/value_loss", 0.0) or 0.0),
+        "policy_gradient_loss": float(logged.get("train/policy_gradient_loss", 0.0) or 0.0),
+        "explained_variance": float(logged.get("train/explained_variance", 0.0) or 0.0),
+        "policy_update_norm": delta,
+        "relative_policy_update": delta / max(1e-12, scale),
+    }
+
+
+def _apply_learning_rate(model: Any, learning_rate: float) -> None:
+    """Set the optimizer rate and keep the schedule consistent with it."""
+
+    for group in model.policy.optimizer.param_groups:
+        group["lr"] = float(learning_rate)
+    schedule = getattr(model, "learning_rate", None)
+    base = getattr(schedule, "last_value", None)
+    if base:
+        # The schedule keeps decaying underneath; express the controller's
+        # decision as a bounded multiplier on it rather than fighting it.
+        schedule.multiplier = float(
+            np.clip(float(learning_rate) / float(base), 0.25, 1.5)
+        ) if hasattr(schedule, "multiplier") else schedule.multiplier
+
+
 def policy_parameter_sha256(model: Any) -> str:
     """Content hash of a PPO policy's parameters (weights + log_std)."""
 
@@ -1123,6 +1180,13 @@ def run_training(args: argparse.Namespace) -> int:
     next_evaluation = _next_evaluation_transition(
         evaluation_state, evaluation_frequency, early_schedule, target
     )
+    rewarm = (
+        LearningRateRewarm(
+            rewarm_policy_from_mapping(config.get("lr_rewarm")),
+            learning_rate=float(model.policy.optimizer.param_groups[0]["lr"]),
+        )
+        if config.get("lr_rewarm") else None
+    )
     next_checkpoint = ((int(model.num_timesteps) // checkpoint_frequency) + 1) * checkpoint_frequency
     _status(
         run_dir, state="running", model=model, curriculum=curriculum, env=env,
@@ -1145,12 +1209,25 @@ def run_training(args: argparse.Namespace) -> int:
                         absolute_total_timesteps=target,
                     )
                 started = time.perf_counter()
+                policy_before = _policy_vector(model)
                 model.learn(
                     total_timesteps=rollout_size,
                     reset_num_timesteps=False,
                     progress_bar=False,
                 )
                 elapsed = time.perf_counter() - started
+                # One rollout completed: measure what the optimizer actually did
+                # and let the bounded KL-aware controller adjust the step size.
+                # The live v3 run moved 1.3e-5 (relative) per rollout with KL
+                # near zero and clipping inactive -- competent, but not learning.
+                activity = _optimizer_activity(model, policy_before)
+                rewarm_record = (
+                    rewarm.observe(activity, timesteps=int(model.num_timesteps))
+                    if rewarm is not None else None
+                )
+                if rewarm_record is not None and rewarm_record["changed"]:
+                    _apply_learning_rate(model, rewarm.learning_rate)
+                    atomic_append_jsonl(run_dir / "logs" / "lr_rewarm.jsonl", rewarm_record)
                 curriculum.set_total_environment_transitions(int(model.num_timesteps))
                 env.env_method(
                     "set_total_environment_transitions", int(model.num_timesteps)
