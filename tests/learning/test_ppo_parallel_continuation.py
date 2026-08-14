@@ -183,8 +183,21 @@ def test_continuation_preserves_weights_optimizer_scheduler_and_counter(tmp_path
     assert report["total_environment_transitions_preserved"] == 8192
     assert model.num_timesteps == 8192
     assert model._n_updates == 42
-    assert model._current_progress_remaining == pytest.approx(0.37)
-    assert model.policy.optimizer.param_groups[0]["lr"] == pytest.approx(4.2e-6)
+    # A continuation is NOT an extension: it gets its own learning-rate policy
+    # and its own horizon.  The parent's rate (4.2e-6 here) must not survive,
+    # otherwise a run configured to re-warm silently trains at the old rate --
+    # PPO v4 advertised 7e-06 and actually ran at 3.489754098360656e-06.
+    # Optimizer *moments* and the transition counter are still inherited.
+    assert model._current_progress_remaining == pytest.approx(1.0)
+    configured = float(config["ppo"]["learning_rate"])
+    assert model.policy.optimizer.param_groups[0]["lr"] == pytest.approx(configured)
+    assert all(
+        g["lr"] == pytest.approx(configured)
+        for g in model.policy.optimizer.param_groups
+    )
+    assert report["restored_parent_lr"] == pytest.approx(4.2e-6)
+    assert report["effective_optimizer_lr"] == pytest.approx(configured)
+    assert report["lr_rewarm_verified"] is True
     assert report["optimizer_state_preserved"] is True
     assert report["rollout_buffer_reset"] is True
     assert report["previous_n_envs"] == 2 and report["n_envs"] == 8
