@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import json
+
 import numpy as np
 import pytest
 
@@ -227,3 +229,162 @@ def test_state_round_trips():
     restored.load_state_dict(payload)
     assert restored.status == STATUS_INACTIVE
     assert restored.consecutive_failing == monitor.consecutive_failing
+
+
+# --------------------------------------------------------------------------- #
+# Resuming must restate the intended rate, not inherit the decayed one
+# --------------------------------------------------------------------------- #
+def test_resume_does_not_inherit_the_decayed_schedule_rate(tmp_path):
+    """A paused run came back 29% slower and nothing said so.
+
+    The continuation path already reinstalled its own schedule, because
+    AbsoluteLearningRateSchedule is absolute over the whole horizon and reports a
+    decayed rate as soon as SB3 re-reads it.  ``--resume`` did not, so a run
+    paused at 4.5e-06 resumed at 3.2048458149779734e-06 -- exactly the value the
+    checkpoint's schedule reports at 802816/929792.
+    """
+
+    from marine_race_arena.learning.train_ppo_transition import (
+        _intended_resume_learning_rate,
+    )
+
+    config = {
+        "ppo": {"learning_rate": 4.5e-06, "final_learning_rate": 3e-06,
+                "learning_rate_schedule": "linear"},
+        "lr_rewarm": {"minimum_learning_rate": 3e-06,
+                      "maximum_learning_rate": 9e-06,
+                      "initial_learning_rate": 4.5e-06},
+    }
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    path = logs / "lr_rewarm.jsonl"
+
+    # No log at all -> the configured rate.
+    assert _intended_resume_learning_rate(config, tmp_path) == 4.5e-06
+
+    # Observations only (changed=false) must NOT be adopted: the decayed rate a
+    # broken resume imposed would otherwise be laundered into the intended value.
+    path.write_text(
+        "\n".join(
+            json.dumps({"timesteps": t, "learning_rate": lr, "changed": False})
+            for t, lr in ((800768, 4.5e-06), (804864, 3.2048458149779734e-06))
+        ),
+        encoding="utf-8",
+    )
+    assert _intended_resume_learning_rate(config, tmp_path) == 4.5e-06
+
+    # A genuine re-warm decision IS preserved across the restart, otherwise the
+    # effective rate would depend on how often the machine was rebooted.
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("\n" + json.dumps(
+            {"timesteps": 806912, "learning_rate": 6e-06, "changed": True}))
+    assert _intended_resume_learning_rate(config, tmp_path) == 6e-06
+
+    # ...but never outside the re-warm policy's own bounds.
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("\n" + json.dumps(
+            {"timesteps": 809000, "learning_rate": 5e-05, "changed": True}))
+    assert _intended_resume_learning_rate(config, tmp_path) == 9e-06
+
+
+def test_the_resume_branch_reapplies_and_verifies_the_rate():
+    """Read the source: the resume branch must not stop at restore_*_state."""
+
+    import re
+
+    from marine_race_arena.learning import train_ppo_transition as trainer
+
+    source = Path(trainer.__file__).read_text(encoding="utf-8")
+    branch = re.search(r"if args\.resume:(.*?)\n    elif ", source, re.S)
+    assert branch, "could not locate the --resume branch"
+    body = branch.group(1)
+    for expected in (
+        "_install_continuation_schedule",
+        "_apply_learning_rate",
+        "assert_learning_rate_applied",
+    ):
+        assert expected in body, (
+            f"the --resume branch never calls {expected}; a resumed run would "
+            f"silently inherit the checkpoint's decayed learning rate"
+        )
+
+
+def test_resume_repair_covers_groups_schedule_and_a_real_sb3_train(tmp_path):
+    """The launch assertion must remain true after SB3 re-reads the schedule."""
+
+    from marine_race_arena.learning.train_ppo_transition import (
+        _apply_learning_rate,
+        _install_continuation_schedule,
+        _position_continuation_schedule,
+        assert_learning_rate_applied,
+    )
+
+    intended = 4.5e-06
+    current = 806_912
+    target = 929_792
+    config = {
+        "new_environment_steps": target,
+        "ppo": {
+            "learning_rate": intended,
+            "final_learning_rate": 3e-06,
+            "learning_rate_schedule": "linear",
+        },
+    }
+    model, _ = _tiny_ppo(tmp_path, seed=19)
+    model.num_timesteps = current
+
+    # Model the exact repaired resume sequence.  The checkpoint's restored
+    # optimizer value is deliberately the bad rate observed in the real run.
+    restored = 3.2048458149779734e-06
+    for group in model.policy.optimizer.param_groups:
+        group["lr"] = restored
+    _install_continuation_schedule(model, config)
+    _position_continuation_schedule(
+        model, current_timesteps=current, target_timesteps=target
+    )
+    _apply_learning_rate(model, intended)
+    report = assert_learning_rate_applied(
+        model,
+        expected=intended,
+        restored=restored,
+        configured=intended,
+    )
+    assert report["optimizer_param_group_lrs"]
+    assert all(
+        value == pytest.approx(intended)
+        for value in report["optimizer_param_group_lrs"]
+    )
+    assert report["scheduler_reported_lr"] == pytest.approx(intended)
+
+    # This is the missing regression: exercise PPO.learn(), which calls the
+    # real SB3 train() method and re-queries lr_schedule before optimizer.step().
+    rollout_size = int(model.n_steps)
+    model.learning_rate.set_training_horizon(
+        sb3_total_timesteps=current + rollout_size,
+        absolute_total_timesteps=target,
+    )
+    used_lrs = []
+    optimizer = model.policy.optimizer
+    original_step = optimizer.step
+
+    def recording_step(*args, **kwargs):
+        used_lrs.append([float(group["lr"]) for group in optimizer.param_groups])
+        return original_step(*args, **kwargs)
+
+    optimizer.step = recording_step
+    model.learn(
+        total_timesteps=rollout_size,
+        reset_num_timesteps=False,
+        progress_bar=False,
+    )
+
+    assert used_lrs, "the real SB3 optimizer never stepped"
+    effective = float(model.policy.optimizer.param_groups[0]["lr"])
+    scheduled = float(model.learning_rate(model._current_progress_remaining))
+    assert all(
+        value == pytest.approx(effective)
+        for update in used_lrs for value in update
+    )
+    assert scheduled == pytest.approx(effective)
+    assert effective == pytest.approx(intended, rel=2e-3)
+    assert effective != pytest.approx(restored, rel=1e-3)

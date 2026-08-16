@@ -946,6 +946,79 @@ def _install_continuation_schedule(model: Any, config: Mapping[str, Any]) -> Non
     model._current_progress_remaining = 1.0
 
 
+def _position_continuation_schedule(
+    model: Any, *, current_timesteps: int, target_timesteps: int
+) -> None:
+    """Put a fresh continuation schedule at the run's real resume position.
+
+    Verifying the freshly installed schedule at progress ``1.0`` is insufficient:
+    the training loop gives it the absolute horizon immediately before
+    ``learn()``, and SB3 then queries it at the current absolute transition.  The
+    old resume repair passed its launch assertion but still fell back to the
+    decayed value on the first real update.  Querying the schedule once at the
+    resume position lets ``_apply_learning_rate`` express the intended controller
+    rate relative to the correct base value.
+    """
+
+    schedule = getattr(model, "learning_rate", None)
+    if not hasattr(schedule, "set_training_horizon"):
+        return
+    current = max(1, int(current_timesteps))
+    target = int(target_timesteps)
+    schedule.set_training_horizon(
+        sb3_total_timesteps=current,
+        absolute_total_timesteps=target,
+    )
+    # With sb3_total_timesteps=current, progress 0.0 denotes exactly the
+    # checkpoint boundary.  AbsoluteLearningRateSchedule deliberately ratchets
+    # this value, which is what the subsequent re-warm scaling must start from.
+    schedule(0.0)
+
+
+def _intended_resume_learning_rate(
+    config: Mapping[str, Any], run_dir: Path
+) -> float:
+    """The rate a resumed run should come back at.
+
+    Not simply the configured value: the re-warm controller may legitimately have
+    moved the rate during the run, and throwing that decision away on every
+    restart would make the effective rate depend on how often the machine was
+    rebooted.  So the last re-warm decision wins when there is one, clamped to
+    the policy's own bounds, and the configured rate is the fallback.
+    """
+
+    configured = float(config["ppo"]["learning_rate"])
+    spec = config.get("lr_rewarm")
+    path = Path(run_dir) / "logs" / "lr_rewarm.jsonl"
+    if not spec or not path.is_file():
+        return configured
+    # Only records that actually CHANGED the rate count as decisions.  Every
+    # rollout logs the rate it observed, so reading the last line would adopt
+    # whatever the optimizer happened to be running -- including a rate a broken
+    # resume had just imposed, which would launder the bug into the intended
+    # value and make it permanent.
+    last: Optional[float] = None
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if not record.get("changed"):
+                continue
+            value = record.get("learning_rate")
+            if value is not None:
+                last = float(value)
+    except (OSError, ValueError, TypeError):
+        return configured
+    if last is None:
+        return configured
+    policy = rewarm_policy_from_mapping(spec)
+    return min(
+        max(last, float(policy.minimum_learning_rate)),
+        float(policy.maximum_learning_rate),
+    )
+
+
 def assert_learning_rate_applied(
     model: Any, *, expected: float, restored: float, configured: float,
     tolerance: float = 1e-12,
@@ -990,16 +1063,28 @@ def assert_learning_rate_applied(
 def _apply_learning_rate(model: Any, learning_rate: float) -> None:
     """Set the optimizer rate and keep the schedule consistent with it."""
 
-    for group in model.policy.optimizer.param_groups:
-        group["lr"] = float(learning_rate)
+    intended = float(learning_rate)
     schedule = getattr(model, "learning_rate", None)
-    base = getattr(schedule, "last_value", None)
-    if base:
-        # The schedule keeps decaying underneath; express the controller's
-        # decision as a bounded multiplier on it rather than fighting it.
-        schedule.multiplier = float(
-            np.clip(float(learning_rate) / float(base), 0.25, 1.5)
-        ) if hasattr(schedule, "multiplier") else schedule.multiplier
+    if callable(schedule):
+        progress = float(getattr(model, "_current_progress_remaining", 1.0))
+        scheduled = float(schedule(progress))
+        multiplier = getattr(schedule, "multiplier", None)
+        if (
+            multiplier is not None
+            and hasattr(schedule, "last_value")
+            and scheduled > 0.0
+            and abs(float(multiplier)) > 1e-15
+        ):
+            # Preserve the schedule's base curve while making the controller's
+            # explicit rate the value SB3 will see at this transition.  Calling
+            # scale() is not sufficient here: its 1.5x single-step bound can
+            # prevent a legitimate bounded re-warm decision from surviving the
+            # next SB3 schedule query.
+            nominal = scheduled / float(multiplier)
+            schedule.multiplier = intended / nominal
+            schedule.last_value = intended
+    for group in model.policy.optimizer.param_groups:
+        group["lr"] = intended
 
 
 def policy_parameter_sha256(model: Any) -> str:
@@ -1093,6 +1178,11 @@ def _continue_from_parent(config: Mapping[str, Any], env: Any, run_dir: Path):
     restored_learning_rate = float(model.policy.optimizer.param_groups[0]["lr"])
     continuation_learning_rate = float(config["ppo"]["learning_rate"])
     _install_continuation_schedule(model, config)
+    _position_continuation_schedule(
+        model,
+        current_timesteps=int(model.num_timesteps),
+        target_timesteps=int(config["new_environment_steps"]),
+    )
     _apply_learning_rate(model, continuation_learning_rate)
     learning_rate_report = assert_learning_rate_applied(
         model,
@@ -1233,9 +1323,51 @@ def run_training(args: argparse.Namespace) -> int:
             raise ValueError("model and transition sidecar timesteps disagree")
         if tuple(model.observation_space.shape) != (OBS_DIM_LOCAL_TRANSITION,):
             raise ValueError("local-transition observation shape changed")
+        checkpoint_policy_sha256 = policy_parameter_sha256(model)
         worker_states = curriculum.load_state_dict(state["curriculum"])
         _restore_workers(env, worker_states)
+        restored_learning_rate = float(
+            (state["model_training"].get("optimizer_learning_rates") or [0.0])[0]
+        )
         restore_model_training_state(model, state["model_training"])
+        # Same defect as the continuation path, and it bit for real: restoring the
+        # checkpoint reinstates its ratcheted AbsoluteLearningRateSchedule, and
+        # because that schedule is absolute over the whole horizon it reports a
+        # decayed rate the moment SB3 re-reads it.  A run paused at 4.5e-06 came
+        # back at 3.2048e-06 -- a 29% cut nothing announced.  Resuming must
+        # therefore restate the intended rate exactly as a fresh continuation
+        # does, and prove it reached every optimizer param group.
+        resume_learning_rate = _intended_resume_learning_rate(config, run_dir)
+        _install_continuation_schedule(model, config)
+        _position_continuation_schedule(
+            model,
+            current_timesteps=int(model.num_timesteps),
+            target_timesteps=int(config["new_environment_steps"]),
+        )
+        _apply_learning_rate(model, resume_learning_rate)
+        resume_lr_report = assert_learning_rate_applied(
+            model,
+            expected=resume_learning_rate,
+            restored=restored_learning_rate,
+            configured=float(config["ppo"]["learning_rate"]),
+        )
+        resumed_policy_sha256 = policy_parameter_sha256(model)
+        if resumed_policy_sha256 != checkpoint_policy_sha256:
+            raise ValueError(
+                "PPO resume changed policy parameters before the first update"
+            )
+        atomic_write_json(run_dir / "logs" / "resume_verification.json", {
+            "schema_version": "ppo_resume_verification_v1",
+            "utc": now_utc(),
+            "checkpoint": str(checkpoint.model_path),
+            "checkpoint_model_sha256": checkpoint.manifest["model_sha256"],
+            "total_environment_transitions": int(model.num_timesteps),
+            "intended_learning_rate": float(resume_learning_rate),
+            "policy_sha256_before_restore": checkpoint_policy_sha256,
+            "policy_sha256_after_restore": resumed_policy_sha256,
+            "policy_parity_verified": True,
+            **resume_lr_report,
+        })
         restore_rng_state(state["rng"])
         extra = state["extra"]
         aliases.update(extra.get("checkpoint_aliases") or {})
@@ -1353,6 +1485,24 @@ def run_training(args: argparse.Namespace) -> int:
                     progress_bar=False,
                 )
                 elapsed = time.perf_counter() - started
+                update_optimizer_lrs = [
+                    float(group["lr"])
+                    for group in model.policy.optimizer.param_groups
+                ]
+                schedule = getattr(model, "learning_rate", None)
+                update_schedule_lr = (
+                    float(schedule(float(model._current_progress_remaining)))
+                    if callable(schedule) else None
+                )
+                if update_schedule_lr is not None and any(
+                    abs(value - update_schedule_lr) > 1e-12
+                    for value in update_optimizer_lrs
+                ):
+                    raise RuntimeError(
+                        "PPO optimizer and learning-rate schedule diverged after "
+                        f"train(): groups={update_optimizer_lrs!r}, "
+                        f"schedule={update_schedule_lr!r}"
+                    )
                 # One rollout completed: measure what the optimizer actually did
                 # and let the bounded KL-aware controller adjust the step size.
                 # The live v3 run moved 1.3e-5 (relative) per rollout with KL
@@ -1381,7 +1531,16 @@ def run_training(args: argparse.Namespace) -> int:
                         "utc": now_utc(),
                         "total_environment_transitions": int(model.num_timesteps),
                         "difficulty": curriculum.difficulty,
-                        "learning_rate": float(model.policy.optimizer.param_groups[0]["lr"]),
+                        "learning_rate": update_optimizer_lrs[0],
+                        "intended_learning_rate": (
+                            float(rewarm_record["learning_rate_before"])
+                            if rewarm_record is not None else update_optimizer_lrs[0]
+                        ),
+                        "optimizer_param_group_lrs": update_optimizer_lrs,
+                        "scheduler_learning_rate": update_schedule_lr,
+                        "next_learning_rate": float(
+                            model.policy.optimizer.param_groups[0]["lr"]
+                        ),
                         "rollout_wall_time_s": elapsed,
                         "environment_transitions_per_second": rollout_size / max(elapsed, 1e-9),
                     }) + "\n")
