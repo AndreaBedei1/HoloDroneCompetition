@@ -31,6 +31,11 @@ from marine_race_arena.learning.episode_composition_log import (
 from marine_race_arena.learning.generic_sequence_curriculum import (
     GenericSequenceCurriculum,
 )
+from marine_race_arena.learning.rl_hard_families import (
+    HardCaseMixer,
+    family_of,
+)
+from marine_race_arena.learning.rl_holdout_policy import assert_seed_role
 from marine_race_arena.learning.transition_curriculum import (
     TransitionGeometry,
     TransitionGeometrySampler,
@@ -39,6 +44,12 @@ from marine_race_arena.learning.transition_curriculum import (
 
 
 _BASE = gym.Env if gym is not None else object
+
+#: The mixer gets its own stream, offset from the worker's sampler seed.  Both
+#: stay deterministic per worker (workers must not share a mixture), but seeding
+#: them identically would correlate "is this episode hard?" with the geometry
+#: the base sampler draws when the answer is no.
+HARD_MIXTURE_SEED_OFFSET = 7_919_003
 
 
 def _build_sequence_curriculum(spec: Any) -> Optional[GenericSequenceCurriculum]:
@@ -64,6 +75,45 @@ def _build_sequence_curriculum(spec: Any) -> Optional[GenericSequenceCurriculum]
     return GenericSequenceCurriculum(**kwargs)
 
 
+def _build_hard_case_mixer(spec: Any, *, sampler_seed: int) -> Optional[HardCaseMixer]:
+    """Construct the hard-case mixer from config, or return ``None``.
+
+    Same contract as ``_build_sequence_curriculum``: an empty mapping means "no
+    mixture was configured", never "a mixture that quietly does nothing", and an
+    unknown key is refused rather than ignored -- a typo in ``base_fraction``
+    would otherwise run a whole campaign on the default mixture while the config
+    claimed another.  ``HardCaseMixer`` refuses a hard share above
+    ``MAX_HARD_FRACTION`` here, in the constructor, before any simulator exists.
+    """
+
+    if spec is None or isinstance(spec, HardCaseMixer):
+        return spec
+    if not isinstance(spec, Mapping):
+        raise TypeError(f"unsupported hard_case_mixture {type(spec).__name__}")
+    settings = dict(spec)
+    if not settings.pop("enabled", False):
+        return None
+    # "comment" is the only inert key: JSON configs carry their rationale
+    # inline, and that rationale must not have to live outside the block it
+    # explains.  Everything else is either understood or refused.
+    allowed = {"base_fraction", "family_weights", "seed", "comment"}
+    unknown = sorted(set(settings) - allowed)
+    if unknown:
+        raise ValueError(f"unknown hard_case_mixture keys {unknown}")
+    seed = settings.get("seed")
+    kwargs: Dict[str, Any] = {
+        "rng": int(sampler_seed) + HARD_MIXTURE_SEED_OFFSET
+        if seed is None else int(seed),
+    }
+    # Only forward what was actually requested, so the module's own defaults
+    # stay the single definition of the default mixture.
+    if settings.get("base_fraction") is not None:
+        kwargs["base_fraction"] = float(settings["base_fraction"])
+    if settings.get("family_weights"):
+        kwargs["family_weights"] = dict(settings["family_weights"])
+    return HardCaseMixer(**kwargs)
+
+
 class UniversalTransitionEnv(_BASE):
     """Exactly one simulator and one sampler, owned by one worker process."""
 
@@ -83,6 +133,7 @@ class UniversalTransitionEnv(_BASE):
         max_episode_steps: int = 3600,
         reward_config: Optional[Mapping[str, Any]] = None,
         sequence_curriculum: Optional[Mapping[str, Any]] = None,
+        hard_case_mixture: Optional[Mapping[str, Any]] = None,
         dataset_split: str = "train",
         algorithm: str = "unknown",
         log_episode_composition: bool = True,
@@ -118,6 +169,12 @@ class UniversalTransitionEnv(_BASE):
             transition_focus_fraction=transition_focus_fraction,
             sequence_curriculum=self.sequence_curriculum,
             dataset_split=self.dataset_split,
+        )
+        # Hard families are an *addition* to the distribution the policy is
+        # already competent on, never a replacement.  Built before the simulator
+        # so an over-hard mixture fails here rather than after a worker booted.
+        self.hard_case_mixer = _build_hard_case_mixer(
+            hard_case_mixture, sampler_seed=self.sampler_seed
         )
         self.adapter_name = str(adapter)
         self.allow_fallback = bool(allow_fallback)
@@ -180,10 +237,41 @@ class UniversalTransitionEnv(_BASE):
             observation_encoding_version=OBS_ENCODING_VERSION_LOCAL_TRANSITION,
         )
 
+    def _sample_episode_geometry(self) -> TransitionGeometry:
+        """Draw the next episode's geometry, hard cases included when mixed.
+
+        With no mixer this is exactly ``self.sampler.sample()``.  The mixer owns
+        a separate random stream, so enabling it never perturbs the base
+        distribution itself -- it only changes how often the base sampler is the
+        one asked.
+        """
+
+        if self.hard_case_mixer is None:
+            return self.sampler.sample()
+        geometry = self.hard_case_mixer.sample(self.sampler)
+        # The two geometry streams meet here and nowhere else.  A hard family
+        # that ever emitted an evaluation-band seed would train the policy on
+        # the very courses it is later judged on, so this is asserted on the
+        # episode that is about to be flown rather than trusted upstream.
+        assert_seed_role(int(geometry.seed), expected=self.dataset_split)
+        if str(geometry.dataset_split) != self.dataset_split:
+            raise ValueError(
+                f"episode geometry carries dataset_split="
+                f"{geometry.dataset_split!r} in a {self.dataset_split!r} worker"
+            )
+        return geometry
+
+    def hard_case_composition(self) -> Optional[Dict[str, Any]]:
+        """The base/hard mixture this worker realised, or ``None`` if unmixed."""
+
+        if self.hard_case_mixer is None:
+            return None
+        return self.hard_case_mixer.realised_composition()
+
     def reset(self, *, seed: Optional[int] = None, options=None):
         if self._child is not None:
             self._child.close()
-        geometry = self.sampler.sample()
+        geometry = self._sample_episode_geometry()
         self.current_geometry = geometry
         path = generate_transition_track(
             geometry,
@@ -259,7 +347,7 @@ class UniversalTransitionEnv(_BASE):
             # actually trained on.  Written at episode end so the geometry and
             # its outcome always describe the same episode.
             if self.log_episode_composition and self.current_geometry is not None:
-                append_episode(self.run_dir, episode_row(
+                row = episode_row(
                     utc=now_utc(),
                     algorithm=self.algorithm,
                     run=self.run_dir.name,
@@ -274,7 +362,18 @@ class UniversalTransitionEnv(_BASE):
                         "timeout": bool(truncated and not terminated),
                         "steps": int(self._jerk_samples),
                     },
-                ))
+                )
+                if self.hard_case_mixer is not None:
+                    # The realised mixture is only auditable per episode: an
+                    # aggregate counter cannot say which families the failures
+                    # came from.  Derived from the geometry rather than from a
+                    # flag set at reset, so the row can never disagree with the
+                    # course that was actually flown.  Added only under a
+                    # mixture, so unmixed runs keep their historical columns.
+                    family = family_of(self.current_geometry)
+                    row["case_source"] = "hard" if family else "base"
+                    row["hard_family"] = family
+                append_episode(self.run_dir, row)
         return observation, reward, terminated, truncated, info
 
     def _terminal_metrics(self) -> Dict[str, Any]:
@@ -336,13 +435,20 @@ class UniversalTransitionEnv(_BASE):
         return self._context_info()
 
     def worker_state(self) -> Dict[str, Any]:
-        return {
+        # The schema version is deliberately unchanged: the mixer is an optional
+        # key so a checkpoint written before hard cases existed still resumes,
+        # and a mixed run's checkpoint still loads in a build without them --
+        # only in that case load_worker_state refuses it rather than dropping it.
+        state = {
             "schema_version": "universal_transition_worker_v1",
             "worker_id": self.worker_id,
             "sampler_seed": self.sampler_seed,
             "episode_counter": self._episode_counter,
             "sampler": self.sampler.state_dict(),
         }
+        if self.hard_case_mixer is not None:
+            state["hard_case_mixer"] = self.hard_case_mixer.state_dict()
+        return state
 
     @staticmethod
     def _sensor_fingerprint(value: Any) -> tuple:
@@ -439,6 +545,19 @@ class UniversalTransitionEnv(_BASE):
             raise ValueError("transition worker identity changed")
         self._episode_counter = int(value["episode_counter"])
         self.sampler.load_state_dict(value["sampler"])
+        stored = value.get("hard_case_mixer")
+        if stored is not None:
+            if self.hard_case_mixer is None:
+                raise ValueError(
+                    "worker state carries a hard case mixture but none is "
+                    "configured: the resumed run would silently drop it"
+                )
+            # Restores the mixture's rng *and* its realised counts, so a resume
+            # continues one mixture instead of restarting the cap and the family
+            # balance from zero every time the run is interrupted.
+            self.hard_case_mixer.load_state_dict(stored)
+        # A mixer with no stored state is the continuation that *introduces* the
+        # mixture: its parent has no mixer state to carry, so it starts here.
 
     def set_difficulty(self, difficulty: str) -> None:
         self.sampler.set_difficulty(difficulty)

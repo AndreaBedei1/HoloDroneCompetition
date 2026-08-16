@@ -1,0 +1,648 @@
+pre-registration -> C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition-sac\results\rl_public\ppo_final_matched_benchmark\pre_registration.json
+  git_sha            4278c6ccc6a77e96697ea0113482a72a06c6a538
+  rule fingerprint   3db7936485ea79fc0e4aa938cc72a9284ad9dbca063ca61c85ac9a9710a6dbd9
+  plan fingerprint   c9065d25a8d2b4d7f27cc22d1d83982cb0bd4ee0c765d59449821068b696e110
+  candidates         ['ppo_528384', 'ppo_628736', 'ppo_729088', 'ppo_901120', 'ppo_935936']
+  seed 5000000: 560 cases, 560 distinct validation seeds, range [5000317, 5049965]
+HoloOcean lifecycle cleanup left Holodeck PID 49092 alive; reaping it.
+HoloOcean UUID ff8434cc-ac1d-479e-b19a-3c329bcfcd41 left Holodeck PID 49092 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 46500 alive; reaping it.
+HoloOcean UUID 4ecfd839-62c4-4831-9c02-a33f8a0380f2 left Holodeck PID 46500 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 77744 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 74152 alive; reaping it.
+HoloOcean UUID 6531b13d-5fe0-46d1-ba09-4b4972d14aad left Holodeck PID 74152 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79724 alive; reaping it.
+HoloOcean UUID 67df7dff-9775-4a4d-84eb-93fafba474d4 left Holodeck PID 79724 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74872 alive; reaping it.
+HoloOcean UUID 8089983b-8a65-45fb-a474-41e09b0ecd2e left Holodeck PID 74872 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 77812 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 80044 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 68628 alive; reaping it.
+HoloOcean UUID 43fdc4b2-85af-4e15-a30f-0bc505f9448a left Holodeck PID 68628 alive; reaping it.
+Holodeck PID 68628 for UUID 43fdc4b2-85af-4e15-a30f-0bc505f9448a survived UUID cleanup.
+Closed adapter left owned Holodeck PID 68628 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 43672 alive; reaping it.
+HoloOcean UUID 9f0c4ff2-23ce-4a8b-b6bc-6e079a979dfc left Holodeck PID 43672 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 66656 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 81344 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 61068 alive; reaping it.
+HoloOcean UUID 793f55cf-370f-432f-a4bc-55fa0b419724 left Holodeck PID 61068 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 47248 alive; reaping it.
+HoloOcean UUID 50ccc908-b26e-42e8-b79f-1e022948b8b9 left Holodeck PID 47248 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 69408 alive; reaping it.
+HoloOcean UUID 15c2fcc2-c86b-41fe-825d-fd03b9d43117 left Holodeck PID 69408 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 11524 alive; reaping it.
+HoloOcean UUID 20bba183-e2f6-4444-8088-036953d1670a left Holodeck PID 11524 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 63640 alive; reaping it.
+HoloOcean UUID 2b874eb1-0d11-485e-8e47-32e21a7e64f0 left Holodeck PID 63640 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 32964 alive; reaping it.
+HoloOcean UUID c3ea6cc8-3a73-40b4-a368-60645c815007 left Holodeck PID 32964 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 14976 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 63020 alive; reaping it.
+HoloOcean UUID 30a45690-4ec4-4415-a9b7-03595798a47e left Holodeck PID 63020 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 76732 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 75344 alive; reaping it.
+Owned Holodeck PID 75344 survived final cleanup.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 78352 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 81092 alive; reaping it.
+HoloOcean UUID ffb5212e-d85e-4b55-88e2-873175003464 left Holodeck PID 81092 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78680 alive; reaping it.
+HoloOcean UUID 289231db-dda5-4c77-8edf-2e255ddcccc0 left Holodeck PID 78680 alive; reaping it.
+Holodeck PID 78680 for UUID 289231db-dda5-4c77-8edf-2e255ddcccc0 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 78680 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 12512 alive; reaping it.
+HoloOcean UUID d58ac145-fa1c-4e64-9d08-293758eabd88 left Holodeck PID 12512 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77320 alive; reaping it.
+HoloOcean UUID 6fc01ee2-a820-43b1-94ec-7224e35fac74 left Holodeck PID 77320 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79272 alive; reaping it.
+HoloOcean UUID 3309c4b8-80d6-415f-9246-a3e27e646ef2 left Holodeck PID 79272 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80556 alive; reaping it.
+HoloOcean UUID 6a725f63-b213-4381-bea5-51a545f7cac9 left Holodeck PID 80556 alive; reaping it.
+Holodeck PID 80556 for UUID 6a725f63-b213-4381-bea5-51a545f7cac9 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 80556 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 65856 alive; reaping it.
+HoloOcean UUID 1e66d71b-43e9-4c35-a552-fefa01a6fd31 left Holodeck PID 65856 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77608 alive; reaping it.
+HoloOcean UUID b806e70c-f93e-4f4c-9b02-af1155a31919 left Holodeck PID 77608 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 60392 alive; reaping it.
+HoloOcean UUID 91231270-4e63-4541-9c63-6b9d9d79b6aa left Holodeck PID 60392 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78664 alive; reaping it.
+HoloOcean UUID 2a671f7a-21db-469c-ace3-9b6f4babd836 left Holodeck PID 78664 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 49652 alive; reaping it.
+HoloOcean UUID b013e82e-d4d8-4254-974f-1a7408840bf4 left Holodeck PID 49652 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81184 alive; reaping it.
+HoloOcean UUID edd84964-5d3a-4d29-bcef-631606fcb5a8 left Holodeck PID 81184 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 65672 alive; reaping it.
+HoloOcean UUID 3348a88c-38c7-4a7f-b5c4-5223aeb16a00 left Holodeck PID 65672 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74456 alive; reaping it.
+HoloOcean UUID 2d9b9490-49cb-4165-9838-1143f4235740 left Holodeck PID 74456 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 64240 alive; reaping it.
+HoloOcean UUID 4c81a5cf-1eec-496c-abe0-a034612323e8 left Holodeck PID 64240 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78792 alive; reaping it.
+HoloOcean UUID cc9f6f8c-dce0-46c1-b3c4-e9539a71ad5c left Holodeck PID 78792 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71988 alive; reaping it.
+HoloOcean UUID 51c69190-037a-445e-80e1-baec0236d87f left Holodeck PID 71988 alive; reaping it.
+Holodeck PID 78792 for UUID cc9f6f8c-dce0-46c1-b3c4-e9539a71ad5c survived UUID cleanup.
+Closed adapter left owned Holodeck PID 78792 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81696 alive; reaping it.
+HoloOcean UUID f4c2c536-3ec6-4e05-838c-c25d211d5a3a left Holodeck PID 81696 alive; reaping it.
+Holodeck PID 71988 for UUID 51c69190-037a-445e-80e1-baec0236d87f survived UUID cleanup.
+Closed adapter left owned Holodeck PID 71988 alive; reaping it.
+Holodeck PID 81696 for UUID f4c2c536-3ec6-4e05-838c-c25d211d5a3a survived UUID cleanup.
+Closed adapter left owned Holodeck PID 81696 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 3588 alive; reaping it.
+HoloOcean UUID fdaee637-7d6b-40cb-b39f-dbe62e8a707f left Holodeck PID 3588 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 72092 alive; reaping it.
+HoloOcean UUID f6b622c6-fb3b-45bb-b3c7-099f0390daf3 left Holodeck PID 72092 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 65728 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78312 alive; reaping it.
+HoloOcean UUID b77571db-e17e-47a5-bdb5-cc3b58ec35fc left Holodeck PID 78312 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 51456 alive; reaping it.
+HoloOcean UUID 40fb1ede-bbd5-4dd8-bac9-368b47bde67a left Holodeck PID 51456 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 67852 alive; reaping it.
+HoloOcean UUID 6b552488-1067-4b84-b36c-c7df6b8735cf left Holodeck PID 67852 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 64448 alive; reaping it.
+HoloOcean UUID b587c690-7fea-495f-9ebf-0da47514446d left Holodeck PID 64448 alive; reaping it.
+Holodeck PID 64448 for UUID b587c690-7fea-495f-9ebf-0da47514446d survived UUID cleanup.
+Closed adapter left owned Holodeck PID 64448 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 62224 alive; reaping it.
+HoloOcean UUID 2e34df37-8568-4177-8483-0e18eb28822c left Holodeck PID 62224 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 73596 alive; reaping it.
+HoloOcean UUID ec5058bd-4657-40c1-91f7-0874d17a336f left Holodeck PID 73596 alive; reaping it.
+Holodeck PID 73596 for UUID ec5058bd-4657-40c1-91f7-0874d17a336f survived UUID cleanup.
+Closed adapter left owned Holodeck PID 73596 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 17460 alive; reaping it.
+HoloOcean UUID 70b14032-24d9-47d7-a503-015de3eb4d34 left Holodeck PID 17460 alive; reaping it.
+Holodeck PID 17460 for UUID 70b14032-24d9-47d7-a503-015de3eb4d34 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 17460 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 70908 alive; reaping it.
+HoloOcean UUID 7493cda0-6b36-43cb-9934-a54a0a23e442 left Holodeck PID 70908 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 5100 alive; reaping it.
+HoloOcean UUID f336177f-19c5-44a3-8de5-d938ffe26927 left Holodeck PID 5100 alive; reaping it.
+Holodeck PID 5100 for UUID f336177f-19c5-44a3-8de5-d938ffe26927 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 5100 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78628 alive; reaping it.
+HoloOcean UUID 54ddeabd-78fb-4274-a9f0-12a79452457d left Holodeck PID 78628 alive; reaping it.
+Holodeck PID 78628 for UUID 54ddeabd-78fb-4274-a9f0-12a79452457d survived UUID cleanup.
+Closed adapter left owned Holodeck PID 78628 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 50168 alive; reaping it.
+HoloOcean UUID 6ef35b26-9fc4-4e5d-9345-4a0ff2ef8d86 left Holodeck PID 50168 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 66296 alive; reaping it.
+HoloOcean UUID 1fdc3301-f509-4cf0-a240-76485bfecadf left Holodeck PID 66296 alive; reaping it.
+Holodeck PID 50168 for UUID 6ef35b26-9fc4-4e5d-9345-4a0ff2ef8d86 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 50168 alive; reaping it.
+Holodeck PID 66296 for UUID 1fdc3301-f509-4cf0-a240-76485bfecadf survived UUID cleanup.
+Closed adapter left owned Holodeck PID 66296 alive; reaping it.
+Owned Holodeck PID 66296 survived final cleanup.
+HoloOcean lifecycle cleanup left Holodeck PID 77200 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74400 alive; reaping it.
+HoloOcean UUID 02363693-9d34-496e-8417-7b97953be892 left Holodeck PID 74400 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80660 alive; reaping it.
+HoloOcean UUID ef27bf5e-e849-4578-99bb-0c489e094a51 left Holodeck PID 80660 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77632 alive; reaping it.
+HoloOcean UUID 6df6a788-d900-4cb2-83b5-b60cdcdba9ed left Holodeck PID 77632 alive; reaping it.
+Holodeck PID 77632 for UUID 6df6a788-d900-4cb2-83b5-b60cdcdba9ed survived UUID cleanup.
+HoloOcean lifecycle cleanup left Holodeck PID 77612 alive; reaping it.
+HoloOcean UUID a56cf1c8-374b-4b0c-9554-30856945c3d4 left Holodeck PID 77612 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79992 alive; reaping it.
+HoloOcean UUID 75d3f2ca-523e-45e9-a84f-67fa73eb1db6 left Holodeck PID 79992 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 6592 alive; reaping it.
+HoloOcean UUID 457d50d1-a857-4f90-8410-18fbc269caff left Holodeck PID 6592 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 42356 alive; reaping it.
+HoloOcean UUID 628a66ec-0eb8-4015-81d2-3e5e5dfc76c4 left Holodeck PID 42356 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 60132 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77508 alive; reaping it.
+HoloOcean UUID 8da62624-30e4-465c-be62-6324888cfc28 left Holodeck PID 77508 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79260 alive; reaping it.
+HoloOcean UUID d2d84623-5a7c-42aa-84ae-eeca3c3c96d2 left Holodeck PID 79260 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 44580 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 78584 alive; reaping it.
+HoloOcean UUID 34f9a0e8-fa34-46f9-87e1-1b82870d552c left Holodeck PID 78584 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 72660 alive; reaping it.
+HoloOcean UUID 5babda4c-ff64-43b9-8f49-5248dd006c0b left Holodeck PID 72660 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 44036 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 2476 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 79148 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 81384 alive; reaping it.
+HoloOcean UUID 0f759412-7268-4286-ad52-e17f420ea419 left Holodeck PID 81384 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80944 alive; reaping it.
+HoloOcean UUID 26ee78a6-b8b0-4c0d-b1ad-2bd5a5f4202e left Holodeck PID 80944 alive; reaping it.
+Holodeck PID 80944 for UUID 26ee78a6-b8b0-4c0d-b1ad-2bd5a5f4202e survived UUID cleanup.
+Closed adapter left owned Holodeck PID 80944 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81032 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 61764 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 81340 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76252 alive; reaping it.
+HoloOcean UUID cf80ff74-7926-4fd0-8e53-49c7275c89d1 left Holodeck PID 76252 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71212 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 47000 alive; reaping it.
+HoloOcean UUID 08fd834a-4499-4a99-9ff8-cb34f1c8ec2b left Holodeck PID 47000 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 37600 alive; reaping it.
+HoloOcean UUID 4d8ac277-a7fe-4014-92a8-a0afbf7267d7 left Holodeck PID 37600 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 21080 alive; reaping it.
+HoloOcean UUID ac74b113-d3dc-4ebf-a48d-316d5072b9c2 left Holodeck PID 21080 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 81304 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 73844 alive; reaping it.
+HoloOcean UUID ea44c7ab-f892-47a1-a2a0-5f5deaf7b73c left Holodeck PID 73844 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 7616 alive; reaping it.
+Owned Holodeck PID 7616 survived final cleanup.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 40472 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 48780 alive; reaping it.
+HoloOcean UUID bfdf4b82-18c7-46aa-b38f-5e37237c51fd left Holodeck PID 40472 alive; reaping it.
+HoloOcean UUID 6a1e2052-679f-492e-92a1-e438e0a5f0b8 left Holodeck PID 48780 alive; reaping it.
+Holodeck PID 48780 for UUID 6a1e2052-679f-492e-92a1-e438e0a5f0b8 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 48780 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 70308 alive; reaping it.
+HoloOcean UUID c2cf4de9-c15c-4ec5-8ced-f0940be43710 left Holodeck PID 70308 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79360 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 80264 alive; reaping it.
+Owned Holodeck PID 80264 survived final cleanup.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 49304 alive; reaping it.
+HoloOcean UUID df0d9d05-3cab-4e40-8965-f111f135cd21 left Holodeck PID 49304 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 61628 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76368 alive; reaping it.
+HoloOcean UUID 583c9c19-dba7-4c81-bc07-0ae33ea9bcc1 left Holodeck PID 76368 alive; reaping it.
+Holodeck PID 76368 for UUID 583c9c19-dba7-4c81-bc07-0ae33ea9bcc1 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 76368 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 72380 alive; reaping it.
+HoloOcean UUID 26a2fce1-0753-4bed-9387-2034da93d09f left Holodeck PID 72380 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 60152 alive; reaping it.
+HoloOcean UUID 277ea3b3-7b4e-44bf-b069-aa462e214b92 left Holodeck PID 60152 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 61136 alive; reaping it.
+HoloOcean UUID bb3acb6f-db14-4f9a-bfda-b65689ee6bcb left Holodeck PID 61136 alive; reaping it.
+Holodeck PID 61136 for UUID bb3acb6f-db14-4f9a-bfda-b65689ee6bcb survived UUID cleanup.
+Closed adapter left owned Holodeck PID 61136 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 44260 alive; reaping it.
+HoloOcean UUID 598ed910-146d-4634-be35-7b5c90de89e3 left Holodeck PID 44260 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76616 alive; reaping it.
+HoloOcean UUID 68c2677f-d553-4d71-9c38-07ae5a794264 left Holodeck PID 76616 alive; reaping it.
+Holodeck PID 44260 for UUID 598ed910-146d-4634-be35-7b5c90de89e3 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 44260 alive; reaping it.
+Holodeck PID 76616 for UUID 68c2677f-d553-4d71-9c38-07ae5a794264 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 76616 alive; reaping it.
+Owned Holodeck PID 76616 survived final cleanup.
+HoloOcean lifecycle cleanup left Holodeck PID 77696 alive; reaping it.
+HoloOcean UUID de82142a-d5c3-46d3-b323-6faf95da7486 left Holodeck PID 77696 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 82264 alive; reaping it.
+HoloOcean UUID 46fa0855-be03-48c1-9467-71ebaf2e8e91 left Holodeck PID 82264 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 43672 alive; reaping it.
+Owned Holodeck PID 43672 survived final cleanup.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 41048 alive; reaping it.
+HoloOcean UUID 3a399d4d-4605-4c33-a6bb-5af12bc4f2bc left Holodeck PID 41048 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76004 alive; reaping it.
+HoloOcean UUID 3e926bc6-8828-4072-b7dd-0c8457535c28 left Holodeck PID 76004 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71352 alive; reaping it.
+HoloOcean UUID 71e84778-8510-45e0-9f66-502757554d2a left Holodeck PID 71352 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 82696 alive; reaping it.
+HoloOcean UUID 64359235-ef39-4d33-b81b-be2f4fc4db44 left Holodeck PID 82696 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81572 alive; reaping it.
+HoloOcean UUID 8e27d69e-bf42-428c-bd14-1865a963fd71 left Holodeck PID 81572 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 61248 alive; reaping it.
+HoloOcean UUID e8a82970-e5bb-47b2-ba53-a3e21c0acd84 left Holodeck PID 61248 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 44128 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 54372 alive; reaping it.
+HoloOcean UUID 6ba866dc-948a-4de0-a84d-72b26259ee76 left Holodeck PID 54372 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 36288 alive; reaping it.
+HoloOcean UUID d8e16165-3c1a-4ace-84eb-9f4727ac0220 left Holodeck PID 36288 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76352 alive; reaping it.
+HoloOcean UUID 615ba2c0-41fe-4133-b9e4-0228436450e2 left Holodeck PID 76352 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 6732 alive; reaping it.
+HoloOcean UUID c8a0f6e0-7488-453b-852f-500d52d09003 left Holodeck PID 6732 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71032 alive; reaping it.
+HoloOcean UUID f7306683-3fc8-473a-a4ca-fcbc117c2a0a left Holodeck PID 71032 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 12828 alive; reaping it.
+HoloOcean UUID fb7a9b1a-24b8-4036-aef6-08f2c26486fe left Holodeck PID 12828 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 64440 alive; reaping it.
+HoloOcean UUID edcb5273-4155-4d73-9e99-c0a4aa31a21e left Holodeck PID 64440 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 51364 alive; reaping it.
+HoloOcean UUID b9f1c81a-49cd-4a55-8161-25c37617a355 left Holodeck PID 51364 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 69008 alive; reaping it.
+HoloOcean UUID 4e6b8ab9-cf5c-4e0b-98ab-ac22dbf9fcfb left Holodeck PID 69008 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 42756 alive; reaping it.
+HoloOcean UUID 314ebfe9-5315-4dfd-95e9-8ab70af29838 left Holodeck PID 42756 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 61016 alive; reaping it.
+HoloOcean UUID efcbc3ce-67d6-452b-b4b4-8eb35b4cb0e4 left Holodeck PID 61016 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 80772 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 67256 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 74844 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 69544 alive; reaping it.
+HoloOcean UUID 0aee53d2-07d9-4168-b293-40f2eabdeb01 left Holodeck PID 69544 alive; reaping it.
+HoloOcean UUID c3bc9754-6b57-48b3-8626-6a96df0d9686 left Holodeck PID 74844 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 60864 alive; reaping it.
+HoloOcean UUID 5ed73dec-d58d-4529-a31c-d65563d3f4ea left Holodeck PID 60864 alive; reaping it.
+Holodeck PID 69544 for UUID 0aee53d2-07d9-4168-b293-40f2eabdeb01 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 69544 alive; reaping it.
+Holodeck PID 60864 for UUID 5ed73dec-d58d-4529-a31c-d65563d3f4ea survived UUID cleanup.
+Closed adapter left owned Holodeck PID 60864 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 65816 alive; reaping it.
+HoloOcean UUID 724eb0d1-2848-419a-8138-c455a0815a2a left Holodeck PID 65816 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 54720 alive; reaping it.
+HoloOcean UUID 364db71b-7a40-4553-9dd2-3a8ec3d5b9fd left Holodeck PID 54720 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 73032 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 80948 alive; reaping it.
+Owned Holodeck PID 80948 survived final cleanup.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 63080 alive; reaping it.
+HoloOcean UUID e622f727-2605-4957-ab8a-a6b64aa0fcbd left Holodeck PID 63080 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 82340 alive; reaping it.
+HoloOcean UUID 97cf8ae5-4380-41ae-87ac-630ebc3d3d4b left Holodeck PID 82340 alive; reaping it.
+Holodeck PID 63080 for UUID e622f727-2605-4957-ab8a-a6b64aa0fcbd survived UUID cleanup.
+Closed adapter left owned Holodeck PID 63080 alive; reaping it.
+Holodeck PID 82340 for UUID 97cf8ae5-4380-41ae-87ac-630ebc3d3d4b survived UUID cleanup.
+Closed adapter left owned Holodeck PID 82340 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80756 alive; reaping it.
+HoloOcean UUID cb817f33-1393-458a-b2d3-ce70261a6c93 left Holodeck PID 80756 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 47324 alive; reaping it.
+HoloOcean UUID a5a51780-c7fd-4b9d-b610-0a8e422cd844 left Holodeck PID 47324 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 55880 alive; reaping it.
+HoloOcean UUID 47c43d63-d875-42dc-82bd-df4d97f9db35 left Holodeck PID 55880 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 6732 alive; reaping it.
+HoloOcean UUID 99063ba7-127b-4740-9a91-df2eaa70a407 left Holodeck PID 6732 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78020 alive; reaping it.
+HoloOcean UUID d7944aa8-136c-4b12-b25c-f9cfd74c451b left Holodeck PID 78020 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 75828 alive; reaping it.
+HoloOcean UUID 6c54c1f6-c495-4da3-822e-8978a8d11845 left Holodeck PID 75828 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 37412 alive; reaping it.
+HoloOcean UUID 54272573-08e3-49d0-a592-7ae25f91619b left Holodeck PID 37412 alive; reaping it.
+Holodeck PID 37412 for UUID 54272573-08e3-49d0-a592-7ae25f91619b survived UUID cleanup.
+Closed adapter left owned Holodeck PID 37412 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 50508 alive; reaping it.
+HoloOcean UUID 40736c7f-1e49-4ab9-8877-bd7eeccda8dc left Holodeck PID 50508 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 37096 alive; reaping it.
+HoloOcean UUID 4332ffd5-6a42-499b-8e7e-89e7060bb1c6 left Holodeck PID 37096 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 47752 alive; reaping it.
+HoloOcean UUID 7efb1c2f-208c-4c81-89bb-c55749373d9d left Holodeck PID 47752 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 50872 alive; reaping it.
+HoloOcean UUID b13f7cb5-290b-4c2b-81ae-36f3970e4f8f left Holodeck PID 50872 alive; reaping it.
+Holodeck PID 37096 for UUID 4332ffd5-6a42-499b-8e7e-89e7060bb1c6 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 37096 alive; reaping it.
+Holodeck PID 47752 for UUID 7efb1c2f-208c-4c81-89bb-c55749373d9d survived UUID cleanup.
+Closed adapter left owned Holodeck PID 47752 alive; reaping it.
+Holodeck PID 50872 for UUID b13f7cb5-290b-4c2b-81ae-36f3970e4f8f survived UUID cleanup.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 49060 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 51428 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77400 alive; reaping it.
+HoloOcean UUID c9a45c73-fdf2-4f5c-b1d7-891318973232 left Holodeck PID 77400 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81404 alive; reaping it.
+HoloOcean UUID 3e20af34-cddb-4c42-aead-b536adfe8408 left Holodeck PID 81404 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 73948 alive; reaping it.
+HoloOcean UUID ff52bc68-c319-402a-8bd7-dc33cdbfdbae left Holodeck PID 73948 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 73848 alive; reaping it.
+HoloOcean UUID d2279ad9-14d6-4972-8471-20544d64fcdc left Holodeck PID 73848 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76548 alive; reaping it.
+HoloOcean UUID 937c712a-b86c-4ed5-8796-839896dd295a left Holodeck PID 76548 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71476 alive; reaping it.
+HoloOcean UUID 999fe770-7df0-43de-aafc-35a249331ce8 left Holodeck PID 71476 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 58576 alive; reaping it.
+HoloOcean UUID 5ad74a53-f612-463a-9e31-a2598d584867 left Holodeck PID 58576 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 69668 alive; reaping it.
+HoloOcean UUID f8cea54f-3bf6-446e-a121-ae2c255cdb80 left Holodeck PID 69668 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 75724 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 29240 alive; reaping it.
+HoloOcean UUID b5c2fc38-8553-47e8-b6f9-39c36c53f3ee left Holodeck PID 29240 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78712 alive; reaping it.
+HoloOcean UUID 03773800-c315-4045-b87c-885199e07c39 left Holodeck PID 78712 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81548 alive; reaping it.
+HoloOcean UUID 2aae3e62-e244-410b-98e4-a0d05be7f85a left Holodeck PID 81548 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78132 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 42108 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 66852 alive; reaping it.
+HoloOcean UUID 260afdf7-4ebb-486a-bdba-814209341302 left Holodeck PID 66852 alive; reaping it.
+Holodeck PID 66852 for UUID 260afdf7-4ebb-486a-bdba-814209341302 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 66852 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77752 alive; reaping it.
+HoloOcean UUID b1790339-9637-4958-a1e6-8ade81382e66 left Holodeck PID 77752 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 44676 alive; reaping it.
+HoloOcean UUID 232d8278-bed1-41b1-b4e6-7f97644ff587 left Holodeck PID 44676 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 60220 alive; reaping it.
+HoloOcean UUID bb75d42d-f21a-4f5c-aab9-0cfc2d278a34 left Holodeck PID 60220 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79676 alive; reaping it.
+HoloOcean UUID 4ba477e7-5982-4531-b27c-2ad3f42a40b2 left Holodeck PID 79676 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 62024 alive; reaping it.
+HoloOcean UUID e092ca4e-3c05-4dad-96b1-50a6346e8ac9 left Holodeck PID 62024 alive; reaping it.
+Holodeck PID 60220 for UUID bb75d42d-f21a-4f5c-aab9-0cfc2d278a34 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 60220 alive; reaping it.
+Holodeck PID 79676 for UUID 4ba477e7-5982-4531-b27c-2ad3f42a40b2 survived UUID cleanup.
+Holodeck PID 62024 for UUID e092ca4e-3c05-4dad-96b1-50a6346e8ac9 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 79676 alive; reaping it.
+Closed adapter left owned Holodeck PID 62024 alive; reaping it.
+Owned Holodeck PID 62024 survived final cleanup.
+HoloOcean lifecycle cleanup left Holodeck PID 78244 alive; reaping it.
+HoloOcean UUID d1cf6cb2-bd32-4bcf-9917-3c657b7d8ada left Holodeck PID 78244 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 59468 alive; reaping it.
+HoloOcean UUID 1e4d1093-f3b6-4789-9735-4eeb33e8f84f left Holodeck PID 59468 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77920 alive; reaping it.
+HoloOcean UUID 8bc3b5f7-fb7a-4066-8910-ddb80adf1135 left Holodeck PID 77920 alive; reaping it.
+Holodeck PID 77920 for UUID 8bc3b5f7-fb7a-4066-8910-ddb80adf1135 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 77920 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 68572 alive; reaping it.
+HoloOcean UUID 9531f0e8-99db-4543-bb81-33541b962f44 left Holodeck PID 68572 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 63392 alive; reaping it.
+HoloOcean UUID 1a749e21-ead9-429e-bef7-329d8fb230c7 left Holodeck PID 63392 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 26828 alive; reaping it.
+HoloOcean UUID f05eb23a-8f53-41c2-9b6c-f25c5806d3a3 left Holodeck PID 26828 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 55436 alive; reaping it.
+HoloOcean UUID 8ebc83a9-3fcf-49c3-8c8e-bd008e309dbe left Holodeck PID 55436 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 62848 alive; reaping it.
+HoloOcean UUID aab36524-7ff4-4f1b-9e50-09bff89d8cb0 left Holodeck PID 62848 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 36044 alive; reaping it.
+HoloOcean UUID aa4077ec-c532-429f-9960-b62ea544a703 left Holodeck PID 36044 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 20472 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 77244 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 64508 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 76996 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 26872 alive; reaping it.
+HoloOcean UUID 892d9a78-899f-4144-8630-c889755aa1f7 left Holodeck PID 26872 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 56624 alive; reaping it.
+HoloOcean UUID e1ff868f-77b7-47f9-b14d-41ea6a5fde91 left Holodeck PID 56624 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 34196 alive; reaping it.
+HoloOcean UUID 5b69fb6a-31d1-441b-a186-c0282a368c11 left Holodeck PID 34196 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 75816 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 80148 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 75660 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 72576 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 79196 alive; reaping it.
+HoloOcean UUID a7919527-4876-4da8-aa28-b161da214baf left Holodeck PID 79196 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 81376 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 73836 alive; reaping it.
+HoloOcean UUID 3b404d51-7853-438e-883a-2a96327babc0 left Holodeck PID 73836 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81540 alive; reaping it.
+HoloOcean UUID e7498a8e-2d53-44c6-b98a-b66f8b7affb7 left Holodeck PID 81540 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 69772 alive; reaping it.
+HoloOcean UUID 1b2920fe-e97d-4f5e-ba40-e469e7564c8f left Holodeck PID 69772 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81380 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80904 alive; reaping it.
+HoloOcean UUID 3d28445c-8df4-41aa-a3be-c5d0f71ac5fc left Holodeck PID 80904 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 77204 alive; reaping it.
+HoloOcean UUID 84ac778f-a744-45a1-9dd4-31a50a474a17 left Holodeck PID 77204 alive; reaping it.
+Holodeck PID 80904 for UUID 3d28445c-8df4-41aa-a3be-c5d0f71ac5fc survived UUID cleanup.
+Closed adapter left owned Holodeck PID 80904 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78068 alive; reaping it.
+HoloOcean UUID e66c1f44-1106-49f0-b6f3-27f5cf609325 left Holodeck PID 78068 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78388 alive; reaping it.
+HoloOcean UUID d66cc6c3-3373-4714-a02d-a4a3a82a59bd left Holodeck PID 78388 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 36056 alive; reaping it.
+HoloOcean UUID ea895145-8ccb-46d9-8f36-237dc14dd206 left Holodeck PID 36056 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81856 alive; reaping it.
+HoloOcean UUID 2e5a5daa-674a-4fa6-983c-6cd072329f27 left Holodeck PID 81856 alive; reaping it.
+Holodeck PID 81856 for UUID 2e5a5daa-674a-4fa6-983c-6cd072329f27 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 81856 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 65920 alive; reaping it.
+HoloOcean UUID 7c1f161a-593f-48b9-a8c9-52cd12138466 left Holodeck PID 65920 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 56204 alive; reaping it.
+HoloOcean UUID d0865c26-cae9-4bf3-beac-81f2ea8ac684 left Holodeck PID 56204 alive; reaping it.
+Holodeck PID 65920 for UUID 7c1f161a-593f-48b9-a8c9-52cd12138466 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 65920 alive; reaping it.
+Holodeck PID 56204 for UUID d0865c26-cae9-4bf3-beac-81f2ea8ac684 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 56204 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 77780 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 76052 alive; reaping it.
+HoloOcean UUID 6dc09b51-4ee5-44e6-89eb-01f65fb96f82 left Holodeck PID 76052 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 82544 alive; reaping it.
+HoloOcean UUID 2104c3ac-b26f-462c-b026-300bbfdefabb left Holodeck PID 82544 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 39932 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 78912 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 6972 alive; reaping it.
+HoloOcean UUID 278a9a65-361b-4bd5-a2cc-94e367a2dde9 left Holodeck PID 6972 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 18732 alive; reaping it.
+Owned Holodeck PID 18732 survived final cleanup.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 81336 alive; reaping it.
+HoloOcean UUID dc6aa1e3-7bce-40bf-b300-93bc35bcbc3f left Holodeck PID 81336 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 72020 alive; reaping it.
+HoloOcean UUID ed9b4254-50a6-4753-ab78-a31fdf5873ff left Holodeck PID 72020 alive; reaping it.
+Holodeck PID 72020 for UUID ed9b4254-50a6-4753-ab78-a31fdf5873ff survived UUID cleanup.
+HoloOcean lifecycle cleanup left Holodeck PID 36692 alive; reaping it.
+HoloOcean UUID 87644994-e113-40d0-a64f-8eafc184db13 left Holodeck PID 36692 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 45504 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80356 alive; reaping it.
+HoloOcean UUID 620808a0-486b-4b69-a450-457a09fdfb44 left Holodeck PID 80356 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71296 alive; reaping it.
+HoloOcean UUID 17515d50-c5bf-42bb-8995-629c8122f859 left Holodeck PID 71296 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74504 alive; reaping it.
+HoloOcean UUID ae1b5c75-3450-4779-9cd6-7a682f97cdac left Holodeck PID 74504 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74292 alive; reaping it.
+HoloOcean UUID 0ba604d9-7b74-4cb6-b559-6d9458fd90fb left Holodeck PID 74292 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 42356 alive; reaping it.
+HoloOcean UUID b6bb1443-e8a8-49b1-8aa3-f33322645cb9 left Holodeck PID 42356 alive; reaping it.
+Holodeck PID 42356 for UUID b6bb1443-e8a8-49b1-8aa3-f33322645cb9 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 42356 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74932 alive; reaping it.
+HoloOcean UUID ab9b4686-4b31-484e-b21b-fe7a645c851c left Holodeck PID 74932 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 82192 alive; reaping it.
+HoloOcean UUID 91b9e3c5-37bf-422f-9c6a-0b405792ee46 left Holodeck PID 82192 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81052 alive; reaping it.
+HoloOcean UUID 71c13e59-5e36-4778-b3e1-56e1b9c1790c left Holodeck PID 81052 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 37680 alive; reaping it.
+HoloOcean UUID 2878dd52-387a-45f6-82a6-a2de6b8ffff2 left Holodeck PID 37680 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 62548 alive; reaping it.
+HoloOcean UUID 600d4bdc-bcc4-4954-b73e-b17a4550d716 left Holodeck PID 62548 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 71424 alive; reaping it.
+HoloOcean UUID 36d75888-698a-46da-8622-4e21c376a913 left Holodeck PID 71424 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 49612 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 80536 alive; reaping it.
+HoloOcean UUID 19fca8b3-4ca3-4bd0-b384-14b02a222d52 left Holodeck PID 80536 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 10448 alive; reaping it.
+HoloOcean UUID 869951d0-6441-462e-a1f1-810cc9aa7ced left Holodeck PID 10448 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 77760 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 67304 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 51280 alive; reaping it.
+HoloOcean UUID d1c6529e-a71e-45d9-86e4-dacb78d9028d left Holodeck PID 51280 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 44912 alive; reaping it.
+HoloOcean UUID 16f5e2f3-3d25-4c65-877e-f60ee7a42dac left Holodeck PID 44912 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74480 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 40044 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 68008 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 4380 alive; reaping it.
+HoloOcean UUID ef4d431c-c5b0-4b85-8937-4fde0f16831a left Holodeck PID 4380 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 42828 alive; reaping it.
+HoloOcean UUID 26501b5c-dc80-4326-b109-3b952e5664c6 left Holodeck PID 42828 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 69068 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 81316 alive; reaping it.
+HoloOcean UUID b6f148c3-b0d8-4cfa-a2ca-cae9a4e8de6a left Holodeck PID 81316 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78488 alive; reaping it.
+HoloOcean UUID aba87e66-9f16-432f-8b30-047a37c96fe0 left Holodeck PID 78488 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76844 alive; reaping it.
+HoloOcean UUID 9993d973-5a1a-41e1-ad7e-e15a968646e2 left Holodeck PID 76844 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 74644 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 13012 alive; reaping it.
+HoloOcean UUID 9b70cef5-d9dd-41ba-b29a-549f200d8ea0 left Holodeck PID 13012 alive; reaping it.
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 69096 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+HoloOcean lifecycle cleanup left Holodeck PID 8672 alive; reaping it.
+HoloOcean UUID 00c48736-6e71-48d2-a264-b6b14cea134e left Holodeck PID 8672 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76556 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 75736 alive; reaping it.
+HoloOcean UUID e068f1bb-554b-4358-af6c-088aa6b7788c left Holodeck PID 75736 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 68120 alive; reaping it.
+HoloOcean UUID ac455a48-89c7-4096-b154-debcebb675f9 left Holodeck PID 68120 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 39792 alive; reaping it.
+HoloOcean UUID 48ffe36a-c9d9-47d2-a883-f43c837650e7 left Holodeck PID 39792 alive; reaping it.
+Holodeck PID 39792 for UUID 48ffe36a-c9d9-47d2-a883-f43c837650e7 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 39792 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 12880 alive; reaping it.
+HoloOcean UUID 847a32d2-5985-4508-907f-b8098e4e8d9e left Holodeck PID 12880 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 75400 alive; reaping it.
+HoloOcean UUID 88df0e48-a9b2-4c05-b61d-9964105baa2b left Holodeck PID 75400 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 61804 alive; reaping it.
+HoloOcean UUID 56dfa387-295e-47ff-8150-93e9358bbabd left Holodeck PID 61804 alive; reaping it.
+Holodeck PID 61804 for UUID 56dfa387-295e-47ff-8150-93e9358bbabd survived UUID cleanup.
+Closed adapter left owned Holodeck PID 61804 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 74756 alive; reaping it.
+HoloOcean UUID df76033f-74c6-48b2-b3d3-e6feb6a28b72 left Holodeck PID 74756 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 59688 alive; reaping it.
+HoloOcean UUID 31ae1a64-6c34-4e48-bdba-a64ae1f3f5ce left Holodeck PID 59688 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 46768 alive; reaping it.
+HoloOcean UUID b80121e4-f6bb-405d-aff0-4c284a006314 left Holodeck PID 46768 alive; reaping it.
+Holodeck PID 59688 for UUID 31ae1a64-6c34-4e48-bdba-a64ae1f3f5ce survived UUID cleanup.
+Closed adapter left owned Holodeck PID 59688 alive; reaping it.
+Holodeck PID 46768 for UUID b80121e4-f6bb-405d-aff0-4c284a006314 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 46768 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 66388 alive; reaping it.
+HoloOcean UUID 925124f6-8bbf-42ff-952c-960ed7bf6c73 left Holodeck PID 66388 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 81168 alive; reaping it.
+HoloOcean UUID dfdebf2d-ba45-465b-a040-f405405e0f1e left Holodeck PID 81168 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76792 alive; reaping it.
+HoloOcean UUID 1c5b663a-de6d-4c13-a87b-0a73781b8530 left Holodeck PID 76792 alive; reaping it.
+Holodeck PID 76792 for UUID 1c5b663a-de6d-4c13-a87b-0a73781b8530 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 76792 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 78804 alive; reaping it.
+HoloOcean UUID aebe0198-463e-4dca-90f3-72200f6d277a left Holodeck PID 78804 alive; reaping it.
+Holodeck PID 78804 for UUID aebe0198-463e-4dca-90f3-72200f6d277a survived UUID cleanup.
+Closed adapter left owned Holodeck PID 78804 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 79448 alive; reaping it.
+HoloOcean UUID 0944329b-a220-4bc0-af81-64e397a403c2 left Holodeck PID 79448 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 75712 alive; reaping it.
+HoloOcean UUID a0ef1c30-5321-4534-a7b0-5e1c3db001dc left Holodeck PID 75712 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 76388 alive; reaping it.
+HoloOcean UUID cb228e9a-a7ad-4dbf-87cc-f7a175f381a5 left Holodeck PID 76388 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 82248 alive; reaping it.
+HoloOcean UUID cd094c3f-36f2-47dd-a0b2-b88662f04f2e left Holodeck PID 82248 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 67364 alive; reaping it.
+HoloOcean UUID 9561b1b1-5a7b-4232-9053-0dca9c967e5f left Holodeck PID 67364 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 11524 alive; reaping it.
+HoloOcean UUID bed575a3-a6f1-4108-82fa-adbf8d0a56c6 left Holodeck PID 11524 alive; reaping it.
+Holodeck PID 11524 for UUID bed575a3-a6f1-4108-82fa-adbf8d0a56c6 survived UUID cleanup.
+Closed adapter left owned Holodeck PID 11524 alive; reaping it.
+HoloOcean lifecycle cleanup left Holodeck PID 45956 alive; reaping it.
+HoloOcean UUID d42237e2-0041-426a-a8bb-82e22336fbc6 left Holodeck PID 45956 alive; reaping it.
+
+=== RANKING ===
+  {'candidate': 'ppo_528384', 'rejected': False, 'gate_failures': [], 'scores': {'sequence_reliability': 0.4522388059701492, 'universal_transition_success': 0.8, 'safety': -0.18392857142857144, 'switch_alignment_quality': 0.8906666666666667, 'smoothness': -0.12332243214285715}, 'criteria': ['sequence_reliability', 'universal_transition_success', 'safety', 'switch_alignment_quality', 'smoothness'], 'rank': 1, 'rejection_reason': None}
+  {'candidate': 'ppo_729088', 'rejected': False, 'gate_failures': [], 'scores': {'sequence_reliability': 0.4014925373134328, 'universal_transition_success': 0.788, 'safety': -0.16785714285714287, 'switch_alignment_quality': 0.8546666666666667, 'smoothness': -0.1347134232142857}, 'criteria': ['sequence_reliability', 'universal_transition_success', 'safety', 'switch_alignment_quality', 'smoothness'], 'rank': 2, 'rejection_reason': None}
+  {'candidate': 'ppo_628736', 'rejected': False, 'gate_failures': [], 'scores': {'sequence_reliability': 0.382089552238806, 'universal_transition_success': 0.83, 'safety': -0.16428571428571428, 'switch_alignment_quality': 0.8946666666666667, 'smoothness': -0.12811318035714286}, 'criteria': ['sequence_reliability', 'universal_transition_success', 'safety', 'switch_alignment_quality', 'smoothness'], 'rank': 3, 'rejection_reason': None}
+  {'candidate': 'ppo_901120', 'rejected': False, 'gate_failures': [], 'scores': {'sequence_reliability': 0.3656716417910448, 'universal_transition_success': 0.658, 'safety': -0.2875, 'switch_alignment_quality': 0.7626666666666667, 'smoothness': -0.14156146964285715}, 'criteria': ['sequence_reliability', 'universal_transition_success', 'safety', 'switch_alignment_quality', 'smoothness'], 'rank': 4, 'rejection_reason': None}
+  {'candidate': 'ppo_935936', 'rejected': False, 'gate_failures': [], 'scores': {'sequence_reliability': 0.3567164179104477, 'universal_transition_success': 0.698, 'safety': -0.2357142857142857, 'switch_alignment_quality': 0.7879999999999999, 'smoothness': -0.13883645357142857}, 'criteria': ['sequence_reliability', 'universal_transition_success', 'safety', 'switch_alignment_quality', 'smoothness'], 'rank': 5, 'rejection_reason': None}
+
+FINAL_PPO_PARENT = ppo_729088
+  checkpoint: C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition-sac\results\rl\universal_transition\longrun\universal_transition_ppo_generic_sequence_v5_rewarm_fixed_seed23001\checkpoints\ppo_729088_steps.zip
+  sha256    : 9735a8d48b181d8ba889bddc0f8f43e884752d1f317aa8fdd654440ff2744af3
+  reason    : ppo_528384 and ppo_729088 are statistically equivalent on case_success (paired mean difference +0.0143, 95% CI [-0.0214, +0.0500] straddles 0); the tie was broken on safety, which favours ppo_729088 (safety score -0.1679 vs -0.1839)
+  paired    : {"schema_version": "rl_matched_benchmark_v1", "n_pairs": 560, "aligned_on_cases": 560, "mean_a": 0.7714285714285715, "mean_b": 0.7571428571428571, "mean_difference": 0.014285714285714285, "difference_ci": [-0.02142857142857143, 0.05], "confidence": 0.95, "n_discordant": 104, "n_a_better": 56, "n_b_better": 48, "sign_test_p_value": 0.49264506648650275, "equivalent_within_noise": true, "bootstrap_resamples": 10000, "bootstrap_seed": 20260808, "metric": "case_success", "a": "ppo_528384", "b": "ppo_729088"}

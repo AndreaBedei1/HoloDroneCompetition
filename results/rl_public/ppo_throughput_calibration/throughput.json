@@ -1,0 +1,71 @@
+{
+  "schema_version": "ppo_evaluation_throughput_calibration_v1",
+  "utc": "2026-08-15T21:40:00Z",
+  "purpose": "size the matched validation benchmark before committing hours of engine time",
+  "machine": {
+    "cpu_count": 40,
+    "gpu": "NVIDIA RTX 6000 Ada Generation",
+    "gpu_memory_mib": 49140,
+    "ram_gb": 146.5,
+    "note": "shared box; an unrelated ComfyUI python process holds ~8 GB of GPU memory"
+  },
+  "method": "real G1 validation transition cases on ppo_729088, sampler seed 91001, timed from per-case episode.json mtimes so engine ramp-up is excluded from the steady-state figure",
+  "measurements": [
+    {
+      "workers": 2,
+      "seconds_per_case": 35.0,
+      "source": "historical in-training evaluations, measured while PPO was also training on this box"
+    },
+    {
+      "workers": 8,
+      "engines_alive": 2,
+      "seconds_per_case": 18.2,
+      "cpu_percent": 36,
+      "gpu_percent": 26,
+      "note": "only 1.9x faster than 2 workers despite 4x the workers; six of eight workers sat queued"
+    },
+    {
+      "workers": 8,
+      "max_engine_starts": 4,
+      "engine_start_stagger_seconds": 1.0,
+      "seconds_per_case": 18.5,
+      "note": "no gain AT THIS WORKER COUNT, which led to the wrong conclusion that serialized startup was not the bottleneck; see the correction below"
+    },
+    {
+      "workers": 16,
+      "engines_alive": 8,
+      "seconds_per_case": 7.7,
+      "cpu_percent": 74,
+      "gpu_percent": 78,
+      "gpu_temperature_c": 79,
+      "note": "2.4x faster than 8 workers, but GPU reached 79 C against an 80 C ceiling"
+    }
+  ],
+  "correction": {
+    "wrong_conclusion": "raising HOLODRONE_MAX_ENGINE_STARTS does not help",
+    "why_it_looked_true": "measured only at 8 workers, where few enough workers contend for the start slot that the extra slots go unused",
+    "what_is_actually_true": "the two settings interact: engine-start concurrency only pays off once enough workers are contending. The real launch at 12 workers with the DEFAULT single start slot and 3 s stagger ran at ~68 s/case with GPU at 2% and 12 workers blocked; the identical run with 4 slots and a 1 s stagger ran at 6.7 s/case with 11 engines live.",
+    "cost_of_the_error": "one misconfigured launch, caught after ~15 cases; the benchmark is resume-safe so the completed cases were kept"
+  },
+  "selected": {
+    "workers": 12,
+    "max_engine_starts": 4,
+    "engine_start_stagger_seconds": 1.0,
+    "measured_seconds_per_case": 6.7,
+    "sustained_gpu_temperature_c": 80,
+    "sustained_gpu_power_w": 165,
+    "reason": "12 workers with 4 start slots reached 6.7 s/case, better than the 16-worker probe, and plateaued at 79-80 C drawing ~165 W of a 300 W budget -- stable rather than climbing, and far below the throttle point. 16 workers offered no further gain worth the thermal headroom on a shared machine."
+  },
+  "reliability_finding": {
+    "failure": "concurrent.futures.process.BrokenProcessPool",
+    "trigger": "HoloOcean OpenSemaphore handshake failure killed one pool worker",
+    "consequence": "a single engine failure aborts the entire benchmark sweep",
+    "mitigation": "tools/rl_final_campaign/run_matched_selection.py drives the benchmark in a resume loop; per-case results are persisted so a retry continues, and an attempt that adds no new cases stops the loop instead of spinning"
+  },
+  "projection_full_spec": {
+    "cases_per_candidate": 560,
+    "candidates": 5,
+    "total_cases": 2800,
+    "hours_at_12_workers_estimated": 7.5
+  }
+}

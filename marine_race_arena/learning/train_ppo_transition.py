@@ -253,6 +253,7 @@ def _make_worker(
     max_episode_steps: int,
     reward_config: Mapping[str, Any],
     sequence_curriculum: Mapping[str, Any] | None = None,
+    hard_case_mixture: Mapping[str, Any] | None = None,
 ):
     return UniversalTransitionEnv(
         run_dir=run_dir,
@@ -266,6 +267,7 @@ def _make_worker(
         max_episode_steps=max_episode_steps,
         reward_config=reward_config,
         sequence_curriculum=sequence_curriculum,
+        hard_case_mixture=hard_case_mixture,
         dataset_split="train",
         algorithm="ppo",
     )
@@ -290,6 +292,7 @@ def _make_vec_env(config: Mapping[str, Any], run_dir: Path, difficulty: str):
             max_episode_steps=int(config["max_episode_steps"]),
             reward_config=dict(config.get("reward") or {}),
             sequence_curriculum=dict(config.get("sequence_curriculum") or {}),
+            hard_case_mixture=dict(config.get("hard_case_mixture") or {}),
         )
         for index in range(n_envs)
     ]
@@ -347,6 +350,49 @@ def _worker_states(env: Any) -> list[Mapping[str, Any]]:
 
 def _worker_identities(env: Any) -> list[Mapping[str, Any]]:
     return list(env.env_method("worker_identity"))
+
+
+def _hard_case_composition(env: Any) -> Optional[Dict[str, Any]]:
+    """The base/hard mixture the live workers actually realised.
+
+    A configured mixture that never materialises -- a worker built without it,
+    or a cap that keeps firing -- looks exactly like a healthy run in every
+    other status field.  Surfaced while the run is live so the realised share
+    can be compared against the requested one before the run is over, not
+    reconstructed from the episode log afterwards.
+    """
+
+    reported = [state for state in env.env_method("hard_case_composition") if state]
+    if not reported:
+        return None
+    episodes = sum(int(state["episodes"]) for state in reported)
+    hard = sum(int(state["hard_episodes"]) for state in reported)
+    families: Dict[str, int] = {}
+    for state in reported:
+        for name, count in dict(state.get("family_counts") or {}).items():
+            families[str(name)] = families.get(str(name), 0) + int(count)
+    return {
+        "schema_version": reported[0].get("schema_version"),
+        # Reported separately from the worker count so "one worker silently
+        # started without the mixture" is visible in the status file itself.
+        "workers_reporting": len(reported),
+        "workers_total": int(getattr(env, "num_envs", len(reported)) or len(reported)),
+        "episodes": episodes,
+        "base_episodes": sum(int(state["base_episodes"]) for state in reported),
+        "hard_episodes": hard,
+        "requested_hard_fraction": reported[0].get("requested_hard_fraction"),
+        "realised_hard_fraction": round(hard / episodes, 6) if episodes else 0.0,
+        "max_hard_fraction": reported[0].get("max_hard_fraction"),
+        "hard_fraction_within_cap": all(
+            bool(state.get("hard_fraction_within_cap")) for state in reported
+        ),
+        "capped_draws": sum(int(state.get("capped_draws", 0)) for state in reported),
+        "family_counts": dict(sorted(families.items())),
+        "family_share_of_hard": {
+            name: round(count / hard, 6) for name, count in sorted(families.items())
+        } if hard else {},
+        "per_worker": reported,
+    }
 
 
 def _restore_workers(env: Any, worker_states: list[Mapping[str, Any]]) -> None:
@@ -763,6 +809,10 @@ def _status(
             ),
         },
         "worker_identities": _worker_identities(env),
+        "hard_case_mixture": {
+            "requested": dict(config.get("hard_case_mixture") or {}),
+            "realised": _hard_case_composition(env),
+        },
         "initialization": dict(config["initialization"]),
         "all_actions_policy_generated": True,
         "hybrid_or_expert_actions_active": False,

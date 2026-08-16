@@ -18,6 +18,14 @@ the whole benchmark reproduces from one command.  Episodes are written
 incrementally to a JSONL shard, so a crashed or interrupted benchmark resumes
 without re-running finished episodes.
 
+Three of the groups are the sealed official circuits, and this module is the only
+code path that puts a controller on them.  Every route from a case to a result --
+``run_benchmark_episode``, ``run_shard``, ``run_all`` -- therefore passes through
+:func:`assert_final_circuit_access`, which refuses without a valid, ready,
+untampered policy freeze record, and every official episode that does run is
+appended to the hash-chained holdout ledger.  See
+``marine_race_arena.learning.rl_readiness_gate`` for the boundary itself.
+
 Usage (marine_race_rl env)::
 
     python -m marine_race_arena.learning.final_benchmark run \
@@ -56,6 +64,23 @@ from marine_race_arena.learning.parametric_curriculum import (
     generate_two_gate_track,
 )
 from marine_race_arena.learning.provenance import git_sha, now_utc, sha256_file
+from marine_race_arena.learning.rl_holdout_policy import (
+    FINAL_CIRCUIT_NAMES,
+    is_final_circuit,
+)
+from marine_race_arena.learning.rl_readiness_gate import (
+    FINAL_CIRCUIT_LEDGER_FILENAME,
+    FINAL_CIRCUIT_TRIAL_SEEDS,
+    FREEZE_RECORD_FILENAME,
+    FREEZE_RECORD_VERSION,
+    READINESS_THRESHOLDS,
+    FinalCircuitsLocked,
+    ProtocolViolation,
+    ReadinessGateError,
+    assert_final_circuits_unlocked,
+    freeze_record_id,
+    record_final_circuit_evaluation,
+)
 from marine_race_arena.learning.seed_registry import (
     MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS,
     MULTIGATE_V3_FINAL_THREE_GATE_SEEDS,
@@ -338,6 +363,249 @@ _SEED_POOLS: Dict[str, Sequence[int]] = {
 _SHARED_SEED_POOLS = frozenset({"official"})
 
 
+# --------------------------------------------------------------------------- #
+# Sealed final-circuit access guard
+# --------------------------------------------------------------------------- #
+#: The freeze record is written next to the run whose checkpoint it pins, so once
+#: a policy has actually been frozen the guard needs no flag to find it.
+DEFAULT_FREEZE_RECORD = str(Path(RUN_ROOT) / FREEZE_RECORD_FILENAME)
+
+
+def official_group_names() -> Tuple[str, ...]:
+    """The groups that put a controller on a sealed circuit.
+
+    Read off the templates rather than listed again here, so a fourth official
+    group cannot be added later without inheriting the guard.
+    """
+
+    return tuple(
+        template.group
+        for template in default_groups(episodes_per_case=1, official_episodes=1)
+        if template.official
+    )
+
+
+def official_groups_requested(groups: Optional[Sequence[str]]) -> Tuple[str, ...]:
+    """Official groups a ``--groups`` selection would include.
+
+    An empty or absent selection means "every group", which is exactly the
+    default benchmark and therefore includes all three sealed circuits.
+    """
+
+    official = official_group_names()
+    if not groups:
+        return official
+    wanted = set(groups)
+    return tuple(name for name in official if name in wanted)
+
+
+def resolve_freeze_record(freeze_record: Optional[str | Path] = None) -> Path:
+    return Path(freeze_record) if freeze_record else Path(DEFAULT_FREEZE_RECORD)
+
+
+def resolve_holdout_ledger(
+    ledger: Optional[str | Path] = None,
+    freeze_record: Optional[str | Path] = None,
+) -> Path:
+    """One holdout, one ledger: it lives beside the freeze record by default.
+
+    Putting it inside each benchmark output directory instead would scatter the
+    record of how often the sealed circuits were opened across runs, which is
+    precisely the thing the ledger exists to make countable.
+    """
+
+    if ledger:
+        return Path(ledger)
+    return resolve_freeze_record(freeze_record).parent / FINAL_CIRCUIT_LEDGER_FILENAME
+
+
+def _missing_requirement(path: Path) -> str:
+    """Name the one thing that is keeping the door shut.
+
+    The gate decides; this only labels its refusal, because "locked" alone sends
+    an operator hunting through a 1300-line integrity module to find out whether
+    they are missing a record, a passing verdict or the frozen weights.
+    """
+
+    if not path.is_file():
+        return f"no freeze record exists at {path}"
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return f"the freeze record at {path} is unreadable ({exc})"
+    if not isinstance(record, Mapping):
+        return f"the freeze record at {path} is not a JSON object"
+    if record.get("schema_version") != FREEZE_RECORD_VERSION:
+        return (
+            f"the freeze record at {path} has schema "
+            f"{record.get('schema_version')!r}, not {FREEZE_RECORD_VERSION!r}"
+        )
+    recorded_id = record.get("freeze_id")
+    if not recorded_id or recorded_id != freeze_record_id(record):
+        return (
+            f"the freeze record at {path} does not match its own content hash: "
+            "it was edited after freezing"
+        )
+    verdict = record.get("readiness_verdict")
+    if not isinstance(verdict, Mapping):
+        return f"the freeze record at {path} carries no readiness verdict"
+    if verdict.get("ready") is not True:
+        return (
+            "the frozen policy's readiness verdict is not ready "
+            f"(failing criteria: {list(verdict.get('failures') or []) or 'unstated'})"
+        )
+    if record.get("readiness_thresholds_sha256") != READINESS_THRESHOLDS.sha256():
+        return (
+            "the freeze record was judged against thresholds that are not the "
+            "pre-registered ones"
+        )
+    policy = record.get("policy") or {}
+    checkpoint = Path(str(policy.get("checkpoint_path", "")))
+    if not checkpoint.is_file():
+        checkpoint = path.parent / str(policy.get("checkpoint", ""))
+    if not checkpoint.is_file():
+        return (
+            f"the frozen checkpoint {policy.get('checkpoint_path')!r} is missing, "
+            "so the evaluated policy cannot be shown to be the frozen one"
+        )
+    if sha256_file(checkpoint) != policy.get("checkpoint_sha256"):
+        return (
+            f"the checkpoint at {checkpoint} no longer hashes to the frozen "
+            "sha256: the policy changed after it was frozen"
+        )
+    return "the readiness gate refused the freeze record"
+
+
+def assert_final_circuit_access(
+    intent: str,
+    *,
+    freeze_record: Optional[str | Path] = None,
+    verify_checkpoint: bool = True,
+) -> Dict[str, Any]:
+    """Open the sealed circuits for ``intent``, or refuse and say what is missing.
+
+    This is the pre-freeze peek guard at benchmark level: it wraps the readiness
+    gate so the refusal names the benchmark action being refused *and* the single
+    unmet requirement, instead of the bare "locked" that an operator cannot act
+    on.
+    """
+
+    path = resolve_freeze_record(freeze_record)
+    try:
+        return assert_final_circuits_unlocked(path, verify_checkpoint=verify_checkpoint)
+    except FinalCircuitsLocked as exc:
+        raise FinalCircuitsLocked(
+            f"the three final circuits are sealed -- refusing {intent}. "
+            f"Missing: {_missing_requirement(path)}. "
+            f"Freeze record looked for at: {path} (override with --freeze-record). "
+            f"Readiness gate said: {exc}"
+        ) from exc
+
+
+def assert_official_groups_permitted(
+    groups: Optional[Sequence[str]] = None,
+    *,
+    freeze_record: Optional[str | Path] = None,
+    verify_checkpoint: bool = True,
+) -> Optional[Dict[str, Any]]:
+    """Guard a group selection; a selection without official groups is free.
+
+    Returns the validated freeze record when the door opens, or ``None`` when no
+    official group was requested at all -- so the whole non-official benchmark
+    still runs on a machine that has never frozen a policy.
+    """
+
+    requested = official_groups_requested(groups)
+    if not requested:
+        return None
+    return assert_final_circuit_access(
+        f"official circuit groups {list(requested)}",
+        freeze_record=freeze_record,
+        verify_checkpoint=verify_checkpoint,
+    )
+
+
+def final_circuit_name(case: "BenchmarkCase") -> str:
+    """The protocol's name for the circuit a case runs on."""
+
+    track = str(case.track).replace("\\", "/").lower()
+    for name in FINAL_CIRCUIT_NAMES:
+        if name in track or name == case.case_id:
+            return name
+    return str(case.case_id)
+
+
+def assert_official_trial_seeds_are_registered(
+    cases: Sequence["BenchmarkCase"],
+) -> None:
+    """Refuse to *run* sealed circuits on seeds the protocol never registered.
+
+    ``record_final_circuit_evaluation`` rejects unregistered trial seeds, so an
+    official run on other seeds is unrecordable.  Discovering that after hours of
+    simulator time would leave a holdout that was opened but not logged, which is
+    the one outcome the ledger exists to prevent -- so the check happens before
+    the first episode instead.
+    """
+
+    registered = set(int(seed) for seed in FINAL_CIRCUIT_TRIAL_SEEDS)
+    offenders = {
+        case.uid: sorted(set(int(seed) for seed in case.seeds) - registered)
+        for case in cases
+        if case.official
+    }
+    offenders = {uid: seeds for uid, seeds in offenders.items() if seeds}
+    if offenders:
+        raise ProtocolViolation(
+            "refusing to run the sealed circuits on seeds the final-circuit "
+            f"protocol never registered: {offenders}; the protocol pins "
+            f"{list(FINAL_CIRCUIT_TRIAL_SEEDS)} and every official trial must "
+            "use them, or the evaluation cannot be written to the holdout ledger"
+        )
+
+
+def _ledger_metrics(row: Mapping[str, Any]) -> Dict[str, Any]:
+    """The protocol's metric set, projected out of one episode row."""
+
+    expected = row.get("expected_gates") or 0
+    completed = row.get("completed_gates") or 0
+    return {
+        "controller": row.get("controller"),
+        "circuit_completed": bool(row.get("full_completion")),
+        "gates_crossed": int(completed),
+        "gates_crossed_fraction": (
+            float(completed) / float(expected) if expected else None
+        ),
+        "completion_time_s": row.get("official_time_s"),
+        "collision_events": row.get("collision_events"),
+        "collision_episodes": int(bool(row.get("collision_episode"))),
+        "out_of_bounds_events": row.get("out_of_bounds_events"),
+        "wrong_direction_events": row.get("wrong_direction_crossings"),
+        "missed_gate_dnf": row.get("missed_gate_attempts"),
+        "previous_gate_returns": row.get("previous_gate_returns"),
+        "mean_action_jerk": row.get("mean_action_jerk"),
+        "dnf_reason": row.get("evaluation_end_reason"),
+    }
+
+
+def record_official_episode(
+    row: Mapping[str, Any],
+    case: "BenchmarkCase",
+    *,
+    freeze_record: Optional[str | Path] = None,
+    ledger: Optional[str | Path] = None,
+) -> Dict[str, Any]:
+    """Append one opened-holdout entry to the hash-chained ledger."""
+
+    return record_final_circuit_evaluation(
+        resolve_holdout_ledger(ledger, freeze_record),
+        freeze_record_path=resolve_freeze_record(freeze_record),
+        circuit=final_circuit_name(case),
+        trial_seeds=[int(row.get("seed", 0))],
+        metrics=_ledger_metrics(row),
+        note=f"final_benchmark {case.uid} controller={row.get('controller')}",
+    )
+
+
 @dataclass(frozen=True)
 class BenchmarkCase:
     group: str
@@ -407,12 +675,24 @@ def build_suite(
     episodes_per_case: int = 8,
     official_episodes: int = 5,
     groups: Optional[Sequence[str]] = None,
+    freeze_record: Optional[str | Path] = None,
+    require_official_freeze: bool = False,
 ) -> List[BenchmarkCase]:
     """Deterministically build the benchmark cases and their generated tracks.
 
     Half of every case's seeds are reused from the already-allocated final
     evaluation ranges (so results are comparable with earlier official runs) and
     half come from the never-used final-benchmark holdout range.
+
+    The sealed-circuit guard runs before a single official case is materialised
+    when the caller *names* an official group -- naming one is an unambiguous
+    request for the sealed circuits -- or whenever an execution entry point sets
+    ``require_official_freeze``, which ``run_shard`` and ``run_all`` always do.
+    The unfiltered planning call is deliberately not treated as an access
+    request: it resolves nothing but gate counts and race deadlines so the
+    manifest, the report and the suite's own tests can describe the benchmark,
+    and it cannot produce a result.  Every path that turns a case into a result
+    is guarded with no opt-out, ``run_benchmark_episode`` included.
     """
     out = Path(output_dir)
     track_dir = out / "generated_tracks"
@@ -428,6 +708,8 @@ def build_suite(
         )}
         if unknown:
             raise ValueError(f"unknown benchmark groups: {sorted(unknown)}")
+    if require_official_freeze or (groups and official_groups_requested(groups)):
+        assert_official_groups_permitted(groups, freeze_record=freeze_record)
 
     cases: List[BenchmarkCase] = []
     pool_cursor: Dict[str, int] = {name: 0 for name in _SEED_POOLS}
@@ -763,8 +1045,24 @@ def run_benchmark_episode(
     video_stride: int = 5,
     trajectory_stride: int = 1,
     artifact_dir: Optional[Path] = None,
+    freeze_record: Optional[str | Path] = None,
+    ledger: Optional[str | Path] = None,
 ) -> Dict[str, Any]:
-    """Run one instrumented episode through the unchanged runner and referee."""
+    """Run one instrumented episode through the unchanged runner and referee.
+
+    This is the only function in the project that actually puts a controller on a
+    sealed circuit, so the guard runs here before anything is loaded or built --
+    ahead even of the controller import -- and it keys off the case's own track
+    as well as its ``official`` flag, so a hand-built :class:`BenchmarkCase` that
+    simply forgets the flag cannot slip a final circuit through.
+    """
+    if case.official or is_final_circuit(case.track):
+        assert_final_circuit_access(
+            f"an episode on the sealed circuit {case.track!r} "
+            f"(controller {spec.key!r}, seed {int(seed)})",
+            freeze_record=freeze_record,
+        )
+
     from marine_race_arena.learning.episode import build_single_vehicle_race
     from marine_race_arena.learning.evaluate_policy import derive_evaluation_end_reason
     from marine_race_arena.participants.controller_loader import ControllerLoader
@@ -903,6 +1201,15 @@ def run_benchmark_episode(
                 if written is not None:
                     row["video_path"] = str(written.as_posix())
                     row["video_frames"] = len(probe.frames)
+        if case.official:
+            # Recorded here rather than in the callers so that every route --
+            # the sharded CLI, a notebook, an ad-hoc script -- leaves the same
+            # trace: the ledger has to count how often the holdout was opened,
+            # not how often someone remembered to say so.
+            entry = record_official_episode(
+                row, case, freeze_record=freeze_record, ledger=ledger
+            )
+            row["holdout_ledger_entry_sha256"] = entry["entry_sha256"]
         return row
     finally:
         try:
@@ -1031,6 +1338,16 @@ def _suite_manifest(
         "episodes_per_case": int(args.episodes_per_case),
         "official_episodes": int(args.official_episodes),
         "group_descriptions": group_descriptions(),
+        "official_groups": list(official_groups_requested(args.groups)),
+        "freeze_record": str(
+            resolve_freeze_record(getattr(args, "freeze_record", None))
+        ),
+        "holdout_ledger": str(
+            resolve_holdout_ledger(
+                getattr(args, "holdout_ledger", None),
+                getattr(args, "freeze_record", None),
+            )
+        ),
         "controllers": [
             {
                 **asdict(spec),
@@ -1064,12 +1381,17 @@ def _video_seed(case: BenchmarkCase) -> Optional[int]:
 
 def run_shard(args: argparse.Namespace) -> int:
     out_dir = Path(args.out)
+    freeze_record = getattr(args, "freeze_record", None)
+    ledger = getattr(args, "holdout_ledger", None)
     cases = build_suite(
         out_dir,
         episodes_per_case=args.episodes_per_case,
         official_episodes=args.official_episodes,
         groups=args.groups,
+        freeze_record=freeze_record,
+        require_official_freeze=True,
     )
+    assert_official_trial_seeds_are_registered(cases)
     case_by_uid = {case.uid: case for case in cases}
     controllers = _select_controllers(args.controllers)
     episodes = plan_episodes(cases, controllers)
@@ -1125,9 +1447,17 @@ def run_shard(args: argparse.Namespace) -> int:
                     video_stride=args.video_stride,
                     trajectory_stride=args.trajectory_stride,
                     artifact_dir=artifact_dir,
+                    freeze_record=freeze_record,
+                    ledger=ledger,
                 )
                 exc = None
                 break
+            except ReadinessGateError:
+                # An integrity refusal is not an infrastructure hiccup.  Retrying
+                # it and then writing a HARNESS_ERROR row would turn a sealed
+                # circuit into an ordinary failed episode, which is exactly how a
+                # holdout gets opened without anyone noticing.
+                raise
             except Exception as error:  # pragma: no cover - simulator/runtime failure
                 exc = error
                 print(
@@ -1218,6 +1548,8 @@ def run_all(args: argparse.Namespace) -> int:
         episodes_per_case=args.episodes_per_case,
         official_episodes=args.official_episodes,
         groups=args.groups,
+        freeze_record=getattr(args, "freeze_record", None),
+        require_official_freeze=True,
     )
     controllers = _select_controllers(args.controllers)
     missing = [
@@ -1238,6 +1570,9 @@ def run_all(args: argparse.Namespace) -> int:
     )
     if args.plan_only:
         return 0
+    # Checked after planning and before the first worker starts: a shard that
+    # cannot write its official results to the ledger must not be launched.
+    assert_official_trial_seeds_are_registered(cases)
 
     processes: List[subprocess.Popen] = []
     for shard in range(args.workers):
@@ -1273,6 +1608,10 @@ def run_all(args: argparse.Namespace) -> int:
             command.append("--allow-fallback")
         if args.video:
             command.append("--video")
+        if getattr(args, "freeze_record", None):
+            command += ["--freeze-record", str(args.freeze_record)]
+        if getattr(args, "holdout_ledger", None):
+            command += ["--holdout-ledger", str(args.holdout_ledger)]
         if args.groups:
             command += ["--groups", *args.groups]
         if args.controllers:
@@ -1348,6 +1687,19 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--video", action="store_true")
         sp.add_argument("--video-stride", type=int, default=5)
         sp.add_argument("--trajectory-stride", type=int, default=1)
+        sp.add_argument(
+            "--freeze-record",
+            default=None,
+            help="policy freeze record that unlocks the three sealed circuits "
+                 f"(default: {DEFAULT_FREEZE_RECORD}); only needed when the "
+                 "requested groups include an official circuit",
+        )
+        sp.add_argument(
+            "--holdout-ledger",
+            default=None,
+            help="append-only ledger of sealed-circuit evaluations (default: "
+                 f"{FINAL_CIRCUIT_LEDGER_FILENAME} beside the freeze record)",
+        )
         sp.add_argument(
             "--retries",
             type=int,

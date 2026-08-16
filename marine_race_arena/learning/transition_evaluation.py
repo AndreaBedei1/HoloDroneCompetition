@@ -124,12 +124,20 @@ def _benchmark_cases(
     difficulty: str,
     transition_cases: int,
     full_cases_per_length: int,
+    dataset_split: str = "train",
 ) -> list[tuple[int, TransitionGeometry, Path, bool]]:
-    """Generate the complete deterministic case list before any engine starts."""
+    """Generate the complete deterministic case list before any engine starts.
+
+    ``dataset_split`` selects the seed band the cases are drawn from.  It stays
+    "train" by default so in-training competence evaluations are unchanged, but
+    model *selection* between checkpoints must pass "validation": choosing a
+    checkpoint on the same band it was trained on is not a held-out comparison.
+    """
 
     cases: list[tuple[int, TransitionGeometry, Path, bool]] = []
     sampler = TransitionGeometrySampler(
-        seed=int(seed), difficulty=difficulty, transition_focus_fraction=1.0
+        seed=int(seed), difficulty=difficulty, transition_focus_fraction=1.0,
+        dataset_split=dataset_split,
     )
     ordinal = 0
     for index in range(int(transition_cases)):
@@ -145,6 +153,7 @@ def _benchmark_cases(
         seed=int(seed) + 1_000_003,
         difficulty=difficulty,
         transition_focus_fraction=0.0,
+        dataset_split=dataset_split,
     )
     for length in FULL_SEQUENCE_LENGTHS:
         completed = 0
@@ -646,8 +655,16 @@ def evaluate_checkpoint_universal_transition_benchmark(
     max_steps: int = 3600,
     parallel_workers: int = 2,
     algorithm: str = "ppo",
+    dataset_split: str = "train",
 ) -> Dict[str, Any]:
-    """Resume-safe checkpoint benchmark across isolated evaluator processes."""
+    """Resume-safe checkpoint benchmark across isolated evaluator processes.
+
+    Cases are a pure function of ``(seed, difficulty, counts, dataset_split)``,
+    so two checkpoints given the same arguments face byte-identical geometry.
+    That is what makes a paired comparison between them valid -- but the caller
+    must give each checkpoint its own ``output_dir``, because resume detection
+    keys on the case geometry and cannot tell which policy produced a row.
+    """
 
     if int(transition_cases) < 1:
         raise ValueError("transition benchmark requires at least one case")
@@ -659,6 +676,7 @@ def evaluate_checkpoint_universal_transition_benchmark(
         difficulty=difficulty,
         transition_cases=int(transition_cases),
         full_cases_per_length=int(full_cases_per_length),
+        dataset_split=dataset_split,
     )
     rows_by_ordinal: Dict[int, Dict[str, Any]] = {}
     pending = []
@@ -713,6 +731,7 @@ def evaluate_checkpoint_universal_transition_benchmark(
         "full_cases_per_length": int(full_cases_per_length),
         "parallel_workers": workers,
         "algorithm": algorithm,
+        "dataset_split": dataset_split,
         "checkpoint": str(checkpoint),
         "metrics": aggregate_transition_benchmark(rows),
         "episodes": rows,
