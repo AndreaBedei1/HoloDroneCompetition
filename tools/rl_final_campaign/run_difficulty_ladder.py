@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -45,6 +46,65 @@ DEFAULT_SEQUENCES_PER_LENGTH = 2
 LADDER_SEED = 5_000_000
 
 
+def _evaluate_rung_with_resume(
+    checkpoint: Path,
+    *,
+    output_dir: Path,
+    difficulty: str,
+    transition_cases: int,
+    sequences_per_length: int,
+    workers: int,
+    attempts: int,
+) -> Dict[str, Any]:
+    """Evaluate one rung, surviving the engine failures a long ladder will hit.
+
+    A HoloOcean handshake failure kills one pool worker, which raises
+    ``BrokenProcessPool`` and takes the whole rung with it -- and this ladder
+    logged three such retries across six rungs, so it is routine rather than
+    exotic.  Per-case results are persisted, so re-entering resumes instead of
+    repeating; an attempt that adds no new cases is treated as a real failure
+    rather than something to retry forever.
+    """
+
+    def completed() -> int:
+        return len(list(output_dir.rglob("episode.json")))
+
+    last = -1
+    for attempt in range(1, int(attempts) + 1):
+        before = completed()
+        if before == last:
+            raise SystemExit(
+                f"{difficulty}: attempt {attempt - 1} completed no new cases "
+                f"({before} total); the failure is not transient"
+            )
+        last = before
+        try:
+            return evaluate_checkpoint_universal_transition_benchmark(
+                checkpoint,
+                output_dir=output_dir,
+                seed=LADDER_SEED,
+                difficulty=difficulty,
+                transition_cases=transition_cases,
+                full_cases_per_length=sequences_per_length,
+                adapter="holoocean",
+                max_steps=3600,
+                parallel_workers=workers,
+                algorithm="ppo",
+                dataset_split=BENCHMARK_ROLE,
+            )
+        except (BrokenProcessPool, RuntimeError, OSError) as exc:
+            after = completed()
+            print(
+                f"  {difficulty}: attempt {attempt}/{attempts} failed after "
+                f"{after - before} new cases ({after} total): "
+                f"{type(exc).__name__}: {exc}",
+                flush=True,
+            )
+            if attempt == int(attempts):
+                raise
+    raise SystemExit(f"{difficulty}: exhausted attempts")
+
+
 def run_ladder(
     checkpoint: Path,
     *,
@@ -53,22 +113,19 @@ def run_ladder(
     transition_cases: int,
     sequences_per_length: int,
     rungs: List[str],
+    attempts: int = 20,
 ) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []
     for difficulty in rungs:
         output_dir = OUTPUT_ROOT / name / difficulty
-        report = evaluate_checkpoint_universal_transition_benchmark(
+        report = _evaluate_rung_with_resume(
             checkpoint,
             output_dir=output_dir,
-            seed=LADDER_SEED,
             difficulty=difficulty,
             transition_cases=transition_cases,
-            full_cases_per_length=sequences_per_length,
-            adapter="holoocean",
-            max_steps=3600,
-            parallel_workers=workers,
-            algorithm="ppo",
-            dataset_split=BENCHMARK_ROLE,
+            sequences_per_length=sequences_per_length,
+            workers=workers,
+            attempts=attempts,
         )
         metrics = report["metrics"]
         episodes = report["episodes"]
@@ -122,6 +179,8 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("--sequences-per-length", type=int,
                         default=DEFAULT_SEQUENCES_PER_LENGTH)
     parser.add_argument("--rungs", default=",".join(DIFFICULTY_LEVELS))
+    parser.add_argument("--attempts", type=int, default=20,
+                        help="resume attempts per rung after a broken engine pool")
     args = parser.parse_args(argv)
 
     rungs = [value.strip() for value in args.rungs.split(",") if value.strip()]
@@ -141,6 +200,7 @@ def main(argv: List[str] | None = None) -> int:
         transition_cases=args.transition_cases,
         sequences_per_length=args.sequences_per_length,
         rungs=rungs,
+        attempts=args.attempts,
     )
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     path = OUTPUT_ROOT / f"{args.name}_ladder.json"

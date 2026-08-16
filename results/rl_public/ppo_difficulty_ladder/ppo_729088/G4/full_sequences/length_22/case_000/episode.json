@@ -1,0 +1,69 @@
+{
+  "seed": 5026322,
+  "difficulty": "G4",
+  "episode_type": "full_sequence",
+  "geometry_group": "G4:full_sequence:22:elevation",
+  "gate_count": 22,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": false,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 0,
+  "collision_events": 331,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": true,
+  "acquisition_time_s": null,
+  "action_jerk": 0.046769,
+  "collision_entries": 4,
+  "collision_contact_frames": 3290,
+  "action_steps": 3600,
+  "nontrivial_action_steps": 3596,
+  "mean_absolute_action_per_axis": [
+    0.387707,
+    0.009853,
+    0.023621,
+    0.023776
+  ],
+  "distance_travelled_m": 20.3352,
+  "universal_transition_success": false,
+  "full_sequence_completion": false,
+  "gates_completed": 2,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": false,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": false,
+      "aligned": false,
+      "range_decreased": false
+    }
+  },
+  "tracker_final_phase": "COMMIT",
+  "tracker_local_completed": 1,
+  "tracker_commit_entry_reason": "standard_visual_lock",
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 10.0,
+    "beacon_id": "B01",
+    "filtered_range_m": 0.5881200178010528,
+    "min_range_m": 0.2973674159103473,
+    "range_rise_m": 0.2907526018907055,
+    "close_range_streak": 2,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 3,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 2,
+    "rear_exit_range_rise_confirmed": true,
+    "last_bearing_deg": -155.98720473589128,
+    "commit_displacement_m": 0.248,
+    "disappear_streak": 5,
+    "last_commit_center_x": 0.30625
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}
