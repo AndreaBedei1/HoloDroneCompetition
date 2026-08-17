@@ -94,6 +94,9 @@ EPISODE_SCHEMA_VERSION = "final_benchmark_episode_v1"
 RUN_ROOT = "results/rl/multigate_reliability_first/r2_reliability_first_seed23001_c3_recovery_476525"
 BC_V3_MODEL = "results/rl/multigate_longrun/bc_v3_balanced_v2_20260728/bc_v3.pt"
 HYBRID_MODEL = "results/rl_public/stage1/bc/model/best_model.pt"
+FINAL_PPO_MODEL = (
+    "results/rl/universal_transition/final/ppo_final_generic_929792.zip"
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -122,6 +125,15 @@ class ControllerSpec:
 def default_controllers() -> Tuple[ControllerSpec, ...]:
     checkpoints = Path(RUN_ROOT) / "checkpoints"
     return (
+        ControllerSpec(
+            "ppo_final_generic_929792",
+            "Frozen final generic hard-case PPO (929,792 transitions)",
+            "rl_multigate_controller",
+            FINAL_PPO_MODEL,
+            "ppo",
+            policy_only=True,
+            note="immutable final PPO pinned by the final-circuit freeze record",
+        ),
         ControllerSpec(
             "ppo_525678",
             "PPO 525,678 steps (training best_reliable / best_fast_reliable)",
@@ -525,6 +537,41 @@ def assert_official_groups_permitted(
     )
 
 
+def assert_official_controller_matches_freeze(
+    spec: ControllerSpec,
+    *,
+    freeze_record: Optional[str | Path] = None,
+) -> Dict[str, Any]:
+    """Bind an official PPO episode to the checkpoint authorized by the freeze.
+
+    The deterministic rule baseline has no learned artifact to bind.  A PPO does:
+    validating only the freeze record while loading an unrelated ``spec.model``
+    would preserve the seal but evaluate the wrong policy.
+    """
+
+    record = assert_final_circuit_access(
+        f"official-circuit controller {spec.key!r}",
+        freeze_record=freeze_record,
+    )
+    if spec.kind != "ppo":
+        return record
+    if not spec.policy_only or not spec.model:
+        raise ProtocolViolation(
+            "an official PPO must be policy-only and name its frozen model"
+        )
+    model = Path(spec.model)
+    if not model.is_file():
+        raise ProtocolViolation(f"official PPO model is missing: {model}")
+    expected = str((record.get("policy") or {}).get("checkpoint_sha256", ""))
+    observed = sha256_file(model)
+    if not expected or observed != expected:
+        raise ProtocolViolation(
+            f"official PPO {spec.key!r} hashes to {observed}, but the access "
+            f"decision authorizes {expected or '<missing>'}"
+        )
+    return record
+
+
 def final_circuit_name(case: "BenchmarkCase") -> str:
     """The protocol's name for the circuit a case runs on."""
 
@@ -680,9 +727,10 @@ def build_suite(
 ) -> List[BenchmarkCase]:
     """Deterministically build the benchmark cases and their generated tracks.
 
-    Half of every case's seeds are reused from the already-allocated final
-    evaluation ranges (so results are comparable with earlier official runs) and
-    half come from the never-used final-benchmark holdout range.
+    Open procedural cases mix reused and final-benchmark holdout seeds.  Sealed
+    official cases use only ``FINAL_CIRCUIT_TRIAL_SEEDS``: those exact seeds are
+    part of the pre-registered final-circuit protocol and the ledger rejects any
+    substitute.
 
     The sealed-circuit guard runs before a single official case is materialised
     when the caller *names* an official group -- naming one is an unambiguous
@@ -717,25 +765,34 @@ def build_suite(
     for template in templates:
         for case in template.cases:
             n = int(template.episodes_per_case)
-            n_reused = n // 2 if n > 1 else 1
-            n_holdout = n - n_reused
-            pool = _SEED_POOLS[template.seed_pool]
-            shared = template.seed_pool in _SHARED_SEED_POOLS
-            start = 0 if shared else pool_cursor[template.seed_pool]
-            if start + n_reused > len(pool):
-                raise ValueError(
-                    f"seed pool {template.seed_pool!r} exhausted for {template.group}"
+            if template.official:
+                if n > len(FINAL_CIRCUIT_TRIAL_SEEDS):
+                    raise ValueError(
+                        f"official protocol registers only "
+                        f"{len(FINAL_CIRCUIT_TRIAL_SEEDS)} trials per circuit"
+                    )
+                reused = tuple(int(s) for s in FINAL_CIRCUIT_TRIAL_SEEDS[:n])
+                holdout = ()
+            else:
+                n_reused = n // 2 if n > 1 else 1
+                n_holdout = n - n_reused
+                pool = _SEED_POOLS[template.seed_pool]
+                shared = template.seed_pool in _SHARED_SEED_POOLS
+                start = 0 if shared else pool_cursor[template.seed_pool]
+                if start + n_reused > len(pool):
+                    raise ValueError(
+                        f"seed pool {template.seed_pool!r} exhausted for {template.group}"
+                    )
+                reused = tuple(int(s) for s in pool[start : start + n_reused])
+                if not shared:
+                    pool_cursor[template.seed_pool] = start + n_reused
+                holdout = tuple(
+                    int(s)
+                    for s in MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS[
+                        holdout_cursor : holdout_cursor + n_holdout
+                    ]
                 )
-            reused = tuple(int(s) for s in pool[start : start + n_reused])
-            if not shared:
-                pool_cursor[template.seed_pool] = start + n_reused
-            holdout = tuple(
-                int(s)
-                for s in MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS[
-                    holdout_cursor : holdout_cursor + n_holdout
-                ]
-            )
-            holdout_cursor += n_holdout
+                holdout_cursor += n_holdout
 
             if case.geometry is not None:
                 track_path = track_dir / f"{template.group}__{case.case_id}.json"
@@ -1057,9 +1114,8 @@ def run_benchmark_episode(
     simply forgets the flag cannot slip a final circuit through.
     """
     if case.official or is_final_circuit(case.track):
-        assert_final_circuit_access(
-            f"an episode on the sealed circuit {case.track!r} "
-            f"(controller {spec.key!r}, seed {int(seed)})",
+        assert_official_controller_matches_freeze(
+            spec,
             freeze_record=freeze_record,
         )
 
@@ -1552,6 +1608,11 @@ def run_all(args: argparse.Namespace) -> int:
         require_official_freeze=True,
     )
     controllers = _select_controllers(args.controllers)
+    if official_groups_requested(args.groups):
+        for spec in controllers:
+            assert_official_controller_matches_freeze(
+                spec, freeze_record=getattr(args, "freeze_record", None)
+            )
     missing = [
         spec.key
         for spec in controllers

@@ -190,6 +190,42 @@ def test_a_valid_ready_freeze_record_permits_the_official_group(tmp_path):
     assert all(case.official for case in cases)
 
 
+def test_official_ppo_must_be_the_checkpoint_named_by_the_freeze(tmp_path):
+    checkpoint, record, path = _freeze(tmp_path)
+    matching = fb.ControllerSpec(
+        "matching", "matching", "rl_multigate_controller", str(checkpoint),
+        "ppo", policy_only=True,
+    )
+    assert (
+        fb.assert_official_controller_matches_freeze(
+            matching, freeze_record=path
+        )["freeze_id"]
+        == record["freeze_id"]
+    )
+
+    other = tmp_path / "other.zip"
+    other.write_bytes(b"other PPO weights")
+    mismatched = fb.ControllerSpec(
+        "mismatched", "mismatched", "rl_multigate_controller", str(other),
+        "ppo", policy_only=True,
+    )
+    with pytest.raises(ProtocolViolation, match="access decision authorizes"):
+        fb.assert_official_controller_matches_freeze(
+            mismatched, freeze_record=path
+        )
+
+
+def test_official_rule_baseline_needs_no_policy_artifact(tmp_path):
+    _, record, path = _freeze(tmp_path)
+    rules = fb.CONTROLLERS_BY_KEY["rule_gate_center_then_commit"]
+    assert (
+        fb.assert_official_controller_matches_freeze(
+            rules, freeze_record=path
+        )["freeze_id"]
+        == record["freeze_id"]
+    )
+
+
 def test_committed_exploratory_failure_amendment_permits_official_group(tmp_path):
     """The explicit one-shot exception is wired through the benchmark door."""
 
@@ -610,16 +646,16 @@ def test_non_official_cases_are_not_bound_to_the_protocol_seeds():
     fb.assert_official_trial_seeds_are_registered([case])
 
 
-def test_a_shard_is_refused_before_running_unrecordable_official_trials(tmp_path):
-    """A holdout that could be opened but not logged must never start."""
+def test_a_shard_is_refused_before_exceeding_registered_official_trials(tmp_path):
+    """A request beyond the ten registered seeds must never start."""
 
     _, _, path = _freeze(tmp_path)
     args = _args(
         "shard", "--out", str(tmp_path / "out"), "--shard", "0", "--shards", "1",
         "--groups", OFFICIAL_GROUP, "--controllers", "rule_gate_center_then_commit",
-        "--official-episodes", "2", "--freeze-record", str(path),
+        "--official-episodes", "11", "--freeze-record", str(path),
     )
-    with pytest.raises(ProtocolViolation, match="protocol never registered"):
+    with pytest.raises(ValueError, match="registers only 10 trials"):
         fb.run_shard(args)
     assert not list((tmp_path / "out").glob("episodes.shard*.jsonl"))
 
@@ -812,11 +848,12 @@ def test_the_episode_guard_is_not_disabled():
 
     source = inspect.getsource(fb.run_benchmark_episode)
     body = source.split('"""', 2)[-1]
-    assert "assert_final_circuit_access(" in body, (
+    guard_name = "assert_official_controller_matches_freeze"
+    assert f"{guard_name}(" in body, (
         "run_benchmark_episode no longer calls the access guard at all"
     )
     guarded = re.search(
-        r"if\s+(?P<cond>[^\n:]+):\s*\n\s+assert_final_circuit_access\(", body
+        rf"if\s+(?P<cond>[^\n:]+):\s*\n\s+{guard_name}\(", body
     )
     assert guarded, "the access guard is not inside a conditional we can inspect"
     condition = guarded.group("cond").strip()

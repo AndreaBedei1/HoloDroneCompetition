@@ -42,7 +42,10 @@ def test_suite_is_deterministic_and_covers_every_required_group(tmp_path):
 def test_every_case_mixes_reused_and_holdout_seeds(tmp_path):
     for case in fb.build_suite(tmp_path, episodes_per_case=8, official_episodes=5):
         assert case.reused_seeds, case.uid
-        assert case.holdout_seeds, case.uid
+        if case.official:
+            assert case.holdout_seeds == (), case.uid
+        else:
+            assert case.holdout_seeds, case.uid
         assert set(case.seeds) == set(case.reused_seeds) | set(case.holdout_seeds)
         assert set(case.holdout_seeds) <= set(
             seed_registry.MULTIGATE_FINAL_BENCHMARK_HOLDOUT_SEEDS
@@ -77,6 +80,17 @@ def test_official_circuits_reuse_the_published_official_seed_prefix(tmp_path):
     assert set(prefixes.pop()) <= set(seed_registry.RESERVED_FINAL_MULTIGATE_SEEDS)
 
 
+def test_ten_official_trials_use_exactly_the_preregistered_seeds(tmp_path):
+    official = [
+        case
+        for case in fb.build_suite(tmp_path, episodes_per_case=8, official_episodes=10)
+        if case.official
+    ]
+    expected = tuple(fb.FINAL_CIRCUIT_TRIAL_SEEDS)
+    assert expected == tuple(range(1800, 1810))
+    assert all(case.seeds == expected for case in official)
+
+
 def test_vertical_groups_move_the_second_gate_in_opposite_directions(tmp_path):
     cases = {
         case.case_id: case
@@ -105,6 +119,14 @@ def test_expected_gate_counts_match_the_official_circuits(tmp_path):
     assert by_group["official_mixed_endurance"].expected_gates == 22
     assert by_group["three_gate_sequence"].expected_gates == 3
     assert by_group["single_gate_retention"].expected_gates == 1
+
+
+def test_final_frozen_ppo_is_an_explicit_policy_only_controller():
+    spec = fb.CONTROLLERS_BY_KEY["ppo_final_generic_929792"]
+    assert spec.kind == "ppo"
+    assert spec.policy_only is True
+    assert spec.controller == "rl_multigate_controller"
+    assert spec.model == fb.FINAL_PPO_MODEL
 
 
 def test_plan_runs_every_controller_on_every_case_seed(tmp_path):
