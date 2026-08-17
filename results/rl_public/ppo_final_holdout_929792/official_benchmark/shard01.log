@@ -1,0 +1,12 @@
+[bench:1] 8 episodes to run (0 already complete)
+[bench:1] attempt 1/5 failed for rule_gate_center_then_commit|official_horseshoe_bay|horseshoe_bay|1800: AdapterSelectionError: HoloOcean adapter is unavailable and fallback is not allowed. Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly.
+[bench:1] attempt 2/5 failed for rule_gate_center_then_commit|official_horseshoe_bay|horseshoe_bay|1800: AdapterSelectionError: HoloOcean adapter is unavailable and fallback is not allowed. Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly.
+[bench:1] 8 episodes to run (0 already complete)
+[bench:1] rule_gate_center_then_commit official_horseshoe_bay     horseshoe_bay          seed=1800   FINISHED  gates=12/12 t=241.6 wall=746.751s
+[bench:1] rule_gate_center_then_commit official_horseshoe_bay     horseshoe_bay          seed=1804   FINISHED  gates=12/12 t=213.5 wall=542.034s
+[bench:1] rule_gate_center_then_commit official_horseshoe_bay     horseshoe_bay          seed=1808   FINISHED  gates=12/12 t=205.70000000000002 wall=426.388s
+[bench:1] rule_gate_center_then_commit official_mixed_endurance   mixed_endurance        seed=1802   FINISHED  gates=22/22 t=448.8 wall=887.504s
+[bench:1] rule_gate_center_then_commit official_mixed_endurance   mixed_endurance        seed=1806   FINISHED  gates=22/22 t=483.79999999999995 wall=956.155s
+[bench:1] rule_gate_center_then_commit official_vertical_serpent  vertical_serpent       seed=1800   FINISHED  gates=17/17 t=288.6 wall=597.526s
+[bench:1] rule_gate_center_then_commit official_vertical_serpent  vertical_serpent       seed=1804   FINISHED  gates=17/17 t=296.7 wall=596.344s
+[bench:1] rule_gate_center_then_commit official_vertical_serpent  vertical_serpent       seed=1808   FINISHED  gates=17/17 t=276.40000000000003 wall=563.464s

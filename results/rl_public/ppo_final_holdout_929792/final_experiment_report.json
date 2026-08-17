@@ -1,0 +1,3067 @@
+{
+  "schema_version": "ppo_final_experiment_report_v1",
+  "created_utc": "2026-08-17T10:17:13.571411+00:00",
+  "final_verdict": "PPO FAILED FINAL HOLDOUT",
+  "frozen_ppo": {
+    "alias": "ppo_final_generic_929792",
+    "checkpoint": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl\\universal_transition\\final\\ppo_final_generic_929792.zip",
+    "checkpoint_sha256": "60ffdca1a6afc0260487d90cc7282a285cbafd46e76d32a316348c13f5fdfe32",
+    "checkpoint_bytes": 1847517,
+    "checkpoint_state_sha256": "d071a22e3f9923abb5e041cf2210f39be2dd48d830ff2fe2eae5ae70f1b25b8b",
+    "source_manifest": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl\\universal_transition\\longrun\\universal_transition_ppo_final_generic_hardcase_seed23001\\checkpoints\\ppo_929792_steps.manifest.json",
+    "atomic_checkpoint_valid": true,
+    "source_manifest_status_before_readiness": "unverified",
+    "source_manifest_status_note": "The atomic validator passed. 'unverified' is the checkpoint's pre-readiness evaluation label, not an integrity failure; the full readiness evaluation is recorded separately in this report.",
+    "policy_parameter_sha256": "77e0c1dc264c8407f88ac2f253664b2d5d665beb968f2d8da33001c574ab4a1b",
+    "git_sha_at_freeze": "1f481b83f2e5735be75ee1322dd234f67902cf0a",
+    "training_start_git_sha": "a77924d4c69152c09d7e367c0e8f9f131dedcfc6",
+    "run_manifest": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl\\universal_transition\\longrun\\universal_transition_ppo_final_generic_hardcase_seed23001\\run_manifest.json",
+    "run_manifest_sha256": "ccf80431a944dd0cf11978a49afca8ffe5947964050af62763ddc63d4d1ed96a",
+    "total_transitions": 929792,
+    "contracts": {
+      "reward": "local_transition_reward_v2_collision_entry",
+      "observation": "onboard_local_transition_v1",
+      "observation_dim": 35,
+      "action": "surge_sway_heave_yaw_pm1_v1",
+      "curriculum": "generic_sequence_curriculum_v1",
+      "dataset_split": "rl_holdout_policy_v1",
+      "hard_family": "rl_hard_families_v1"
+    },
+    "immutable": true
+  },
+  "procedural_readiness": {
+    "transition_metrics": {
+      "universal_transition_success": {
+        "successes": 410,
+        "n": 500,
+        "rate": 0.82,
+        "wilson95": [
+          0.7839253300173655,
+          0.851195092087241
+        ]
+      },
+      "first_gate_crossing": {
+        "successes": 500,
+        "n": 500,
+        "rate": 1.0,
+        "wilson95": [
+          0.9923756595384479,
+          1.0
+        ]
+      },
+      "target_switch": {
+        "successes": 441,
+        "n": 500,
+        "rate": 0.882,
+        "wilson95": [
+          0.8507680121388806,
+          0.9074069917484936
+        ]
+      },
+      "new_target_alignment": {
+        "successes": 426,
+        "n": 500,
+        "rate": 0.852,
+        "wilson95": [
+          0.8181938697042727,
+          0.8804385946107945
+        ]
+      },
+      "new_target_range_decrease": {
+        "successes": 440,
+        "n": 500,
+        "rate": 0.88,
+        "wilson95": [
+          0.8485804013755894,
+          0.9056250998736309
+        ]
+      },
+      "collision_episodes": 41,
+      "collision_events": 513,
+      "missed_gate_dnf": 69,
+      "wrong_direction_events": 1,
+      "out_of_bounds_episodes": 0
+    },
+    "sequence_completion": {
+      "3": {
+        "completed": 16,
+        "n": 20,
+        "rate": 0.8,
+        "wilson95": [
+          0.5839825677481065,
+          0.9193423374202019
+        ]
+      },
+      "5": {
+        "completed": 17,
+        "n": 20,
+        "rate": 0.85,
+        "wilson95": [
+          0.6395811352592431,
+          0.9476312541037835
+        ]
+      },
+      "8": {
+        "completed": 11,
+        "n": 20,
+        "rate": 0.55,
+        "wilson95": [
+          0.34208534245034233,
+          0.7418021417443759
+        ]
+      },
+      "12": {
+        "completed": 14,
+        "n": 20,
+        "rate": 0.7,
+        "wilson95": [
+          0.4810271816464765,
+          0.8545227551323956
+        ]
+      },
+      "17": {
+        "completed": 7,
+        "n": 20,
+        "rate": 0.35,
+        "wilson95": [
+          0.18119182410108206,
+          0.5671457233147638
+        ]
+      },
+      "22": {
+        "completed": 6,
+        "n": 20,
+        "rate": 0.3,
+        "wilson95": [
+          0.14547724486760436,
+          0.5189728183535234
+        ]
+      }
+    },
+    "unconditional_survival_from_episode_start": {
+      "1": {
+        "crossed": 120,
+        "eligible_episodes_from_start": 120,
+        "probability": 1.0,
+        "wilson95": [
+          0.9689808335812966,
+          1.0
+        ]
+      },
+      "2": {
+        "crossed": 88,
+        "eligible_episodes_from_start": 120,
+        "probability": 0.7333333333333333,
+        "wilson95": [
+          0.647875606138524,
+          0.8043154495327476
+        ]
+      },
+      "3": {
+        "crossed": 86,
+        "eligible_episodes_from_start": 120,
+        "probability": 0.7166666666666667,
+        "wilson95": [
+          0.6302979754694596,
+          0.7895937190824355
+        ]
+      },
+      "5": {
+        "crossed": 67,
+        "eligible_episodes_from_start": 100,
+        "probability": 0.67,
+        "wilson95": [
+          0.5730534379509054,
+          0.7543687726587196
+        ]
+      },
+      "8": {
+        "crossed": 46,
+        "eligible_episodes_from_start": 80,
+        "probability": 0.575,
+        "wilson95": [
+          0.4656928984656886,
+          0.6774343821039822
+        ]
+      },
+      "12": {
+        "crossed": 32,
+        "eligible_episodes_from_start": 60,
+        "probability": 0.5333333333333333,
+        "wilson95": [
+          0.4089342702715789,
+          0.6537209395856151
+        ]
+      },
+      "17": {
+        "crossed": 15,
+        "eligible_episodes_from_start": 40,
+        "probability": 0.375,
+        "wilson95": [
+          0.24222979167233272,
+          0.5296756086269889
+        ]
+      },
+      "22": {
+        "crossed": 6,
+        "eligible_episodes_from_start": 20,
+        "probability": 0.3,
+        "wilson95": [
+          0.14547724486760436,
+          0.5189728183535234
+        ]
+      }
+    },
+    "metric_clarification": {
+      "first_gate_crossing": "Crossing gate 1. It does not assert that the gate-1 to gate-2 switch, reacquisition, alignment and range-decrease sequence also succeeded.",
+      "first_transition": "Full gate-1 to gate-2 transition at sequence position 1: gate 1 crossed, target switched, gate 2 aligned, and range decreased.",
+      "first_transition_successes": 88,
+      "first_transition_n": 120,
+      "first_transition_rate": 0.7333333333333333
+    },
+    "difficulty_ladder": {
+      "schema_version": "ppo_difficulty_ladder_v1",
+      "checkpoint": "results\\rl\\universal_transition\\final\\ppo_final_generic_929792.zip",
+      "sha256": "60ffdca1a6afc0260487d90cc7282a285cbafd46e76d32a316348c13f5fdfe32",
+      "dataset_split": "validation",
+      "seed": 5000000,
+      "transition_cases": 60,
+      "full_cases_per_length": 2,
+      "rungs": [
+        {
+          "difficulty": "G1",
+          "n": 60,
+          "success": 0.8333333333333334,
+          "success_ci": [
+            0.7196838683638547,
+            0.9068682302080855
+          ],
+          "first_gate": 1.0,
+          "switch": 0.9,
+          "alignment": 0.8666666666666667,
+          "collisions": 5,
+          "out_of_bounds": 0,
+          "missed_gate_dnf": 4,
+          "long_sequence": 0.6666666666666666
+        },
+        {
+          "difficulty": "G2",
+          "n": 60,
+          "success": 0.8,
+          "success_ci": [
+            0.6821819419437211,
+            0.8817149467710251
+          ],
+          "first_gate": 1.0,
+          "switch": 0.85,
+          "alignment": 0.8333333333333334,
+          "collisions": 6,
+          "out_of_bounds": 0,
+          "missed_gate_dnf": 6,
+          "long_sequence": 0.5
+        },
+        {
+          "difficulty": "G3",
+          "n": 60,
+          "success": 0.75,
+          "success_ci": [
+            0.6276792992295218,
+            0.8422347746994333
+          ],
+          "first_gate": 1.0,
+          "switch": 0.85,
+          "alignment": 0.7833333333333333,
+          "collisions": 6,
+          "out_of_bounds": 0,
+          "missed_gate_dnf": 7,
+          "long_sequence": 0.5833333333333334
+        },
+        {
+          "difficulty": "G4",
+          "n": 60,
+          "success": 0.75,
+          "success_ci": [
+            0.6276792992295218,
+            0.8422347746994333
+          ],
+          "first_gate": 1.0,
+          "switch": 0.85,
+          "alignment": 0.7666666666666667,
+          "collisions": 6,
+          "out_of_bounds": 0,
+          "missed_gate_dnf": 4,
+          "long_sequence": 0.5
+        },
+        {
+          "difficulty": "G5",
+          "n": 60,
+          "success": 0.6833333333333333,
+          "success_ci": [
+            0.5576623297382323,
+            0.7869413244763347
+          ],
+          "first_gate": 1.0,
+          "switch": 0.9166666666666666,
+          "alignment": 0.7333333333333333,
+          "collisions": 13,
+          "out_of_bounds": 0,
+          "missed_gate_dnf": 9,
+          "long_sequence": 0.16666666666666666
+        },
+        {
+          "difficulty": "G6",
+          "n": 60,
+          "success": 0.5333333333333333,
+          "success_ci": [
+            0.4089342702715789,
+            0.6537209395856151
+          ],
+          "first_gate": 0.9833333333333333,
+          "switch": 0.9,
+          "alignment": 0.6333333333333333,
+          "collisions": 17,
+          "out_of_bounds": 0,
+          "missed_gate_dnf": 7,
+          "long_sequence": 0.08333333333333333
+        }
+      ]
+    },
+    "gate": {
+      "schema_version": "rl_readiness_gate_v1",
+      "ready": false,
+      "ready_without_override": false,
+      "failures": [
+        "universal_transition_success",
+        "completion_3_gate",
+        "completion_5_gate",
+        "completion_8_gate"
+      ],
+      "narrow_misses": [
+        "completion_5_gate"
+      ],
+      "unmeasured": [],
+      "thresholds": {
+        "schema_version": "rl_readiness_gate_v1",
+        "min_universal_transition_success": 0.9,
+        "min_first_gate_crossing": 0.97,
+        "min_target_switch": 0.85,
+        "min_new_target_alignment": 0.85,
+        "completion_by_length": {
+          "3": 0.95,
+          "5": 0.9,
+          "8": 0.75,
+          "12": 0.5,
+          "17": 0.25,
+          "22": 0.25
+        },
+        "ladder_min_rung": "G3",
+        "min_ladder_transition_success": 0.5,
+        "min_ladder_first_gate_crossing": 0.8,
+        "max_out_of_bounds_rate": 0.01,
+        "max_collision_episode_rate": 0.2,
+        "required_dataset_split": "validation",
+        "primary_difficulty": "G1",
+        "min_transition_cases": 500,
+        "min_full_cases_per_length": 20,
+        "min_ladder_rung_cases": 30,
+        "narrow_miss_margin": 0.02,
+        "max_overridden_criteria": 2
+      },
+      "thresholds_sha256": "b33f1e163afc1423e52e2256b8c565bade14e533ee1caaadd07b18eb92969b35",
+      "criteria": [
+        {
+          "name": "universal_transition_success",
+          "metric": "universal_transition_success_rate",
+          "group": "competence",
+          "direction": "min",
+          "bound": 0.9,
+          "observed": 0.82,
+          "evaluated": true,
+          "satisfied": false,
+          "shortfall": 0.08000000000000007,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "first_gate_crossing",
+          "metric": "first_gate_crossing_rate",
+          "group": "competence",
+          "direction": "min",
+          "bound": 0.97,
+          "observed": 1.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "target_switch",
+          "metric": "target_switch_rate",
+          "group": "competence",
+          "direction": "min",
+          "bound": 0.85,
+          "observed": 0.882,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "new_target_alignment",
+          "metric": "new_target_alignment_rate",
+          "group": "competence",
+          "direction": "min",
+          "bound": 0.85,
+          "observed": 0.852,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "ladder_transition_success",
+          "metric": "difficulty_ladder[G3].success",
+          "group": "competence",
+          "direction": "min",
+          "bound": 0.5,
+          "observed": 0.75,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "ladder_first_gate_crossing",
+          "metric": "difficulty_ladder[G3].first_gate",
+          "group": "competence",
+          "direction": "min",
+          "bound": 0.8,
+          "observed": 1.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "completion_3_gate",
+          "metric": "full_sequence_success_by_length[3].completion_rate",
+          "group": "sequence_completion",
+          "direction": "min",
+          "bound": 0.95,
+          "observed": 0.8,
+          "evaluated": true,
+          "satisfied": false,
+          "shortfall": 0.1499999999999999,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "completion_5_gate",
+          "metric": "full_sequence_success_by_length[5].completion_rate",
+          "group": "sequence_completion",
+          "direction": "min",
+          "bound": 0.9,
+          "observed": 0.85,
+          "evaluated": true,
+          "satisfied": false,
+          "shortfall": 0.050000000000000044,
+          "narrow_miss": true,
+          "overridable": true
+        },
+        {
+          "name": "completion_8_gate",
+          "metric": "full_sequence_success_by_length[8].completion_rate",
+          "group": "sequence_completion",
+          "direction": "min",
+          "bound": 0.75,
+          "observed": 0.55,
+          "evaluated": true,
+          "satisfied": false,
+          "shortfall": 0.19999999999999996,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "completion_12_gate",
+          "metric": "full_sequence_success_by_length[12].completion_rate",
+          "group": "sequence_completion",
+          "direction": "min",
+          "bound": 0.5,
+          "observed": 0.7,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "completion_17_gate",
+          "metric": "full_sequence_success_by_length[17].completion_rate",
+          "group": "sequence_completion",
+          "direction": "min",
+          "bound": 0.25,
+          "observed": 0.35,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "completion_22_gate",
+          "metric": "full_sequence_success_by_length[22].completion_rate",
+          "group": "sequence_completion",
+          "direction": "min",
+          "bound": 0.25,
+          "observed": 0.3,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": true
+        },
+        {
+          "name": "out_of_bounds_rate",
+          "metric": "out_of_bounds_episodes/n_eval",
+          "group": "safety",
+          "direction": "max",
+          "bound": 0.01,
+          "observed": 0.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        },
+        {
+          "name": "collision_episode_rate",
+          "metric": "collision_episodes/n_eval",
+          "group": "safety",
+          "direction": "max",
+          "bound": 0.2,
+          "observed": 0.06612903225806452,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        },
+        {
+          "name": "matched_validation_split",
+          "metric": "dataset_split",
+          "group": "evidence",
+          "direction": "min",
+          "bound": 1.0,
+          "observed": 1.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        },
+        {
+          "name": "matched_difficulty",
+          "metric": "difficulty",
+          "group": "evidence",
+          "direction": "min",
+          "bound": 1.0,
+          "observed": 1.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        },
+        {
+          "name": "ladder_mid_rung_coverage",
+          "metric": "difficulty_ladder.rungs[>=G3, n>=30]",
+          "group": "evidence",
+          "direction": "min",
+          "bound": 1.0,
+          "observed": 4.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        },
+        {
+          "name": "transition_cases",
+          "metric": "transition_n",
+          "group": "evidence",
+          "direction": "min",
+          "bound": 500.0,
+          "observed": 500.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        },
+        {
+          "name": "full_sequence_cases_per_length",
+          "metric": "full_sequence_success_by_length[*].n",
+          "group": "evidence",
+          "direction": "min",
+          "bound": 20.0,
+          "observed": 20.0,
+          "evaluated": true,
+          "satisfied": true,
+          "shortfall": 0.0,
+          "narrow_miss": false,
+          "overridable": false
+        }
+      ],
+      "override": null,
+      "override_decisions": []
+    },
+    "final_verdict": "FAIL"
+  },
+  "holdout_protocol": {
+    "decision_record": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl_public\\ppo_final_holdout_929792\\exploratory_holdout_decision.json",
+    "decision_record_sha256": "bbe824aa88bf59b563bcb7e48457cd4bfb5000ee3b74e565fba8021772c4c87d",
+    "decision_record_commit_sha": "c3484bb55f12439b23f3af296a9d12dedb165813",
+    "benchmark_protocol_commit_sha": "bd1f961c04c0a20c35d0cd60cd724c98cee1e255",
+    "training_frozen_before_circuit_access": true,
+    "checkpoint_immutable_before_circuit_access": true,
+    "exploratory_because_readiness_failed": true,
+    "post_holdout_tuning_permitted": false,
+    "seeds": [
+      1800,
+      1801,
+      1802,
+      1803,
+      1804,
+      1805,
+      1806,
+      1807,
+      1808,
+      1809
+    ],
+    "trials_per_circuit_per_controller": 10,
+    "adapter": "holoocean",
+    "fallback_allowed": false,
+    "current_profile": "none",
+    "dt": 0.1,
+    "paired": true
+  },
+  "final_circuits": {
+    "official_horseshoe_bay": {
+      "label": "Horseshoe Bay",
+      "expected_gates": 12,
+      "ppo": {
+        "episodes": 10,
+        "full_completions": 0,
+        "full_completion_rate": 0.0,
+        "full_completion_wilson95_low": 0.0,
+        "full_completion_wilson95_high": 0.2775,
+        "gates_completed_total": 35,
+        "gates_expected_total": 120,
+        "mean_gates": 3.5,
+        "collision_events": 0,
+        "collision_episodes": 0,
+        "out_of_bounds_events": 0,
+        "out_of_bounds_episodes": 0,
+        "wrong_direction_events": 0,
+        "wrong_direction_episodes": 0,
+        "missed_gate_attempts": 10,
+        "previous_gate_returns": 0,
+        "timeouts": 0,
+        "harness_errors": 0,
+        "referee_status_counts": {
+          "DNF": 10
+        },
+        "end_reason_counts": {
+          "REFEREE_TERMINAL": 10
+        },
+        "failure_breakdown": {
+          "failures": 10,
+          "modes": {
+            "missed_gate_dnf": 10
+          },
+          "stopped_after_gates": {
+            "1/12": 2,
+            "2/12": 2,
+            "3/12": 1,
+            "4/12": 1,
+            "5/12": 2,
+            "6/12": 2
+          },
+          "median_gates_at_failure": 3.5
+        },
+        "completion_time_s": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "path_length_m": {
+          "n": 10,
+          "mean": 27.7723,
+          "median": 26.9574,
+          "sd": 15.2892,
+          "ci_low": 16.8357,
+          "ci_high": 38.7088
+        },
+        "mean_action_jerk": {
+          "n": 10,
+          "mean": 0.0738,
+          "median": 0.0739,
+          "sd": 0.0027,
+          "ci_low": 0.0718,
+          "ci_high": 0.0757
+        },
+        "mean_inference_ms": {
+          "n": 10,
+          "mean": 56.7725,
+          "median": 56.8439,
+          "sd": 0.8146,
+          "ci_low": 56.1898,
+          "ci_high": 57.3552
+        }
+      },
+      "rules": {
+        "episodes": 10,
+        "full_completions": 10,
+        "full_completion_rate": 1.0,
+        "full_completion_wilson95_low": 0.7225,
+        "full_completion_wilson95_high": 1.0,
+        "gates_completed_total": 120,
+        "gates_expected_total": 120,
+        "mean_gates": 12.0,
+        "collision_events": 0,
+        "collision_episodes": 0,
+        "out_of_bounds_events": 0,
+        "out_of_bounds_episodes": 0,
+        "wrong_direction_events": 0,
+        "wrong_direction_episodes": 0,
+        "missed_gate_attempts": 0,
+        "previous_gate_returns": 0,
+        "timeouts": 0,
+        "harness_errors": 0,
+        "referee_status_counts": {
+          "FINISHED": 10
+        },
+        "end_reason_counts": {
+          "FINISHED": 10
+        },
+        "failure_breakdown": {
+          "failures": 0,
+          "modes": {},
+          "stopped_after_gates": {},
+          "median_gates_at_failure": null
+        },
+        "completion_time_s": {
+          "n": 10,
+          "mean": 225.87,
+          "median": 228.1,
+          "sd": 11.2448,
+          "ci_low": 217.8265,
+          "ci_high": 233.9135
+        },
+        "path_length_m": {
+          "n": 10,
+          "mean": 100.3924,
+          "median": 100.2113,
+          "sd": 1.0364,
+          "ci_low": 99.651,
+          "ci_high": 101.1337
+        },
+        "mean_action_jerk": {
+          "n": 10,
+          "mean": 0.0303,
+          "median": 0.0305,
+          "sd": 0.0018,
+          "ci_low": 0.029,
+          "ci_high": 0.0316
+        },
+        "mean_inference_ms": {
+          "n": 10,
+          "mean": 26.8649,
+          "median": 26.7797,
+          "sd": 1.8309,
+          "ci_low": 25.5552,
+          "ci_high": 28.1746
+        }
+      },
+      "paired": {
+        "controller_a": "ppo_final_generic_929792",
+        "controller_b": "rule_gate_center_then_commit",
+        "groups": [
+          "official_horseshoe_bay"
+        ],
+        "paired_episodes": 10,
+        "a_successes": 0,
+        "b_successes": 10,
+        "a_full_completions": 0,
+        "b_full_completions": 10,
+        "both_finished": 0,
+        "only_a_finished": 0,
+        "only_b_finished": 10,
+        "only_a_finished_cases": [],
+        "only_b_finished_cases": [
+          "official_horseshoe_bay/horseshoe_bay@1800",
+          "official_horseshoe_bay/horseshoe_bay@1801",
+          "official_horseshoe_bay/horseshoe_bay@1802",
+          "official_horseshoe_bay/horseshoe_bay@1803",
+          "official_horseshoe_bay/horseshoe_bay@1804",
+          "official_horseshoe_bay/horseshoe_bay@1805",
+          "official_horseshoe_bay/horseshoe_bay@1806",
+          "official_horseshoe_bay/horseshoe_bay@1807",
+          "official_horseshoe_bay/horseshoe_bay@1808",
+          "official_horseshoe_bay/horseshoe_bay@1809"
+        ],
+        "reliability_sign_test_p": 0.00195,
+        "time_delta_s": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "a_faster_episodes": 0,
+        "b_faster_episodes": 0,
+        "time_sign_test_p": null,
+        "jerk_delta": {
+          "n": 10,
+          "mean": 0.0434,
+          "median": 0.0429,
+          "sd": 0.003,
+          "ci_low": 0.0413,
+          "ci_high": 0.0456
+        },
+        "path_length_delta_m": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "a_safety_events": 0,
+        "b_safety_events": 0
+      },
+      "ppo_failure_gate_histogram": {
+        "2": 2,
+        "3": 2,
+        "4": 1,
+        "5": 1,
+        "6": 2,
+        "7": 2
+      },
+      "failure_classification_note": "Every PPO run crossed at least gate 1 and ended when the referee recorded one missed-gate DNF at the next attempted gate. The observable terminal mechanism is therefore crossing/missed gate; the referee evidence does not support relabelling it as acquisition, target-switch or reacquisition failure.",
+      "ppo_trials": [
+        {
+          "seed": 1800,
+          "completed": false,
+          "gates_completed": 1,
+          "gates_total": 12,
+          "failure_gate": 2,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 8.8293,
+          "mean_action_jerk": 0.07528955489397049,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "4aa81681b8e3a9ce6a569cfa64a47af5708eceee2bd12c51bcdb85cf2a0045ac"
+        },
+        {
+          "seed": 1801,
+          "completed": false,
+          "gates_completed": 3,
+          "gates_total": 12,
+          "failure_gate": 4,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 23.5562,
+          "mean_action_jerk": 0.07201626151800156,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "d8f375b244936a420b28b411a1ba0e091b7a3275aecbde62ebaf3e4cfeabcb3c"
+        },
+        {
+          "seed": 1802,
+          "completed": false,
+          "gates_completed": 5,
+          "gates_total": 12,
+          "failure_gate": 6,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 38.9853,
+          "mean_action_jerk": 0.07442386448383331,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "ecb767f9027c194a1f480635de3f21ac91e6856594ddef632408685b14ce02af"
+        },
+        {
+          "seed": 1803,
+          "completed": false,
+          "gates_completed": 6,
+          "gates_total": 12,
+          "failure_gate": 7,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 48.3917,
+          "mean_action_jerk": 0.07117324322462082,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "c14ee5108a1bd84132466c9e2746bb13f3585aac3b9d472e96dd4011233b69cd"
+        },
+        {
+          "seed": 1804,
+          "completed": false,
+          "gates_completed": 4,
+          "gates_total": 12,
+          "failure_gate": 5,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 30.3586,
+          "mean_action_jerk": 0.07797817885875702,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "aca98163f395dcbe8ab31c149b75fed7cb5387694185770b2ffafa647bf87864"
+        },
+        {
+          "seed": 1805,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 12,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 15.605,
+          "mean_action_jerk": 0.0732603594660759,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "83d48a04b95885714cf1e9f82d9eb8424d5c7b57e47ad61b0556d9c27f6f5a8b"
+        },
+        {
+          "seed": 1806,
+          "completed": false,
+          "gates_completed": 6,
+          "gates_total": 12,
+          "failure_gate": 7,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 48.0268,
+          "mean_action_jerk": 0.07655774056911469,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "39c2944813b05cac8374ff7e5a81b8d197e1633c8ec2af464162ce67a5ad98fb"
+        },
+        {
+          "seed": 1807,
+          "completed": false,
+          "gates_completed": 1,
+          "gates_total": 12,
+          "failure_gate": 2,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 8.9495,
+          "mean_action_jerk": 0.07497462630271912,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "dfd169f2d88f3a176c5c163b4bdd5fd88a60dbf02325d6187827a5efc9d29998"
+        },
+        {
+          "seed": 1808,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 12,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.1758,
+          "mean_action_jerk": 0.0685616284608841,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "869be6ad53d141e97633291241db9b1b4bfa5bd8b5f32857b483d4e6823a38c0"
+        },
+        {
+          "seed": 1809,
+          "completed": false,
+          "gates_completed": 5,
+          "gates_total": 12,
+          "failure_gate": 6,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 38.8443,
+          "mean_action_jerk": 0.07346845418214798,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "22e53f22dc389d1030e0dee33dfde02c483e7b42418641bd2c30f0e465bc0e53"
+        }
+      ],
+      "rules_trials": [
+        {
+          "seed": 1800,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 241.6,
+          "path_length_m": 101.8052,
+          "mean_action_jerk": 0.03293723240494728,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "01a03bceb3b4028ac225df1dc5b55fcec4c8f96afbf6b773764f811d3f5f271a"
+        },
+        {
+          "seed": 1801,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 228.3,
+          "path_length_m": 99.6973,
+          "mean_action_jerk": 0.03130168840289116,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "52c6c1619a3cedc73277e923e29e361fa0ff526c5e67154fa5083088717248a4"
+        },
+        {
+          "seed": 1802,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 226.29999999999998,
+          "path_length_m": 100.2318,
+          "mean_action_jerk": 0.03101012296974659,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "535c7eede08056b7a32fdc2005731d68de5fe2e5e363663a5b4a994af3250523"
+        },
+        {
+          "seed": 1803,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 228.4,
+          "path_length_m": 100.1907,
+          "mean_action_jerk": 0.03160692751407623,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "e77640463ae125d0ec4060b1ac606100aa378713578efed4898955c75853ef1b"
+        },
+        {
+          "seed": 1804,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 213.5,
+          "path_length_m": 99.5788,
+          "mean_action_jerk": 0.029573198407888412,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "7c7bcfb6911250263e40588d84963dc20ae0d7fe85396159bc8fb78561cc2f06"
+        },
+        {
+          "seed": 1805,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 240.4,
+          "path_length_m": 102.0898,
+          "mean_action_jerk": 0.032230813056230545,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "d99539565650d3470fe9c4e004d6736aa383c65990f6d9460efc16b65317ba76"
+        },
+        {
+          "seed": 1806,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 230.0,
+          "path_length_m": 100.8602,
+          "mean_action_jerk": 0.030032772570848465,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "a5e0a43b3a25f520a8b90aba3153adb3f8050f0c7ca35d7a9784468ba413fb22"
+        },
+        {
+          "seed": 1807,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 216.6,
+          "path_length_m": 100.1003,
+          "mean_action_jerk": 0.027850929647684097,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "4e704e60ebc4e6993d28cdeac721971aa6b494ffe0fa71b3b026f848fa8afb78"
+        },
+        {
+          "seed": 1808,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 205.70000000000002,
+          "path_length_m": 98.6187,
+          "mean_action_jerk": 0.027402345091104507,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "3bbb8b67120ff25c218369f9628086cd145385a0552aeaad49de31f7fe945587"
+        },
+        {
+          "seed": 1809,
+          "completed": true,
+          "gates_completed": 12,
+          "gates_total": 12,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 227.9,
+          "path_length_m": 100.751,
+          "mean_action_jerk": 0.02931814454495907,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "f6c753e19e5164a26496d6f6df1d2260c7fd74b6a3d9959693a38119200df97b"
+        }
+      ]
+    },
+    "official_vertical_serpent": {
+      "label": "Vertical Serpent",
+      "expected_gates": 17,
+      "ppo": {
+        "episodes": 10,
+        "full_completions": 0,
+        "full_completion_rate": 0.0,
+        "full_completion_wilson95_low": 0.0,
+        "full_completion_wilson95_high": 0.2775,
+        "gates_completed_total": 29,
+        "gates_expected_total": 170,
+        "mean_gates": 2.9,
+        "collision_events": 82,
+        "collision_episodes": 4,
+        "out_of_bounds_events": 0,
+        "out_of_bounds_episodes": 0,
+        "wrong_direction_events": 2,
+        "wrong_direction_episodes": 2,
+        "missed_gate_attempts": 10,
+        "previous_gate_returns": 0,
+        "timeouts": 0,
+        "harness_errors": 0,
+        "referee_status_counts": {
+          "DNF": 10
+        },
+        "end_reason_counts": {
+          "REFEREE_TERMINAL": 10
+        },
+        "failure_breakdown": {
+          "failures": 10,
+          "modes": {
+            "missed_gate_dnf": 10
+          },
+          "stopped_after_gates": {
+            "1/17": 3,
+            "2/17": 3,
+            "4/17": 2,
+            "6/17": 2
+          },
+          "median_gates_at_failure": 2.0
+        },
+        "completion_time_s": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "path_length_m": {
+          "n": 10,
+          "mean": 30.6269,
+          "median": 29.8832,
+          "sd": 20.0906,
+          "ci_low": 16.2559,
+          "ci_high": 44.9978
+        },
+        "mean_action_jerk": {
+          "n": 10,
+          "mean": 0.0804,
+          "median": 0.0789,
+          "sd": 0.0064,
+          "ci_low": 0.0759,
+          "ci_high": 0.085
+        },
+        "mean_inference_ms": {
+          "n": 10,
+          "mean": 55.9896,
+          "median": 55.0608,
+          "sd": 2.5518,
+          "ci_low": 54.1642,
+          "ci_high": 57.8149
+        }
+      },
+      "rules": {
+        "episodes": 10,
+        "full_completions": 10,
+        "full_completion_rate": 1.0,
+        "full_completion_wilson95_low": 0.7225,
+        "full_completion_wilson95_high": 1.0,
+        "gates_completed_total": 170,
+        "gates_expected_total": 170,
+        "mean_gates": 17.0,
+        "collision_events": 0,
+        "collision_episodes": 0,
+        "out_of_bounds_events": 0,
+        "out_of_bounds_episodes": 0,
+        "wrong_direction_events": 0,
+        "wrong_direction_episodes": 0,
+        "missed_gate_attempts": 0,
+        "previous_gate_returns": 0,
+        "timeouts": 0,
+        "harness_errors": 0,
+        "referee_status_counts": {
+          "FINISHED": 10
+        },
+        "end_reason_counts": {
+          "FINISHED": 10
+        },
+        "failure_breakdown": {
+          "failures": 0,
+          "modes": {},
+          "stopped_after_gates": {},
+          "median_gates_at_failure": null
+        },
+        "completion_time_s": {
+          "n": 10,
+          "mean": 290.55,
+          "median": 293.35,
+          "sd": 10.579,
+          "ci_low": 282.9827,
+          "ci_high": 298.1173
+        },
+        "path_length_m": {
+          "n": 10,
+          "mean": 129.2207,
+          "median": 129.041,
+          "sd": 1.0535,
+          "ci_low": 128.4671,
+          "ci_high": 129.9742
+        },
+        "mean_action_jerk": {
+          "n": 10,
+          "mean": 0.0342,
+          "median": 0.0342,
+          "sd": 0.0014,
+          "ci_low": 0.0332,
+          "ci_high": 0.0352
+        },
+        "mean_inference_ms": {
+          "n": 10,
+          "mean": 25.3305,
+          "median": 25.0278,
+          "sd": 0.7999,
+          "ci_low": 24.7583,
+          "ci_high": 25.9026
+        }
+      },
+      "paired": {
+        "controller_a": "ppo_final_generic_929792",
+        "controller_b": "rule_gate_center_then_commit",
+        "groups": [
+          "official_vertical_serpent"
+        ],
+        "paired_episodes": 10,
+        "a_successes": 0,
+        "b_successes": 10,
+        "a_full_completions": 0,
+        "b_full_completions": 10,
+        "both_finished": 0,
+        "only_a_finished": 0,
+        "only_b_finished": 10,
+        "only_a_finished_cases": [],
+        "only_b_finished_cases": [
+          "official_vertical_serpent/vertical_serpent@1800",
+          "official_vertical_serpent/vertical_serpent@1801",
+          "official_vertical_serpent/vertical_serpent@1802",
+          "official_vertical_serpent/vertical_serpent@1803",
+          "official_vertical_serpent/vertical_serpent@1804",
+          "official_vertical_serpent/vertical_serpent@1805",
+          "official_vertical_serpent/vertical_serpent@1806",
+          "official_vertical_serpent/vertical_serpent@1807",
+          "official_vertical_serpent/vertical_serpent@1808",
+          "official_vertical_serpent/vertical_serpent@1809"
+        ],
+        "reliability_sign_test_p": 0.00195,
+        "time_delta_s": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "a_faster_episodes": 0,
+        "b_faster_episodes": 0,
+        "time_sign_test_p": null,
+        "jerk_delta": {
+          "n": 10,
+          "mean": 0.0463,
+          "median": 0.0448,
+          "sd": 0.0065,
+          "ci_low": 0.0416,
+          "ci_high": 0.0509
+        },
+        "path_length_delta_m": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "a_safety_events": 84,
+        "b_safety_events": 0
+      },
+      "ppo_failure_gate_histogram": {
+        "2": 3,
+        "3": 3,
+        "5": 2,
+        "7": 2
+      },
+      "failure_classification_note": "Every PPO run crossed at least gate 1 and ended when the referee recorded one missed-gate DNF at the next attempted gate. The observable terminal mechanism is therefore crossing/missed gate; the referee evidence does not support relabelling it as acquisition, target-switch or reacquisition failure.",
+      "ppo_trials": [
+        {
+          "seed": 1800,
+          "completed": false,
+          "gates_completed": 4,
+          "gates_total": 17,
+          "failure_gate": 5,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 1,
+          "collision_episode": true,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 41.6899,
+          "mean_action_jerk": 0.08817322552204132,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "3e9bc3eea01f20dd8e087b879837668b7446e06ce3851825babb98c0ae87c419"
+        },
+        {
+          "seed": 1801,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 17,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 24.4646,
+          "mean_action_jerk": 0.08995411545038223,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "84079ec56a77b85bde44ecf75de9b71ec799173d66b8ae73af95aa1cb90dab2d"
+        },
+        {
+          "seed": 1802,
+          "completed": false,
+          "gates_completed": 6,
+          "gates_total": 17,
+          "failure_gate": 7,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 65,
+          "collision_episode": true,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 1,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 63.3213,
+          "mean_action_jerk": 0.0702442154288292,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "42b686add451da4a486af6c5a131f164ac9650c73e5aa6bad075f7472169725f"
+        },
+        {
+          "seed": 1803,
+          "completed": false,
+          "gates_completed": 1,
+          "gates_total": 17,
+          "failure_gate": 2,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 9.2865,
+          "mean_action_jerk": 0.07986731082201004,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "43db4220edd983809f5a80eab0cbcd8600aa5f61145c665186d17587e35e8cca"
+        },
+        {
+          "seed": 1804,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 17,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 3,
+          "collision_episode": true,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 1,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 35.3018,
+          "mean_action_jerk": 0.08825013786554337,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "98f56df98af406d9bcff269f9d956d02b777b4670012f8e5f84470eb2a1d0faa"
+        },
+        {
+          "seed": 1805,
+          "completed": false,
+          "gates_completed": 6,
+          "gates_total": 17,
+          "failure_gate": 7,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 13,
+          "collision_episode": true,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 57.674,
+          "mean_action_jerk": 0.07608501613140106,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "15cbbd71fcecfe419d562612e350c2ef8e5899838792ec1abf3c03925509f322"
+        },
+        {
+          "seed": 1806,
+          "completed": false,
+          "gates_completed": 1,
+          "gates_total": 17,
+          "failure_gate": 2,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 9.1598,
+          "mean_action_jerk": 0.07981468737125397,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "9c217f9bd521c98624639b2dc48e0ebabd1b756f375c1d3e0bad62b62fda2470"
+        },
+        {
+          "seed": 1807,
+          "completed": false,
+          "gates_completed": 1,
+          "gates_total": 17,
+          "failure_gate": 2,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 9.1091,
+          "mean_action_jerk": 0.07701188325881958,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "38eea6ad06fc63c48117ba0d477c7460a1bb98995ab34246490c61a04f225c1e"
+        },
+        {
+          "seed": 1808,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 17,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.767,
+          "mean_action_jerk": 0.07799171656370163,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "0d3404df966f5ffd3a9a9b456dd2b682549e714039cea680d3fa0f2333ef5b63"
+        },
+        {
+          "seed": 1809,
+          "completed": false,
+          "gates_completed": 4,
+          "gates_total": 17,
+          "failure_gate": 5,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 39.4945,
+          "mean_action_jerk": 0.07677986472845078,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "318e24f11268d8312901ec64baf06d504ecaee328a9ffc0d8e6396f8a8300159"
+        }
+      ],
+      "rules_trials": [
+        {
+          "seed": 1800,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 288.6,
+          "path_length_m": 128.9554,
+          "mean_action_jerk": 0.03449148312211037,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "529d58e37bf0ae61ec73b4375a99d07f961b195da4d700edcdb022789dd0c003"
+        },
+        {
+          "seed": 1801,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 290.4,
+          "path_length_m": 129.0011,
+          "mean_action_jerk": 0.033807359635829926,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "7084a35a5f75964409d625415610e1adb8ce2468268610f81200de27b5d0556f"
+        },
+        {
+          "seed": 1802,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 301.0,
+          "path_length_m": 129.9179,
+          "mean_action_jerk": 0.035600122064352036,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "4c1c39fb2dc223782a267cd6b376813e6f6a79e2b407da2cf50304e54bfbbb79"
+        },
+        {
+          "seed": 1803,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 296.29999999999995,
+          "path_length_m": 129.1189,
+          "mean_action_jerk": 0.0352211594581604,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "fc8d5e022fcab9f70b8a56a7edc3be5a8964bfd17f97ad4fbf157ab29b68b2e7"
+        },
+        {
+          "seed": 1804,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 296.7,
+          "path_length_m": 129.0808,
+          "mean_action_jerk": 0.03551749885082245,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "828d91e6e3ae5d11ec0839694830c0cd775331bd903ab58237b285592f9a98a1"
+        },
+        {
+          "seed": 1805,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 274.5,
+          "path_length_m": 128.2566,
+          "mean_action_jerk": 0.031903017312288284,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "57d322d6784d0b843feeacb2eee8db7d296b0bbc569990523c8b35206d5e2435"
+        },
+        {
+          "seed": 1806,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 279.0,
+          "path_length_m": 127.9046,
+          "mean_action_jerk": 0.03224197030067444,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "d9482d31553857965ceb64291226732c6864107ff943dbf9b51b88bac848bf67"
+        },
+        {
+          "seed": 1807,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 300.59999999999997,
+          "path_length_m": 131.4463,
+          "mean_action_jerk": 0.033911608159542084,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "0271a372eeed457bf6f3de214168970ad63bc3f6b75a6280e087c79167783ab2"
+        },
+        {
+          "seed": 1808,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 276.40000000000003,
+          "path_length_m": 128.3313,
+          "mean_action_jerk": 0.03310619667172432,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "82888da61c6a092182af08b9d32b21e5f8cd2ea648e163f596b01dfecc1fc301"
+        },
+        {
+          "seed": 1809,
+          "completed": true,
+          "gates_completed": 17,
+          "gates_total": 17,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 302.0,
+          "path_length_m": 130.194,
+          "mean_action_jerk": 0.035858605057001114,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "fd671855864036914ed9f5867ee658648fb62e0131c36c89e2ef8cff4ad58fc9"
+        }
+      ]
+    },
+    "official_mixed_endurance": {
+      "label": "Mixed Endurance",
+      "expected_gates": 22,
+      "ppo": {
+        "episodes": 10,
+        "full_completions": 0,
+        "full_completion_rate": 0.0,
+        "full_completion_wilson95_low": 0.0,
+        "full_completion_wilson95_high": 0.2775,
+        "gates_completed_total": 23,
+        "gates_expected_total": 220,
+        "mean_gates": 2.3,
+        "collision_events": 0,
+        "collision_episodes": 0,
+        "out_of_bounds_events": 0,
+        "out_of_bounds_episodes": 0,
+        "wrong_direction_events": 0,
+        "wrong_direction_episodes": 0,
+        "missed_gate_attempts": 10,
+        "previous_gate_returns": 0,
+        "timeouts": 0,
+        "harness_errors": 0,
+        "referee_status_counts": {
+          "DNF": 10
+        },
+        "end_reason_counts": {
+          "REFEREE_TERMINAL": 10
+        },
+        "failure_breakdown": {
+          "failures": 10,
+          "modes": {
+            "missed_gate_dnf": 10
+          },
+          "stopped_after_gates": {
+            "1/22": 1,
+            "2/22": 6,
+            "3/22": 2,
+            "4/22": 1
+          },
+          "median_gates_at_failure": 2.0
+        },
+        "completion_time_s": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "path_length_m": {
+          "n": 10,
+          "mean": 19.4718,
+          "median": 16.6028,
+          "sd": 7.6319,
+          "ci_low": 14.0127,
+          "ci_high": 24.931
+        },
+        "mean_action_jerk": {
+          "n": 10,
+          "mean": 0.0879,
+          "median": 0.088,
+          "sd": 0.0056,
+          "ci_low": 0.0839,
+          "ci_high": 0.0919
+        },
+        "mean_inference_ms": {
+          "n": 10,
+          "mean": 56.607,
+          "median": 56.4395,
+          "sd": 1.4658,
+          "ci_low": 55.5585,
+          "ci_high": 57.6555
+        }
+      },
+      "rules": {
+        "episodes": 10,
+        "full_completions": 10,
+        "full_completion_rate": 1.0,
+        "full_completion_wilson95_low": 0.7225,
+        "full_completion_wilson95_high": 1.0,
+        "gates_completed_total": 220,
+        "gates_expected_total": 220,
+        "mean_gates": 22.0,
+        "collision_events": 0,
+        "collision_episodes": 0,
+        "out_of_bounds_events": 0,
+        "out_of_bounds_episodes": 0,
+        "wrong_direction_events": 0,
+        "wrong_direction_episodes": 0,
+        "missed_gate_attempts": 0,
+        "previous_gate_returns": 0,
+        "timeouts": 0,
+        "harness_errors": 0,
+        "referee_status_counts": {
+          "FINISHED": 10
+        },
+        "end_reason_counts": {
+          "FINISHED": 10
+        },
+        "failure_breakdown": {
+          "failures": 0,
+          "modes": {},
+          "stopped_after_gates": {},
+          "median_gates_at_failure": null
+        },
+        "completion_time_s": {
+          "n": 10,
+          "mean": 472.9,
+          "median": 471.35,
+          "sd": 19.4529,
+          "ci_low": 458.9852,
+          "ci_high": 486.8148
+        },
+        "path_length_m": {
+          "n": 10,
+          "mean": 216.5504,
+          "median": 216.5262,
+          "sd": 1.6002,
+          "ci_low": 215.4057,
+          "ci_high": 217.695
+        },
+        "mean_action_jerk": {
+          "n": 10,
+          "mean": 0.0355,
+          "median": 0.0353,
+          "sd": 0.0012,
+          "ci_low": 0.0346,
+          "ci_high": 0.0363
+        },
+        "mean_inference_ms": {
+          "n": 10,
+          "mean": 25.3884,
+          "median": 25.1275,
+          "sd": 0.7794,
+          "ci_low": 24.8309,
+          "ci_high": 25.9459
+        }
+      },
+      "paired": {
+        "controller_a": "ppo_final_generic_929792",
+        "controller_b": "rule_gate_center_then_commit",
+        "groups": [
+          "official_mixed_endurance"
+        ],
+        "paired_episodes": 10,
+        "a_successes": 0,
+        "b_successes": 10,
+        "a_full_completions": 0,
+        "b_full_completions": 10,
+        "both_finished": 0,
+        "only_a_finished": 0,
+        "only_b_finished": 10,
+        "only_a_finished_cases": [],
+        "only_b_finished_cases": [
+          "official_mixed_endurance/mixed_endurance@1800",
+          "official_mixed_endurance/mixed_endurance@1801",
+          "official_mixed_endurance/mixed_endurance@1802",
+          "official_mixed_endurance/mixed_endurance@1803",
+          "official_mixed_endurance/mixed_endurance@1804",
+          "official_mixed_endurance/mixed_endurance@1805",
+          "official_mixed_endurance/mixed_endurance@1806",
+          "official_mixed_endurance/mixed_endurance@1807",
+          "official_mixed_endurance/mixed_endurance@1808",
+          "official_mixed_endurance/mixed_endurance@1809"
+        ],
+        "reliability_sign_test_p": 0.00195,
+        "time_delta_s": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "a_faster_episodes": 0,
+        "b_faster_episodes": 0,
+        "time_sign_test_p": null,
+        "jerk_delta": {
+          "n": 10,
+          "mean": 0.0524,
+          "median": 0.0518,
+          "sd": 0.0058,
+          "ci_low": 0.0483,
+          "ci_high": 0.0565
+        },
+        "path_length_delta_m": {
+          "n": 0,
+          "mean": null,
+          "median": null,
+          "ci_low": null,
+          "ci_high": null,
+          "sd": null
+        },
+        "a_safety_events": 0,
+        "b_safety_events": 0
+      },
+      "ppo_failure_gate_histogram": {
+        "2": 1,
+        "3": 6,
+        "4": 2,
+        "5": 1
+      },
+      "failure_classification_note": "Every PPO run crossed at least gate 1 and ended when the referee recorded one missed-gate DNF at the next attempted gate. The observable terminal mechanism is therefore crossing/missed gate; the referee evidence does not support relabelling it as acquisition, target-switch or reacquisition failure.",
+      "ppo_trials": [
+        {
+          "seed": 1800,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 22,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.8895,
+          "mean_action_jerk": 0.08340614289045334,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "c104ee40ce7c6af02be09d3ec3938d84f5e98596ae3a52ff1dc04970b4fc6a8e"
+        },
+        {
+          "seed": 1801,
+          "completed": false,
+          "gates_completed": 4,
+          "gates_total": 22,
+          "failure_gate": 5,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 36.2978,
+          "mean_action_jerk": 0.0890442505478859,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "0cbd2f2058a8ffaecc8b864620ae28b6a103fecfae3aab18ba31fa90ea12bad5"
+        },
+        {
+          "seed": 1802,
+          "completed": false,
+          "gates_completed": 3,
+          "gates_total": 22,
+          "failure_gate": 4,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 25.257,
+          "mean_action_jerk": 0.08766931295394897,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "e1dec941fe8cb1498b0fff1916fff4037f2403d85b2299a5fd8b8359abced956"
+        },
+        {
+          "seed": 1803,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 22,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.268,
+          "mean_action_jerk": 0.09013921022415161,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "268235735591090b8816d4739b38c360ba44b54c709c2a5b508bc2dcd32db055"
+        },
+        {
+          "seed": 1804,
+          "completed": false,
+          "gates_completed": 3,
+          "gates_total": 22,
+          "failure_gate": 4,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 25.6944,
+          "mean_action_jerk": 0.09571430832147598,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "8c27e3519afabdf618c2711a5dfe944ae6e31680b7ce5418d793c97d034026db"
+        },
+        {
+          "seed": 1805,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 22,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.1614,
+          "mean_action_jerk": 0.08825517445802689,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "59ed57ac92c56e2d158f0eed92cd03b2a5be13d71c0db82fd6e9ef1dcc88dcb4"
+        },
+        {
+          "seed": 1806,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 22,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.401,
+          "mean_action_jerk": 0.08149964362382889,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "eccb2deab8f1e16b649844d2acb243fee55c53b8cf7098a6ca30fc075b70a67b"
+        },
+        {
+          "seed": 1807,
+          "completed": false,
+          "gates_completed": 1,
+          "gates_total": 22,
+          "failure_gate": 2,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 8.8328,
+          "mean_action_jerk": 0.08204543590545654,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "8908686e813582674ee4d4fdf4570860ac03364d8d0705890de2a8e1c1b42b4b"
+        },
+        {
+          "seed": 1808,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 22,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.8046,
+          "mean_action_jerk": 0.08330149948596954,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "0e81cc72e84b381b60b7e4ab5039ea015c2b150add3d187d9e8a25dd4ddaeed4"
+        },
+        {
+          "seed": 1809,
+          "completed": false,
+          "gates_completed": 2,
+          "gates_total": 22,
+          "failure_gate": 3,
+          "failure_mechanism": "crossing_missed_gate",
+          "referee_status": "DNF",
+          "evaluation_end_reason": "REFEREE_TERMINAL",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 1,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": null,
+          "path_length_m": 16.1119,
+          "mean_action_jerk": 0.09785386919975281,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": 0.0,
+            "hybrid_blending": false,
+            "rule_controller_instantiated": false,
+            "deterministic_runtime_intervention_count": 0
+          },
+          "ledger_entry_sha256": "18dcdcdf11dfae5945ebd57b296321ca7345fc047565dcb847b5f031a5e80253"
+        }
+      ],
+      "rules_trials": [
+        {
+          "seed": 1800,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 440.8,
+          "path_length_m": 214.7137,
+          "mean_action_jerk": 0.03372073546051979,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "de76f5a6388532d81c00da7238fb7696566ad1776d565de27772b40e35de8d3e"
+        },
+        {
+          "seed": 1801,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 508.0,
+          "path_length_m": 219.6977,
+          "mean_action_jerk": 0.037961818277835846,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "ef6ff08617c3fd060670985297cb3e4f14db7e1787675b10d6b238af89bc9296"
+        },
+        {
+          "seed": 1802,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 448.8,
+          "path_length_m": 215.3147,
+          "mean_action_jerk": 0.03511330485343933,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "074dbc92845342d3b157a68f80293d678aeef859a40ecef354c0d1db1418012d"
+        },
+        {
+          "seed": 1803,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 470.8,
+          "path_length_m": 215.9776,
+          "mean_action_jerk": 0.03556593507528305,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "bc0a040d365a2215537573961e2c7d605e9515a94302e682b552217e7bcec552"
+        },
+        {
+          "seed": 1804,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 488.5,
+          "path_length_m": 217.9938,
+          "mean_action_jerk": 0.035382531583309174,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "98d86fc7bf7b4dc8f12dabd2e1a6ed89e7f05027a9d1221af6d2f4eb12f6d0ab"
+        },
+        {
+          "seed": 1805,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 468.3,
+          "path_length_m": 217.0748,
+          "mean_action_jerk": 0.0341557152569294,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "422aba5f3b7b8fe9eb0aa666535eaf56b9f0d059f0237344509e216bfd75e76e"
+        },
+        {
+          "seed": 1806,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 483.79999999999995,
+          "path_length_m": 217.2139,
+          "mean_action_jerk": 0.03600327670574188,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "66250fc39e125e78dcfd7dc320046ea6318498519416fdeac4b168d7466f5c1d"
+        },
+        {
+          "seed": 1807,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 483.3,
+          "path_length_m": 217.3404,
+          "mean_action_jerk": 0.03653477877378464,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "834e557523fe29f5aca06c1b11c554db5b918bf504dec77bebf533ba41e11b44"
+        },
+        {
+          "seed": 1808,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 471.90000000000003,
+          "path_length_m": 215.4171,
+          "mean_action_jerk": 0.03515702858567238,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "6a605b2754ad53b549746a9209d32e836bbd6eda43aed755761565c9395ff875"
+        },
+        {
+          "seed": 1809,
+          "completed": true,
+          "gates_completed": 22,
+          "gates_total": 22,
+          "failure_gate": null,
+          "failure_mechanism": null,
+          "referee_status": "FINISHED",
+          "evaluation_end_reason": "FINISHED",
+          "collision_events": 0,
+          "collision_episode": false,
+          "out_of_bounds_events": 0,
+          "missed_gate_attempts": 0,
+          "wrong_direction_events": 0,
+          "previous_gate_returns": 0,
+          "completion_time_s": 464.8,
+          "path_length_m": 214.7599,
+          "mean_action_jerk": 0.0352199450135231,
+          "all_actions_finite": true,
+          "policy_only_evidence": {
+            "rule_action_weight": null,
+            "hybrid_blending": null,
+            "rule_controller_instantiated": null,
+            "deterministic_runtime_intervention_count": null
+          },
+          "ledger_entry_sha256": "d7468aab01bb9263320fd98c98700db323e4ee337d850192937ac9af1c736de8"
+        }
+      ]
+    }
+  },
+  "aggregate": {
+    "ppo": {
+      "episodes": 30,
+      "full_completions": 0,
+      "full_completion_rate": 0.0,
+      "full_completion_wilson95_low": 0.0,
+      "full_completion_wilson95_high": 0.1135,
+      "gates_completed_total": 87,
+      "gates_expected_total": 510,
+      "mean_gates": 2.9,
+      "collision_events": 82,
+      "collision_episodes": 4,
+      "out_of_bounds_events": 0,
+      "out_of_bounds_episodes": 0,
+      "wrong_direction_events": 2,
+      "wrong_direction_episodes": 2,
+      "missed_gate_attempts": 30,
+      "previous_gate_returns": 0,
+      "timeouts": 0,
+      "harness_errors": 0,
+      "referee_status_counts": {
+        "DNF": 30
+      },
+      "end_reason_counts": {
+        "REFEREE_TERMINAL": 30
+      },
+      "failure_breakdown": {
+        "failures": 30,
+        "modes": {
+          "missed_gate_dnf": 30
+        },
+        "stopped_after_gates": {
+          "1/12": 2,
+          "1/17": 3,
+          "1/22": 1,
+          "2/12": 2,
+          "2/17": 3,
+          "2/22": 6,
+          "3/12": 1,
+          "3/22": 2,
+          "4/12": 1,
+          "4/17": 2,
+          "4/22": 1,
+          "5/12": 2,
+          "6/12": 2,
+          "6/17": 2
+        },
+        "median_gates_at_failure": 2.0
+      },
+      "completion_time_s": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "path_length_m": {
+        "n": 30,
+        "mean": 25.957,
+        "median": 20.2229,
+        "sd": 15.4611,
+        "ci_low": 20.1843,
+        "ci_high": 31.7296
+      },
+      "mean_action_jerk": {
+        "n": 30,
+        "mean": 0.0807,
+        "median": 0.0789,
+        "sd": 0.0077,
+        "ci_low": 0.0778,
+        "ci_high": 0.0836
+      },
+      "mean_inference_ms": {
+        "n": 30,
+        "mean": 56.4564,
+        "median": 56.328,
+        "sd": 1.7352,
+        "ci_low": 55.8085,
+        "ci_high": 57.1042
+      }
+    },
+    "rules": {
+      "episodes": 30,
+      "full_completions": 30,
+      "full_completion_rate": 1.0,
+      "full_completion_wilson95_low": 0.8865,
+      "full_completion_wilson95_high": 1.0,
+      "gates_completed_total": 510,
+      "gates_expected_total": 510,
+      "mean_gates": 17.0,
+      "collision_events": 0,
+      "collision_episodes": 0,
+      "out_of_bounds_events": 0,
+      "out_of_bounds_episodes": 0,
+      "wrong_direction_events": 0,
+      "wrong_direction_episodes": 0,
+      "missed_gate_attempts": 0,
+      "previous_gate_returns": 0,
+      "timeouts": 0,
+      "harness_errors": 0,
+      "referee_status_counts": {
+        "FINISHED": 30
+      },
+      "end_reason_counts": {
+        "FINISHED": 30
+      },
+      "failure_breakdown": {
+        "failures": 0,
+        "modes": {},
+        "stopped_after_gates": {},
+        "median_gates_at_failure": null
+      },
+      "completion_time_s": {
+        "n": 30,
+        "mean": 329.7733,
+        "median": 293.35,
+        "sd": 107.2778,
+        "ci_low": 289.7196,
+        "ci_high": 369.827
+      },
+      "path_length_m": {
+        "n": 30,
+        "mean": 148.7211,
+        "median": 129.041,
+        "sd": 50.2443,
+        "ci_low": 129.9617,
+        "ci_high": 167.4806
+      },
+      "mean_action_jerk": {
+        "n": 30,
+        "mean": 0.0333,
+        "median": 0.0339,
+        "sd": 0.0027,
+        "ci_low": 0.0323,
+        "ci_high": 0.0343
+      },
+      "mean_inference_ms": {
+        "n": 30,
+        "mean": 25.8612,
+        "median": 25.1921,
+        "sd": 1.3961,
+        "ci_low": 25.34,
+        "ci_high": 26.3825
+      }
+    },
+    "interpretation": "PPO path length and jerk are measured through early DNF and are not completion-efficiency evidence. Reliability and safety govern: PPO completed 0/30 while rules completed 30/30."
+  },
+  "reproducibility": {
+    "targeted_tests_before_holdout": "78 passed",
+    "full_suite_final": "1644 passed, 16 skipped, 7 warnings",
+    "decision_commit": "c3484bb55f12439b23f3af296a9d12dedb165813",
+    "artifact_freeze_commit": "f455b764231dc0fdff1d2179376a97aa4f76e353",
+    "benchmark_protocol_commit": "bd1f961c04c0a20c35d0cd60cd724c98cee1e255",
+    "episodes_sha256": "d7043ee4123531e4549ba5722d7642266b43ef037e0ba67a5e5d3d1b5933f085",
+    "aggregate_report_sha256": "b9121baf8ea74d1492351ea5612259918f139b7bc80bdce0cd69260acb83079e",
+    "ledger_sha256": "7b6a1a40cd53360199389218bd044e12049fb34d67d2f696569c47090dce7d6e",
+    "ledger_entries": 60,
+    "ledger_tail_sha256": "fd671855864036914ed9f5867ee658648fb62e0131c36c89e2ef8cff4ad58fc9",
+    "rules_source": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\marine_race_arena\\controllers\\official_baselines.py",
+    "rules_source_sha256": "200b547e56c01b8c9756ce0e7cb0deb316faa3b53f13495c372a392c0d8804ec",
+    "harness_errors": 0,
+    "official_episode_rows": 60
+  }
+}

@@ -1,0 +1,13 @@
+controller,group,episodes,successes,success_rate,success_rate_wilson95_low,success_rate_wilson95_high,full_completions,full_completion_rate,gates_completed_total,gates_expected_total,mean_gates,mean_completion_time_s,median_completion_time_s,completion_time_ci_low,completion_time_ci_high,mean_time_per_gate_s,mean_penalized_time_s,collision_events,collision_frames,collision_episodes,out_of_bounds_events,out_of_bounds_frames,out_of_bounds_episodes,wrong_direction_events,wrong_direction_episodes,previous_gate_returns,missed_gate_attempts,stuck_events,safety_event_episodes,mean_action_jerk,mean_path_length_m,timeouts,timeout_rate,mean_inference_ms
+ppo_final_generic_929792,official_horseshoe_bay,10,0,0.0,0.0,0.2775,0,0.0,35,120,3.5,,,,,,,0,0,0,0,0,0,0,0,0,10,0,0,0.0738,27.7723,0,0.0,56.7725
+ppo_final_generic_929792,official_vertical_serpent,10,0,0.0,0.0,0.2775,0,0.0,29,170,2.9,,,,,,,82,726,4,0,0,0,2,2,0,10,0,4,0.0804,30.6269,0,0.0,55.9896
+ppo_final_generic_929792,official_mixed_endurance,10,0,0.0,0.0,0.2775,0,0.0,23,220,2.3,,,,,,,0,0,0,0,0,0,0,0,0,10,0,0,0.0879,19.4718,0,0.0,56.607
+ppo_final_generic_929792,ALL_non_official,0,0,,,,0,,0,0,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,
+ppo_final_generic_929792,ALL_official,30,0,0.0,0.0,0.1135,0,0.0,87,510,2.9,,,,,,,82,726,4,0,0,0,2,2,0,30,0,4,0.0807,25.957,0,0.0,56.4564
+ppo_final_generic_929792,ALL_episodes,30,0,0.0,0.0,0.1135,0,0.0,87,510,2.9,,,,,,,82,726,4,0,0,0,2,2,0,30,0,4,0.0807,25.957,0,0.0,56.4564
+rule_gate_center_then_commit,official_horseshoe_bay,10,10,1.0,0.7225,1.0,10,1.0,120,120,12.0,225.87,228.1,217.8265,233.9135,18.8225,225.87,0,0,0,0,0,0,0,0,0,0,0,0,0.0303,100.3924,0,0.0,26.8649
+rule_gate_center_then_commit,official_vertical_serpent,10,10,1.0,0.7225,1.0,10,1.0,170,170,17.0,290.55,293.35,282.9827,298.1173,17.0912,290.55,0,0,0,0,0,0,0,0,0,0,0,0,0.0342,129.2207,0,0.0,25.3305
+rule_gate_center_then_commit,official_mixed_endurance,10,10,1.0,0.7225,1.0,10,1.0,220,220,22.0,472.9,471.35,458.9852,486.8148,21.4955,472.9,0,0,0,0,0,0,0,0,0,0,0,0,0.0355,216.5504,0,0.0,25.3884
+rule_gate_center_then_commit,ALL_non_official,0,0,,,,0,,0,0,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,
+rule_gate_center_then_commit,ALL_official,30,30,1.0,0.8865,1.0,30,1.0,510,510,17.0,329.7733,293.35,289.7196,369.827,19.1364,329.7733,0,0,0,0,0,0,0,0,0,0,0,0,0.0333,148.7211,0,0.0,25.8612
+rule_gate_center_then_commit,ALL_episodes,30,30,1.0,0.8865,1.0,30,1.0,510,510,17.0,329.7733,293.35,289.7196,369.827,19.1364,329.7733,0,0,0,0,0,0,0,0,0,0,0,0,0.0333,148.7211,0,0.0,25.8612

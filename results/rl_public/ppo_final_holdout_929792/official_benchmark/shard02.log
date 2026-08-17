@@ -1,0 +1,15 @@
+[bench:2] 8 episodes to run (0 already complete)
+[bench:2] attempt 1/5 failed for ppo_final_generic_929792|official_horseshoe_bay|horseshoe_bay|1801: AdapterSelectionError: HoloOcean adapter is unavailable and fallback is not allowed. Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly.
+[bench:2] attempt 2/5 failed for ppo_final_generic_929792|official_horseshoe_bay|horseshoe_bay|1801: AdapterSelectionError: HoloOcean adapter is unavailable and fallback is not allowed. Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly.
+[bench:2] 8 episodes to run (0 already complete)
+[bench:2] ppo_final_generic_929792     official_horseshoe_bay     horseshoe_bay          seed=1801   DNF       gates=3/12 t=None wall=131.769s
+[bench:2] ppo_final_generic_929792     official_horseshoe_bay     horseshoe_bay          seed=1805   DNF       gates=2/12 t=None wall=86.557s
+[bench:2] ppo_final_generic_929792     official_horseshoe_bay     horseshoe_bay          seed=1809   DNF       gates=5/12 t=None wall=154.672s
+[bench:2] ppo_final_generic_929792     official_mixed_endurance   mixed_endurance        seed=1803   DNF       gates=2/22 t=None wall=89.398s
+[bench:2] ppo_final_generic_929792     official_mixed_endurance   mixed_endurance        seed=1807   DNF       gates=1/22 t=None wall=74.887s
+[bench:2] ppo_final_generic_929792     official_vertical_serpent  vertical_serpent       seed=1801   DNF       gates=2/17 t=None wall=97.905s
+[bench:2] ppo_final_generic_929792     official_vertical_serpent  vertical_serpent       seed=1805   DNF       gates=6/17 t=None wall=214.769s
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 43648 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+[bench:2] ppo_final_generic_929792     official_vertical_serpent  vertical_serpent       seed=1809   DNF       gates=4/17 t=None wall=175.849s
