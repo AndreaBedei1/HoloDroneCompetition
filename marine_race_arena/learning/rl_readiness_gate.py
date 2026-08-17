@@ -54,10 +54,12 @@ from marine_race_arena.learning.transition_curriculum import DIFFICULTY_LEVELS
 
 READINESS_GATE_VERSION = "rl_readiness_gate_v1"
 FREEZE_RECORD_VERSION = "rl_policy_freeze_record_v1"
+EXPLORATORY_HOLDOUT_DECISION_VERSION = "rl_exploratory_holdout_decision_v1"
 FINAL_CIRCUIT_LEDGER_VERSION = "final_circuit_evaluation_ledger_v1"
 FINAL_CIRCUIT_PROTOCOL_VERSION = "final_circuit_protocol_v1"
 
 FREEZE_RECORD_FILENAME = "final_policy_freeze.json"
+EXPLORATORY_HOLDOUT_DECISION_FILENAME = "exploratory_holdout_decision.json"
 FINAL_CIRCUIT_LEDGER_FILENAME = "final_circuit_evaluations.jsonl"
 
 
@@ -1133,6 +1135,12 @@ def freeze_record_path(run_dir: str | Path) -> Path:
     return Path(run_dir) / FREEZE_RECORD_FILENAME
 
 
+def exploratory_holdout_decision_path(run_dir: str | Path) -> Path:
+    """Canonical path for the once-only exploratory holdout amendment."""
+
+    return Path(run_dir) / EXPLORATORY_HOLDOUT_DECISION_FILENAME
+
+
 def freeze_policy(
     checkpoint: str | Path,
     *,
@@ -1235,6 +1243,126 @@ def freeze_policy(
     return record
 
 
+def record_exploratory_holdout_decision(
+    checkpoint: str | Path,
+    *,
+    run_dir: str | Path,
+    metrics: Mapping[str, Any],
+    verdict: ReadinessVerdict,
+    git_sha: Optional[str],
+    contracts: Mapping[str, Any],
+    training_transitions: int,
+    curriculum_version: str = CURRICULUM_VERSION,
+    algorithm: str = "ppo",
+    path: Optional[str | Path] = None,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Pre-register one exploratory final holdout after a readiness failure.
+
+    This is deliberately narrower than :func:`freeze_policy`: it never calls a
+    failed policy ready.  It records that training is permanently closed, pins
+    the same immutable checkpoint and failed pre-registered verdict, and permits
+    exactly one execution of the already-fixed three-circuit protocol.  The
+    record is once-only and content-hashed so it must exist before any holdout
+    result can be observed.
+    """
+
+    if verdict.ready:
+        raise ProtocolViolation(
+            "an exploratory failure amendment is only valid for a policy that "
+            "failed readiness; use freeze_policy for a ready policy"
+        )
+    if verdict.override is not None or verdict.decisions:
+        raise ProtocolViolation(
+            "the exploratory amendment requires the unmodified readiness verdict "
+            "with no manual override"
+        )
+    if verdict.thresholds.sha256() != READINESS_THRESHOLDS.sha256():
+        raise ProtocolViolation(
+            "the exploratory amendment must record the pre-registered readiness "
+            "thresholds; moving the bar is forbidden"
+        )
+    checkpoint_path = Path(checkpoint)
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(
+            f"checkpoint for the exploratory holdout does not exist: {checkpoint}"
+        )
+    inputs = benchmark_inputs(metrics)
+    recomputed = evaluate_readiness(inputs, READINESS_THRESHOLDS, override=None)
+    if recomputed.as_dict() != verdict.as_dict():
+        raise ProtocolViolation(
+            "the supplied readiness verdict is not exactly reproducible from "
+            "the validation evidence being committed"
+        )
+    if not recomputed.failures:
+        raise ProtocolViolation(
+            "an exploratory failure amendment must record at least one failed "
+            "readiness criterion"
+        )
+
+    target = (
+        Path(path)
+        if path is not None
+        else exploratory_holdout_decision_path(run_dir)
+    )
+    record: Dict[str, Any] = {
+        "schema_version": EXPLORATORY_HOLDOUT_DECISION_VERSION,
+        "readiness_gate_version": READINESS_GATE_VERSION,
+        "utc": now_utc(),
+        "git_sha": None if git_sha is None else str(git_sha),
+        "policy": {
+            "checkpoint": checkpoint_path.name,
+            "checkpoint_path": str(checkpoint_path),
+            "checkpoint_sha256": sha256_file(checkpoint_path),
+            "checkpoint_bytes": int(checkpoint_path.stat().st_size),
+            "run_dir": str(run_dir),
+            "algorithm": str(algorithm),
+            "training_transitions": int(training_transitions),
+            "immutable": True,
+        },
+        "contracts": _resolved_contracts(contracts),
+        "curriculum_version": str(curriculum_version),
+        "validation_benchmark": validation_benchmark_summary(inputs),
+        "readiness_verdict": verdict.as_dict(),
+        "readiness_thresholds_sha256": verdict.thresholds.sha256(),
+        "final_circuit_protocol": final_circuit_protocol(),
+        "exploratory_decision": {
+            "readiness_failed": True,
+            "training_permanently_closed": True,
+            "final_policy_immutable": True,
+            "exploratory_holdout_authorized": True,
+            "final_circuits_unseen_at_decision": True,
+            "executions_permitted": 1,
+            "post_holdout_training_permitted": False,
+            "post_holdout_parameter_tuning_permitted": False,
+            "post_holdout_reward_tuning_permitted": False,
+            "post_holdout_curriculum_tuning_permitted": False,
+            "post_holdout_controller_tuning_permitted": False,
+            "purpose": (
+                "measure actual course-completion capability of the frozen "
+                "controller despite failed procedural readiness"
+            ),
+        },
+        "note": note,
+    }
+    record = _json_safe(record)
+    # Keep the identifier name used by the append-only ledger.  Its content is
+    # a decision hash here, not a claim that the failed policy passed readiness.
+    record["freeze_id"] = freeze_record_id(record)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with target.open("x", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, indent=2, sort_keys=True))
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as exc:
+        raise PolicyAlreadyFrozen(
+            f"an exploratory holdout decision already exists at {target}; the "
+            "pre-access decision is once-only and cannot be replaced"
+        ) from exc
+    return record
+
+
 # --------------------------------------------------------------- access guard
 
 def _validated_freeze_record(
@@ -1253,10 +1381,14 @@ def _validated_freeze_record(
         raise FinalCircuitsLocked(f"freeze record at {path} is unreadable: {exc}") from exc
     if not isinstance(record, Mapping):
         raise FinalCircuitsLocked(f"freeze record at {path} is not an object")
-    if record.get("schema_version") != FREEZE_RECORD_VERSION:
+    schema = record.get("schema_version")
+    if schema not in {
+        FREEZE_RECORD_VERSION,
+        EXPLORATORY_HOLDOUT_DECISION_VERSION,
+    }:
         raise FinalCircuitsLocked(
             f"freeze record at {path} has unsupported schema "
-            f"{record.get('schema_version')!r}"
+            f"{schema!r}"
         )
     recorded_id = record.get("freeze_id")
     if not recorded_id or recorded_id != freeze_record_id(record):
@@ -1265,7 +1397,12 @@ def _validated_freeze_record(
             "was edited after freezing and cannot be trusted"
         )
     verdict = record.get("readiness_verdict")
-    if not isinstance(verdict, Mapping) or verdict.get("ready") is not True:
+    if not isinstance(verdict, Mapping):
+        raise FinalCircuitsLocked(
+            f"the record at {path} has no readiness verdict; the final circuits "
+            "stay sealed"
+        )
+    if schema == FREEZE_RECORD_VERSION and verdict.get("ready") is not True:
         failures = (
             list(verdict.get("failures", []))
             if isinstance(verdict, Mapping) else ["no readiness verdict"]
@@ -1274,6 +1411,58 @@ def _validated_freeze_record(
             f"the frozen policy did not pass the readiness gate ({failures}); "
             "the final circuits stay sealed"
         )
+    if schema == EXPLORATORY_HOLDOUT_DECISION_VERSION:
+        failures = list(verdict.get("failures") or ())
+        decision = record.get("exploratory_decision")
+        required_true = (
+            "readiness_failed",
+            "training_permanently_closed",
+            "final_policy_immutable",
+            "exploratory_holdout_authorized",
+            "final_circuits_unseen_at_decision",
+        )
+        required_false = (
+            "post_holdout_training_permitted",
+            "post_holdout_parameter_tuning_permitted",
+            "post_holdout_reward_tuning_permitted",
+            "post_holdout_curriculum_tuning_permitted",
+            "post_holdout_controller_tuning_permitted",
+        )
+        policy = record.get("policy")
+        if (
+            verdict.get("ready") is not False
+            or not failures
+            or verdict.get("override") is not None
+            or bool(verdict.get("override_decisions"))
+            or not isinstance(decision, Mapping)
+            or any(decision.get(key) is not True for key in required_true)
+            or any(decision.get(key) is not False for key in required_false)
+            or decision.get("executions_permitted") != 1
+            or not isinstance(policy, Mapping)
+            or policy.get("immutable") is not True
+            or record.get("final_circuit_protocol") != final_circuit_protocol()
+        ):
+            raise FinalCircuitsLocked(
+                f"the exploratory holdout amendment at {path} does not prove a "
+                "failed unmodified readiness verdict, permanent training closure, "
+                "an immutable policy and exactly one fixed holdout execution; the "
+                "final circuits stay sealed"
+            )
+        recomputed = evaluate_readiness(
+            record.get("validation_benchmark") or {},
+            READINESS_THRESHOLDS,
+            override=None,
+        )
+        if (
+            recomputed.ready
+            or list(recomputed.failures) != failures
+            or recomputed.as_dict() != dict(verdict)
+        ):
+            raise FinalCircuitsLocked(
+                f"the failed readiness verdict in the exploratory amendment at "
+                f"{path} is not reproducible from its pinned validation evidence; "
+                "the final circuits stay sealed"
+            )
     # The record is self-consistent by its own hash, so the remaining question
     # is whether the bars it was judged against are the pre-registered ones.  A
     # record frozen by a build with relaxed thresholds -- or thresholds relaxed
@@ -1312,9 +1501,9 @@ def assert_final_circuits_unlocked(
 ) -> Dict[str, Any]:
     """Open the door to the sealed circuits, or refuse and explain why.
 
-    This is the pre-freeze peek guard: without a valid, ready, untampered freeze
-    record whose checkpoint bytes still hash to the frozen value, there is no
-    sanctioned way to reach the final circuits.
+    This is the pre-access peek guard.  It accepts either a valid, ready,
+    untampered freeze record or the once-only exploratory amendment for a failed
+    verdict; both pin checkpoint bytes and the fixed protocol before access.
     """
 
     return _validated_freeze_record(
@@ -1397,7 +1586,7 @@ def record_final_circuit_evaluation(
     """Append one final-circuit result to the hash-chained, append-only ledger.
 
     The guard runs here rather than in the caller so a result cannot be recorded
-    unless the policy really was frozen and ready first, and the seeds are
+    unless the policy and access decision were frozen first.  The seeds are
     checked against the pre-registered protocol so trials cannot be re-rolled
     until a circuit is completed.
     """

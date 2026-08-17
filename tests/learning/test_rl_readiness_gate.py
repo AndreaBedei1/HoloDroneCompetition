@@ -22,6 +22,7 @@ from marine_race_arena.learning.generic_sequence_curriculum import CURRICULUM_VE
 from marine_race_arena.learning.reward_audit import REWARD_CONTRACT_VERSION
 from marine_race_arena.learning.rl_holdout_policy import role_of_seed
 from marine_race_arena.learning.rl_readiness_gate import (
+    EXPLORATORY_HOLDOUT_DECISION_VERSION,
     FINAL_CIRCUIT_TRIAL_SEEDS,
     FREEZE_RECORD_VERSION,
     GRANT_NARROW_MISS,
@@ -51,6 +52,7 @@ from marine_race_arena.learning.rl_readiness_gate import (
     benchmark_inputs,
     difficulty_ladder_summary,
     evaluate_readiness,
+    exploratory_holdout_decision_path,
     final_circuit_protocol,
     freeze_policy,
     freeze_record_id,
@@ -58,6 +60,7 @@ from marine_race_arena.learning.rl_readiness_gate import (
     gate_manifest,
     protocol_permits_variation,
     record_final_circuit_evaluation,
+    record_exploratory_holdout_decision,
     resolved_dataset_split,
     verify_ledger_chain,
 )
@@ -204,6 +207,35 @@ def frozen_policy(tmp_path, *, metrics=None, verdict=None, run_dir=None):
         training_transitions=8_400_000,
     )
     return checkpoint, record, freeze_record_path(run)
+
+
+def exploratory_policy(tmp_path, *, run_dir=None):
+    """Record one failed-readiness exploratory decision for guard tests."""
+
+    run = run_dir or tmp_path
+    checkpoint = tmp_path / "ppo_929792_steps.zip"
+    checkpoint.write_bytes(b"immutable final policy weights")
+    metrics = with_metrics(
+        n_eval=620,
+        transition_n=500,
+        universal_transition_success_rate=0.82,
+        out_of_bounds_episodes=0,
+        collision_episodes=0,
+    )
+    metrics.pop("out_of_bounds_rate")
+    metrics.pop("collision_episode_rate")
+    verdict = evaluate_readiness(metrics)
+    assert not verdict.ready
+    record = record_exploratory_holdout_decision(
+        checkpoint,
+        run_dir=run,
+        metrics=metrics,
+        verdict=verdict,
+        git_sha=GIT_SHA,
+        contracts=CONTRACTS,
+        training_transitions=929_792,
+    )
+    return checkpoint, record, exploratory_holdout_decision_path(run), metrics
 
 
 # ------------------------------------------------------------- thresholds
@@ -1071,6 +1103,85 @@ def test_freeze_record_stores_the_override_reason(tmp_path):
     assert on_disk["readiness_verdict"]["override"]["reason"] == REASON
     assert on_disk["readiness_verdict"]["ready_without_override"] is False
     assert record["freeze_id"] == freeze_record_id(on_disk)
+
+
+# ------------------------------------------ failed-readiness holdout amendment
+
+def test_exploratory_decision_is_once_only_and_unlocks_failed_policy(tmp_path):
+    checkpoint, record, path, metrics = exploratory_policy(tmp_path)
+
+    assert path.is_file()
+    assert record["schema_version"] == EXPLORATORY_HOLDOUT_DECISION_VERSION
+    assert record["readiness_verdict"]["ready"] is False
+    assert record["readiness_verdict"]["failures"] == [
+        "universal_transition_success"
+    ]
+    assert record["policy"]["checkpoint_sha256"]
+    assert record["policy"]["immutable"] is True
+    decision = record["exploratory_decision"]
+    assert decision["training_permanently_closed"] is True
+    assert decision["final_policy_immutable"] is True
+    assert decision["exploratory_holdout_authorized"] is True
+    assert decision["executions_permitted"] == 1
+    assert decision["post_holdout_training_permitted"] is False
+    assert assert_final_circuits_unlocked(path)["freeze_id"] == record["freeze_id"]
+
+    with pytest.raises(PolicyAlreadyFrozen):
+        record_exploratory_holdout_decision(
+            checkpoint,
+            run_dir=tmp_path,
+            metrics=metrics,
+            verdict=evaluate_readiness(metrics),
+            git_sha=GIT_SHA,
+            contracts=CONTRACTS,
+            training_transitions=929_792,
+        )
+
+
+def test_exploratory_decision_refuses_a_ready_policy(tmp_path):
+    checkpoint = tmp_path / "ready.zip"
+    checkpoint.write_bytes(b"ready")
+    metrics = exactly_at_threshold_metrics()
+    with pytest.raises(ProtocolViolation, match="only valid.*failed readiness"):
+        record_exploratory_holdout_decision(
+            checkpoint,
+            run_dir=tmp_path,
+            metrics=metrics,
+            verdict=evaluate_readiness(metrics),
+            git_sha=GIT_SHA,
+            contracts=CONTRACTS,
+            training_transitions=929_792,
+        )
+
+
+def test_rehashed_exploratory_decision_cannot_reopen_training(tmp_path):
+    _, record, path, _ = exploratory_policy(tmp_path)
+    edited = copy.deepcopy(record)
+    edited["exploratory_decision"]["training_permanently_closed"] = False
+    edited["freeze_id"] = freeze_record_id(edited)
+    path.write_text(json.dumps(edited), encoding="utf-8")
+
+    with pytest.raises(FinalCircuitsLocked, match="permanent training closure"):
+        assert_final_circuits_unlocked(path)
+
+
+def test_rehashed_exploratory_decision_must_reproduce_its_failure(tmp_path):
+    _, record, path, _ = exploratory_policy(tmp_path)
+    edited = copy.deepcopy(record)
+    edited["validation_benchmark"]["universal_transition_success_rate"] = 0.90
+    edited["freeze_id"] = freeze_record_id(edited)
+    path.write_text(json.dumps(edited), encoding="utf-8")
+
+    with pytest.raises(FinalCircuitsLocked, match="not reproducible"):
+        assert_final_circuits_unlocked(path)
+
+
+def test_exploratory_decision_locks_if_checkpoint_changes(tmp_path):
+    checkpoint, _, path, _ = exploratory_policy(tmp_path)
+    checkpoint.write_bytes(b"different policy")
+
+    with pytest.raises(FinalCircuitsLocked, match="sha256"):
+        assert_final_circuits_unlocked(path)
 
 
 # ------------------------------------------------------------- access guard

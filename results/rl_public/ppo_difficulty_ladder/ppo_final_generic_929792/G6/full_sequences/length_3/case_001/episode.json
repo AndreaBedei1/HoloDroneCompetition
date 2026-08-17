@@ -1,0 +1,69 @@
+{
+  "seed": 5041304,
+  "difficulty": "G6",
+  "episode_type": "full_sequence",
+  "geometry_group": "G6:full_sequence:3:combined",
+  "gate_count": 3,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": false,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 1,
+  "collision_events": 2,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": true,
+  "acquisition_time_s": null,
+  "action_jerk": 0.127913,
+  "collision_entries": 2,
+  "collision_contact_frames": 2,
+  "action_steps": 163,
+  "nontrivial_action_steps": 161,
+  "mean_absolute_action_per_axis": [
+    0.282343,
+    0.028853,
+    0.074688,
+    0.077909
+  ],
+  "distance_travelled_m": 10.6503,
+  "universal_transition_success": false,
+  "full_sequence_completion": false,
+  "gates_completed": 2,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": false,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": false,
+      "aligned": false,
+      "range_decreased": false
+    }
+  },
+  "tracker_final_phase": "COMMIT",
+  "tracker_local_completed": 1,
+  "tracker_commit_entry_reason": "proximity_passage_rescue",
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 9.0,
+    "beacon_id": "B01",
+    "filtered_range_m": 0.5093462919088179,
+    "min_range_m": 0.17856878422425013,
+    "range_rise_m": 0.3307775076845677,
+    "close_range_streak": 5,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 3,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 1,
+    "rear_exit_range_rise_confirmed": false,
+    "last_bearing_deg": 157.17600858458138,
+    "commit_displacement_m": 0.437,
+    "disappear_streak": 3,
+    "last_commit_center_x": -0.31875
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

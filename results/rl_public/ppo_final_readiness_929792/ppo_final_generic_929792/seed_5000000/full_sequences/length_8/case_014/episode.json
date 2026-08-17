@@ -1,0 +1,99 @@
+{
+  "seed": 5049736,
+  "difficulty": "G1",
+  "episode_type": "full_sequence",
+  "geometry_group": "G1:full_sequence:8:varied",
+  "gate_count": 8,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": true,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 0,
+  "collision_events": 1,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": false,
+  "acquisition_time_s": 1.7,
+  "action_jerk": 0.114862,
+  "collision_entries": 2,
+  "collision_contact_frames": 2,
+  "action_steps": 371,
+  "nontrivial_action_steps": 367,
+  "mean_absolute_action_per_axis": [
+    0.477835,
+    0.029857,
+    0.049965,
+    0.037634
+  ],
+  "distance_travelled_m": 41.575,
+  "universal_transition_success": false,
+  "full_sequence_completion": true,
+  "gates_completed": 8,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "3": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "4": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "5": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "6": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "7": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    }
+  },
+  "tracker_final_phase": "VERIFY_EXIT",
+  "tracker_local_completed": 7,
+  "tracker_commit_entry_reason": "standard_visual_lock",
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 33.6,
+    "beacon_id": "B07",
+    "filtered_range_m": 0.4674501851978168,
+    "min_range_m": 0.0,
+    "range_rise_m": 0.4674501851978168,
+    "close_range_streak": 3,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 2,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 1,
+    "rear_exit_range_rise_confirmed": false,
+    "last_bearing_deg": -163.87157870911707,
+    "commit_displacement_m": 1.443,
+    "disappear_streak": 5,
+    "last_commit_center_x": 0.007246710449218747
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

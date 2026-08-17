@@ -1,0 +1,429 @@
+{
+  "race": {
+    "name": "Universal transition G1:full_sequence:8:varied",
+    "format": "time_trial",
+    "laps": 1,
+    "expected_gates_per_lap": 8,
+    "timing_mode": "first_gate_to_last_gate",
+    "max_duration_s": 360,
+    "official_mode": false
+  },
+  "benchmark_task": {
+    "mode": "clean_gate"
+  },
+  "world": {
+    "package": "Ocean",
+    "map": "OpenWater-Hovering",
+    "arena_origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "preferred_environment": "OpenWater-Hovering",
+    "fallback_environment": "PierHarbor-Hovering",
+    "bounds": {
+      "x_min": -12.5,
+      "x_max": 43.12803341951577,
+      "y_min": -8.0,
+      "y_max": 12.022757585166822,
+      "z_min": -7.393520836830785,
+      "z_max": -1.0
+    }
+  },
+  "track": {
+    "declared_length_m": 39.987,
+    "length_tolerance_m": 4.0,
+    "gate_inner_size_m": [
+      1.5,
+      1.5
+    ],
+    "gate_bar_thickness_m": 0.18,
+    "gate_depth_m": 0.22,
+    "gate_sequence": [
+      "G01",
+      "G02",
+      "G03",
+      "G04",
+      "G05",
+      "G06",
+      "G07",
+      "G08"
+    ]
+  },
+  "start": {
+    "position": [
+      -4.5,
+      0.29823,
+      -4.0
+    ],
+    "rotation_rpy_deg": [
+      0.0,
+      0.0,
+      -0.22866633494094657
+    ]
+  },
+  "finish": {
+    "gate_id": "G08"
+  },
+  "beacon": {
+    "enabled": true,
+    "position_offset": [
+      0.0,
+      0.0,
+      0.35
+    ],
+    "range_m": 30.0,
+    "angular_noise_std_deg": 0.15,
+    "range_noise_std_m": 0.15,
+    "dropout_probability": 0.0,
+    "update_rate_hz": 30.0
+  },
+  "gates": [
+    {
+      "id": "G01",
+      "type": "single",
+      "position": [
+        0.0,
+        0.0,
+        -4.0
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "id": "G02",
+      "type": "single",
+      "position": [
+        5.33382,
+        0.57721,
+        -4.18456
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        6.17636
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.9941954,
+        0.1075892,
+        0.0
+      ]
+    },
+    {
+      "id": "G03",
+      "type": "single",
+      "position": [
+        10.11546,
+        1.70262,
+        -4.24647
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        13.24411
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.9734028,
+        0.2291003,
+        0.0
+      ]
+    },
+    {
+      "id": "G04",
+      "type": "single",
+      "position": [
+        15.53853,
+        2.57024,
+        -4.06322
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        9.08954
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.9874427,
+        0.1579777,
+        0.0
+      ]
+    },
+    {
+      "id": "G05",
+      "type": "single",
+      "position": [
+        20.50753,
+        3.32864,
+        -4.22694
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        8.6779
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.9885521,
+        0.1508796,
+        0.0
+      ]
+    },
+    {
+      "id": "G06",
+      "type": "single",
+      "position": [
+        25.14616,
+        3.99576,
+        -4.31075
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        8.18403
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.989816,
+        0.142353,
+        0.0
+      ]
+    },
+    {
+      "id": "G07",
+      "type": "single",
+      "position": [
+        30.01128,
+        4.02276,
+        -4.23303
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        0.31796
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.9999846,
+        0.0055494,
+        0.0
+      ]
+    },
+    {
+      "id": "G08",
+      "type": "single",
+      "position": [
+        35.12803,
+        3.98485,
+        -4.39352
+      ],
+      "rotation_rpy_deg": [
+        0.0,
+        0.0,
+        -0.42448
+      ],
+      "color": "#00ff88",
+      "passage_direction": [
+        0.9999726,
+        -0.0074085,
+        0.0
+      ]
+    }
+  ],
+  "currents": [],
+  "obstacles": [],
+  "participants": [
+    {
+      "id": "bluerov2_01",
+      "vehicle": "BlueROV2",
+      "controller": "rl_sequence_ppo",
+      "controller_class": null,
+      "spawn": {
+        "position": [
+          -4.5,
+          0.29823,
+          -4.0
+        ],
+        "rotation_rpy_deg": [
+          0.0,
+          0.0,
+          -0.22866633494094657
+        ]
+      },
+      "sensors": {
+        "profile": "official_vision_acoustic",
+        "allowed_sensors": [
+          "DepthSensor",
+          "IMUSensor",
+          "DVLSensor",
+          "CollisionSensor",
+          "FrontCamera"
+        ],
+        "holoocean_sensors": [
+          {
+            "sensor_type": "DepthSensor",
+            "socket": "DepthSocket",
+            "Hz": 30,
+            "configuration": {
+              "Sigma": 0.0
+            }
+          },
+          {
+            "sensor_type": "IMUSensor",
+            "socket": "IMUSocket",
+            "Hz": 30,
+            "configuration": {
+              "ReturnBias": true
+            }
+          },
+          {
+            "sensor_type": "DVLSensor",
+            "socket": "DVLSocket",
+            "Hz": 15,
+            "configuration": {
+              "Elevation": 22.5,
+              "ReturnRange": true,
+              "MaxRange": 50
+            }
+          },
+          {
+            "sensor_type": "RGBCamera",
+            "sensor_name": "FrontCamera",
+            "socket": "CameraSocket",
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "Hz": 30,
+            "configuration": {
+              "CaptureWidth": 640,
+              "CaptureHeight": 480,
+              "FovAngle": 90.0
+            }
+          }
+        ]
+      },
+      "control_mode": "high_level",
+      "official_sensor_profile": true
+    }
+  ],
+  "referee": {
+    "gate_validation": {
+      "vehicle_model": "center_point",
+      "vehicle_clearance_margin_m": 0.1,
+      "stuck_timeout_s": 45.0,
+      "stuck_speed_threshold_m_s": 0.02,
+      "timeout_enabled": false,
+      "collision_penalty_cooldown_s": 1.0,
+      "out_of_bounds_penalty_cooldown_s": 1.0
+    },
+    "penalties": {
+      "minor_collision_s": 5.0,
+      "gate_collision_s": 10.0,
+      "out_of_bounds_s": 10.0,
+      "stuck_s": 15.0,
+      "wrong_direction_s": 0.0,
+      "missed_gate_dnf": true,
+      "severe_collision_dnf": false,
+      "out_of_bounds_dnf": false,
+      "wrong_direction_dsq": false
+    },
+    "scoring": {
+      "rank_finished_by": "penalized_time",
+      "rank_unfinished_by": "completed_gates"
+    }
+  },
+  "sequence_curriculum": {
+    "stage": "G1",
+    "source": "full_sequence",
+    "pattern": "varied",
+    "seed": 5004075,
+    "gate_count": 8,
+    "spacings_m": [
+      5.36496269947133,
+      4.912296362101205,
+      5.492027863839151,
+      5.026547079473872,
+      4.6863547701271,
+      4.865190925677752,
+      5.116897934653665
+    ],
+    "turn_deltas_deg": [
+      6.176362265811095,
+      7.06774505659482,
+      -4.154571320462082,
+      -0.4116324496943502,
+      -0.49387626756524305,
+      -7.866068284117256,
+      -0.7424410698227746
+    ],
+    "vertical_deltas_m": [
+      -0.18455850292220377,
+      -0.06191042242937046,
+      0.1832515506164564,
+      -0.16372278844254093,
+      -0.08380815666385377,
+      0.07771686033095225,
+      -0.1604893773202253
+    ],
+    "initial_yaw_error_deg": -0.22866633494094657,
+    "initial_lateral_offset_m": 0.29823440610871754
+  },
+  "holoocean_frames_per_sec": false,
+  "universal_transition": {
+    "difficulty": "G1",
+    "episode_type": "full_sequence",
+    "pattern": "varied",
+    "seed": 5004075,
+    "gate_count": 8,
+    "spacings_m": [
+      5.36496269947133,
+      4.912296362101205,
+      5.492027863839151,
+      5.026547079473872,
+      4.6863547701271,
+      4.865190925677752,
+      5.116897934653665
+    ],
+    "turn_deltas_deg": [
+      6.176362265811095,
+      7.06774505659482,
+      -4.154571320462082,
+      -0.4116324496943502,
+      -0.49387626756524305,
+      -7.866068284117256,
+      -0.7424410698227746
+    ],
+    "vertical_deltas_m": [
+      -0.18455850292220377,
+      -0.06191042242937046,
+      0.1832515506164564,
+      -0.16372278844254093,
+      -0.08380815666385377,
+      0.07771686033095225,
+      -0.1604893773202253
+    ],
+    "initial_yaw_error_deg": -0.22866633494094657,
+    "initial_lateral_offset_m": 0.29823440610871754,
+    "start_distance_m": 4.5,
+    "initial_body_velocity_m_s": [
+      0.028844456305242655,
+      0.05938523889783552,
+      -0.04572719587094033
+    ],
+    "dataset_split": "validation",
+    "sequence_bucket": "medium",
+    "curriculum_stage": null
+  }
+}

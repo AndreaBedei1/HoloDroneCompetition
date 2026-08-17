@@ -1,0 +1,183 @@
+{
+  "seed": 5012467,
+  "difficulty": "G1",
+  "episode_type": "full_sequence",
+  "geometry_group": "G1:full_sequence:22:varied",
+  "gate_count": 22,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": true,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 0,
+  "collision_events": 0,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": false,
+  "acquisition_time_s": 0.3,
+  "action_jerk": 0.105498,
+  "collision_entries": 0,
+  "collision_contact_frames": 0,
+  "action_steps": 935,
+  "nontrivial_action_steps": 934,
+  "mean_absolute_action_per_axis": [
+    0.526139,
+    0.027881,
+    0.036428,
+    0.031471
+  ],
+  "distance_travelled_m": 117.0236,
+  "universal_transition_success": true,
+  "full_sequence_completion": true,
+  "gates_completed": 22,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "3": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "4": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "5": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "6": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "7": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "8": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "9": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "10": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "11": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "12": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "13": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "14": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "15": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "16": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "17": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "18": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "19": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "20": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "21": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    }
+  },
+  "tracker_final_phase": "VERIFY_EXIT",
+  "tracker_local_completed": 21,
+  "tracker_commit_entry_reason": "standard_visual_lock",
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 89.4,
+    "beacon_id": "B21",
+    "filtered_range_m": 0.43161638100279515,
+    "min_range_m": 0.04038091705211792,
+    "range_rise_m": 0.3912354639506772,
+    "close_range_streak": 3,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 4,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 2,
+    "rear_exit_range_rise_confirmed": true,
+    "last_bearing_deg": -175.4423146283769,
+    "commit_displacement_m": 1.431,
+    "disappear_streak": 4,
+    "last_commit_center_x": 0.0421265625
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

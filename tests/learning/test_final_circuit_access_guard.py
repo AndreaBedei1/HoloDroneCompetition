@@ -30,9 +30,11 @@ from marine_race_arena.learning.rl_readiness_gate import (
     FinalCircuitsLocked,
     ProtocolViolation,
     assert_final_circuits_unlocked,
+    evaluate_readiness,
     freeze_record_id,
     freeze_record_path,
     read_final_circuit_ledger,
+    record_exploratory_holdout_decision,
     verify_ledger_chain,
 )
 
@@ -186,6 +188,66 @@ def test_a_valid_ready_freeze_record_permits_the_official_group(tmp_path):
     )
     assert [case.group for case in cases] == [OFFICIAL_GROUP]
     assert all(case.official for case in cases)
+
+
+def test_committed_exploratory_failure_amendment_permits_official_group(tmp_path):
+    """The explicit one-shot exception is wired through the benchmark door."""
+
+    checkpoint = tmp_path / "ppo_final_generic_929792.zip"
+    checkpoint.write_bytes(b"immutable final policy")
+    metrics = {
+        "seed": 5_000_000,
+        "dataset_split": "validation",
+        "episode_seeds": [5_000_007],
+        "difficulty": "G1",
+        "n_eval": 620,
+        "transition_n": 500,
+        "universal_transition_success_rate": 0.82,
+        "first_gate_crossing_rate": 1.0,
+        "target_switch_rate": 0.882,
+        "new_target_alignment_rate": 0.852,
+        "out_of_bounds_episodes": 0,
+        "collision_episodes": 0,
+        "full_sequence_success_by_length": {
+            "3": {"n": 20, "completion_rate": 0.95},
+            "5": {"n": 20, "completion_rate": 0.90},
+            "8": {"n": 20, "completion_rate": 0.75},
+            "12": {"n": 20, "completion_rate": 0.50},
+            "17": {"n": 20, "completion_rate": 0.25},
+            "22": {"n": 20, "completion_rate": 0.25},
+        },
+        "difficulty_ladder": {
+            "rungs": [{
+                "difficulty": "G3",
+                "n": 60,
+                "success": 0.75,
+                "success_ci": [0.62, 0.84],
+                "first_gate": 1.0,
+            }],
+        },
+    }
+    verdict = evaluate_readiness(metrics)
+    assert verdict.ready is False
+    decision_path = tmp_path / "exploratory_holdout_decision.json"
+    record_exploratory_holdout_decision(
+        checkpoint,
+        run_dir=tmp_path,
+        metrics=metrics,
+        verdict=verdict,
+        git_sha=GIT_SHA,
+        contracts={"reward": "r1", "observation": "o1", "action": "a1"},
+        training_transitions=929_792,
+        path=decision_path,
+    )
+
+    cases = fb.build_suite(
+        tmp_path / "out",
+        episodes_per_case=2,
+        official_episodes=2,
+        groups=[OFFICIAL_GROUP],
+        freeze_record=decision_path,
+    )
+    assert [case.group for case in cases] == [OFFICIAL_GROUP]
 
 
 def test_a_suite_without_official_groups_needs_no_freeze_record(tmp_path):
