@@ -4,6 +4,14 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+pytest.importorskip("torch")
+pytest.importorskip("stable_baselines3")
+
 import gymnasium as gym
 import numpy as np
 import pytest

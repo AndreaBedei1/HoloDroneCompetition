@@ -5,6 +5,10 @@ from pathlib import Path
 import json
 import pytest
 
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+
 from marine_race_arena.learning import rl_autonomous_supervisor as supervisor
 
 

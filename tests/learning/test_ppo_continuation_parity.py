@@ -15,6 +15,12 @@ import json
 import numpy as np
 import pytest
 
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+pytest.importorskip("torch")
+pytest.importorskip("stable_baselines3")
+
 from marine_race_arena.learning.ppo_activity_gate import (
     STATUS_HEALTHY,
     STATUS_INACTIVE,

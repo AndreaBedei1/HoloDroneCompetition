@@ -11,6 +11,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+
 from marine_race_arena.controllers.vision import VisionTarget
 from marine_race_arena.learning.config_local_transition import (
     FEATURE_BOUNDS_LOCAL_TRANSITION,

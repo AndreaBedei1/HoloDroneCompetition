@@ -17,6 +17,11 @@ from pathlib import Path
 
 import pytest
 
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+pytest.importorskip("stable_baselines3")
+
 from marine_race_arena.learning.episode_composition_log import read_episodes
 from marine_race_arena.learning.rl_hard_families import (
     HARD_FAMILY_NAMES,

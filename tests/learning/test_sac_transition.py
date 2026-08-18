@@ -6,6 +6,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+pytest.importorskip("torch")
+pytest.importorskip("stable_baselines3")
+
 from marine_race_arena.learning.config import ACTION_DIM
 from marine_race_arena.learning.config_local_transition import (
     FEATURE_NAMES_LOCAL_TRANSITION,

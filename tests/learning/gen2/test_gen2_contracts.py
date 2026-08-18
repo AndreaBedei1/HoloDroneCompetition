@@ -211,3 +211,38 @@ def test_every_gen2_rollout_path_is_guarded():
         # Regression guard for the Gen-1 incident where the access check was
         # left inside an `if False:` block and a probe reached a sealed circuit.
         assert "if False" not in source, module
+
+
+def test_bc_stage_and_dagger_validation_slices_never_overlap():
+    """Both are validation, but grading 'before' and 'after' on the same course
+    would make part of any improvement a memory of that layout."""
+    blocks = {}
+    for index in range(5):
+        blocks[f"bc_stage_{index}"] = set(
+            gen2_seeds.bc_stage_seeds(index, gen2_seeds.GEN2_VALIDATION_BLOCK)
+        )
+    for round_index in range(1, 6):
+        blocks[f"dagger_round_{round_index}"] = set(
+            gen2_seeds.dagger_validation_seeds(round_index, gen2_seeds.GEN2_VALIDATION_BLOCK)
+        )
+    names = sorted(blocks)
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            overlap = blocks[names[i]] & blocks[names[j]]
+            assert not overlap, f"{names[i]} and {names[j]} share {sorted(overlap)[:5]}"
+    every = set().union(*blocks.values())
+    assert every <= set(gen2_seeds.GEN2_VALIDATION_SEEDS)
+    assert all(gen2_seeds.band_of(s) == "VALIDATION" for s in every)
+
+
+def test_a_validation_block_cannot_be_widened_into_its_neighbour():
+    with pytest.raises(ValueError):
+        gen2_seeds.bc_stage_seeds(0, gen2_seeds.GEN2_VALIDATION_BLOCK + 1)
+    with pytest.raises(ValueError):
+        gen2_seeds.dagger_validation_seeds(1, gen2_seeds.GEN2_VALIDATION_BLOCK + 1)
+
+
+def test_ablation_and_ppo_validation_stay_out_of_the_progression_bands():
+    progression = set(gen2_seeds.GEN2_BC_STAGE_SEEDS) | set(gen2_seeds.GEN2_DAGGER_VALIDATION_SEEDS)
+    assert progression.isdisjoint(gen2_seeds.GEN2_ABLATION_SEEDS)
+    assert progression.isdisjoint(gen2_seeds.GEN2_PPO_VALIDATION_SEEDS)

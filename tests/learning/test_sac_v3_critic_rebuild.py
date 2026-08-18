@@ -7,6 +7,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+pytest.importorskip("torch")
+
 import torch
 
 from marine_race_arena.learning.sac_health_gates import (

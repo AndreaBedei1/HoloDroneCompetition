@@ -49,12 +49,49 @@ GEN2_PPO_TRAINING_SEEDS: List[int] = _r(48_000, 49_499)
 GEN2_SMOKE_SEEDS: List[int] = _r(49_500, 49_999)
 
 # -------------------------------------------------------- VALIDATION sub-roles
-# Closed-loop BC/DAgger progression evaluation (stages A..E).
+# Closed-loop BC/DAgger progression evaluation.  Split explicitly so a BC stage
+# and a DAgger round can never be graded on the same course: both are
+# validation, but comparing "before" and "after" on overlapping geometry would
+# make an improvement partly a memory of the same layout.
 GEN2_VALIDATION_SEEDS: List[int] = _r(50_000, 50_599)
+#: BC stages A..E: 60 courses each, disjoint per stage.
+GEN2_BC_STAGE_SEEDS: List[int] = _r(50_000, 50_299)
+#: DAgger rounds 1..5: 60 courses each, disjoint per round.
+GEN2_DAGGER_VALIDATION_SEEDS: List[int] = _r(50_300, 50_599)
 # Recurrence ablation A/B/C/D on matched seeds.
 GEN2_ABLATION_SEEDS: List[int] = _r(50_600, 50_899)
 # PPO periodic validation.
 GEN2_PPO_VALIDATION_SEEDS: List[int] = _r(50_900, 50_999)
+
+#: Courses per BC stage / per DAgger round.  Fixed so a slice index is stable.
+GEN2_VALIDATION_BLOCK = 60
+
+
+def bc_stage_seeds(stage_index: int, count: int) -> List[int]:
+    """Validation courses for BC stage ``stage_index`` (0-based)."""
+    return _validation_block(GEN2_BC_STAGE_SEEDS, stage_index, count, "BC stage")
+
+
+def dagger_validation_seeds(round_index: int, count: int) -> List[int]:
+    """Validation courses for DAgger round ``round_index`` (1-based)."""
+    return _validation_block(
+        GEN2_DAGGER_VALIDATION_SEEDS, int(round_index) - 1, count, "DAgger round"
+    )
+
+
+def _validation_block(pool: List[int], index: int, count: int, label: str) -> List[int]:
+    if index < 0:
+        raise ValueError(f"{label} index must be non-negative")
+    if int(count) > GEN2_VALIDATION_BLOCK:
+        raise ValueError(
+            f"{label} asked for {count} courses but each block holds "
+            f"{GEN2_VALIDATION_BLOCK}; widening a block would overlap the next one"
+        )
+    start = index * GEN2_VALIDATION_BLOCK
+    end = start + int(count)
+    if end > len(pool):
+        raise ValueError(f"{label} {index} exceeds its allocated validation band")
+    return pool[start:end]
 
 # -------------------------------------------------------------- TEST sub-roles
 # Untouched until model selection; then used to pick the single frozen policy.

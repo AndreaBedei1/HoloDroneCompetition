@@ -4,6 +4,10 @@ from contextlib import contextmanager
 
 import pytest
 
+# The RL stack (gymnasium/torch/SB3) lives in requirements-rl.txt and is not
+# installed in the benchmark environment; skip rather than fail collection.
+pytest.importorskip("gymnasium")
+
 from marine_race_arena.learning import holoocean_capacity
 from marine_race_arena.learning import benchmark_sac_parallelism
 from marine_race_arena.learning import train_sac_transition
