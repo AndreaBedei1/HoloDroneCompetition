@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -116,7 +117,11 @@ def save_episode(record, root: str | Path, *, tag: str = "ep") -> Path:
     episode.validate()
     target = shard_path(root, episode.seed, tag=tag)
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_name(target.stem + ".partial.npz")
+    # The temp name carries the writer's PID.  Two collectors racing on the same
+    # seed -- which happens whenever a resumed run overlaps a still-running one
+    # -- would otherwise write the same ``.partial.npz`` concurrently and
+    # produce a corrupt shard that only fails much later, at load time.
+    tmp = target.with_name(f"{target.stem}.partial.{os.getpid()}.npz")
     np.savez_compressed(
         tmp,
         observations=episode.observations,
@@ -155,7 +160,10 @@ def iter_shards(root: str | Path) -> Iterator[Path]:
     directory = Path(root) / "episodes"
     if not directory.is_dir():
         return iter(())
-    return iter(sorted(directory.glob("*.npz")))
+    # Skip in-flight partials so a concurrent writer is never half-read.
+    return iter(sorted(
+        path for path in directory.glob("*.npz") if ".partial." not in path.name
+    ))
 
 
 def load_corpus(
