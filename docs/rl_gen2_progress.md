@@ -108,17 +108,30 @@ rather than a hand-folded weight copy — the parity test asserts exact equality
 
 ## Measured so far
 
-Expert competence on the Gen-2 course family (HoloOcean, 6 workers):
+Expert competence on the Gen-2 course family (HoloOcean, 6 workers, 27
+episodes covering every length):
 
-| Gates | Episodes | Completed | Collisions |
-|---|---|---|---|
-| 2 | 4 | 4 | 0 |
-| 3 | 4 | 4 | 0 |
-| 5 | 3 | 3 | 0 |
-| 8 | 2 | 2 | 0 |
-| 12 | 1 | 1 | 0 |
-| 17 | 1 | 1 | 0 |
-| 22 | 2 | 2 | 0 |
+| Gates | Episodes | Completed |
+|---|---|---|
+| 2 | 4 | 4 |
+| 3 | 4 | 4 |
+| 5 | 4 | 4 |
+| 8 | 3 | 2 |
+| 12 | 4 | 3 |
+| 17 | 4 | 4 |
+| 22 | 4 | 4 |
+
+Overall completion **0.926**, gate success **0.959**, 1 episode with a
+collision, 0 out-of-bounds, 39 009 transitions.
+
+The expert is therefore **very good but not perfect** on this family — it
+misses roughly one episode in fourteen at the mid lengths. Two consequences:
+
+* the BC corpus will contain some failed expert episodes, so
+  `--completed-only` exists as an option and the corpus statistics record the
+  completion rate per length;
+* the expert's own rate is the practical ceiling for a pure imitator, which is
+  another reason DAgger and then PPO are needed rather than more cloning.
 
 Throughput: 6.7 steps/s single worker, 15.1 steps/s at six workers (2.25×).
 Roughly 150 simulator steps per gate. Engine ceiling is 10 processes and the
