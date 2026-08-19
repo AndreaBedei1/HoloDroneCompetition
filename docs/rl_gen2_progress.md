@@ -28,7 +28,7 @@ No rules fallback, no blending, no hybrid, no privileged information.
 | Pre-registered readiness gate | done (committed before any Gen-2 measurement) |
 | Recurrent policy infrastructure | done |
 | Expert demonstration pipeline | done |
-| Expert data correctness proven | done — 17/17 HoloOcean episodes completed, 0 collisions |
+| Expert data correctness proven | done — 28 episodes over all 7 lengths, completion 0.929 |
 | First expert corpus | done — 400 episodes, 321 796 transitions |
 | Recurrent BC | first run done; re-running cleanly (see below) |
 | DAgger rounds 1–3 | round 1 done; re-running cleanly |
