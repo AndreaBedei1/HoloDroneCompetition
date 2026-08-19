@@ -401,6 +401,64 @@ def write_report(result: Mapping[str, Any], path: str | Path) -> Path:
     return target
 
 
+def failures_by_pattern(rows: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Group failures by course pattern and gate count.
+
+    A uniform failure rate points at the controller; one concentrated on
+    ``climb`` or a wide-turn pattern points at a geometry the policy has not
+    learned, or at an arena bound it is being pushed into.  Reporting the split
+    is the difference between "the policy is unstable" and "the policy leaves
+    the arena on descending courses".
+    """
+    if not rows:
+        return {"episodes": 0}
+    groups: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        key = str(row.get("pattern", "unknown"))
+        bucket = groups.setdefault(key, {
+            "episodes": 0, "completed": 0, "out_of_bounds": 0,
+            "collisions": 0, "missed_gate": 0, "timeout": 0, "wrong_direction": 0,
+        })
+        bucket["episodes"] += 1
+        bucket["completed"] += int(bool(row["succeeded"]))
+        bucket["out_of_bounds"] += int(int(row["out_of_bounds_events"]) > 0)
+        bucket["collisions"] += int(int(row["collision_events"]) > 0)
+        bucket["missed_gate"] += int(int(row["missed_gate_attempts"]) > 0)
+        bucket["timeout"] += int(bool(row["timeout"]))
+        bucket["wrong_direction"] += int(int(row["wrong_direction_crossings"]) > 0)
+    for bucket in groups.values():
+        n = max(1, bucket["episodes"])
+        bucket["completion_rate"] = round(bucket["completed"] / n, 4)
+        bucket["out_of_bounds_rate"] = round(bucket["out_of_bounds"] / n, 4)
+
+    by_length: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        key = str(row["gate_count"])
+        bucket = by_length.setdefault(key, {"episodes": 0, "out_of_bounds": 0})
+        bucket["episodes"] += 1
+        bucket["out_of_bounds"] += int(int(row["out_of_bounds_events"]) > 0)
+    for bucket in by_length.values():
+        bucket["out_of_bounds_rate"] = round(
+            bucket["out_of_bounds"] / max(1, bucket["episodes"]), 4
+        )
+
+    ranked = sorted(
+        groups.items(), key=lambda kv: (-kv[1]["out_of_bounds_rate"], kv[0])
+    )
+    return {
+        "episodes": len(rows),
+        "by_pattern": dict(sorted(groups.items())),
+        "out_of_bounds_by_gate_count": dict(
+            sorted(by_length.items(), key=lambda kv: int(kv[0]))
+        ),
+        "worst_out_of_bounds_patterns": [
+            {"pattern": name, "rate": stats["out_of_bounds_rate"],
+             "episodes": stats["episodes"]}
+            for name, stats in ranked[:5] if stats["out_of_bounds"] > 0
+        ],
+    }
+
+
 def survival_table(metrics: Mapping[str, Any]) -> str:
     """Human-readable unconditional survival curve."""
     detail = dict(metrics.get("unconditional_survival_detail") or {})

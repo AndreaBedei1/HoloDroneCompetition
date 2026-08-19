@@ -94,7 +94,10 @@ def evaluate_stage(
     allow_fallback: bool = False,
 ) -> StageResult:
     """Closed-loop rollout of the learned controller on one stage."""
-    from marine_race_arena.learning.gen2.evaluation import evaluate_policy
+    from marine_race_arena.learning.gen2.evaluation import (
+        evaluate_policy,
+        failures_by_pattern,
+    )
 
     plan = BC_STAGES[stage]
     seeds = stage_seeds(stage, episodes)
@@ -105,6 +108,18 @@ def evaluate_stage(
         adapter=adapter, allow_fallback=allow_fallback,
     )
     metrics = result["metrics"]
+    # Persist the per-episode rows. Keeping only the aggregate is what left the
+    # first out-of-bounds finding undiagnosable: a rate of 0.100 says nothing
+    # about which geometry produced it.
+    rows_path = Path(track_dir).parent / f"stage_{stage}_episodes.json"
+    rows_path.parent.mkdir(parents=True, exist_ok=True)
+    rows_path.write_text(json.dumps({
+        "stage": stage,
+        "gates": int(plan["gates"]),
+        "metrics": metrics,
+        "diagnosis": failures_by_pattern(result["episodes"]),
+        "episodes": result["episodes"],
+    }, indent=2), encoding="utf-8")
     completion = metrics.get("overall_completion_rate")
     target = plan["target"]
     return StageResult(
