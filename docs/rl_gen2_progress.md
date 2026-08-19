@@ -29,9 +29,9 @@ No rules fallback, no blending, no hybrid, no privileged information.
 | Recurrent policy infrastructure | done |
 | Expert demonstration pipeline | done |
 | Expert data correctness proven | done — 17/17 HoloOcean episodes completed, 0 collisions |
-| First expert corpus | collecting |
-| Recurrent BC | queued behind collection |
-| DAgger rounds 1–3 | queued behind BC |
+| First expert corpus | done — 400 episodes, 321 796 transitions |
+| Recurrent BC | first run done; re-running cleanly (see below) |
+| DAgger rounds 1–3 | round 1 done; re-running cleanly |
 | Recurrent PPO | **not started** — blocked on DAgger readiness |
 | Ablation A/B/C/D | implemented, waiting for arms C and D |
 
@@ -147,6 +147,61 @@ disambiguate that — it is an *ambiguous* course, not a hard one. Courses are
 now relaxed (turn deltas attenuated) until non-adjacent gates clear 4 m. 84 of
 1500 sampled courses needed relaxation, max 4 passes, and pattern/length/
 direction diversity is unchanged.
+
+## Expert corpus v1
+
+400 episodes, **321 796 transitions**, 400 unique courses.
+`corpus_sha256 = 04258c69ffaca9c48f1716e61883d26e3184d302814a3bb8935bb4a7b5f6ddf3`
+(manifest re-verified: 400/400 shards present, no hash drift, no partials).
+
+| Gates | Episodes | Transitions | Expert completion |
+|---|---|---|---|
+| 2 | 118 | 33 687 | 1.000 |
+| 3 | 90 | 40 212 | 1.000 |
+| 5 | 92 | 76 765 | 0.978 |
+| 8 | 67 | 92 210 | 0.955 |
+| 12 | 23 | 47 491 | 0.957 |
+| 17 | 8 | 22 658 | 1.000 |
+| 22 | 2 | 8 773 | 1.000 |
+
+Overall expert completion 0.985, gate success 0.9908, 0 out-of-bounds,
+11 episodes with a collision. Collection took 7.4 h at 5 workers.
+
+## First BC run, and why it is being repeated
+
+The first pipeline produced a working recurrent BC policy:
+
+* validation action MSE **9.2e-05**, per-axis correlation 0.969–0.994
+* stage A (2 gates) completion **1.000**
+* stage C (5 gates) completion **0.733**
+* **gate1→gate2 transition 1.000 at every stage measured**
+
+That last line is the point of the whole experiment: Gen-1 recorded a first
+gate of 1.00 against a complete gate1→gate2 transition of 0.7333, and recurrent
+BC alone already closes that gap on 2–5 gate courses.
+
+The run is nevertheless being repeated, because two pipeline instances ran
+concurrently. Stopping the first chain's shell did not stop its detached
+python child, and a second pipeline started beside it. Both wrote the same BC
+checkpoint and the same DAgger round directory. They graded stage B at 0.90 and
+0.7667 on identical seeds — a four-episode difference at n=30, comfortably
+inside binomial noise, and HoloOcean is not bit-reproducible
+(`exact_observation_trace_reproducibility: false` in the Gen-1 parallel
+benchmark), so the two numbers cannot be attributed.
+
+Nothing was lost: the corpus verified intact, and the contended artifacts are
+kept under `results/rl/gen2/_contended_20260819/` with the interleaved log as
+evidence. Two changes followed:
+
+1. `Pipeline` now takes an exclusive lock on its base directory and refuses to
+   start beside a live holder (a lock from a dead PID is ignored).
+2. Stage evaluation now runs at 60 episodes rather than 30, since n=30 cannot
+   separate 0.77 from 0.90.
+
+DAgger round 1 (learner-driven, expert-labelled, audited as a pure learner
+rollout with zero takeovers) reached validation completion 0.60–0.625 on mixed
+3–5 gate courses with gate1→gate2 0.875–0.975, below the 0.80 advance bar, so
+the campaign correctly declined to lengthen the courses.
 
 ## How to resume
 

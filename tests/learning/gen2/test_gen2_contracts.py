@@ -246,3 +246,36 @@ def test_ablation_and_ppo_validation_stay_out_of_the_progression_bands():
     progression = set(gen2_seeds.GEN2_BC_STAGE_SEEDS) | set(gen2_seeds.GEN2_DAGGER_VALIDATION_SEEDS)
     assert progression.isdisjoint(gen2_seeds.GEN2_ABLATION_SEEDS)
     assert progression.isdisjoint(gen2_seeds.GEN2_PPO_VALIDATION_SEEDS)
+
+
+def test_two_pipelines_cannot_own_the_same_base(tmp_path):
+    """A stopped shell does not stop its detached child.
+
+    On 2026-08-18 that left one pipeline alive while a second started beside
+    it; both wrote the same BC checkpoint and the same DAgger round directory,
+    and they graded stage B at 0.90 and 0.7667 on identical seeds. The lock
+    makes that state unreachable.
+    """
+    from marine_race_arena.learning.gen2.pipeline import Pipeline, PipelineAlreadyRunning
+
+    first = Pipeline(tmp_path)
+    try:
+        with pytest.raises(PipelineAlreadyRunning):
+            Pipeline(tmp_path)
+    finally:
+        first.release()
+    second = Pipeline(tmp_path)
+    second.release()
+
+
+def test_a_lock_from_a_dead_process_does_not_block(tmp_path):
+    import json as _json
+
+    from marine_race_arena.learning.gen2.pipeline import Pipeline
+
+    (tmp_path / "pipeline.lock").write_text(
+        _json.dumps({"pid": 999_999_999, "started_utc": "2026-01-01T00:00:00Z"}),
+        encoding="utf-8",
+    )
+    pipeline = Pipeline(tmp_path)
+    pipeline.release()

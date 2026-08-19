@@ -30,10 +30,36 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 STATE_SCHEMA = "gen2_pipeline_state_v1"
 
 
+class PipelineAlreadyRunning(RuntimeError):
+    """Raised when another pipeline already owns this base directory."""
+
+
+def _process_alive(pid: int) -> bool:
+    try:
+        import psutil
+
+        return psutil.pid_exists(int(pid))
+    except Exception:
+        return True  # assume alive: refusing is safer than racing
+
+
 class Pipeline:
-    def __init__(self, base: str | Path) -> None:
+    """Owns one base directory, exclusively.
+
+    The exclusivity is not cosmetic.  Two pipelines on the same base write the
+    same BC checkpoint, the same DAgger round directory and the same state
+    file, and each one's closed-loop evaluation competes with the other's for
+    simulator engines.  The results are then neither run's -- which is exactly
+    what happened on 2026-08-18, when a stopped shell left its detached child
+    alive and a second pipeline started beside it.  The two runs graded stage B
+    at 0.90 and 0.7667 on identical seeds.
+    """
+
+    def __init__(self, base: str | Path, *, force: bool = False) -> None:
         self.base = Path(base)
         self.base.mkdir(parents=True, exist_ok=True)
+        self.lock_path = self.base / "pipeline.lock"
+        self._acquire_lock(force=force)
         self.state_path = self.base / "pipeline_state.json"
         self.state: Dict[str, Any] = {
             "schema_version": STATE_SCHEMA,
@@ -48,6 +74,34 @@ class Pipeline:
             except Exception:
                 pass
         self._flush()
+
+    def _acquire_lock(self, *, force: bool = False) -> None:
+        import os
+
+        if self.lock_path.exists() and not force:
+            try:
+                holder = json.loads(self.lock_path.read_text(encoding="utf-8"))
+            except Exception:
+                holder = {}
+            pid = int(holder.get("pid", -1))
+            if pid > 0 and _process_alive(pid):
+                raise PipelineAlreadyRunning(
+                    f"pipeline {pid} already owns {self.base} (started "
+                    f"{holder.get('started_utc')}). Stop it first, or pass "
+                    f"force=True if you are certain it is dead. Note that "
+                    f"stopping a shell does not stop its detached child."
+                )
+        self.lock_path.write_text(json.dumps({
+            "pid": os.getpid(),
+            "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "base": str(self.base),
+        }, indent=2), encoding="utf-8")
+
+    def release(self) -> None:
+        try:
+            self.lock_path.unlink()
+        except OSError:
+            pass
 
     def _flush(self) -> None:
         tmp = self.state_path.with_suffix(".json.partial")
@@ -168,8 +222,9 @@ def run(
     episodes_per_round: int = 120,
     seed: int = 0,
     skip_collect: bool = False,
+    force: bool = False,
 ) -> Dict[str, Any]:
-    pipeline = Pipeline(base)
+    pipeline = Pipeline(base, force=force)
     try:
         if not skip_collect:
             phase_collect(
@@ -202,6 +257,8 @@ def run(
         }
         pipeline.stop(f"pipeline failed in phase {pipeline.state.get('current')}: {exc}")
         raise
+    finally:
+        pipeline.release()
     return pipeline.state
 
 
@@ -219,6 +276,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--episodes-per-round", type=int, default=120)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--skip-collect", action="store_true")
+    parser.add_argument(
+        "--force", action="store_true",
+        help="take the base-directory lock even if another pipeline holds it",
+    )
     return parser
 
 
@@ -232,7 +293,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         episodes_per_stage=args.episodes_per_stage,
         dagger_rounds=[int(v) for v in args.dagger_rounds.split(",") if v.strip()],
         episodes_per_round=args.episodes_per_round, seed=args.seed,
-        skip_collect=args.skip_collect,
+        skip_collect=args.skip_collect, force=args.force,
     )
     print(json.dumps({
         "phases": [
