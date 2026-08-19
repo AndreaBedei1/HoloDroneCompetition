@@ -32,7 +32,7 @@ No rules fallback, no blending, no hybrid, no privileged information.
 | First expert corpus | done — 400 episodes, 321 796 transitions |
 | Recurrent BC | done, clean run at n=60 |
 | DAgger rounds 1–3 | round 1 done; declined to advance |
-| Recurrence ablation A/B/C/D | running |
+| Recurrence ablation A/B/C/D | done |
 | Recurrent PPO | **not started** — blocked on DAgger readiness |
 | Ablation A/B/C/D | implemented, waiting for arms C and D |
 
@@ -219,16 +219,14 @@ yaw 0.994.
 
 Stage B misses its target by 0.017 — **one episode in sixty**.
 
-### The result that matters
+### A comparison that had to be withdrawn
 
-Generation 1: first gate **1.000**, complete gate1→gate2 **0.7333**.
-Generation 2 recurrent BC: first gate **1.000**, complete gate1→gate2
-**0.983** — from imitation alone, before any DAgger or PPO.
-
-The Gen-1 deficit was not a hard control problem; it was a policy with no
-memory of having just crossed a gate. That is the ablation's hypothesis and it
-now has direct support, pending the matched arm-B comparison that separates
-recurrence from expert bootstrapping.
+An earlier reading here paired Gen-1's recorded gate1→gate2 of **0.7333**
+against Gen-2 recurrent BC's **0.983** and called the deficit closed. That was
+not like-for-like: the two numbers came from different course distributions.
+Run on the *same* 60 matched Gen-2 courses, Gen-1 PPO also reaches gate 2 at
+**0.983**. The comparison is withdrawn; the matched ablation below is the
+evidence of record.
 
 ### DAgger round 1
 
@@ -257,6 +255,58 @@ This needs diagnosis before more compute: the failing episodes should be
 grouped by course pattern to see whether OOB concentrates on a geometry (a
 climb hitting the depth clamp, or a wide turn leaving the horizontal bounds)
 rather than being uniform.
+
+## Recurrence ablation (60 matched VALIDATION seeds, gate counts 2/3/5/8)
+
+Seeds 50600–50659, identical for every arm. Arms A and B are feed-forward; B is
+capacity-matched to C at **191 236 actor parameters** and trained on the same
+corpus, optimizer and schedule, so C − B isolates temporal memory.
+
+### Unconditional survival, P(reach gate k from episode start)
+
+| Arm | Policy | gate 1 | gate 2 | **gate 3** | gate 5 | gate 8 |
+|---|---|---|---|---|---|---|
+| A | Gen-1 feed-forward PPO | 1.000 | 0.983 | **0.289** | 0.333 | 0.267 |
+| B | feed-forward BC | 1.000 | 0.333 | 0.022 | 0.000 | 0.000 |
+| C | recurrent BC | 1.000 | 0.983 | **0.911** | 0.700 | 0.333 |
+| D | recurrent BC + DAgger r1 | 1.000 | 0.950 | 0.778 | 0.633 | 0.267 |
+
+### Completion by course length
+
+| Arm | 2 gates | 3 gates | 5 gates | 8 gates |
+|---|---|---|---|---|
+| A | 1.000 | **0.067** | 0.333 | 0.267 |
+| B | 0.067 | 0.000 | 0.000 | 0.000 |
+| C | 1.000 | **0.867** | 0.800 | 0.333 |
+| D | 1.000 | 0.867 | 0.733 | 0.267 |
+
+### What this says
+
+**The compounding-error story holds, but the break is at gate 3, not gate 2.**
+Gen-1 PPO crosses gates 1 and 2 almost perfectly and then falls off a cliff:
+0.983 → 0.289. Recurrent BC holds 0.911 at gate 3 and decays gracefully
+(0.700 at 5, 0.333 at 8). Three-gate completion is 0.067 against 0.867 — a
+thirteenfold difference on identical courses.
+
+**Recurrence is decisive, and supervised MSE completely fails to predict it.**
+Arm B fits the expert at validation MSE 2.33e-04 against arm C's 9.17e-05 — a
+factor of 2.5, which looks like a minor difference. Closed-loop, arm B
+*completes 0.017 of episodes against arm C's 0.750*. At identical capacity and
+identical data, removing the LSTM does not degrade the policy, it destroys it.
+This is the clearest possible argument for grading on rollouts rather than on
+action error.
+
+**Arm A is not a weak baseline.** Gen-1 PPO beats capacity-matched feed-forward
+BC by a wide margin (0.417 completion against 0.017). Reinforcement learning
+from scratch found something imitation without memory could not. The
+`B − A = −0.65` term in the report should be read that way, not as evidence
+against expert bootstrapping.
+
+**DAgger round 1 is roughly neutral, and traded one failure mode for another.**
+Completion 0.750 → 0.717, gate 3 survival 0.911 → 0.778. But out-of-bounds went
+0.200 → **0.000** while collisions went 0.083 → 0.350. One round is not enough
+evidence to call it harmful; it is enough to say it has not yet helped, and
+that its next round should be judged on safety as well as completion.
 
 ## How to resume
 
