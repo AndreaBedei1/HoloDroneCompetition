@@ -226,9 +226,12 @@ def train(
             (out_dir / "stage_results.json").write_text(
                 json.dumps([s.as_dict() for s in stage_results], indent=2), encoding="utf-8"
             )
-            # Do not spend simulator time on a longer stage once a shorter one
-            # has already failed its progression target.
-            if outcome.passed is False:
+            # A narrow miss is still worth profiling: knowing the shape of the
+            # decay across 3/5/8 gates is what tells you whether the deficit is
+            # transition quality or long-horizon drift. Only abandon the longer
+            # stages when the policy has actually collapsed, where the extra
+            # simulator hours would buy a row of zeros.
+            if outcome.completion_rate is not None and outcome.completion_rate < 0.5:
                 break
 
     summary = {

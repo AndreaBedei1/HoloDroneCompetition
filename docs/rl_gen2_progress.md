@@ -30,8 +30,9 @@ No rules fallback, no blending, no hybrid, no privileged information.
 | Expert demonstration pipeline | done |
 | Expert data correctness proven | done — 28 episodes over all 7 lengths, completion 0.929 |
 | First expert corpus | done — 400 episodes, 321 796 transitions |
-| Recurrent BC | first run done; re-running cleanly (see below) |
-| DAgger rounds 1–3 | round 1 done; re-running cleanly |
+| Recurrent BC | done, clean run at n=60 |
+| DAgger rounds 1–3 | round 1 done; declined to advance |
+| Recurrence ablation A/B/C/D | running |
 | Recurrent PPO | **not started** — blocked on DAgger readiness |
 | Ablation A/B/C/D | implemented, waiting for arms C and D |
 
@@ -202,6 +203,60 @@ DAgger round 1 (learner-driven, expert-labelled, audited as a pure learner
 rollout with zero takeovers) reached validation completion 0.60–0.625 on mixed
 3–5 gate courses with gate1→gate2 0.875–0.975, below the 0.80 advance bar, so
 the campaign correctly declined to lengthen the courses.
+
+## Clean results (single-instance run, n=60 per stage)
+
+### Recurrent BC
+
+Trained on expert corpus v1 (321 796 transitions). Validation action MSE
+**9.166e-05**; per-axis correlation surge 0.989, sway 0.969, heave 0.992,
+yaw 0.994.
+
+| Stage | Gates | Completion | Target | First gate | gate1→gate2 | Collisions | OOB |
+|---|---|---|---|---|---|---|---|
+| A | 2 | **0.983** | 0.95 ✓ | 1.000 | **0.983** | 0.000 | 0.017 |
+| B | 3 | **0.883** | 0.90 ✗ | 1.000 | **0.983** | 0.000 | 0.100 |
+
+Stage B misses its target by 0.017 — **one episode in sixty**.
+
+### The result that matters
+
+Generation 1: first gate **1.000**, complete gate1→gate2 **0.7333**.
+Generation 2 recurrent BC: first gate **1.000**, complete gate1→gate2
+**0.983** — from imitation alone, before any DAgger or PPO.
+
+The Gen-1 deficit was not a hard control problem; it was a policy with no
+memory of having just crossed a gate. That is the ablation's hypothesis and it
+now has direct support, pending the matched arm-B comparison that separates
+recurrence from expert bootstrapping.
+
+### DAgger round 1
+
+120 learner-driven episodes on TRAIN courses at 3 and 5 gates, 90 566
+transitions, audited as a **pure learner rollout**: 0 takeover steps, 0
+unmarked expert matches. Learner completion during rollout 0.825
+(2g 20/20, 3g 49/60, 5g 30/40).
+
+After retraining on the aggregate, validation completion was **0.675** on mixed
+3–5 gate courses with gate1→gate2 **0.950** — below the 0.80 advance bar, so the
+campaign declined to lengthen the courses. Whether round 1 helped or hurt is
+**not yet answerable**: it was graded on a different seed slice and a different
+length mix than the BC stages. The A/B/C/D ablation exists to answer it on
+identical seeds.
+
+### The open problem: out-of-bounds
+
+**OOB is 0.100 at 3 gates against a readiness bar of 0.005 — twenty times
+over.** Collisions are 0.000, so this is not general instability; the policy
+leaves the arena on a specific subset of courses. It is the single largest
+obstacle to readiness, and it is a *safety* criterion, which the gate makes
+non-overridable. Running the readiness gate against the current stage-B numbers
+fails on `out_of_bounds_rate` plus every unmeasured completion criterion.
+
+This needs diagnosis before more compute: the failing episodes should be
+grouped by course pattern to see whether OOB concentrates on a geometry (a
+climb hitting the depth clamp, or a wide turn leaving the horizontal bounds)
+rather than being uniform.
 
 ## How to resume
 

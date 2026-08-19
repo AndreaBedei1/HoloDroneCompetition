@@ -306,54 +306,79 @@ def load_recurrent_controller(checkpoint: str | Path):
     )
 
 
-def run_ablation(
+#: arm -> (label, architecture, loader).
+ARM_PLAN: Dict[str, Tuple[str, str, Any]] = {
+    "A": ("gen1_feedforward_ppo", "feedforward", load_gen1_controller),
+    "B": ("feedforward_bc", "feedforward", load_gen1_controller),
+    "C": ("recurrent_bc", "recurrent_lstm", load_recurrent_controller),
+    "D": ("recurrent_bc_dagger", "recurrent_lstm", load_recurrent_controller),
+}
+
+
+def run_arm(
+    arm: str,
+    checkpoint: str | Path,
     *,
     out_dir: str | Path,
-    episodes: int = 80,
-    gen1_checkpoint: Optional[str | Path] = None,
-    feedforward_bc_checkpoint: Optional[str | Path] = None,
-    recurrent_bc_checkpoint: Optional[str | Path] = None,
-    dagger_checkpoint: Optional[str | Path] = None,
+    episodes: int = 60,
     adapter: str = "holoocean",
     allow_fallback: bool = False,
-) -> Dict[str, Any]:
-    """Evaluate every available arm on the same seeds and the same lengths."""
+) -> ArmResult:
+    """Evaluate ONE arm and write ``arm_<X>.json``.
+
+    Split out so the four arms can run as concurrent processes.  Running them
+    sequentially costs 4x wall clock for no scientific benefit -- the arms are
+    independent, and every arm sees the identical seed list either way.
+    """
     from marine_race_arena.learning.gen2.evaluation import evaluate_policy
 
+    label, architecture, loader = ARM_PLAN[arm]
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     seeds = ablation_seeds(episodes)
-    started = time.perf_counter()
+    target = out_dir / f"arm_{arm}.json"
 
-    plan = [
-        ("A", "gen1_feedforward_ppo", gen1_checkpoint, "feedforward", load_gen1_controller),
-        ("B", "feedforward_bc", feedforward_bc_checkpoint, "feedforward", load_gen1_controller),
-        ("C", "recurrent_bc", recurrent_bc_checkpoint, "recurrent_lstm", load_recurrent_controller),
-        ("D", "recurrent_bc_dagger", dagger_checkpoint, "recurrent_lstm", load_recurrent_controller),
-    ]
-    results: List[ArmResult] = []
-    for arm, label, checkpoint, architecture, loader in plan:
-        if checkpoint is None or not Path(checkpoint).exists():
-            results.append(ArmResult(arm, label, None, architecture,
-                                     error="checkpoint not available"))
-            continue
+    if checkpoint is None or not Path(checkpoint).exists():
+        result = ArmResult(arm, label, None, architecture, error="checkpoint not available")
+    else:
         try:
-            controller = loader(checkpoint)
             outcome = evaluate_policy(
-                controller, seeds,
+                loader(checkpoint), seeds,
                 gate_counts=list(ABLATION_GATE_COUNTS),
-                track_dir=out_dir / f"arm_{arm}",
+                # Per-arm track directory: two arms must never share a course
+                # file, even though the content would be identical.
+                track_dir=out_dir / f"tracks_arm_{arm}",
                 adapter=adapter, allow_fallback=allow_fallback,
             )
-            results.append(ArmResult(arm, label, str(checkpoint), architecture,
-                                     metrics=outcome["metrics"]))
+            result = ArmResult(arm, label, str(checkpoint), architecture,
+                               metrics=outcome["metrics"])
+            (out_dir / f"arm_{arm}_episodes.json").write_text(
+                json.dumps(outcome["episodes"], indent=2), encoding="utf-8"
+            )
         except Exception as exc:
-            results.append(ArmResult(arm, label, str(checkpoint), architecture,
-                                     error=f"{type(exc).__name__}: {exc}"))
-        (out_dir / "ablation.json").write_text(
-            json.dumps([r.as_dict() for r in results], indent=2), encoding="utf-8"
-        )
+            result = ArmResult(arm, label, str(checkpoint), architecture,
+                               error=f"{type(exc).__name__}: {exc}")
+    target.write_text(json.dumps(result.as_dict(), indent=2), encoding="utf-8")
+    return result
 
+
+def collect_arms(out_dir: str | Path, *, episodes: int) -> Dict[str, Any]:
+    """Aggregate whatever ``arm_<X>.json`` files exist into one report."""
+    out_dir = Path(out_dir)
+    results: List[ArmResult] = []
+    for arm in ("A", "B", "C", "D"):
+        path = out_dir / f"arm_{arm}.json"
+        label, architecture, _ = ARM_PLAN[arm]
+        if not path.exists():
+            results.append(ArmResult(arm, label, None, architecture, error="arm not run"))
+            continue
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        results.append(ArmResult(
+            arm=payload["arm"], label=payload["label"],
+            checkpoint=payload.get("checkpoint"), architecture=payload["architecture"],
+            metrics=payload.get("metrics") or {}, error=payload.get("error"),
+        ))
+    seeds = ablation_seeds(episodes)
     summary = {
         "schema_version": "gen2_recurrence_ablation_v1",
         "matched_seeds": [seeds[0], seeds[-1]],
@@ -361,9 +386,36 @@ def run_ablation(
         "gate_counts": list(ABLATION_GATE_COUNTS),
         "arms": [r.as_dict() for r in results],
         "comparison": compare_arms(results),
-        "wall_time_s": round(time.perf_counter() - started, 1),
     }
     (out_dir / "ablation.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return summary
+
+
+def run_ablation(
+    *,
+    out_dir: str | Path,
+    episodes: int = 60,
+    gen1_checkpoint: Optional[str | Path] = None,
+    feedforward_bc_checkpoint: Optional[str | Path] = None,
+    recurrent_bc_checkpoint: Optional[str | Path] = None,
+    dagger_checkpoint: Optional[str | Path] = None,
+    adapter: str = "holoocean",
+    allow_fallback: bool = False,
+) -> Dict[str, Any]:
+    """Evaluate every available arm on the same seeds, sequentially."""
+    started = time.perf_counter()
+    checkpoints = {
+        "A": gen1_checkpoint, "B": feedforward_bc_checkpoint,
+        "C": recurrent_bc_checkpoint, "D": dagger_checkpoint,
+    }
+    for arm, checkpoint in checkpoints.items():
+        run_arm(arm, checkpoint, out_dir=out_dir, episodes=episodes,
+                adapter=adapter, allow_fallback=allow_fallback)
+    summary = collect_arms(out_dir, episodes=episodes)
+    summary["wall_time_s"] = round(time.perf_counter() - started, 1)
+    (Path(out_dir) / "ablation.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
     return summary
 
 
@@ -399,7 +451,20 @@ def compare_arms(results: Sequence[ArmResult]) -> Dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the Gen-2 recurrence ablation")
     parser.add_argument("--out", required=True)
-    parser.add_argument("--episodes", type=int, default=80)
+    parser.add_argument("--episodes", type=int, default=60)
+    parser.add_argument(
+        "--arm", default=None, choices=sorted(ARM_PLAN),
+        help="run exactly one arm (the four arms are independent, so they can "
+             "run as concurrent processes); omit to run all four sequentially",
+    )
+    parser.add_argument(
+        "--collect-only", action="store_true",
+        help="aggregate the per-arm files already on disk",
+    )
+    parser.add_argument("--train-ff-bc", default=None,
+                        help="train arm B on this corpus and write the checkpoint to --ff-bc")
+    parser.add_argument("--epochs", type=int, default=40)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--gen1", default=None)
     parser.add_argument("--ff-bc", default=None)
     parser.add_argument("--recurrent-bc", default=None)
@@ -409,8 +474,77 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def train_arm_b(corpus: Sequence[str], checkpoint: str | Path, *, epochs: int, seed: int) -> Dict[str, Any]:
+    """Train the feed-forward BC arm on the same corpus as the recurrent arm."""
+    from marine_race_arena.learning.gen2.bc_recurrent import BCConfig
+    from marine_race_arena.learning.gen2.dataset import (
+        corpus_statistics,
+        load_corpus,
+        observation_statistics,
+    )
+
+    episodes = load_corpus(list(corpus))
+    if not episodes:
+        raise ValueError(f"no episodes under {list(corpus)}")
+    mean, std = observation_statistics(episodes)
+    model = build_feedforward_policy(obs_mean=mean, obs_std=std, seed=seed)
+    result = train_feedforward_bc(model, episodes, BCConfig(epochs=epochs, seed=seed))
+    target = Path(checkpoint)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    model.save(target)
+    payload = {
+        "schema_version": "gen2_ablation_arm_b_v1",
+        "checkpoint": str(target),
+        "head_widths": list(getattr(model, "gen2_ablation_head", [])),
+        "actor_parameters": int(
+            sum(p.numel() for p in model.policy.features_extractor.parameters())
+            + sum(p.numel() for p in model.policy.mlp_extractor.policy_net.parameters())
+            + sum(p.numel() for p in model.policy.action_net.parameters())
+        ),
+        "recurrent_actor_parameters": recurrent_actor_parameter_count(),
+        "corpus": [str(c) for c in corpus],
+        "corpus_statistics": corpus_statistics(episodes),
+        "bc": {k: v for k, v in result.items() if k != "history"},
+    }
+    target.with_suffix(".manifest.json").write_text(
+        json.dumps(payload, indent=2), encoding="utf-8"
+    )
+    return payload
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.train_ff_bc:
+        if not args.ff_bc:
+            raise SystemExit("--train-ff-bc requires --ff-bc as the output checkpoint")
+        payload = train_arm_b(
+            [args.train_ff_bc], args.ff_bc, epochs=args.epochs, seed=args.seed
+        )
+        print(json.dumps({
+            "checkpoint": payload["checkpoint"],
+            "head_widths": payload["head_widths"],
+            "actor_parameters": payload["actor_parameters"],
+            "recurrent_actor_parameters": payload["recurrent_actor_parameters"],
+            "validation_mse": payload["bc"]["validation_mse"],
+        }, indent=2), flush=True)
+        return 0
+    if args.collect_only:
+        print(json.dumps(collect_arms(args.out, episodes=args.episodes)["comparison"],
+                         indent=2), flush=True)
+        return 0
+    if args.arm:
+        checkpoints = {"A": args.gen1, "B": args.ff_bc, "C": args.recurrent_bc, "D": args.dagger}
+        result = run_arm(
+            args.arm, checkpoints[args.arm], out_dir=args.out,
+            episodes=args.episodes, adapter=args.adapter,
+            allow_fallback=args.allow_fallback,
+        )
+        print(json.dumps({
+            "arm": result.arm, "label": result.label, "error": result.error,
+            "completion": (result.metrics or {}).get("overall_completion_rate"),
+            "gate1_to_gate2": (result.metrics or {}).get("gate1_to_gate2_transition_rate"),
+        }, indent=2), flush=True)
+        return 0
     summary = run_ablation(
         out_dir=args.out, episodes=args.episodes,
         gen1_checkpoint=args.gen1, feedforward_bc_checkpoint=args.ff_bc,
