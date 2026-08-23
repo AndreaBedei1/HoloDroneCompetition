@@ -36,6 +36,7 @@ from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Sequence, T
 import numpy as np
 
 from marine_race_arena.controllers.official_baselines import RuleGateCenterThenCommitController
+from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
 from marine_race_arena.learning.config import ACTION_AXES, ACTION_DIM
 from marine_race_arena.learning.config_local_transition import (
     OBS_DIM_LOCAL_TRANSITION,
@@ -243,6 +244,11 @@ def run_gen2_episode(
         max_steps=int(max_steps),
         official=True,
         current_profile="none",
+        # Mixed Endurance declares benchmark_task current_gate. Running it
+        # current-free -- the official protocol for the 0/30 vs 30/30
+        # comparison, see scripts/run_official_mixed_no_current.bat -- requires
+        # overriding the task too, or the loader rejects the config.
+        benchmark_task=BENCHMARK_TASK_CLEAN_GATE,
     )
     expert = RuleGateCenterThenCommitController()
 

@@ -220,3 +220,30 @@ def test_targeted_fragments_cover_the_reported_weak_gate():
         assert 7 in span, fragment.name
         # There must be run-up: entering the weak gate is the point.
         assert 7 - fragment.start_index >= 2, fragment.name
+
+
+def test_full_circuits_load_current_free_including_mixed_endurance():
+    """Mixed Endurance is a current_gate task; running it current-free needs
+    the task overridden too, or the loader rejects it outright.
+
+    This is the same trap in a second place: it was fixed for fragments, then
+    the full-circuit evaluation walked into it and lost a whole track's
+    baseline. Both drivers now pass the override.
+    """
+    from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
+    from marine_race_arena.config.loader import load_track_config
+
+    for track in tf.OFFICIAL_TRACKS:
+        path = tf.track_path(track, REPO_ROOT)
+        config = load_track_config(
+            str(path), current_profile="none",
+            benchmark_task=BENCHMARK_TASK_CLEAN_GATE,
+        )
+        assert config.race.expected_gates_per_lap == len(config.track.gate_sequence)
+
+
+def test_both_episode_drivers_override_the_benchmark_task():
+    for module in ("evaluation.py", "expert_rollout.py"):
+        source = (GEN2_DIR / module).read_text(encoding="utf-8")
+        assert "BENCHMARK_TASK_CLEAN_GATE" in source, module
+        assert 'current_profile="none"' in source, module

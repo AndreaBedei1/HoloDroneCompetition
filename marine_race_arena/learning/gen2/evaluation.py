@@ -39,6 +39,7 @@ from marine_race_arena.learning.config_local_transition import (
     OBS_DIM_LOCAL_TRANSITION,
     OBS_ENCODING_VERSION_LOCAL_TRANSITION,
 )
+from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
 from marine_race_arena.learning.episode import RaceEpisode
 from marine_race_arena.learning.gen2 import GEN2_ACTION_CONTRACT
 from marine_race_arena.learning.gen2.course_family import Gen2CourseSpec, materialize_course, sample_course
@@ -153,6 +154,11 @@ def run_policy_episode(
         str(track_path), seed=int(seed), dt=float(dt), adapter=adapter,
         allow_fallback=allow_fallback, max_steps=int(max_steps),
         official=True, current_profile="none",
+        # Mixed Endurance declares benchmark_task current_gate. Running it
+        # current-free -- the official protocol for the 0/30 vs 30/30
+        # comparison, see scripts/run_official_mixed_no_current.bat -- requires
+        # overriding the task too, or the loader rejects the config.
+        benchmark_task=BENCHMARK_TASK_CLEAN_GATE,
     )
     observations: List[np.ndarray] = []
     crossings: List[int] = []
