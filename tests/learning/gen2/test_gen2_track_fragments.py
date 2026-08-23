@@ -247,3 +247,28 @@ def test_both_episode_drivers_override_the_benchmark_task():
         source = (GEN2_DIR / module).read_text(encoding="utf-8")
         assert "BENCHMARK_TASK_CLEAN_GATE" in source, module
         assert 'current_profile="none"' in source, module
+
+
+def test_track_dagger_uses_its_own_seed_band_and_labels_legally():
+    """Targeted DAgger must draw from the DAgger band, not the demo band."""
+    from marine_race_arena.learning.gen2 import collect_fragments as cf
+
+    for fragment in tf.all_fragments((3,), root=REPO_ROOT)[:10]:
+        demo_seed = tf.fragment_seed(fragment, 0)
+        dagger_seed = tf.fragment_seed(fragment, 1000)
+        assert gen2_seeds.band_of(demo_seed) == "TRACK_SPECIFIC"
+        assert gen2_seeds.band_of(dagger_seed) == "TRACK_SPECIFIC"
+        # Both roles are expert-labelling roles by design in this campaign.
+        assert gen2_seeds.assert_expert_labelling_seed(demo_seed) == demo_seed
+    args = cf.build_parser().parse_args(["--out", "x", "--dagger-from", "ck.zip"])
+    assert args.dagger_from == "ck.zip"
+
+
+def test_track_dagger_never_blends_or_takes_over():
+    """The learner keeps control; the expert only labels."""
+    source = (GEN2_DIR / "collect_fragments.py").read_text(encoding="utf-8")
+    assert "safety_takeover=None" in source
+    assert 'mode = "dagger" if learner is not None else "expert"' in source
+    # And the driver itself must record what actually drove.
+    driver = (GEN2_DIR / "expert_rollout.py").read_text(encoding="utf-8")
+    assert "applied_by_expert" in driver

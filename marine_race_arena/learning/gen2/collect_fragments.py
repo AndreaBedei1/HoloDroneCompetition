@@ -82,6 +82,18 @@ class WorkerArgs:
     adapter: str
     allow_fallback: bool
     dt: float
+    #: When set, the LEARNER drives and the expert only labels (targeted DAgger).
+    dagger_from: Optional[str] = None
+
+
+def _load_learner(checkpoint: str):
+    from sb3_contrib import RecurrentPPO
+
+    from marine_race_arena.learning.gen2.recurrent_policy import Gen2RecurrentController
+
+    return Gen2RecurrentController(
+        RecurrentPPO.load(checkpoint, device="cpu"), deterministic=True
+    )
 
 
 def _run_worker(args: WorkerArgs) -> Dict[str, Any]:
@@ -91,7 +103,10 @@ def _run_worker(args: WorkerArgs) -> Dict[str, Any]:
     progress = out_dir / "workers" / f"worker_{args.worker_id:02d}" / "progress.json"
     collected = skipped = 0
     failures: List[Dict[str, Any]] = []
+    learner_completed = 0
     started = time.perf_counter()
+    learner = _load_learner(args.dagger_from) if args.dagger_from else None
+    mode = "dagger" if learner is not None else "expert"
 
     for index, job in enumerate(args.jobs):
         if index % args.workers != args.worker_id:
@@ -106,9 +121,10 @@ def _run_worker(args: WorkerArgs) -> Dict[str, Any]:
         try:
             path = tf.materialize_fragment(job.fragment, track_dir / f"{job.tag}.json")
             record = run_gen2_episode(
-                path, seed=job.seed, spec=None, mode="expert",
+                path, seed=job.seed, spec=None, mode=mode, learner=learner,
                 adapter=args.adapter, allow_fallback=args.allow_fallback, dt=args.dt,
                 max_steps=max(MIN_STEPS, job.fragment.length * STEPS_PER_GATE),
+                safety_takeover=None,   # pure learner rollout; no blending
             )
             # Fragment identity is diagnostics only; it never enters the network.
             record.course = {
@@ -123,6 +139,7 @@ def _run_worker(args: WorkerArgs) -> Dict[str, Any]:
             }
             save_episode(record, out_dir)
             collected += 1
+            learner_completed += int(record.completed)
         except Exception as exc:
             failures.append({
                 "fragment": job.fragment.name, "seed": job.seed,
@@ -131,12 +148,14 @@ def _run_worker(args: WorkerArgs) -> Dict[str, Any]:
         progress.write_text(json.dumps({
             "worker_id": args.worker_id, "pid": os.getpid(),
             "collected": collected, "skipped": skipped, "failures": len(failures),
+            "mode": mode, "learner_completed": learner_completed,
             "elapsed_s": round(time.perf_counter() - started, 1),
         }, indent=2), encoding="utf-8")
 
     return {
         "worker_id": args.worker_id, "collected": collected,
-        "skipped": skipped, "failures": failures,
+        "skipped": skipped, "failures": failures, "mode": mode,
+        "learner_completed": learner_completed,
         "elapsed_s": round(time.perf_counter() - started, 1),
     }
 
@@ -182,6 +201,7 @@ def collect(
     allow_fallback: bool = False,
     dt: float = 0.1,
     jobs: Optional[Sequence[FragmentJob]] = None,
+    dagger_from: Optional[str] = None,
 ) -> Dict[str, Any]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -198,6 +218,8 @@ def collect(
         "tracks": list(tracks), "episodes": len(plan),
         "workers_requested": int(workers), "workers_effective": effective,
         "adapter": adapter,
+        "mode": "dagger" if dagger_from else "expert",
+        "dagger_from": dagger_from,
         "note": (
             "Fragments are exact contiguous windows of the three evaluation "
             "circuits. This corpus makes no unseen-track claim."
@@ -206,7 +228,8 @@ def collect(
     }, indent=2), encoding="utf-8")
 
     worker_args = [
-        WorkerArgs(index, effective, plan, str(out_dir), adapter, allow_fallback, dt)
+        WorkerArgs(index, effective, plan, str(out_dir), adapter, allow_fallback, dt,
+                   dagger_from)
         for index in range(effective)
     ]
     if effective == 1:
@@ -242,18 +265,48 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--adapter", default="holoocean", choices=("holoocean", "fallback"))
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--dt", type=float, default=0.1)
+    parser.add_argument(
+        "--dagger-from", default=None,
+        help="learner checkpoint; when set the learner drives and the expert "
+             "only labels the states it visits (targeted DAgger, no blending)",
+    )
+    parser.add_argument(
+        "--weak-gates", default=None,
+        help="JSON failure-map path; restricts fragments to windows containing "
+             "the observed weak gates with run-up",
+    )
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    lengths = [int(v) for v in args.lengths.split(",") if v.strip()]
+    tracks = [v.strip() for v in args.tracks.split(",") if v.strip()]
+    jobs = None
+    if args.weak_gates:
+        from marine_race_arena.learning.gen2.track_eval import targeted_fragments
+
+        failures = json.loads(Path(args.weak_gates).read_text(encoding="utf-8"))
+        picked = targeted_fragments(failures.get("failure_map", failures), lengths=lengths)
+        if not picked:
+            raise SystemExit("the failure map selected no fragments")
+        jobs = []
+        used: set = set()
+        for fragment in picked:
+            for trial in range(int(args.trials)):
+                seed = tf.fragment_seed(fragment, 1000 + trial)
+                while seed in used:
+                    band = gen2_seeds.GEN2_TRACK_DAGGER_SEEDS
+                    seed = band[(band.index(seed) + 1) % len(band)] if seed in band else band[0]
+                used.add(seed)
+                jobs.append(FragmentJob(fragment=fragment, trial=trial, seed=seed))
+        print(f"[gen2] targeting {len(picked)} fragments around the observed weak gates",
+              flush=True)
     summary = collect(
-        args.out,
-        lengths=[int(v) for v in args.lengths.split(",") if v.strip()],
-        trials=args.trials,
-        tracks=[v.strip() for v in args.tracks.split(",") if v.strip()],
+        args.out, lengths=lengths, trials=args.trials, tracks=tracks,
         workers=args.workers, adapter=args.adapter,
         allow_fallback=args.allow_fallback, dt=args.dt,
+        jobs=jobs, dagger_from=args.dagger_from,
     )
     print(json.dumps(summary["track_composition"], indent=2), flush=True)
     print(f"[gen2] corpus_sha256={summary['corpus_sha256']}", flush=True)
