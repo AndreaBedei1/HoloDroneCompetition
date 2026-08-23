@@ -97,6 +97,42 @@ The clean matched ablation picked the parent. On 60 identical courses:
 Generic DAgger round 1 did **not** improve the matched result, so it is not
 continued unchanged. The parent is `results/rl/gen2/bc_v1/bc_policy.zip`.
 
+## Pre-fine-tune baseline — the recurrent BC already completes circuits
+
+The clean recurrent BC parent, trained **only** on the general procedural
+corpus and never on these circuits, run current-free with 3 trials each:
+
+| Circuit | Gates | Completed | Mean gates | Best | Failure |
+|---|---|---|---|---|---|
+| Horseshoe Bay | 12 | **2/3** | 9.33 | 12 | out_of_bounds at gate 5 |
+| Vertical Serpent | 17 | **1/3** | 9.00 | 17 | out_of_bounds at gates 5, 7 |
+| Mixed Endurance | 22 | pending | — | — | — |
+
+Generation 1 PPO scored **0/30** across these same circuits. Two of the three
+already meet the first milestone before any track-specific training.
+
+### The blocking problem is depth, not navigation
+
+Every failure is `out_of_bounds`. Not a missed gate, not a collision, not a
+timeout — the vehicle leaves the arena. And the binding bound is **vertical**:
+
+| Circuit | Arena z | Gate depths | Tightest margin |
+|---|---|---|---|
+| Horseshoe Bay | −8.0 … −1.0 | −4.0 … −4.4 | 3.0 m (to surface) |
+| Vertical Serpent | −8.0 … −1.0 | −3.9 … −5.9 | 2.1 m (to floor) |
+
+Horizontal margins are 4–6 m and larger; the z margin is 2.1–3.4 m everywhere.
+On Horseshoe — a flat, purely horizontal-turn circuit — an out-of-bounds means
+the vehicle climbed roughly three metres it had no reason to climb. On Vertical
+Serpent, whose gates alternate −4.0/−5.8/−4.1/−5.9, overshooting a descent by
+2.1 m reaches the floor bound.
+
+So the failure mode is a **heave/depth excursion**, which is consistent with
+Vertical Serpent producing Gen-1's worst safety behaviour. Navigation is not
+the deficit; depth regulation is. Fragment training over-represents Vertical
+Serpent (52 of 150 windows) for exactly this reason, and the next cycle
+re-measures the out-of-bounds rate specifically.
+
 ## Cycle
 
 Short iterations, each answering one question:
