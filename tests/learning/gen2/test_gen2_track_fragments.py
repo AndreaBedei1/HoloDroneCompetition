@@ -272,3 +272,110 @@ def test_track_dagger_never_blends_or_takes_over():
     # And the driver itself must record what actually drove.
     driver = (GEN2_DIR / "expert_rollout.py").read_text(encoding="utf-8")
     assert "applied_by_expert" in driver
+
+
+# ------------------------------------------------- safety metric logging
+
+def test_every_failure_gets_exactly_one_safety_label():
+    """A failure with no label, or two, would corrupt the failure map."""
+    from marine_race_arena.learning.gen2.track_eval import _classify_failure
+
+    class _Episode:
+        def __init__(self, **kw):
+            self.succeeded = kw.get("succeeded", False)
+            self.out_of_bounds_events = kw.get("oob", 0)
+            self.collision_events = kw.get("coll", 0)
+            self.wrong_direction_crossings = kw.get("wrong", 0)
+            self.missed_gate_attempts = kw.get("missed", 0)
+            self.timeout = kw.get("timeout", False)
+
+    assert _classify_failure(_Episode(succeeded=True)) is None
+    assert _classify_failure(_Episode(oob=1)) == "out_of_bounds"
+    assert _classify_failure(_Episode(coll=1)) == "collision"
+    assert _classify_failure(_Episode(wrong=1)) == "wrong_direction"
+    assert _classify_failure(_Episode(missed=1)) == "missed_gate"
+    assert _classify_failure(_Episode(timeout=True)) == "timeout"
+    assert _classify_failure(_Episode()) == "unknown"
+    # Priority is stable when several fire at once.
+    assert _classify_failure(_Episode(oob=1, coll=1, missed=1)) == "out_of_bounds"
+
+
+def test_circuit_summary_reports_every_required_safety_field():
+    from marine_race_arena.learning.gen2.track_eval import CircuitOutcome, summarize_circuit
+
+    rows = [
+        CircuitOutcome(track="horseshoe_bay", trial=i, seed=67000 + i,
+                       completed=(i == 0), gates_completed=12 if i == 0 else 4,
+                       gate_count=12, status="FINISHED" if i == 0 else "DNF",
+                       failure=None if i == 0 else "out_of_bounds",
+                       failure_gate=None if i == 0 else 5,
+                       steps=100, time_s=230.0, path_length_m=180.0,
+                       mean_action_jerk=0.01, collisions=0,
+                       out_of_bounds=0 if i == 0 else 1,
+                       wrong_direction=0, missed_gate=0)
+        for i in range(3)
+    ]
+    summary = summarize_circuit(rows)
+    for field in ("completion_rate", "collision_episodes", "out_of_bounds_episodes",
+                  "wrong_direction_episodes", "failure_gates", "failure_kinds",
+                  "mean_time_s", "mean_path_length_m", "mean_action_jerk",
+                  "rule_baseline_time_s", "time_delta_vs_rules_s"):
+        assert field in summary, field
+    # Reported rates are rounded to 4 dp on purpose; compare at that precision.
+    assert summary["completion_rate"] == pytest.approx(1 / 3, abs=1e-4)
+    assert summary["out_of_bounds_episodes"] == 2
+    assert summary["failure_gates"] == {"5": 2}
+    # Time is only averaged over completed runs; a DNF has no meaningful time.
+    assert summary["mean_time_s"] == pytest.approx(230.0)
+
+
+def test_failure_map_ranks_the_weak_gate():
+    from marine_race_arena.learning.gen2.track_eval import CircuitOutcome, failure_map
+
+    def row(gate, kind):
+        return CircuitOutcome(
+            track="mixed_endurance", trial=0, seed=67000, completed=False,
+            gates_completed=gate - 1, gate_count=22, status="DNF", failure=kind,
+            failure_gate=gate, steps=1, time_s=1.0, path_length_m=1.0,
+            mean_action_jerk=0.0, collisions=0, out_of_bounds=1,
+            wrong_direction=0, missed_gate=0,
+        )
+
+    report = failure_map([row(7, "out_of_bounds"), row(7, "out_of_bounds"), row(12, "collision")])
+    assert report["worst"]["mixed_endurance"] == 7
+    assert report["weak_gates"]["mixed_endurance"][0] == {"gate": 7, "failures": 2}
+    assert report["failure_kinds"]["mixed_endurance"]["out_of_bounds"] == 2
+
+
+# ------------------------------------------------- full-track evaluation
+
+def test_full_track_evaluation_targets_the_real_unmodified_circuits():
+    """The primary metric runs the real course files, not fragments."""
+    import inspect
+
+    from marine_race_arena.learning.gen2 import track_eval as te
+
+    source = inspect.getsource(te.evaluate_circuit)
+    assert "tf.track_path(track, root)" in source, (
+        "full-circuit evaluation must load the real track, not a materialized fragment"
+    )
+    for track in tf.OFFICIAL_TRACKS:
+        path = tf.track_path(track, REPO_ROOT)
+        assert path.exists() and path.name.startswith("marine_race_")
+
+
+def test_full_circuit_trials_use_the_dedicated_seed_role():
+    for seed in gen2_seeds.GEN2_FULL_CIRCUIT_SEEDS[:5]:
+        assert gen2_seeds.role_of(seed) == "gen2_full_circuit"
+        # Circuit trials measure; they must not be usable as expert labels.
+        with pytest.raises(PermissionError):
+            gen2_seeds.assert_expert_labelling_seed(seed)
+
+
+def test_rule_baseline_times_are_recorded_for_the_speed_phase():
+    from marine_race_arena.learning.gen2.track_eval import RULE_BASELINE_TIME_S
+
+    assert set(RULE_BASELINE_TIME_S) == set(tf.OFFICIAL_TRACKS)
+    assert RULE_BASELINE_TIME_S["horseshoe_bay"] == pytest.approx(225.9)
+    assert RULE_BASELINE_TIME_S["vertical_serpent"] == pytest.approx(290.6)
+    assert RULE_BASELINE_TIME_S["mixed_endurance"] == pytest.approx(472.9)
