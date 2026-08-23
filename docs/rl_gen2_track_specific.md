@@ -106,7 +106,9 @@ corpus and never on these circuits, run current-free with 3 trials each:
 |---|---|---|---|---|---|
 | Horseshoe Bay | 12 | **2/3** | 9.33 | 12 | out_of_bounds at gate 5 |
 | Vertical Serpent | 17 | **1/3** | 9.00 | 17 | out_of_bounds at gates 5, 7 |
-| Mixed Endurance | 22 | pending | — | — | — |
+| Mixed Endurance | 22 | 0/3 | 11.33 | 13 | collision at gate 14 (×2), out_of_bounds at gate 9 |
+
+**3 of 9 trials complete.**
 
 Generation 1 PPO scored **0/30** across these same circuits. Two of the three
 already meet the first milestone before any track-specific training.
@@ -126,6 +128,42 @@ On Horseshoe — a flat, purely horizontal-turn circuit — an out-of-bounds mea
 the vehicle climbed roughly three metres it had no reason to climb. On Vertical
 Serpent, whose gates alternate −4.0/−5.8/−4.1/−5.9, overshooting a descent by
 2.1 m reaches the floor bound.
+
+### Two separable deficits, both covered by the fragment corpus
+
+**1. Depth regulation, on ordinary gates.** Vertical Serpent fails at exactly
+its two deepest gates and nowhere else:
+
+| Gate | Depth | Floor margin | |
+|---|---|---|---|
+| G03 | −5.50 | 2.50 m | |
+| **G05** | **−5.80** | **2.20 m** | ← fails |
+| **G07** | **−5.90** | **2.10 m** | ← fails |
+| others | −4.0…−4.8 | 3.2–4.0 m | |
+
+The two tightest floor clearances on the circuit are precisely the two gates
+where the policy leaves the arena. Horseshoe's single failure is the same story
+against the surface. This is depth overshoot, not navigation.
+
+**2. Gate structures the policy has never seen.** The procedural course family
+generates **only `type: "single"`** gates. The real circuits do not:
+
+| Circuit | Gate types |
+|---|---|
+| Horseshoe Bay | 12 single |
+| Vertical Serpent | 15 single, 2 vertical_double |
+| Mixed Endurance | 16 single, 2 vertical_double, 2 double, 1 split_s_upper, 1 split_s_lower |
+
+Both of Mixed's collisions are at **G14, a `double`**, and its out-of-bounds is
+at **G09, a `vertical_double`**. The recurrent BC had literally never
+encountered these structures in 321 796 transitions of training. Mixed is 0/3
+for a reason that has nothing to do with its length.
+
+The fragment corpus covers every weak gate — 10–13 expert episodes through each
+of `vertical_serpent` G05/G07/G08/G09 and `mixed_endurance` G08/G09/G14/G15/
+G18/G19 — and the expert crosses all of them with zero collisions and zero
+out-of-bounds. The fix for both deficits is in the data that is already
+collected.
 
 So the failure mode is a **heave/depth excursion**, which is consistent with
 Vertical Serpent producing Gen-1's worst safety behaviour. Navigation is not
