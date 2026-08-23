@@ -178,6 +178,33 @@ def recommend_next_phase(
     }
 
 
+def load_weighted_corpus(
+    corpus: Sequence[str | Path],
+    weights: Optional[Sequence[int]] = None,
+    *,
+    completed_only: bool = False,
+) -> List:
+    """Load each corpus root, repeating it ``weights[i]`` times.
+
+    Repetition is how the track-fragment data is given enough weight to change
+    behaviour when it is much smaller than the general corpus.  Repeating whole
+    episodes keeps every sequence intact, which matters for a recurrent policy;
+    reweighting individual steps would not.
+    """
+    roots = list(corpus)
+    counts = list(weights) if weights else [1] * len(roots)
+    if len(counts) != len(roots):
+        raise ValueError("one weight per corpus root is required")
+    episodes: List = []
+    for root, repeat in zip(roots, counts):
+        loaded = load_corpus([root], completed_only=completed_only)
+        if not loaded:
+            raise ValueError(f"corpus root {root} contributed no episodes")
+        for _ in range(max(1, int(repeat))):
+            episodes.extend(loaded)
+    return episodes
+
+
 def train(
     corpus: Sequence[str | Path],
     out_dir: str | Path,
@@ -189,8 +216,17 @@ def train(
     allow_fallback: bool = False,
     completed_only: bool = False,
     evaluate: bool = True,
+    init_from: Optional[str | Path] = None,
+    corpus_weights: Optional[Sequence[int]] = None,
 ) -> Dict[str, Any]:
-    """Clone the expert corpus, then measure the result closed-loop."""
+    """Clone the expert corpus, then measure the result closed-loop.
+
+    ``init_from`` warm-starts from an existing checkpoint instead of a random
+    network.  When it is given the observation normalization is **kept** rather
+    than re-latched: the incoming weights were fitted against those statistics,
+    and rescaling the input under them would discard the warm start it is the
+    whole point of.
+    """
     from marine_race_arena.learning.gen2.recurrent_policy import (
         Gen2RecurrentController,
         build_gen2_policy_for_training,
@@ -202,27 +238,42 @@ def train(
     out_dir.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
 
-    episodes = load_corpus(list(corpus), completed_only=completed_only)
+    episodes = load_weighted_corpus(
+        list(corpus), corpus_weights, completed_only=completed_only
+    )
     if not episodes:
         raise ValueError(f"no episodes found under {list(corpus)}")
     statistics = corpus_statistics(episodes)
     mean, std = observation_statistics(episodes)
 
     config = config or BCConfig()
-    model = build_gen2_policy_for_training(
-        seed=config.seed, obs_mean=mean, obs_std=std, device=config.device
-    )
+    if init_from is not None:
+        from sb3_contrib import RecurrentPPO
+
+        model = RecurrentPPO.load(str(init_from), device=config.device)
+    else:
+        model = build_gen2_policy_for_training(
+            seed=config.seed, obs_mean=mean, obs_std=std, device=config.device
+        )
     result = train_recurrent_bc(
-        model, episodes, config, progress_path=out_dir / "bc_progress.json"
+        model, episodes, config,
+        latch_normalization=init_from is None,
+        progress_path=out_dir / "bc_progress.json",
     )
     action_std = calibrate_action_std(model, episodes, config)
 
     checkpoint = out_dir / "bc_policy.zip"
+    warm_start = str(init_from) if init_from is not None else None
     model.save(checkpoint)
     write_policy_manifest(
         model, out_dir / "policy_manifest.json",
-        training_method="recurrent_behavior_cloning",
+        training_method=(
+            "recurrent_behavior_cloning" if warm_start is None
+            else "recurrent_bc_finetune_from_checkpoint"
+        ),
+        warm_start=warm_start,
         corpus=list(str(c) for c in corpus),
+        corpus_weights=list(corpus_weights) if corpus_weights else None,
         corpus_statistics=statistics,
         bc_result={k: v for k, v in result.as_dict().items() if k != "history"},
         action_std=[round(float(v), 5) for v in action_std],
@@ -252,7 +303,9 @@ def train(
     summary = {
         "schema_version": "gen2_bc_run_v1",
         "checkpoint": str(checkpoint),
+        "warm_start": warm_start,
         "corpus": [str(c) for c in corpus],
+        "corpus_weights": list(corpus_weights) if corpus_weights else None,
         "corpus_statistics": statistics,
         "parameters": policy_parameter_count(model),
         "bc": result.as_dict(),
@@ -285,6 +338,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--completed-only", action="store_true",
                         help="clone only episodes where the expert finished the course")
     parser.add_argument("--no-eval", action="store_true")
+    parser.add_argument("--init-from", default=None,
+                        help="warm-start from this checkpoint instead of random init")
+    parser.add_argument("--corpus-weights", default=None,
+                        help="comma-separated repeat count per --corpus root")
     return parser
 
 
@@ -301,6 +358,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         episodes_per_stage=args.episodes_per_stage,
         adapter=args.adapter, allow_fallback=args.allow_fallback,
         completed_only=args.completed_only, evaluate=not args.no_eval,
+        init_from=args.init_from,
+        corpus_weights=(
+            [int(v) for v in args.corpus_weights.split(",")]
+            if args.corpus_weights else None
+        ),
     )
     print(json.dumps({
         "train_mse": summary["bc"]["train"]["mse"],

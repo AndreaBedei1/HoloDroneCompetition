@@ -1,4 +1,4 @@
-"""Generation-2 seed bands: TRAIN / VALIDATION / TEST / FINAL_HOLDOUT.
+"""Generation-2 seed bands: TRAIN / VALIDATION / TEST / FINAL_HOLDOUT / TRACK_SPECIFIC.
 
 Every Generation-1 seed role lives at or below 33_999 (see
 :mod:`marine_race_arena.learning.seed_registry`).  Generation 2 therefore opens
@@ -7,9 +7,12 @@ historical experiment, and the four Gen-2 spaces are disjoint by construction.
 
 Rules enforced by ``tests/learning/gen2/test_gen2_seeds.py``:
 
-* ``TRAIN`` is the ONLY band that may produce gradient-bearing samples --
+* ``TRAIN`` produces the procedural experiment's gradient-bearing samples --
   expert demonstrations, DAgger learner rollouts with expert labels, and PPO
   rollouts.
+* ``TRACK_SPECIFIC`` produces the track campaign's samples.  It trains on
+  fragments of the three evaluation circuits by design and therefore makes no
+  unseen-track claim; it is a separate protocol, not a widening of TRAIN.
 * ``VALIDATION`` may evaluate learned policies and drive progression decisions.
   It must never supply expert-labelled samples to training.
 * ``TEST`` stays untouched until final model selection.
@@ -31,12 +34,24 @@ GEN2_VALIDATION_BAND: Tuple[int, int] = (50_000, 50_999)
 GEN2_TEST_BAND: Tuple[int, int] = (51_000, 51_999)
 GEN2_FINAL_HOLDOUT_BAND: Tuple[int, int] = (52_000, 52_999)
 
+#: The track-specific campaign (``track_specific_gen2_v1``) lives in its own
+#: band.  It deliberately trains on fragments of the three evaluation circuits,
+#: so it makes no unseen-track claim and the TRAIN/VALIDATION distinction that
+#: protects the procedural experiment does not apply to it.  Keeping it in a
+#: separate decade means it can never be confused with, or collide with, the
+#: procedural bookkeeping.
+GEN2_TRACK_BAND: Tuple[int, int] = (60_000, 69_999)
+
 GEN2_BANDS: Dict[str, Tuple[int, int]] = {
     "TRAIN": GEN2_TRAIN_BAND,
     "VALIDATION": GEN2_VALIDATION_BAND,
     "TEST": GEN2_TEST_BAND,
     "FINAL_HOLDOUT": GEN2_FINAL_HOLDOUT_BAND,
+    "TRACK_SPECIFIC": GEN2_TRACK_BAND,
 }
+
+#: Bands whose seeds may produce gradient-bearing samples.
+TRAINABLE_BANDS = frozenset({"TRAIN", "TRACK_SPECIFIC"})
 
 # ------------------------------------------------------------- TRAIN sub-roles
 # Expert demonstration courses (behaviour-cloning corpus).
@@ -107,6 +122,20 @@ GEN2_FINAL_HOLDOUT_TRIAL_SEEDS: List[int] = _r(52_100, 52_599)
 # Retrospective diagnostic runs on the three no-longer-pristine old circuits.
 GEN2_RETROSPECTIVE_OLD_CIRCUIT_SEEDS: List[int] = _r(52_600, 52_999)
 
+# --------------------------------------------------- TRACK_SPECIFIC sub-roles
+# Expert demonstrations on exact fragments of the three official circuits.
+GEN2_TRACK_FRAGMENT_SEEDS: List[int] = _r(60_000, 63_999)
+# DAgger rollouts on those same fragments and on failure regions.
+GEN2_TRACK_DAGGER_SEEDS: List[int] = _r(64_000, 65_999)
+# Closed-loop evaluation of the learner on every fragment.
+GEN2_TRACK_EVAL_SEEDS: List[int] = _r(66_000, 66_999)
+# Repeated trials on the three complete circuits.
+GEN2_FULL_CIRCUIT_SEEDS: List[int] = _r(67_000, 67_999)
+# Recurrent PPO speed fine-tuning on the circuits.
+GEN2_TRACK_PPO_SEEDS: List[int] = _r(68_000, 69_499)
+# Throwaway plumbing checks for the track campaign.
+GEN2_TRACK_SMOKE_SEEDS: List[int] = _r(69_500, 69_999)
+
 
 GEN2_ROLE_SEEDS: Dict[str, List[int]] = {
     "gen2_expert_demonstrations": GEN2_EXPERT_DEMO_SEEDS,
@@ -121,6 +150,12 @@ GEN2_ROLE_SEEDS: Dict[str, List[int]] = {
     "gen2_final_holdout_circuits": GEN2_FINAL_HOLDOUT_CIRCUIT_SEEDS,
     "gen2_final_holdout_trials": GEN2_FINAL_HOLDOUT_TRIAL_SEEDS,
     "gen2_retrospective_old_circuits": GEN2_RETROSPECTIVE_OLD_CIRCUIT_SEEDS,
+    "gen2_track_fragments": GEN2_TRACK_FRAGMENT_SEEDS,
+    "gen2_track_dagger": GEN2_TRACK_DAGGER_SEEDS,
+    "gen2_track_eval": GEN2_TRACK_EVAL_SEEDS,
+    "gen2_full_circuit": GEN2_FULL_CIRCUIT_SEEDS,
+    "gen2_track_ppo": GEN2_TRACK_PPO_SEEDS,
+    "gen2_track_smoke": GEN2_TRACK_SMOKE_SEEDS,
 }
 
 ROLE_TO_BAND: Dict[str, str] = {
@@ -136,6 +171,12 @@ ROLE_TO_BAND: Dict[str, str] = {
     "gen2_final_holdout_circuits": "FINAL_HOLDOUT",
     "gen2_final_holdout_trials": "FINAL_HOLDOUT",
     "gen2_retrospective_old_circuits": "FINAL_HOLDOUT",
+    "gen2_track_fragments": "TRACK_SPECIFIC",
+    "gen2_track_dagger": "TRACK_SPECIFIC",
+    "gen2_track_eval": "TRACK_SPECIFIC",
+    "gen2_full_circuit": "TRACK_SPECIFIC",
+    "gen2_track_ppo": "TRACK_SPECIFIC",
+    "gen2_track_smoke": "TRACK_SPECIFIC",
 }
 
 # Roles that may legally be paired with a frozen-expert action label.
@@ -143,6 +184,10 @@ EXPERT_LABELLING_ALLOWED_ROLES = frozenset({
     "gen2_expert_demonstrations",
     "gen2_dagger_rollouts",
     "gen2_smoke",
+    # The track-specific campaign trains on the evaluation circuits by design.
+    "gen2_track_fragments",
+    "gen2_track_dagger",
+    "gen2_track_smoke",
 })
 
 
@@ -170,10 +215,10 @@ def role_of(seed: int) -> str:
 def assert_training_seed(seed: int, *, context: str = "training") -> int:
     """Raise unless ``seed`` may be used to produce gradient-bearing samples."""
     band = band_of(seed)
-    if band != "TRAIN":
+    if band not in TRAINABLE_BANDS:
         raise PermissionError(
             f"{context} attempted to use seed {int(seed)} from the Gen-2 {band} band; "
-            "only TRAIN seeds may produce training samples"
+            f"only {sorted(TRAINABLE_BANDS)} seeds may produce training samples"
         )
     return int(seed)
 
@@ -268,8 +313,9 @@ def registry_dict() -> Dict[str, object]:
         "invariants": {
             "roles_pairwise_disjoint": True,
             "disjoint_from_generation_one": True,
-            "expert_labels_only_on_train": all(
-                ROLE_TO_BAND[name] == "TRAIN" for name in EXPERT_LABELLING_ALLOWED_ROLES
+            "expert_labels_only_on_trainable_bands": all(
+                ROLE_TO_BAND[name] in TRAINABLE_BANDS
+                for name in EXPERT_LABELLING_ALLOWED_ROLES
             ),
         },
     }
