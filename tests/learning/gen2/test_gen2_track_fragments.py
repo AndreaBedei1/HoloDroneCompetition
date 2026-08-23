@@ -401,12 +401,20 @@ def test_internal_fragments_carry_the_measured_inbound_speed(tmp_path):
     assert recorded["inbound_body_velocity_m_s"] == [tf.INBOUND_SURGE_M_S, 0.0, 0.0]
 
 
-def test_the_inbound_speed_matches_the_expert_corpus_if_it_is_present():
-    """Guard against the constant drifting away from what was measured."""
+def test_the_inbound_speed_is_cruise_not_the_crossing_peak():
+    """The constant must track measured CRUISE, not the gate-crossing peak.
+
+    Expert cruise (steps where the DVL reports) is 0.247-0.278 normalized;
+    the peak in a +/-2 step window around a crossing is 0.390. Using the peak
+    would start every fragment ~1.4x faster than the expert travels.
+    """
     from marine_race_arena.learning.config import VELOCITY_SCALE_MPS
 
-    # 0.390 normalized was the measured median at gate crossings.
-    assert tf.INBOUND_SURGE_M_S == pytest.approx(0.390 * VELOCITY_SCALE_MPS, abs=0.02)
+    cruise_low = 0.247 * VELOCITY_SCALE_MPS   # general corpus
+    cruise_high = 0.278 * VELOCITY_SCALE_MPS  # fragment corpus
+    crossing_peak = 0.390 * VELOCITY_SCALE_MPS
+    assert cruise_low - 0.05 <= tf.INBOUND_SURGE_M_S <= cruise_high + 0.05
+    assert tf.INBOUND_SURGE_M_S < crossing_peak - 0.10
 
 
 def test_both_drivers_install_the_inbound_velocity():

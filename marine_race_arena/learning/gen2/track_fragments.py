@@ -55,13 +55,26 @@ INBOUND_CLEARANCE_M = 1.5
 
 #: Forward body speed the vehicle carries into a fragment, m/s.
 #:
-#: Measured, not guessed: across 267 gate crossings in the fragment expert
-#: corpus the DVL surge reads 0.390 +/- 0.01 normalized, and VELOCITY_SCALE_MPS
-#: is 1.5, giving 0.585 m/s.  A fragment that starts from rest asks the policy
-#: to do something the full circuit never asks -- accelerate from a standstill
-#: 1.5 m before a gate -- which makes fragment pass rates understate real
-#: competence and trains a state distribution that does not occur.
-INBOUND_SURGE_M_S = 0.585
+#: This is the expert's mean CRUISE speed, measured over steps where the DVL
+#: actually reports: 0.247 normalized in the general corpus and 0.278 in the
+#: fragment corpus, which at VELOCITY_SCALE_MPS = 1.5 is 0.37-0.42 m/s.
+#:
+#: An earlier value of 0.585 came from the *peak* surge in a +/-2 step window
+#: around a gate crossing (0.390 normalized).  That is the fastest the vehicle
+#: ever goes, not the speed it carries between gates, and injecting it would
+#: start every fragment ~1.4x faster than the expert actually travels.
+#:
+#: Note also what this is NOT for.  It was originally introduced to explain a
+#: circuit regression, on the theory that rest-started fragments taught an
+#: off-distribution state.  That theory was refuted: the general corpus starts
+#: from rest in 400/400 episodes too, and the fragment corpus is if anything
+#: FASTER overall (less mass below 0.10 surge: 15.8% vs 26.0%).  The apparent
+#: "dominated by zero surge" reading was an artifact of the DVL reporting on
+#: alternating steps, so half of all raw rows are a structural 0.0 in both
+#: corpora.  This constant is kept because reproducing the real inbound
+#: condition is more faithful than starting from rest, not because it fixed
+#: anything.
+INBOUND_SURGE_M_S = 0.40
 
 #: Seconds allowed per gate in a fragment.  The full circuits allow roughly
 #: 40-60 s per gate; this is deliberately generous so a timeout means the

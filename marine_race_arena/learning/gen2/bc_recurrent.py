@@ -212,6 +212,7 @@ def train_recurrent_bc(
     *,
     latch_normalization: bool = True,
     progress_path: Optional[str | Path] = None,
+    validation_episodes: Optional[Sequence[Gen2Episode]] = None,
 ) -> BCResult:
     """Behaviour-clone ``model.policy`` on ``episodes``.  Mutates ``model``."""
     config = config or BCConfig()
@@ -222,9 +223,14 @@ def train_recurrent_bc(
     policy = model.policy
     policy.to(device)
 
-    train_episodes, validation_episodes = split_episodes(
-        episodes, config.validation_fraction, config.seed
-    )
+    if validation_episodes is None:
+        train_episodes, validation_episodes = split_episodes(
+            episodes, config.validation_fraction, config.seed
+        )
+    else:
+        # Caller already split -- and, when corpus roots are replicated, it had
+        # to: splitting after replication leaks duplicates across the boundary.
+        train_episodes = list(episodes)
     if latch_normalization:
         mean, std = observation_statistics(train_episodes)
         extractor = policy.features_extractor

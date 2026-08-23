@@ -36,7 +36,7 @@ import json
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -44,6 +44,7 @@ from marine_race_arena.learning.gen2 import seeds as gen2_seeds
 from marine_race_arena.learning.gen2.bc_recurrent import (
     BCConfig,
     calibrate_action_std,
+    split_episodes,
     train_recurrent_bc,
 )
 from marine_race_arena.learning.gen2.dataset import (
@@ -188,26 +189,44 @@ def load_weighted_corpus(
     weights: Optional[Sequence[int]] = None,
     *,
     completed_only: bool = False,
-) -> List:
-    """Load each corpus root, repeating it ``weights[i]`` times.
+    validation_fraction: float = 0.0,
+    seed: int = 0,
+) -> Tuple[List, List]:
+    """Load each corpus root and return ``(train, validation)`` episode lists.
 
-    Repetition is how the track-fragment data is given enough weight to change
-    behaviour when it is much smaller than the general corpus.  Repeating whole
-    episodes keeps every sequence intact, which matters for a recurrent policy;
-    reweighting individual steps would not.
+    Repetition is how a small corpus is given enough weight to change
+    behaviour.  Repeating whole episodes keeps every sequence intact, which
+    matters for a recurrent policy; reweighting individual steps would not.
+
+    **The split happens before replication, and that ordering is the point.**
+    Replicating first and splitting afterwards puts byte-identical copies of
+    the same trajectory on both sides of the split: a x3 fragment corpus mixed
+    into a x1 general corpus leaked 35.1% of validation transitions into
+    training, and the resulting validation curve reported an improvement that
+    did not exist.  Splitting first means a held-out episode has no duplicate
+    anywhere in training, whatever the weights are.
     """
     roots = list(corpus)
     counts = list(weights) if weights else [1] * len(roots)
     if len(counts) != len(roots):
         raise ValueError("one weight per corpus root is required")
-    episodes: List = []
-    for root, repeat in zip(roots, counts):
+    train: List = []
+    validation: List = []
+    for index, (root, repeat) in enumerate(zip(roots, counts)):
         loaded = load_corpus_cached(root, completed_only=completed_only)
         if not loaded:
             raise ValueError(f"corpus root {root} contributed no episodes")
+        # Split each root independently so the validation set keeps the same
+        # corpus mixture as training rather than being dominated by whichever
+        # root happens to be larger.
+        if validation_fraction > 0.0:
+            kept, held = split_episodes(loaded, validation_fraction, seed + index)
+        else:
+            kept, held = list(loaded), []
         for _ in range(max(1, int(repeat))):
-            episodes.extend(loaded)
-    return episodes
+            train.extend(kept)
+        validation.extend(held)
+    return train, validation
 
 
 def train(
@@ -243,15 +262,17 @@ def train(
     out_dir.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
 
-    episodes = load_weighted_corpus(
-        list(corpus), corpus_weights, completed_only=completed_only
-    )
-    if not episodes:
-        raise ValueError(f"no episodes found under {list(corpus)}")
-    statistics = corpus_statistics(episodes)
-    mean, std = observation_statistics(episodes)
-
     config = config or BCConfig()
+    train_episodes, validation_episodes = load_weighted_corpus(
+        list(corpus), corpus_weights, completed_only=completed_only,
+        validation_fraction=config.validation_fraction, seed=config.seed,
+    )
+    if not train_episodes:
+        raise ValueError(f"no episodes found under {list(corpus)}")
+    episodes = train_episodes
+    statistics = corpus_statistics(train_episodes + validation_episodes)
+    mean, std = observation_statistics(train_episodes)
+
     if init_from is not None:
         from sb3_contrib import RecurrentPPO
 
@@ -264,6 +285,7 @@ def train(
         model, episodes, config,
         latch_normalization=init_from is None,
         progress_path=out_dir / "bc_progress.json",
+        validation_episodes=validation_episodes,
     )
     action_std = calibrate_action_std(model, episodes, config)
 
