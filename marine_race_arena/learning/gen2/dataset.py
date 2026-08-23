@@ -334,3 +334,124 @@ def verify_manifest(root: str | Path) -> Dict[str, Any]:
         "changed": changed,
         "intact": not changed and not (recorded.keys() - present.keys()),
     }
+
+
+# --------------------------------------------------------------- fast reload
+
+CACHE_SCHEMA = "gen2_corpus_cache_v1"
+
+
+def _cache_key(root: Path) -> str:
+    """Identify a corpus by content, not by mtime.
+
+    The manifest's ``corpus_sha256`` already chains every shard hash, so it is
+    the right key when present.  Without a manifest, fall back to the shard
+    names and sizes -- weaker, but still invalidated by any collection.
+    """
+    manifest = root / "manifest.json"
+    if manifest.exists():
+        try:
+            recorded = json.loads(manifest.read_text(encoding="utf-8"))["corpus_sha256"]
+            return str(recorded)
+        except Exception:
+            pass
+    digest = hashlib.sha256()
+    for path in iter_shards(root):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(str(path.stat().st_size).encode("ascii"))
+    return digest.hexdigest()
+
+
+def load_corpus_cached(root: str | Path, **kwargs: Any) -> List[Gen2Episode]:
+    """Load a corpus, consolidating it into one uncompressed file on first use.
+
+    Reading several hundred compressed per-episode shards took ~50 minutes on a
+    contended machine, which dominated a fine-tuning cycle whose training was
+    under an hour.  The cache stores the same episodes concatenated with an
+    offset index, so a reload is a single sequential read.
+
+    Filters are applied *after* loading, so one cache serves every caller
+    regardless of ``completed_only`` or ``exclude_expert_takeover``.
+    """
+    root = Path(root)
+    cache = root / f"_corpus_cache_{_cache_key(root)[:16]}.npz"
+    if cache.exists():
+        try:
+            episodes = _read_cache(cache)
+        except Exception:
+            episodes = None
+        if episodes:
+            return _filter_episodes(episodes, **kwargs)
+
+    episodes = load_corpus(root)
+    if episodes:
+        try:
+            _write_cache(cache, episodes)
+        except Exception:
+            pass  # a cache miss must never break training
+    return _filter_episodes(episodes, **kwargs)
+
+
+def _filter_episodes(
+    episodes: Sequence[Gen2Episode],
+    *,
+    completed_only: bool = False,
+    exclude_expert_takeover: bool = False,
+    min_steps: int = 2,
+) -> List[Gen2Episode]:
+    out = []
+    for episode in episodes:
+        if len(episode) < int(min_steps):
+            continue
+        if completed_only and not episode.completed:
+            continue
+        if exclude_expert_takeover and bool(episode.applied_by_expert.any()):
+            continue
+        out.append(episode)
+    return out
+
+
+def _write_cache(path: Path, episodes: Sequence[Gen2Episode]) -> None:
+    lengths = np.asarray([len(e) for e in episodes], dtype=np.int64)
+    offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+    tmp = path.with_name(f"{path.stem}.partial.{os.getpid()}.npz")
+    np.savez(
+        tmp,
+        schema=np.asarray([CACHE_SCHEMA]),
+        offsets=offsets,
+        seeds=np.asarray([e.seed for e in episodes], dtype=np.int64),
+        observations=np.concatenate([e.observations for e in episodes]),
+        expert_actions=np.concatenate([e.expert_actions for e in episodes]),
+        applied_actions=np.concatenate([e.applied_actions for e in episodes]),
+        applied_by_expert=np.concatenate([e.applied_by_expert for e in episodes]),
+        gate_crossings=np.concatenate([e.gate_crossings for e in episodes]),
+        meta=np.asarray([json.dumps(e.meta, sort_keys=True) for e in episodes]),
+    )
+    tmp.replace(path)
+
+
+def _read_cache(path: Path) -> List[Gen2Episode]:
+    with np.load(path, allow_pickle=False) as payload:
+        if str(payload["schema"][0]) != CACHE_SCHEMA:
+            raise ValueError("unsupported corpus cache schema")
+        offsets = payload["offsets"]
+        seeds = payload["seeds"]
+        observations = payload["observations"]
+        expert = payload["expert_actions"]
+        applied = payload["applied_actions"]
+        marks = payload["applied_by_expert"]
+        crossings = payload["gate_crossings"]
+        metas = payload["meta"]
+    episodes: List[Gen2Episode] = []
+    for index in range(len(seeds)):
+        lo, hi = int(offsets[index]), int(offsets[index + 1])
+        episodes.append(Gen2Episode(
+            seed=int(seeds[index]),
+            observations=observations[lo:hi],
+            expert_actions=expert[lo:hi],
+            applied_actions=applied[lo:hi],
+            applied_by_expert=marks[lo:hi],
+            gate_crossings=crossings[lo:hi],
+            meta=json.loads(str(metas[index])),
+        ))
+    return episodes

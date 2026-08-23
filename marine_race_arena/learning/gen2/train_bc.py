@@ -46,7 +46,12 @@ from marine_race_arena.learning.gen2.bc_recurrent import (
     calibrate_action_std,
     train_recurrent_bc,
 )
-from marine_race_arena.learning.gen2.dataset import corpus_statistics, load_corpus, observation_statistics
+from marine_race_arena.learning.gen2.dataset import (
+    corpus_statistics,
+    load_corpus,
+    load_corpus_cached,
+    observation_statistics,
+)
 
 #: Stage -> (gate count, progression target completion rate).
 BC_STAGES: Dict[str, Any] = {
@@ -197,7 +202,7 @@ def load_weighted_corpus(
         raise ValueError("one weight per corpus root is required")
     episodes: List = []
     for root, repeat in zip(roots, counts):
-        loaded = load_corpus([root], completed_only=completed_only)
+        loaded = load_corpus_cached(root, completed_only=completed_only)
         if not loaded:
             raise ValueError(f"corpus root {root} contributed no episodes")
         for _ in range(max(1, int(repeat))):

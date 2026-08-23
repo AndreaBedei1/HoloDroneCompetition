@@ -284,3 +284,44 @@ def test_the_expert_is_never_stepped_during_evaluation(tmp_path):
 
     assert not calls, "the expert was invoked on the inference path"
     assert episode.steps > 0
+
+
+# --------------------------------------------------------------- corpus cache
+
+def test_cached_corpus_is_identical_to_the_uncached_one(tmp_path):
+    for seed in (40_010, 40_011, 40_012):
+        gen2_dataset.save_episode(_episode(seed, steps=17), tmp_path)
+    gen2_dataset.write_manifest(tmp_path)
+
+    direct = gen2_dataset.load_corpus(tmp_path)
+    built = gen2_dataset.load_corpus_cached(tmp_path)   # builds the cache
+    reread = gen2_dataset.load_corpus_cached(tmp_path)  # reads it back
+
+    assert [e.seed for e in direct] == [e.seed for e in built] == [e.seed for e in reread]
+    for a, b in zip(direct, reread):
+        assert np.array_equal(a.observations, b.observations)
+        assert np.array_equal(a.expert_actions, b.expert_actions)
+        assert np.array_equal(a.applied_actions, b.applied_actions)
+        assert np.array_equal(a.applied_by_expert, b.applied_by_expert)
+        assert np.array_equal(a.gate_crossings, b.gate_crossings)
+        assert a.meta == b.meta
+
+
+def test_cache_filters_are_applied_after_loading(tmp_path):
+    """One cache must serve callers that want different subsets."""
+    gen2_dataset.save_episode(_episode(40_020, takeover=False), tmp_path)
+    gen2_dataset.save_episode(_episode(40_021, takeover=True), tmp_path)
+    gen2_dataset.load_corpus_cached(tmp_path)  # build once
+    assert len(gen2_dataset.load_corpus_cached(tmp_path)) == 2
+    clean = gen2_dataset.load_corpus_cached(tmp_path, exclude_expert_takeover=True)
+    assert [e.seed for e in clean] == [40_020]
+
+
+def test_a_new_shard_invalidates_the_cache(tmp_path):
+    gen2_dataset.save_episode(_episode(40_030), tmp_path)
+    gen2_dataset.write_manifest(tmp_path)
+    assert len(gen2_dataset.load_corpus_cached(tmp_path)) == 1
+    gen2_dataset.save_episode(_episode(40_031), tmp_path)
+    gen2_dataset.write_manifest(tmp_path)
+    # The key is content-derived, so the stale cache cannot be served.
+    assert len(gen2_dataset.load_corpus_cached(tmp_path)) == 2
