@@ -111,8 +111,15 @@ def evaluate_fragments(
     adapter: str = "holoocean",
     allow_fallback: bool = False,
     fragments: Optional[Sequence[tf.TrackFragment]] = None,
+    shard: int = 0,
+    shards: int = 1,
 ) -> Dict[str, Any]:
-    """Run the learned controller on every fragment; return the PASS/FAIL matrix."""
+    """Run the learned controller on every fragment; return the PASS/FAIL matrix.
+
+    ``shard``/``shards`` split the window list across concurrent processes.
+    The split is by index, so every shard sees the same seeds it would have
+    seen sequentially and the shards can simply be concatenated.
+    """
     from marine_race_arena.learning.gen2.evaluation import run_policy_episode
 
     out_dir = Path(out_dir)
@@ -125,8 +132,11 @@ def evaluate_fragments(
     pool = gen2_seeds.GEN2_TRACK_EVAL_SEEDS
     rows: List[FragmentOutcome] = []
     started = time.perf_counter()
+    suffix = "" if int(shards) <= 1 else f"_shard{int(shard):02d}"
 
     for index, fragment in enumerate(windows):
+        if int(shards) > 1 and index % int(shards) != int(shard):
+            continue
         for trial in range(int(trials)):
             seed = pool[(index * max(1, int(trials)) + trial) % len(pool)]
             path = tf.materialize_fragment(fragment, track_dir / f"{fragment.name}.json")
@@ -148,13 +158,30 @@ def evaluate_fragments(
                 time_s=episode.completion_time_s,
                 path_length_m=episode.path_length_m,
             ))
-        (out_dir / "fragment_matrix.json").write_text(
+        (out_dir / f"fragment_matrix{suffix}.json").write_text(
             json.dumps([r.as_dict() for r in rows], indent=2), encoding="utf-8"
         )
 
     report = summarize_fragments(rows)
     report["wall_time_s"] = round(time.perf_counter() - started, 1)
     report["checkpoint"] = str(checkpoint)
+    (out_dir / f"fragment_report{suffix}.json").write_text(
+        json.dumps({"summary": report, "rows": [r.as_dict() for r in rows]}, indent=2),
+        encoding="utf-8",
+    )
+    return report
+
+
+def collect_fragment_shards(out_dir: str | Path) -> Dict[str, Any]:
+    """Merge ``fragment_matrix_shard*.json`` into one report."""
+    out_dir = Path(out_dir)
+    rows: List[FragmentOutcome] = []
+    for path in sorted(out_dir.glob("fragment_matrix*.json")):
+        if path.name == "fragment_matrix.json" and list(out_dir.glob("fragment_matrix_shard*.json")):
+            continue
+        for payload in json.loads(path.read_text(encoding="utf-8")):
+            rows.append(FragmentOutcome(**payload))
+    report = summarize_fragments(rows)
     (out_dir / "fragment_report.json").write_text(
         json.dumps({"summary": report, "rows": [r.as_dict() for r in rows]}, indent=2),
         encoding="utf-8",
@@ -443,18 +470,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--circuit-trials", type=int, default=3)
     parser.add_argument("--adapter", default="holoocean", choices=("holoocean", "fallback"))
     parser.add_argument("--allow-fallback", action="store_true")
+    parser.add_argument("--shard", type=int, default=0)
+    parser.add_argument("--shards", type=int, default=1)
+    parser.add_argument("--collect-shards", action="store_true",
+                        help="merge fragment shard files already on disk and exit")
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     tracks = [v.strip() for v in args.tracks.split(",") if v.strip()]
+    if args.collect_shards:
+        report = collect_fragment_shards(Path(args.out) / "fragments")
+        print(json.dumps({
+            "overall_pass_rate": report["overall_pass_rate"],
+            "by_length": report["by_length"],
+            "by_track_and_length": report["by_track_and_length"],
+            "failure_kinds": report["failure_kinds"],
+            "failing_fragments": report["failing_fragments"][:25],
+        }, indent=2), flush=True)
+        return 0
     if args.mode in ("fragments", "both"):
         report = evaluate_fragments(
             args.checkpoint, out_dir=Path(args.out) / "fragments",
             lengths=[int(v) for v in args.lengths.split(",") if v.strip()],
             tracks=tracks, trials=args.fragment_trials,
             adapter=args.adapter, allow_fallback=args.allow_fallback,
+            shard=args.shard, shards=args.shards,
         )
         print(json.dumps({
             "overall_pass_rate": report["overall_pass_rate"],
