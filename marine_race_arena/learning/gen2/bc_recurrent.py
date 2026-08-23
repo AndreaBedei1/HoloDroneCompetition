@@ -82,6 +82,10 @@ class BCResult:
     best_epoch: int
     train: Dict[str, Any]
     validation: Dict[str, Any]
+    initial_train_mse: float = float("nan")
+    initial_validation_mse: float = float("nan")
+    #: False when the run ended no better than the policy it started from.
+    improved_on_parent: Optional[bool] = None
     history: List[Dict[str, Any]] = field(default_factory=list)
     wall_time_s: float = 0.0
     corpus: Dict[str, Any] = field(default_factory=dict)
@@ -250,10 +254,24 @@ def train_recurrent_bc(
     weights = th.as_tensor(np.asarray(config.axis_weights, dtype=np.float32), device=device)
 
     rng = np.random.default_rng(config.seed)
-    best_score = math.inf
-    best_state: Optional[Dict[str, th.Tensor]] = None
+    # Measure the incoming policy BEFORE any update. Without this, a fine-tune
+    # that destroys its parent in the first epoch is indistinguishable from one
+    # that started badly -- which is exactly how a 32x fit regression went
+    # unnoticed until it cost a full circuit evaluation.
+    initial_train = _evaluate(policy, train_episodes, config, device)
+    initial_validation = _evaluate(policy, validation_episodes, config, device)
+    best_score = (
+        initial_validation.mse if validation_episodes else initial_train.mse
+    )
+    best_state: Optional[Dict[str, th.Tensor]] = copy.deepcopy(policy.state_dict())
     best_epoch = -1
-    history: List[Dict[str, Any]] = []
+    history: List[Dict[str, Any]] = [{
+        "epoch": -1,
+        "mean_chunk_loss": None,
+        "train_mse": initial_train.mse,
+        "validation_mse": initial_validation.mse,
+        "note": "parent policy before any update",
+    }]
     stale = 0
     epochs_run = 0
 
@@ -324,10 +342,19 @@ def train_recurrent_bc(
 
     final_train = _evaluate(policy, train_episodes, config, device)
     final_validation = _evaluate(policy, validation_episodes, config, device)
+    improved = (
+        None if math.isinf(best_score)
+        else bool(best_score <= (
+            initial_validation.mse if validation_episodes else initial_train.mse
+        ))
+    )
     return BCResult(
         config=config.as_dict(),
         epochs_run=epochs_run,
         best_epoch=best_epoch,
+        initial_train_mse=initial_train.mse,
+        initial_validation_mse=initial_validation.mse,
+        improved_on_parent=improved,
         train=final_train.as_dict(),
         validation=final_validation.as_dict(),
         history=history,

@@ -258,3 +258,62 @@ def test_learning_rate_survives_a_resume(tmp_path):
     assert reloaded.lr_schedule(1.0) == pytest.approx(7.5e-5)
     for group in reloaded.policy.optimizer.param_groups:
         assert group["lr"] == pytest.approx(7.5e-5)
+
+
+# ------------------------------------------------- fine-tuning must not harm
+
+def test_a_warm_start_never_returns_a_policy_worse_than_its_parent(episodes):
+    """The run keeps the parent's weights unless an epoch actually beats them.
+
+    A from-scratch learning rate destroyed a converged policy in one epoch --
+    8.3e-05 to 2.65e-03 -- and eight more epochs never recovered. Seeding the
+    best-state with the parent means the worst case is 'no change', not
+    'catastrophe'.
+    """
+    model = build_gen2_policy_for_training(seed=0)
+    result = train_recurrent_bc(
+        model, episodes,
+        BCConfig(epochs=2, batch_episodes=8, chunk_length=32, patience=2,
+                 seed=0, learning_rate=5.0),  # absurd rate, guaranteed to diverge
+    )
+    assert result.history[0]["epoch"] == -1, "the parent fit must be recorded first"
+    assert result.improved_on_parent is not None
+    # Whatever happened during training, the returned policy is never worse
+    # than what it started from.
+    assert result.validation["mse"] <= result.initial_validation_mse + 1e-9
+
+
+def test_the_parent_fit_is_recorded_before_any_update(episodes):
+    model = build_gen2_policy_for_training(seed=0)
+    result = train_recurrent_bc(
+        model, episodes,
+        BCConfig(epochs=1, batch_episodes=8, chunk_length=32, patience=1, seed=0),
+    )
+    assert result.history[0]["epoch"] == -1
+    assert result.history[0]["note"].startswith("parent policy")
+    assert result.initial_train_mse > 0
+    assert result.initial_validation_mse > 0
+
+
+def test_a_warm_start_drops_to_the_finetune_learning_rate(tmp_path, episodes):
+    """A warm start must not silently keep the from-scratch rate."""
+    from marine_race_arena.learning.gen2.train_bc import FINETUNE_LEARNING_RATE, train
+
+    model = build_gen2_policy_for_training(seed=0)
+    parent = tmp_path / "parent.zip"
+    model.save(parent)
+
+    corpus = tmp_path / "corpus"
+    from marine_race_arena.learning.gen2.dataset import save_episode, write_manifest
+
+    for episode in episodes[:12]:
+        save_episode(episode, corpus)
+    write_manifest(corpus)
+
+    summary = train(
+        [corpus], tmp_path / "out",
+        config=BCConfig(epochs=1, batch_episodes=6, chunk_length=32, patience=1, seed=0),
+        init_from=parent, evaluate=False,
+    )
+    assert summary["bc"]["config"]["learning_rate"] == pytest.approx(FINETUNE_LEARNING_RATE)
+    assert FINETUNE_LEARNING_RATE < BCConfig().learning_rate

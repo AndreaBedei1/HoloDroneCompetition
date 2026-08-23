@@ -54,6 +54,16 @@ from marine_race_arena.learning.gen2.dataset import (
     observation_statistics,
 )
 
+#: Learning rate for warm-started fine-tuning.
+#:
+#: The from-scratch default of 3e-4 destroyed a converged policy in a single
+#: epoch: starting from train MSE 8.3e-05, the first epoch on a corpus that was
+#: one-third learner-visited DAgger states landed at 2.65e-03 -- 32x worse --
+#: and eight epochs never recovered. SB3's ``load`` restores the weights but not
+#: the optimizer moments, so a fresh Adam takes large unconditioned steps away
+#: from a minimum. An order of magnitude lower keeps the warm start.
+FINETUNE_LEARNING_RATE = 3e-5
+
 #: Stage -> (gate count, progression target completion rate).
 BC_STAGES: Dict[str, Any] = {
     "A": {"gates": 2, "target": 0.95},
@@ -277,6 +287,12 @@ def train(
         from sb3_contrib import RecurrentPPO
 
         model = RecurrentPPO.load(str(init_from), device=config.device)
+        if config.learning_rate >= BCConfig().learning_rate:
+            # Caller left the from-scratch default in place; a warm start needs
+            # a conservative rate or it walks straight out of the minimum.
+            config = BCConfig(**{
+                **config.as_dict(), "learning_rate": FINETUNE_LEARNING_RATE
+            })
     else:
         model = build_gen2_policy_for_training(
             seed=config.seed, obs_mean=mean, obs_std=std, device=config.device
@@ -336,6 +352,7 @@ def train(
         "corpus_statistics": statistics,
         "parameters": policy_parameter_count(model),
         "bc": result.as_dict(),
+        "improved_on_parent": result.improved_on_parent,
         "action_std": [round(float(v), 5) for v in action_std],
         "stages": [s.as_dict() for s in stage_results],
         "recommendation": recommend_next_phase(
