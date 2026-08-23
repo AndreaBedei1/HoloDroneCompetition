@@ -140,6 +140,7 @@ def run_policy_episode(
     dt: float = 0.1,
     max_steps: int = 4000,
     unseal_record: Optional[Mapping[str, Any]] = None,
+    initial_body_velocity: Optional[Sequence[float]] = None,
 ) -> Gen2EvalEpisode:
     """Drive one episode with the learned controller and nothing else."""
     from marine_race_arena.learning.gen2.holdout_seal import assert_course_accessible
@@ -174,6 +175,16 @@ def run_policy_episode(
 
     try:
         raw = episode.reset(seed=int(seed))
+        # Install the inbound speed a fragment implies. A fragment that starts
+        # from rest asks the policy to accelerate from a standstill 1.5 m before
+        # a gate, which the full circuit never asks of it.
+        if initial_body_velocity is not None:
+            from marine_race_arena.learning.gen2.track_fragments import (
+                apply_initial_body_velocity,
+            )
+
+            apply_initial_body_velocity(episode, initial_body_velocity)
+            raw = episode._build_observation()
         config = episode.context.config
         gate_total = len(config.track.gate_sequence)
         context_source = OnboardLocalTransitionContextTracker(

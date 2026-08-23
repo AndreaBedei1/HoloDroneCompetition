@@ -211,6 +211,7 @@ def run_gen2_episode(
     safety_takeover: Optional[Callable[[Mapping[str, Any], int], bool]] = None,
     record_every: int = 1,
     unseal_record: Optional[Mapping[str, Any]] = None,
+    initial_body_velocity: Optional[Sequence[float]] = None,
 ) -> Gen2EpisodeRecord:
     """Run one episode and return its recorded observations and expert labels.
 
@@ -260,6 +261,16 @@ def run_gen2_episode(
 
     try:
         raw = episode.reset(seed=int(seed))
+        # Install the inbound speed a fragment implies. A fragment that starts
+        # from rest asks the policy to accelerate from a standstill 1.5 m before
+        # a gate, which the full circuit never asks of it.
+        if initial_body_velocity is not None:
+            from marine_race_arena.learning.gen2.track_fragments import (
+                apply_initial_body_velocity,
+            )
+
+            apply_initial_body_velocity(episode, initial_body_velocity)
+            raw = episode._build_observation()
         assert_observation_is_legal(raw)
         config = episode.context.config
         if not bool(config.race.official_mode):

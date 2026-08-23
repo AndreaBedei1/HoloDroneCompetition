@@ -53,6 +53,16 @@ OFFICIAL_TRACKS: Dict[str, str] = {
 #: the first thing the policy must do is the real k-1 -> k transition.
 INBOUND_CLEARANCE_M = 1.5
 
+#: Forward body speed the vehicle carries into a fragment, m/s.
+#:
+#: Measured, not guessed: across 267 gate crossings in the fragment expert
+#: corpus the DVL surge reads 0.390 +/- 0.01 normalized, and VELOCITY_SCALE_MPS
+#: is 1.5, giving 0.585 m/s.  A fragment that starts from rest asks the policy
+#: to do something the full circuit never asks -- accelerate from a standstill
+#: 1.5 m before a gate -- which makes fragment pass rates understate real
+#: competence and trains a state distribution that does not occur.
+INBOUND_SURGE_M_S = 0.585
+
 #: Seconds allowed per gate in a fragment.  The full circuits allow roughly
 #: 40-60 s per gate; this is deliberately generous so a timeout means the
 #: policy stalled, not that the budget was tight.
@@ -251,6 +261,13 @@ def materialize_fragment(
     # fragment then means exactly what it means on the full circuit.
     data["gen2_fragment"] = {
         "schema_version": FRAGMENT_SCHEMA_VERSION,
+        # Body-frame velocity to install after reset.  A prefix fragment starts
+        # where the circuit starts, at rest; every other fragment starts having
+        # just crossed a gate, so it must carry the speed that crossing implies.
+        "inbound_body_velocity_m_s": (
+            [0.0, 0.0, 0.0] if fragment.inbound_gate_id is None
+            else [INBOUND_SURGE_M_S, 0.0, 0.0]
+        ),
         **fragment.as_dict(),
     }
 
@@ -260,6 +277,32 @@ def materialize_fragment(
     tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(target)
     return target
+
+
+def inbound_body_velocity(fragment: "TrackFragment") -> Tuple[float, float, float]:
+    """Body-frame velocity a fragment starts with."""
+    if fragment.inbound_gate_id is None:
+        return (0.0, 0.0, 0.0)
+    return (INBOUND_SURGE_M_S, 0.0, 0.0)
+
+
+def apply_initial_body_velocity(episode, velocity: Sequence[float]) -> bool:
+    """Install ``velocity`` on the vehicle after reset, if the adapter allows it.
+
+    Only the HoloOcean adapter exposes the setter; the fallback adapter has no
+    persistent momentum to set, so this is a no-op there rather than an error.
+    """
+    if not any(abs(float(v)) > 1e-9 for v in velocity):
+        return False
+    try:
+        adapter = episode.context.adapter
+        setter = getattr(adapter, "set_participant_body_velocity", None)
+        if not callable(setter):
+            return False
+        setter(episode.participant_id, tuple(float(v) for v in velocity))
+        return True
+    except Exception:
+        return False
 
 
 def verify_geometry_preserved(

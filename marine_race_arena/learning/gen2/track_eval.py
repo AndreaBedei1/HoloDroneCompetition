@@ -144,6 +144,7 @@ def evaluate_fragments(
                 controller, path, seed=int(seed), spec=None,
                 adapter=adapter, allow_fallback=allow_fallback,
                 max_steps=max(600, fragment.length * STEPS_PER_GATE),
+                initial_body_velocity=tf.inbound_body_velocity(fragment),
             )
             rows.append(FragmentOutcome(
                 track=fragment.track, fragment=fragment.name, length=fragment.length,

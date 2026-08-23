@@ -379,3 +379,38 @@ def test_rule_baseline_times_are_recorded_for_the_speed_phase():
     assert RULE_BASELINE_TIME_S["horseshoe_bay"] == pytest.approx(225.9)
     assert RULE_BASELINE_TIME_S["vertical_serpent"] == pytest.approx(290.6)
     assert RULE_BASELINE_TIME_S["mixed_endurance"] == pytest.approx(472.9)
+
+
+def test_internal_fragments_carry_the_measured_inbound_speed(tmp_path):
+    """A fragment that starts from rest trains a state the circuit never has.
+
+    The expert crosses gates at 0.390 normalized DVL surge across 267 measured
+    crossings, which at VELOCITY_SCALE_MPS = 1.5 is 0.585 m/s. An internal
+    fragment must start with that speed; a prefix fragment starts where the
+    circuit starts, at rest.
+    """
+    internal = next(
+        f for f in tf.all_fragments((3,), root=REPO_ROOT) if f.inbound_gate_id
+    )
+    prefix = next(f for f in tf.all_fragments((3,), root=REPO_ROOT) if f.is_prefix)
+    assert tf.inbound_body_velocity(internal) == (tf.INBOUND_SURGE_M_S, 0.0, 0.0)
+    assert tf.inbound_body_velocity(prefix) == (0.0, 0.0, 0.0)
+
+    path = tf.materialize_fragment(internal, tmp_path / "f.json", root=REPO_ROOT)
+    recorded = json.loads(path.read_text(encoding="utf-8"))["gen2_fragment"]
+    assert recorded["inbound_body_velocity_m_s"] == [tf.INBOUND_SURGE_M_S, 0.0, 0.0]
+
+
+def test_the_inbound_speed_matches_the_expert_corpus_if_it_is_present():
+    """Guard against the constant drifting away from what was measured."""
+    from marine_race_arena.learning.config import VELOCITY_SCALE_MPS
+
+    # 0.390 normalized was the measured median at gate crossings.
+    assert tf.INBOUND_SURGE_M_S == pytest.approx(0.390 * VELOCITY_SCALE_MPS, abs=0.02)
+
+
+def test_both_drivers_install_the_inbound_velocity():
+    for module in ("evaluation.py", "expert_rollout.py"):
+        source = (GEN2_DIR / module).read_text(encoding="utf-8")
+        assert "initial_body_velocity" in source, module
+        assert "apply_initial_body_velocity(episode" in source, module

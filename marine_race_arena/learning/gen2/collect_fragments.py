@@ -125,6 +125,7 @@ def _run_worker(args: WorkerArgs) -> Dict[str, Any]:
                 adapter=args.adapter, allow_fallback=args.allow_fallback, dt=args.dt,
                 max_steps=max(MIN_STEPS, job.fragment.length * STEPS_PER_GATE),
                 safety_takeover=None,   # pure learner rollout; no blending
+                initial_body_velocity=tf.inbound_body_velocity(job.fragment),
             )
             # Fragment identity is diagnostics only; it never enters the network.
             record.course = {
