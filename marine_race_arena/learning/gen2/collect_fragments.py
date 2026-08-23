@@ -55,19 +55,23 @@ def build_jobs(
     trials: int = 1,
     tracks: Sequence[str] = tuple(tf.OFFICIAL_TRACKS),
     root: Optional[str | Path] = None,
+    band: Optional[Sequence[int]] = None,
 ) -> List[FragmentJob]:
+    """One job per (fragment, trial), seeded inside ``band``.
+
+    DAgger rollouts take the DAgger band rather than the demonstration band, so
+    a round can never be mistaken for, or collide with, the corpus it
+    aggregates onto.
+    """
+    pool = list(band) if band is not None else gen2_seeds.GEN2_TRACK_FRAGMENT_SEEDS
     jobs: List[FragmentJob] = []
     used: set = set()
-    for fragment in tf.all_fragments(lengths, tracks=tracks, root=root):
+    for index, fragment in enumerate(tf.all_fragments(lengths, tracks=tracks, root=root)):
         for trial in range(int(trials)):
-            seed = tf.fragment_seed(fragment, trial)
-            # Derived seeds can collide inside the band; walk to the next free
-            # one so every episode keeps its own shard.
+            seed = pool[(index * max(1, int(trials)) + trial) % len(pool)]
+            # Walk to the next free slot so every episode keeps its own shard.
             while seed in used:
-                seed = gen2_seeds.GEN2_TRACK_FRAGMENT_SEEDS[
-                    (gen2_seeds.GEN2_TRACK_FRAGMENT_SEEDS.index(seed) + 1)
-                    % len(gen2_seeds.GEN2_TRACK_FRAGMENT_SEEDS)
-                ]
+                seed = pool[(pool.index(seed) + 1) % len(pool)]
             used.add(seed)
             jobs.append(FragmentJob(fragment=fragment, trial=trial, seed=seed))
     return jobs
@@ -207,7 +211,8 @@ def collect(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     plan = list(jobs) if jobs is not None else build_jobs(
-        lengths, trials=trials, tracks=tracks
+        lengths, trials=trials, tracks=tracks,
+        band=(gen2_seeds.GEN2_TRACK_DAGGER_SEEDS if dagger_from else None),
     )
     effective = choose_workers(workers, adapter=adapter)
     started = time.perf_counter()

@@ -197,6 +197,53 @@ where the depth margin is tightest (2.1 m).
 Fine-tuning mixes the general corpus with this one at weight ×3, giving
 321 796 general against 307 743 fragment transitions — 51.1 % / 48.9 %.
 
+## MILESTONE 1 MET — all three circuits completed by the learned controller
+
+`best_completion_policy` (recurrent BC, **general procedural corpus only**,
+never trained on these circuits), 10 trials per circuit, current-free:
+
+| Circuit | Gates | Completed | Mean gates | Best | Collision eps | OOB eps | Mean time (finishers) | Rule baseline |
+|---|---|---|---|---|---|---|---|---|
+| Horseshoe Bay | 12 | **4/10** | 8.50 | **12/12** | 3 | 1 | 236.9 s | 225.9 s |
+| Vertical Serpent | 17 | **2/10** | 7.30 | **17/17** | 6 | 6 | 466.6 s | 290.6 s |
+| Mixed Endurance | 22 | **1/10** | 7.80 | **22/22** | 7 | 4 | 486.4 s | 472.9 s |
+
+**7/30 overall, and every circuit finished at least once.** Generation 1 PPO
+scored 0/30 on these circuits. On the runs it completes, the learned controller
+is already within 5% of the rule baseline on Horseshoe (236.9 vs 225.9 s) and
+within 3% on Mixed (486.4 vs 472.9 s); Vertical is the outlier at +60%.
+
+The earlier n=3 reading that showed Mixed at 0/3 was simply undersampled --
+Mixed completes 1 in 10.
+
+### The remaining gap, quantified
+
+Treating a circuit as a chain of independent gate transitions, completion is
+roughly *p* raised to the gate count:
+
+| Circuit | Measured | Implied per-gate *p* | *p* needed for 8/10 |
+|---|---|---|---|
+| Horseshoe Bay | 4/10 over 12 | 0.927 | 0.982 |
+| Vertical Serpent | 2/10 over 17 | 0.910 | 0.987 |
+| Mixed Endurance | 1/10 over 22 | 0.901 | 0.990 |
+
+So the work is not "fix a broken circuit" — it is lifting per-transition
+reliability from ~0.91 to ~0.99. Compounding does the rest: at 22 gates, the
+difference between 0.90 and 0.99 per gate is 10% versus 80% completion.
+
+### Failures are spread, not concentrated
+
+Failure gates at n=10: Horseshoe 4,5,7,8,9,10 (one each); Vertical 4,5,6,7,9;
+Mixed 2,3,4,6,7,11,14,15. **There is no single weak gate.** That matters for
+strategy: targeting fragments at one bad transition cannot fix a uniform
+per-transition failure rate. Kinds across all 30 trials: out-of-bounds 10,
+collision 8, wrong-direction 5.
+
+This is exactly the case DAgger exists for -- the learner drives, the expert
+labels the states the learner actually reaches, and the correction applies to
+every transition rather than to a hand-picked one. Round 1 therefore runs
+across all 150 fragments rather than targeting weak gates.
+
 ## Cycle
 
 Short iterations, each answering one question:
