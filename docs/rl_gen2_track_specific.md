@@ -133,6 +133,32 @@ the deficit; depth regulation is. Fragment training over-represents Vertical
 Serpent (52 of 150 windows) for exactly this reason, and the next cycle
 re-measures the out-of-bounds rate specifically.
 
+## Fragment expert corpus v1
+
+`corpus_sha256 = 1749e772a21c3eb4ad1e2c9b0e7b59cdcce29545fde27c89a7b85978755117e1`
+— 150 episodes, **102 581 transitions**, one trial per window.
+
+| Circuit | Episodes | Transitions | Share | Expert completed |
+|---|---|---|---|---|
+| Horseshoe Bay | 38 | 25 136 | 24.5 % | 38/38 |
+| Vertical Serpent | 52 | 30 457 | 29.7 % | 52/52 |
+| Mixed Endurance | 60 | 46 988 | 45.8 % | 59/60 |
+
+By fragment length: 2→40, 3→37, 4→35, 5→32, 6→6.
+
+Expert completion **0.9933**, gate success **0.9924**, and — the number that
+matters for this campaign — **zero collisions and zero out-of-bounds across all
+150 fragments**. The expert regulates depth correctly on exactly the geometry
+where the learner leaves the arena, so the corpus carries the signal the
+learner is missing rather than merely more of what it already does.
+
+Vertical Serpent is deliberately well represented (29.7 % of transitions from
+34 % of the windows) because it is where Gen-1's safety behaviour was worst and
+where the depth margin is tightest (2.1 m).
+
+Fine-tuning mixes the general corpus with this one at weight ×3, giving
+321 796 general against 307 743 fragment transitions — 51.1 % / 48.9 %.
+
 ## Cycle
 
 Short iterations, each answering one question:
