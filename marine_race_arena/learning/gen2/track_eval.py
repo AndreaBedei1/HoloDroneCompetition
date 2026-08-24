@@ -272,8 +272,18 @@ def evaluate_circuit(
     allow_fallback: bool = False,
     controller=None,
     root: Optional[str | Path] = None,
+    trial_shard: int = 0,
+    trial_shards: int = 1,
 ) -> List[CircuitOutcome]:
-    """Run the complete circuit ``trials`` times with the learned controller."""
+    """Run the complete circuit ``trials`` times with the learned controller.
+
+    ``trial_shard``/``trial_shards`` split the trials across processes.  Circuit
+    evaluation is 95% of a development cycle's wall clock, and running it three
+    processes wide (one per track) leaves most of the engine budget idle while
+    the longest track dictates the finish time.  Sharding by trial as well lets
+    the whole evaluation run near the engine ceiling.  Each trial keeps the
+    seed it would have drawn sequentially, so shards concatenate unchanged.
+    """
     from marine_race_arena.learning.gen2.evaluation import run_policy_episode
 
     controller = controller or _load_controller(checkpoint)
@@ -284,6 +294,8 @@ def evaluate_circuit(
     offset = sorted(tf.OFFICIAL_TRACKS).index(track) * 100
     rows: List[CircuitOutcome] = []
     for trial in range(int(trials)):
+        if int(trial_shards) > 1 and trial % int(trial_shards) != int(trial_shard):
+            continue
         seed = pool[(offset + trial) % len(pool)]
         episode = run_policy_episode(
             controller, path, seed=int(seed), spec=None,
@@ -346,6 +358,100 @@ def summarize_circuit(rows: Sequence[CircuitOutcome]) -> Dict[str, Any]:
         "failure_gates": dict(sorted(failure_gates.items(), key=lambda kv: int(kv[0]))),
         "failure_kinds": dict(sorted(failure_kinds.items())),
     }
+
+
+def transition_table(rows: Sequence[CircuitOutcome]) -> Dict[str, Any]:
+    """Unconditional per-transition success, from full-circuit runs.
+
+    Transition *k -> k+1* is *attempted* by every run that reached gate *k*
+    (k = 0 meaning the start), and *succeeded* if the run went on to reach gate
+    k+1.  Dividing by attempts rather than by all runs is what makes a late
+    transition comparable to an early one -- but it also means late
+    transitions are measured on very few attempts, so ``attempts`` is reported
+    alongside every rate and a rate on two attempts must not be read as a
+    hotspot.
+    """
+    table: Dict[Tuple[str, int], Dict[str, Any]] = {}
+    for row in rows:
+        for k in range(0, row.gate_count):
+            if row.gates_completed < k:
+                continue
+            entry = table.setdefault((row.track, k), {
+                "attempts": 0, "successes": 0, "failures": 0, "kinds": {},
+            })
+            entry["attempts"] += 1
+            if row.gates_completed >= k + 1:
+                entry["successes"] += 1
+            else:
+                entry["failures"] += 1
+                kind = row.failure or "unknown"
+                entry["kinds"][kind] = entry["kinds"].get(kind, 0) + 1
+
+    out: Dict[str, Any] = {}
+    for (track, k), entry in sorted(table.items()):
+        label = "start->G1" if k == 0 else f"G{k}->G{k+1}"
+        out.setdefault(track, {})[label] = {
+            **entry,
+            "rate": round(entry["successes"] / max(1, entry["attempts"]), 4),
+            "gate_index": k,
+        }
+    return out
+
+
+def transition_hotspots(
+    rows: Sequence[CircuitOutcome], *, min_attempts: int = 5, max_rate: float = 0.92
+) -> List[Dict[str, Any]]:
+    """Transitions that actually cost completions, with enough evidence to say so.
+
+    ``min_attempts`` exists because survivorship shrinks the sample as the
+    circuit progresses: a 0.50 rate on two attempts is noise, not a hotspot.
+    """
+    table = transition_table(rows)
+    picked: List[Dict[str, Any]] = []
+    for track, transitions in table.items():
+        for label, entry in transitions.items():
+            if entry["attempts"] < int(min_attempts):
+                continue
+            if entry["rate"] > float(max_rate):
+                continue
+            picked.append({
+                "track": track, "transition": label,
+                "gate_index": entry["gate_index"],
+                "attempts": entry["attempts"], "rate": entry["rate"],
+                "failures": entry["failures"], "kinds": entry["kinds"],
+            })
+    picked.sort(key=lambda e: (e["rate"], -e["failures"]))
+    return picked
+
+
+def hotspot_fragments(
+    hotspots: Sequence[Mapping[str, Any]],
+    *,
+    radius: int = 2,
+    root: Optional[str | Path] = None,
+) -> List[tf.TrackFragment]:
+    """Exact windows G(k-radius)..G(k+radius) around each failing transition.
+
+    Real geometry only: the windows are contiguous slices of the circuit, so
+    the learner practises the transition it actually fails, entered the way it
+    actually enters it.
+    """
+    wanted: Dict[str, set] = {}
+    for entry in hotspots:
+        wanted.setdefault(str(entry["track"]), set()).add(int(entry["gate_index"]))
+    out: List[tf.TrackFragment] = []
+    seen: set = set()
+    for track, gates in wanted.items():
+        lengths = tuple(range(2 * radius, 2 * radius + 2))
+        for fragment in tf.enumerate_fragments(track, lengths, root=root):
+            span = set(range(fragment.start_index, fragment.end_index + 1))
+            for gate in gates:
+                # The failing transition is gate -> gate+1 (0-based index gate).
+                if gate in span and gate + 1 in span and fragment.name not in seen:
+                    seen.add(fragment.name)
+                    out.append(fragment)
+                    break
+    return out
 
 
 def failure_map(rows: Sequence[CircuitOutcome]) -> Dict[str, Any]:
@@ -420,6 +526,8 @@ def evaluate_all_circuits(
     tracks: Sequence[str] = tuple(tf.OFFICIAL_TRACKS),
     adapter: str = "holoocean",
     allow_fallback: bool = False,
+    trial_shard: int = 0,
+    trial_shards: int = 1,
 ) -> Dict[str, Any]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -427,14 +535,16 @@ def evaluate_all_circuits(
     started = time.perf_counter()
     all_rows: List[CircuitOutcome] = []
     summaries: Dict[str, Any] = {}
+    suffix = "" if int(trial_shards) <= 1 else f"_shard{int(trial_shard):02d}"
     for track in tracks:
         rows = evaluate_circuit(
             checkpoint, track, trials=trials, adapter=adapter,
             allow_fallback=allow_fallback, controller=controller,
+            trial_shard=trial_shard, trial_shards=trial_shards,
         )
         all_rows.extend(rows)
         summaries[track] = summarize_circuit(rows)
-        (out_dir / "circuit_report.json").write_text(json.dumps({
+        (out_dir / f"circuit_report{suffix}.json").write_text(json.dumps({
             "checkpoint": str(checkpoint),
             "summaries": summaries,
             "rows": [r.as_dict() for r in all_rows],
@@ -454,9 +564,46 @@ def evaluate_all_circuits(
         ),
         "wall_time_s": round(time.perf_counter() - started, 1),
     }
-    (out_dir / "circuit_report.json").write_text(json.dumps({
+    (out_dir / f"circuit_report{suffix}.json").write_text(json.dumps({
         **report, "rows": [r.as_dict() for r in all_rows],
     }, indent=2), encoding="utf-8")
+    return report
+
+
+def merge_circuit_shards(out_dir: str | Path) -> Dict[str, Any]:
+    """Concatenate ``circuit_report_shard*.json`` into one report.
+
+    Shards are de-duplicated on (track, seed) so a re-run of one shard cannot
+    double-count a trial.
+    """
+    out_dir = Path(out_dir)
+    rows: List[CircuitOutcome] = []
+    seen: set = set()
+    for path in sorted(out_dir.glob("circuit_report_shard*.json")):
+        for payload in json.loads(path.read_text(encoding="utf-8")).get("rows", []):
+            key = (payload["track"], payload["seed"])
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(CircuitOutcome(**payload))
+    summaries = {
+        track: summarize_circuit([r for r in rows if r.track == track])
+        for track in sorted({r.track for r in rows})
+    }
+    report = {
+        "protocol": "track_specific_gen2_v1",
+        "summaries": summaries,
+        "failure_map": failure_map(rows),
+        "transition_table": transition_table(rows),
+        "transition_hotspots": transition_hotspots(rows),
+        "all_three_completed_at_least_once": all(
+            summaries.get(t, {}).get("completed", 0) > 0 for t in tf.OFFICIAL_TRACKS
+        ),
+    }
+    (out_dir / "circuit_report.json").write_text(
+        json.dumps({**report, "rows": [r.as_dict() for r in rows]}, indent=2),
+        encoding="utf-8",
+    )
     return report
 
 
@@ -473,6 +620,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--shards", type=int, default=1)
+    parser.add_argument("--trial-shard", type=int, default=0)
+    parser.add_argument("--trial-shards", type=int, default=1)
+    parser.add_argument("--merge-circuits", action="store_true",
+                        help="merge circuit shard files already on disk and exit")
     parser.add_argument("--collect-shards", action="store_true",
                         help="merge fragment shard files already on disk and exit")
     return parser
@@ -481,6 +632,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     tracks = [v.strip() for v in args.tracks.split(",") if v.strip()]
+    if args.merge_circuits:
+        report = merge_circuit_shards(Path(args.out) / "circuits")
+        print(json.dumps({k: v for k, v in report.items() if k != "transition_table"},
+                         indent=2)[:3000], flush=True)
+        return 0
     if args.collect_shards:
         report = collect_fragment_shards(Path(args.out) / "fragments")
         print(json.dumps({
@@ -510,6 +666,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             args.checkpoint, out_dir=Path(args.out) / "circuits",
             trials=args.circuit_trials, tracks=tracks,
             adapter=args.adapter, allow_fallback=args.allow_fallback,
+            trial_shard=args.trial_shard, trial_shards=args.trial_shards,
         )
         print(json.dumps({
             "summaries": report["summaries"],
