@@ -244,6 +244,76 @@ labels the states the learner actually reaches, and the correction applies to
 every transition rather than to a hand-picked one. Round 1 therefore runs
 across all 150 fragments rather than targeting weak gates.
 
+## GPU / CUDA audit — measured, and deliberately not adopted yet
+
+| | |
+|---|---|
+| Python / torch | 3.9.25 / **2.8.0+cpu** |
+| `torch.cuda.is_available()` | **False** (CPU wheel, `torch.version.cuda` is None) |
+| GPUs present | 2 x NVIDIA RTX 6000 Ada — GPU0 49 GB (40% busy, HoloOcean rendering), GPU1 46 GB (idle) |
+| CPU / RAM | 40 logical cores, 146 GB (22 GB used) |
+| sb3 / sb3-contrib | 2.7.1 / 2.7.1 |
+
+So the build is CPU-only and a capable GPU sits idle. The question is whether
+moving neural optimization to it is worth the risk to a verified HoloOcean
+environment. Measured on the cycle that just ran:
+
+| Component | Wall clock | Share |
+|---|---|---|
+| BC retrain, 10 epochs over 591 028 transitions | 726 s | **5%** |
+| Circuit evaluation, n=10 x 3 (248 885 simulator steps) | ~3.8 h | **95%** |
+
+**Neural optimization is 5% of the cycle.** Making it instantaneous saves 5%,
+against the brief's own bar of a 15% wall-clock improvement. Installing a CUDA
+wheel into the environment that carries HoloOcean 2.3.0 from a source client
+would risk the 95% to speed up the 5%, so it is not done now.
+
+The effort went to the dominant component instead: circuit evaluation now
+shards by trial as well as by track, so 3 x 3 = 9 concurrent engines fit under
+the 10-engine ceiling and the n=10 evaluation drops from ~3.8 h to ~1.3 h.
+That is a real >15% improvement, on the part that actually costs time.
+
+**When to revisit.** Recurrent PPO performs far more gradient steps per unit of
+simulation than BC does. If PPO optimization grows past roughly a quarter of
+cycle wall clock, CUDA becomes worth the migration — in a *separate* cloned
+environment, tested against the full Gen-2 suite before use, never by mutating
+the working one.
+
+## Per-transition failure map — where reliability is actually lost
+
+Unconditional transition table from the 30 full-circuit runs of
+`best_completion_policy`. Transition *k -> k+1* is attempted by every run that
+reached gate *k*, so late transitions are comparable to early ones; attempts
+are shown because survivorship shrinks the sample and a rate on two attempts is
+noise, not a hotspot.
+
+Transitions with at least 5 attempts and a rate at or below 0.92:
+
+| Track | Transition | Rate | Attempts | Failure kinds |
+|---|---|---|---|---|
+| Vertical Serpent | **G6→G7** | **0.60** | 5 | out_of_bounds x2 |
+| Vertical Serpent | **G4→G5** | **0.75** | 8 | out_of_bounds x2 |
+| Mixed Endurance | **G2→G3** | **0.78** | 9 | out_of_bounds x2 |
+| Vertical Serpent | G3→G4 | 0.80 | 10 | collision, wrong_direction |
+| Horseshoe Bay | G9→G10 | 0.80 | 5 | collision |
+| Mixed Endurance | G6→G7 | 0.80 | 5 | wrong_direction |
+| Vertical Serpent | G5→G6 | 0.83 | 6 | out_of_bounds |
+| Horseshoe Bay | G8→G9 | 0.83 | 6 | wrong_direction |
+
+**Vertical Serpent loses reliability on the descents into its two deepest
+gates.** G05 sits at −5.80 and G07 at −5.90, the tightest floor clearances on
+the circuit at 2.2 m and 2.1 m, and both failing transitions are out-of-bounds.
+That is the depth-overshoot diagnosis again, now located to the exact
+transition rather than inferred from arena geometry.
+
+Horseshoe is different: its failures are spread one apiece across G3→G10 with
+no dominant transition, which is consistent with a uniform per-transition rate
+rather than a specific weakness.
+
+`hotspot_fragments` converts these into **41 exact windows** G(k−2)..G(k+2) of
+the real circuits — contiguous slices, no rotation, no translation, entered the
+way the circuit enters them.
+
 ## Cycle
 
 Short iterations, each answering one question:
