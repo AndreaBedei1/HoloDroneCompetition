@@ -678,3 +678,87 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# ------------------------------------------------------- candidate selection
+
+#: Concurrent evaluation processes.  Nine engines starting at once produced
+#: "Timed out or error waiting for engine" on three of nine shards: episodes
+#: relaunch an engine each, so the startup queue saturates well below the
+#: ten-engine ceiling.  Six is the largest width observed to run clean.
+SAFE_EVAL_CONCURRENCY = 6
+
+
+def compare_candidate(
+    parent_rows: Sequence[CircuitOutcome],
+    child_rows: Sequence[CircuitOutcome],
+) -> Dict[str, Any]:
+    """Lexicographic accept/reject, computed only on seeds both arms ran.
+
+    Comparing raw completion counts is wrong whenever the two arms ran a
+    different number of trials -- a candidate that completed 8 of 20 would
+    otherwise "beat" a parent that completed 7 of 30.  Everything here is
+    restricted to matched seeds, and the verdict names its own denominator.
+    """
+    from marine_race_arena.learning.rl_matched_benchmark import (
+        paired_difference,
+        wilson_interval,
+    )
+
+    parent = {(r.track, r.seed): r for r in parent_rows}
+    child = {(r.track, r.seed): r for r in child_rows}
+    common = sorted(set(parent) & set(child))
+    if not common:
+        return {"verdict": "NO_MATCHED_SEEDS", "matched_seeds": 0}
+
+    parent_done = sum(parent[k].completed for k in common)
+    child_done = sum(child[k].completed for k in common)
+    gates = paired_difference(
+        [parent[k].gates_completed for k in common],
+        [child[k].gates_completed for k in common],
+    )
+    per_track: Dict[str, Any] = {}
+    for track in sorted({k[0] for k in common}):
+        keys = [k for k in common if k[0] == track]
+        per_track[track] = {
+            "matched": len(keys),
+            "parent_completed": sum(parent[k].completed for k in keys),
+            "child_completed": sum(child[k].completed for k in keys),
+        }
+
+    def unsafe(rows: Sequence[CircuitOutcome]) -> int:
+        return sum(1 for r in rows if r.collisions > 0 or r.out_of_bounds > 0)
+
+    parent_unsafe = unsafe([parent[k] for k in common])
+    child_unsafe = unsafe([child[k] for k in common])
+
+    # Lexicographic: completion first, then safety, then gates.
+    if child_done > parent_done:
+        verdict = "ACCEPT" if child_unsafe <= parent_unsafe + 2 else "ACCEPT_WITH_SAFETY_REGRESSION"
+    elif child_done < parent_done:
+        verdict = "REJECT"
+    elif gates["mean_b"] > gates["mean_a"]:
+        verdict = "ACCEPT_ON_GATES"
+    else:
+        verdict = "REJECT"
+
+    established = not bool(gates.get("equivalent_within_noise", True))
+    return {
+        "verdict": verdict,
+        "statistically_established": established,
+        "matched_seeds": len(common),
+        "parent_completed": parent_done,
+        "child_completed": child_done,
+        "parent_completion_ci95": [round(v, 4) for v in wilson_interval(parent_done, len(common))],
+        "child_completion_ci95": [round(v, 4) for v in wilson_interval(child_done, len(common))],
+        "parent_unsafe_episodes": parent_unsafe,
+        "child_unsafe_episodes": child_unsafe,
+        "per_track": per_track,
+        "gates": gates,
+        "note": (
+            "Verdict is computed on matched seeds only. "
+            "statistically_established=False means the direction is not yet "
+            "distinguishable from evaluation noise, so more trials are needed "
+            "before the result is quoted as a finding."
+        ),
+    }
