@@ -54,6 +54,48 @@ from marine_race_arena.learning.gen2.dataset import (
     observation_statistics,
 )
 
+#: Share of training transitions a targeted (hotspot / DAgger) corpus may hold.
+#:
+#: Measured, not chosen: a micro-finetune at 27.8% targeted data took full-circuit
+#: completion from 7/30 to 14/30, and repeating it at 36.9% -- because the
+#: previous round's hotspot corpus was still in the mixture -- took it back down
+#: to 6/30, with Horseshoe collapsing 9/10 to 3/10. Targeted data corrects a
+#: specific weakness; past roughly a third of the corpus it starts replacing the
+#: behaviour it was meant to repair.
+TARGETED_SHARE_BAND = (0.20, 0.32)
+
+
+def targeted_share(
+    corpus: Sequence[str | Path],
+    weights: Optional[Sequence[int]] = None,
+    *,
+    targeted_markers: Sequence[str] = ("hotspot", "dagger"),
+    completed_only: bool = False,
+) -> Dict[str, Any]:
+    """Fraction of weighted transitions coming from targeted corpora."""
+    roots = list(corpus)
+    counts = list(weights) if weights else [1] * len(roots)
+    clean = targeted = 0
+    for root, repeat in zip(roots, counts):
+        loaded = load_corpus_cached(root, completed_only=completed_only)
+        steps = sum(len(e) for e in loaded) * max(1, int(repeat))
+        name = str(root).lower()
+        if any(marker in name for marker in targeted_markers):
+            targeted += steps
+        else:
+            clean += steps
+    total = clean + targeted
+    share = targeted / total if total else 0.0
+    low, high = TARGETED_SHARE_BAND
+    return {
+        "clean_transitions": clean,
+        "targeted_transitions": targeted,
+        "targeted_share": round(share, 4),
+        "band": [low, high],
+        "in_band": bool(low <= share <= high) if targeted else True,
+    }
+
+
 #: Learning rate for warm-started fine-tuning.
 #:
 #: The from-scratch default of 3e-4 destroyed a converged policy in a single
@@ -280,6 +322,16 @@ def train(
     if not train_episodes:
         raise ValueError(f"no episodes found under {list(corpus)}")
     episodes = train_episodes
+    mixture = targeted_share(
+        list(corpus), corpus_weights, completed_only=completed_only
+    )
+    if not mixture["in_band"]:
+        print(
+            f"[gen2] WARNING targeted share {mixture['targeted_share']:.1%} is "
+            f"outside {TARGETED_SHARE_BAND}; at 36.9% a previous run took "
+            f"completion from 14/30 down to 6/30",
+            flush=True,
+        )
     statistics = corpus_statistics(train_episodes + validation_episodes)
     mean, std = observation_statistics(train_episodes)
 
