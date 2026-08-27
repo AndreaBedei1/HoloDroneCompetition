@@ -183,3 +183,69 @@ def test_ground_truth_in_evaluation_is_used_only_for_metrics():
             assert "position" in line and "encoded" not in line and "controller" not in line, line
     # The action comes from the controller, given only the encoded observation.
     assert "controller.act(encoded" in body
+
+
+def _sample(step, *, sensed_bearing, true_bearing, tracked_bearing,
+            true_gate="G05", tracked_gate="G05"):
+    """One synthetic audit row; only the bearing triple matters here."""
+    from marine_race_arena.learning.gen2.perception_audit import PerceptionSample
+
+    return PerceptionSample(
+        step=step, sensed_present=True, sensed_bearing_deg=sensed_bearing,
+        sensed_elevation_deg=0.0, sensed_range_m=10.0, sensed_expected_beacon="B05",
+        true_bearing_deg=true_bearing, true_elevation_deg=0.0, true_range_m=10.0,
+        true_expected_gate=true_gate,
+        tracked_bearing_deg=tracked_bearing, tracked_elevation_deg=0.0,
+        tracked_range_m=10.0, tracked_gate=tracked_gate,
+        gates_crossed=0, beacon_age_norm=0.0, vision_present=True,
+        dvl_present=True, imu_present=True, depth_present=True,
+        saturated_features=0, observation_repeated=False,
+    )
+
+
+def test_a_wrong_target_does_not_read_as_a_wrong_sensor():
+    """The audit must tell "aimed elsewhere" apart from "measured badly".
+
+    This is the regression for a real misreading: the first audit run scored a
+    rover that was accurately tracking the wrong gate as a 107 deg bearing
+    error, which looks like a broken sensor and would have sent the fix into
+    the encoder instead of into the target tracker. Perfect perception of the
+    wrong gate must show a near-zero ``tracked_`` error and a large ``true_``
+    one, never the reverse.
+    """
+    import numpy as np
+
+    from marine_race_arena.learning.gen2.perception_audit import summarize
+
+    samples = [
+        _sample(i, sensed_bearing=3.0, true_bearing=-120.0, tracked_bearing=3.0,
+                true_gate="G05", tracked_gate="G02")
+        for i in range(40)
+    ]
+    obs = [np.zeros(35, dtype=np.float32) for _ in samples]
+    actions = [np.zeros(4, dtype=np.float32) for _ in samples]
+
+    report = summarize(samples, obs, actions)
+
+    assert report["tracked_bearing_error_deg"]["abs_mean"] < 1e-6
+    assert report["bearing_error_deg"]["abs_mean"] > 100.0
+    assert report["on_target_fraction"] == 0.0
+
+
+def test_a_genuinely_wrong_sensor_still_reads_as_wrong():
+    """The separation must not become a way to hide perception errors."""
+    import numpy as np
+
+    from marine_race_arena.learning.gen2.perception_audit import summarize
+
+    samples = [
+        _sample(i, sensed_bearing=40.0, true_bearing=0.0, tracked_bearing=0.0)
+        for i in range(40)
+    ]
+    obs = [np.zeros(35, dtype=np.float32) for _ in samples]
+    actions = [np.zeros(4, dtype=np.float32) for _ in samples]
+
+    report = summarize(samples, obs, actions)
+
+    assert report["tracked_bearing_error_deg"]["abs_mean"] == pytest.approx(40.0)
+    assert report["on_target_fraction"] == 1.0
