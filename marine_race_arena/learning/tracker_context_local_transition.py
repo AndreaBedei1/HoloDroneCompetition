@@ -25,8 +25,36 @@ from marine_race_arena.learning.observation_encoder import (
 # its detected centroid is not stable enough to be a mandatory pre-passage
 # condition.  This local-transition-only configuration permits a COMMIT from
 # consecutive close camera + expected-beacon evidence, then retains the full
-# independent DVL/range/disappearance/rear-bearing exit confirmation.  The
-# tighter 0.60 m passage envelope rejects a pass outside the 1.5 m aperture.
+# independent DVL/range/disappearance/rear-bearing exit confirmation.
+
+#: Aperture and beacon placement, from the official track files: every circuit
+#: uses ``track.gate_inner_size_m = [1.5, 1.5]`` and mounts the beacon at
+#: ``beacon.position_offset = [0, 0, 0.35]``, i.e. 0.35 m up the gate's own
+#: up-axis rather than at the centre of the aperture.
+GATE_APERTURE_HALF_SIZE_M = 0.75
+BEACON_UP_OFFSET_M = 0.35
+
+#: How far from the beacon a *legitimate* pass can be.  The far corner of the
+#: aperture, diagonally opposite the beacon, is
+#: ``hypot(0.75, 0.75 + 0.35) = 1.33 m`` away -- so any envelope below that
+#: rejects passes that really did go through the gate.
+#:
+#: This is the correction for a measured defect, not a loosening.  The value
+#: here used to be a hand-picked 0.60 m, described as rejecting a pass outside
+#: the 1.5 m aperture.  It does not: with the beacon 0.35 m high, 0.60 m admits
+#: only a pass within 0.49 m laterally or 0.25 m below the centre, and rejects
+#: the rest of a perfectly valid transit.  The tracker has no recovery path, so
+#: one rejected passage leaves it waiting for a gate the rover has already left
+#: -- permanently.  Measured on Vertical Serpent, same sensor stream, same
+#: episode: at 0.60 m the tracker advanced 5 times against 16 crossings and
+#: agreed with actual progress on 32.9% of steps; at the aperture-derived
+#: envelope it advanced 16 times.  Every observation recorded after the stall
+#: pointed backwards while the expert's action drove forwards, which is not a
+#: policy the learner can fit.
+PASSAGE_ENVELOPE_M = math.hypot(
+    GATE_APERTURE_HALF_SIZE_M, GATE_APERTURE_HALF_SIZE_M + BEACON_UP_OFFSET_M
+)
+
 LOCAL_TRANSITION_TRACKER_CONFIG = LocalCourseTrackerConfig(
     proximity_commit_enabled=True,
     proximity_commit_range_m=1.0,
@@ -34,7 +62,7 @@ LOCAL_TRANSITION_TRACKER_CONFIG = LocalCourseTrackerConfig(
     proximity_commit_confidence_threshold=0.35,
     proximity_commit_required_frames=2,
     min_commit_displacement_m=0.10,
-    min_range_for_passage_m=0.60,
+    min_range_for_passage_m=PASSAGE_ENVELOPE_M,
     close_range_required_packets=2,
     range_rise_margin_m=0.30,
     rear_exit_range_rise_margin_m=0.15,

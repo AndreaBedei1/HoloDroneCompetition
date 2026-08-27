@@ -516,22 +516,65 @@ def test_local_transition_cropped_true_passage_advances_from_onboard_evidence():
 
 
 def test_local_transition_proximity_near_miss_outside_tight_envelope_never_advances():
+    """A transit that cannot have gone through the aperture must not advance.
+
+    The distance is measured to the beacon, which sits 0.35 m up the gate's own
+    up-axis rather than at the centre of the 1.5 m aperture. The far corner of
+    a legitimate pass is therefore hypot(0.75, 0.75 + 0.35) = 1.33 m from the
+    beacon, and that -- not a hand-picked number -- is what separates a pass
+    from a miss.
+
+    This test used to place the miss at 0.80 m and assert no advance. Under the
+    geometry above, 0.80 m from the beacon implies at most
+    sqrt(0.80^2 - 0.35^2) = 0.72 m of lateral offset, which is *inside* the
+    0.75 m half-aperture: the scenario was a valid edge pass being asserted to
+    fail. Rejecting it is what stalled the observation tracker on Vertical
+    Serpent and Mixed Endurance, permanently, after a single rejected passage.
+
+    A scalar range to an off-centre beacon cannot fully separate a pass from a
+    miss -- a 0.9 m lateral miss sits at 0.97 m, inside the envelope. The
+    envelope is the outer bound, and the exit evidence below it does the rest.
+    So the miss is now placed where it is unambiguously outside.
+    """
     scenario = Scenario(_local_transition_tracker())
     cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
     for _ in range(3):
         scenario.step(range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2)
     assert scenario.tracker.phase == PHASE_COMMIT
 
-    # This passes beside the aperture: all exit-shaped evidence is present,
-    # but the beacon never enters the <=0.60 m central passage envelope.
+    # 1.6 m from the beacon: no point inside the aperture is that far away.
     for _ in range(4):
-        scenario.step(range_m=0.80, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+        scenario.step(range_m=1.60, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
     for _ in range(6):
-        scenario.step(range_m=1.25, bearing=120.0, camera=empty_frame(), dvl_vx=0.5)
+        scenario.step(range_m=2.10, bearing=120.0, camera=empty_frame(), dvl_vx=0.5)
 
     assert scenario.advancements == 0
     assert scenario.tracker.local_completed == 0
     assert not scenario.tracker.diagnostics()["close_range_confirmed"]
+
+
+def test_local_transition_envelope_admits_every_pass_through_the_aperture():
+    """The envelope must not reject a transit that really went through.
+
+    The counterpart to the test above: the corner of the aperture diagonally
+    opposite the beacon is the hardest legitimate case, and it has to be
+    admitted. A tracker that rejects it has no way back -- it keeps waiting for
+    a gate the rover has already left behind.
+    """
+    import math
+
+    from marine_race_arena.learning.tracker_context_local_transition import (
+        BEACON_UP_OFFSET_M,
+        GATE_APERTURE_HALF_SIZE_M,
+        LOCAL_TRANSITION_TRACKER_CONFIG,
+    )
+
+    worst_legitimate_pass_m = math.hypot(
+        GATE_APERTURE_HALF_SIZE_M, GATE_APERTURE_HALF_SIZE_M + BEACON_UP_OFFSET_M
+    )
+    assert LOCAL_TRANSITION_TRACKER_CONFIG.min_range_for_passage_m >= (
+        worst_legitimate_pass_m
+    )
 
 
 def test_commit_without_dvl_displacement_does_not_advance():
