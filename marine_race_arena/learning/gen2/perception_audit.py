@@ -191,11 +191,28 @@ def _beacon_position(beacon_manager, gate_id: str, gate_map) -> Optional[Sequenc
     return None if gate is None else gate.center
 
 
+#: Features that are 0/1 by construction -- availability flags and the
+#: target-change edge.  They sit on a bound at every single step, so counting
+#: them as "saturated" buries the continuous features that genuinely clip.
+#: The first audit run reported 11.6 of 35 features at a bound, which reads as
+#: a normalization problem; eight of those were these.
+BINARY_FEATURE_NAMES = tuple(
+    name for name in FEATURE_NAMES_LOCAL_TRANSITION
+    if name.endswith("_present") or name.endswith("_valid")
+    or name == "target_changed_recently"
+)
+_CONTINUOUS_INDICES = tuple(
+    index for index, name in enumerate(FEATURE_NAMES_LOCAL_TRANSITION)
+    if name not in BINARY_FEATURE_NAMES
+)
+
+
 def _saturated(observation: np.ndarray) -> int:
-    """How many features sit exactly on a clip bound this step."""
+    """How many *continuous* features sit exactly on a clip bound this step."""
     obs = np.asarray(observation, dtype=np.float64).reshape(-1)
     count = 0
-    for index, (low, high) in enumerate(FEATURE_BOUNDS_LOCAL_TRANSITION):
+    for index in _CONTINUOUS_INDICES:
+        low, high = FEATURE_BOUNDS_LOCAL_TRANSITION[index]
         value = obs[index]
         if abs(value - low) < 1e-9 or abs(value - high) < 1e-9:
             count += 1
@@ -498,7 +515,7 @@ def summarize(
         "saturation": {
             "mean_features_at_clip_bound": round(
                 float(np.mean([s.saturated_features for s in samples])), 2),
-            "of_total_features": OBS_DIM_LOCAL_TRANSITION,
+            "of_continuous_features": len(_CONTINUOUS_INDICES),
         },
     }
 
