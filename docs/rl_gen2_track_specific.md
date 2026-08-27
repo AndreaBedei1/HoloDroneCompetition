@@ -314,6 +314,104 @@ rather than a specific weakness.
 the real circuits — contiguous slices, no rotation, no translation, entered the
 way the circuit enters them.
 
+## Onboard perception audit — the rover measured well and aimed badly
+
+Requested as a check on whether the rover's own data are trustworthy, with
+simulator ground truth used *only* offline, as an external instrument. The
+policy's input is unchanged: still the 35-feature
+`onboard_local_transition_v1` observation plus its recurrent state, and nothing
+else.
+
+The first run of the audit reported a 106.8 deg mean bearing error and a
++16.5 m range bias on Mixed Endurance. That reading was wrong, and the way it
+was wrong is the finding. The instrument compared the rover's sensed geometry
+against the gate the *referee* was waiting for, so every step where the rover
+was chasing some other gate scored as a sensing error. Measured against the
+gate the rover had itself selected, the same stream is accurate to **0.16 /
+0.35 / 0.46 deg** mean bearing error across the three circuits. Two different
+questions had been collapsed into one number:
+
+* **perception** — given its own choice of target, does the rover measure it
+  correctly? Yes, on all three circuits.
+* **targeting** — is that choice the right gate? Not on two of them.
+
+Everything else on the checklist came back clean: bearing sign agreement
+0.995-0.998, observation/action timestep alignment exactly 1.0000, zero
+repeated observation vectors, beacon age never above zero, and the recurrent
+state reset once at episode start and carried thereafter.
+
+### The defect
+
+The tracker that builds the observation confirmed a gate passage only when the
+beacon range fell below a hand-picked **0.60 m**. The beacon is not at the
+centre of the aperture: it sits 0.35 m up the gate's own up-axis. So 0.60 m
+admits a transit only within 0.49 m laterally, or 0.25 m below the centre, and
+rejects the rest of a pass that really did go through. The far corner of a
+legitimate transit is `hypot(0.75, 0.75 + 0.35) = 1.33 m` away.
+
+The tracker has no recovery path. One rejected passage leaves it waiting
+permanently for a gate the rover has already left behind. On Vertical Serpent
+it kept up perfectly to gate 6 -- 2 to 3 steps of latency -- then missed one
+confirmation and stayed on G06 while the rover reached G13.
+
+### Measured, same sensor stream, both configs stepped side by side
+
+| Circuit | agreement with progress | advances / crossings | policy completion |
+|---|---|---|---|
+| Horseshoe Bay | 99.0% | 11 / 11 | 10/10 |
+| Vertical Serpent | 32.9% | 5 / 16 | 4/10 |
+| Mixed Endurance | 51.2% | 10 / 21 | 3/10 |
+
+The three targeting numbers order exactly like the completion rate. After
+replacing the envelope with the aperture-derived 1.33 m:
+
+| Circuit | before | after | advances after |
+|---|---|---|---|
+| Horseshoe Bay | 99.0% | 98.9% | 11 / 11 |
+| Vertical Serpent | 32.9% | **98.9%** | 16 / 16 |
+| Mixed Endurance | 51.2% | **99.2%** | 21 / 21 |
+
+No cost on the circuit that was already working.
+
+### What this invalidates
+
+Two things, and they need re-measuring rather than reinterpreting.
+
+**The training corpora.** Every observation recorded after a stall names a gate
+behind the rover while the expert's action drives forward. That pair is not a
+function any learner can fit. In the stored fragment corpora 8-15% of episodes
+show the observation lagging actual progress by two or more gates; the general
+corpus has a tail out to 20. Fragments are short, so a stall usually costs the
+back half of one episode -- but full circuits were affected throughout.
+
+**The per-transition failure map above.** Its worst entry is Vertical Serpent
+G6->G7 at 0.60, and G6->G7 is exactly where the tracker stalls on that circuit.
+The failures recorded there are out-of-bounds, which is a real control failure,
+but a policy whose observation has just started pointing backwards is not being
+tested on the transition the table claims to be measuring. The hotspot windows
+built from that table were therefore partly targeting a pipeline defect. The
+depth-overshoot diagnosis for Vertical may still hold -- G05 and G07 do have the
+tightest floor clearances -- but it is no longer supported by this table and has
+to be re-established.
+
+`evaluation.py` builds observations through the same tracker, so the frozen
+`best_completion_policy` was mis-aimed at inference too, not only in training.
+Its 17/30 was measured under the defect.
+
+### What was found and deliberately not changed
+
+Two properties of the frozen observation contract, reported rather than
+altered, because neither is inaccurate and the contract is fixed at 35
+features:
+
+* **DVL alternates every other step**, and on the off steps surge, sway and
+  heave are all exactly zero -- 100% of the time, across 102,581 corpus steps.
+  `dvl_present` is 0 on those steps, so the contract is honest; but the beacon
+  path holds its last value and exposes `beacon_age_norm`, and the velocity
+  path could do the same instead of dropping to zero half the time.
+* **`beacon_range_rate` sits on a clip bound 37.4% of the time**, which
+  suggests its scale is too small for the range rates that actually occur.
+
 ## Cycle
 
 Short iterations, each answering one question:
