@@ -98,3 +98,6 @@ results/rl_public/**/*.zip
 results/rl_public/**/*.npz
 results/rl_public/**/*.npy
 results/rl_public/**/*.mp4
+
+# Debug tool output: frames, screenshots and clips, regenerated on demand.
+results/debug/
