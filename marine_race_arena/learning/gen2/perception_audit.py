@@ -77,10 +77,21 @@ class PerceptionSample:
     sensed_range_m: Optional[float]
     sensed_expected_beacon: Optional[str]
     # --- what was actually true (offline reference only) --------------------
+    # Two references, because the first run of this audit proved they answer
+    # different questions.  ``true_*`` aims at the beacon of the gate the
+    # referee is waiting for and therefore measures *targeting*: is the rover
+    # pointed at the right gate?  ``tracked_*`` aims at the beacon the rover
+    # itself has decided to chase and therefore measures *perception*: given
+    # its own choice of target, is its bearing/elevation/range right?  Reading
+    # only the first conflates a wrong target with a wrong measurement.
     true_bearing_deg: Optional[float]
     true_elevation_deg: Optional[float]
     true_range_m: Optional[float]
     true_expected_gate: Optional[str]
+    tracked_bearing_deg: Optional[float]
+    tracked_elevation_deg: Optional[float]
+    tracked_range_m: Optional[float]
+    tracked_gate: Optional[str]
     gates_crossed: int
     # --- pipeline health ----------------------------------------------------
     beacon_age_norm: float
@@ -122,14 +133,21 @@ def decode_sensed(observation: np.ndarray) -> Dict[str, Any]:
 def true_geometry(
     rover_position: Sequence[float],
     rover_yaw_deg: float,
-    gate_centre: Sequence[float],
+    target_position: Sequence[float],
 ) -> Dict[str, float]:
     """Reference bearing/elevation/range, body frame.  OFFLINE USE ONLY.
+
+    ``target_position`` must be the point the sensor actually measures, which
+    is the beacon and *not* the gate centre: the beacon sits 0.35 m up the
+    gate's own up-axis.  Aiming this reference at the centre instead made the
+    first run of this audit report near-chance elevation sign agreement, which
+    was the instrument's error and not the rover's -- at gate depth the true
+    elevation to the centre is ~0, so a 0.35 m offset decides its sign.
 
     Kept deliberately separate from anything the policy touches; the caller is
     responsible for never letting the result leave the diagnostics channel.
     """
-    delta = np.asarray(gate_centre, dtype=np.float64) - np.asarray(
+    delta = np.asarray(target_position, dtype=np.float64) - np.asarray(
         rover_position, dtype=np.float64
     )
     yaw = math.radians(float(rover_yaw_deg))
@@ -142,6 +160,35 @@ def true_geometry(
         "elevation_deg": math.degrees(math.atan2(delta[2], horizontal)) if horizontal > 1e-9 else 0.0,
         "range_m": distance,
     }
+
+
+def _gate_for_beacon(
+    beacon_id: Optional[str], gate_sequence: Sequence[str]
+) -> Optional[str]:
+    """Which gate the rover's own expected beacon refers to.  OFFLINE ONLY.
+
+    Beacon ids are assigned by sequence position (``B01`` is the first gate in
+    ``track.gate_sequence``), so this is a lookup and not an inference.
+    """
+    text = str(beacon_id or "").strip().upper()
+    if not text.startswith("B"):
+        return None
+    try:
+        index = int(text[1:]) - 1
+    except ValueError:
+        return None
+    if 0 <= index < len(gate_sequence):
+        return str(gate_sequence[index])
+    return None
+
+
+def _beacon_position(beacon_manager, gate_id: str, gate_map) -> Optional[Sequence[float]]:
+    """The transmitter's own position, falling back to the gate centre."""
+    for beacon in getattr(beacon_manager, "beacons", []):
+        if getattr(beacon, "gate_id", None) == gate_id:
+            return beacon.position
+    gate = gate_map.get(gate_id)
+    return None if gate is None else gate.center
 
 
 def _saturated(observation: np.ndarray) -> int:
@@ -205,6 +252,8 @@ def audit_episode(
             raw = episode._build_observation()
         config = episode.context.config
         gate_map = episode.context.arena.gate_map
+        gate_sequence = list(config.track.gate_sequence)
+        beacons = episode.context.arena.beacon_manager
         context_source = OnboardLocalTransitionContextTracker(
             total_beacons=max(1, len(config.track.gate_sequence)),
             laps=max(1, int(config.race.laps)),
@@ -228,12 +277,22 @@ def audit_episode(
             # --- built, so it cannot influence what the policy would see.
             state = episode.context.adapter.get_participant_state(episode.participant_id)
             expected_gate = episode.expected_gate_id()
-            truth = None
-            if expected_gate is not None and expected_gate in gate_map:
-                truth = true_geometry(
-                    state.position, state.rotation_rpy_deg[2],
-                    gate_map[expected_gate].center,
+            tracked_gate = _gate_for_beacon(
+                getattr(context, "expected_beacon_id", None), gate_sequence
+            )
+
+            def reference(gate_id):
+                if gate_id is None:
+                    return None
+                target = _beacon_position(beacons, gate_id, gate_map)
+                if target is None:
+                    return None
+                return true_geometry(
+                    state.position, state.rotation_rpy_deg[2], target
                 )
+
+            truth = reference(expected_gate)
+            tracked = reference(tracked_gate)
 
             crossings = int(episode.referee_progress()["valid_gate_crossings"])
             repeated = bool(
@@ -250,6 +309,10 @@ def audit_episode(
                 true_elevation_deg=None if truth is None else truth["elevation_deg"],
                 true_range_m=None if truth is None else truth["range_m"],
                 true_expected_gate=expected_gate,
+                tracked_bearing_deg=None if tracked is None else tracked["bearing_deg"],
+                tracked_elevation_deg=None if tracked is None else tracked["elevation_deg"],
+                tracked_range_m=None if tracked is None else tracked["range_m"],
+                tracked_gate=tracked_gate,
                 gates_crossed=crossings,
                 beacon_age_norm=float(encoded[F["beacon_age_norm"]]),
                 vision_present=bool(encoded[F["vision_present"]] > 0.5),
@@ -302,6 +365,12 @@ def summarize(
         s for s in samples
         if s.sensed_present and s.true_bearing_deg is not None and s.sensed_range_m
     ]
+    # Against the rover's OWN target: this is the perception question.  A large
+    # error here means the sensing or the encoding is wrong.
+    tracked = [
+        s for s in samples
+        if s.sensed_present and s.tracked_bearing_deg is not None and s.sensed_range_m
+    ]
     bearing_err = np.asarray(
         [_angle_error(s.sensed_bearing_deg, s.true_bearing_deg) for s in paired]
     ) if paired else np.zeros(0)
@@ -311,6 +380,18 @@ def summarize(
     range_err = np.asarray(
         [s.sensed_range_m - s.true_range_m for s in paired]
     ) if paired else np.zeros(0)
+    tracked_bearing_err = np.asarray(
+        [_angle_error(s.sensed_bearing_deg, s.tracked_bearing_deg) for s in tracked]
+    ) if tracked else np.zeros(0)
+    tracked_elevation_err = np.asarray(
+        [_angle_error(s.sensed_elevation_deg, s.tracked_elevation_deg) for s in tracked]
+    ) if tracked else np.zeros(0)
+    tracked_range_err = np.asarray(
+        [s.sensed_range_m - s.tracked_range_m for s in tracked]
+    ) if tracked else np.zeros(0)
+    # And the targeting question, kept as a plain count so the two never blur.
+    aimed = [s for s in samples if s.true_expected_gate and s.tracked_gate]
+    on_target = sum(1 for s in aimed if s.true_expected_gate == s.tracked_gate)
 
     def stats(values: np.ndarray) -> Dict[str, Any]:
         if values.size == 0:
@@ -378,9 +459,19 @@ def summarize(
     total = len(samples)
     return {
         "samples": total,
+        # Versus the referee's expected gate -- TARGETING.
         "bearing_error_deg": stats(bearing_err),
         "elevation_error_deg": stats(elevation_err),
         "range_error_m": stats(range_err),
+        # Versus the rover's own expected gate -- PERCEPTION.
+        "tracked_bearing_error_deg": stats(tracked_bearing_err),
+        "tracked_elevation_error_deg": stats(tracked_elevation_err),
+        "tracked_range_error_m": stats(tracked_range_err),
+        "on_target_fraction": (
+            round(on_target / len(aimed), 4) if aimed else None
+        ),
+        "on_target_steps": on_target,
+        "aimed_steps": len(aimed),
         "bearing_sign_agreement": bearing_sign,
         "elevation_sign_agreement": elevation_sign,
         "target_switch": switch,
