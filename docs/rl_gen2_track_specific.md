@@ -398,6 +398,35 @@ to be re-established.
 `best_completion_policy` was mis-aimed at inference too, not only in training.
 Its 17/30 was measured under the defect.
 
+### Re-measuring the frozen policy under the corrected pipeline
+
+`evaluation.py` builds observations through the same tracker, so this is not
+only a training-data question: the frozen `best_completion_policy` was
+mis-aimed at inference too. Its 17/30 was measured under the defect.
+
+Same checkpoint, same 30 seeds, same lexicographic protocol, only the
+observation construction changed:
+
+| Circuit | before | after | recovered | lost |
+|---|---|---|---|---|
+| Horseshoe Bay | 10/10 | 9/10 | 0 | 1 |
+| Vertical Serpent | 4/10 | 7/10 | 4 | 1 |
+| Mixed Endurance | 3/10 | 7/10 | 6 | 2 |
+| **total** | **17/30** | **23/30** | 10 | 4 |
+
+**This gain is not statistically established.** Exact two-sided sign test on the
+14 discordant pairs gives p = 0.18. The direction is consistent and the
+mechanism is measured, but n=10 per circuit cannot separate 7/10 from 8/10, and
+8/10 is the reliability bar. The fix is justified by the targeting measurement
+-- 32.9% to 98.9% on Vertical, 51.2% to 99.2% on Mixed -- which is a property of
+the pipeline and does not depend on any policy statistic. The completion change
+is a consequence consistent with it, not evidence for it.
+
+Re-measurement at n=30 per circuit is running. The weights are untouched
+throughout and the alias still points at the same checkpoint: this is a change
+of measurement conditions, not a new candidate, so the acceptance rule for
+candidates does not apply to it.
+
 ### What was found and deliberately not changed
 
 Two properties of the frozen observation contract, reported rather than
