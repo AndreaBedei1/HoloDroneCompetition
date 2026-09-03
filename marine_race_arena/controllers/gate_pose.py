@@ -162,6 +162,9 @@ class GatePoseTarget:
     detection_source: str = "center_only"  # center_only | corners | pnp | projective
     quadrilateral_skew: float = 0.0
     orientation_hint: str = "unknown"  # frontal | rotated_left | rotated_right | unknown
+    orientation_present: bool = False
+    predicted: bool = False
+    track_age_frames: int = 0
 
 
 # --------------------------------------------------------------------------- corners
@@ -246,21 +249,15 @@ def _bar_mask(image):
     return mask
 
 
-def detect_aperture_corners(image, intr: CameraIntrinsics = DEFAULT_INTRINSICS):
-    """Estimate the four inner aperture corners (tl,tr,br,bl) in pixels, or None.
-
-    Uses the frame's inner hole (RETR_CCOMP child contours) approximated to a quad, else
-    the largest convex quad. Returns ``(corners_px, source)`` or ``None``.
-    """
-    if _cv2 is None:
-        return None
+def _mask_aperture_candidates(image):
+    """Return aperture candidates from the original colour/bar mask."""
     h, w = image.shape[0], image.shape[1]
     mask = _bar_mask(image)
     mask = _cv2.morphologyEx(mask, _cv2.MORPH_CLOSE, _np.ones((5, 5), _np.uint8))
     contours, hierarchy = _cv2.findContours(mask, _cv2.RETR_CCOMP, _cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return None
-    holes, outers = [], []
+        return []
+    candidates = []
     hier = hierarchy[0] if hierarchy is not None else [(-1, -1, -1, -1)] * len(contours)
     for idx, cnt in enumerate(contours):
         area = _cv2.contourArea(cnt)
@@ -273,16 +270,248 @@ def detect_aperture_corners(image, intr: CameraIntrinsics = DEFAULT_INTRINSICS):
         corners = order_corners(approx.reshape(-1, 2))
         if not validate_quad(corners, image_area=w * h):
             continue
-        (holes if hier[idx][3] != -1 else outers).append((area, corners))
-    # The inner opening of the gate frame is a child contour (hole); it IS the aperture.
-    # Strongly prefer the largest valid hole; only fall back to the outer quad if no hole.
-    if holes:
-        holes.sort(key=lambda t: t[0], reverse=True)
-        return holes[0][1], "corners"
-    if outers:
-        outers.sort(key=lambda t: t[0], reverse=True)
-        return outers[0][1], "corners_outer"
+        source = "corners" if hier[idx][3] != -1 else "corners_outer"
+        candidates.append((corners, source, float(area)))
+    return candidates
+
+
+def _line_angle_deg(line) -> float:
+    x1, y1, x2, y2, _length = line
+    angle = abs(math.degrees(math.atan2(y2 - y1, x2 - x1)))
+    return min(angle, 180.0 - angle)
+
+
+def _line_value_at(line, *, x: Optional[float] = None, y: Optional[float] = None) -> Optional[float]:
+    """Evaluate x(y) or y(x) on a finite Hough segment's infinite line."""
+    x1, y1, x2, y2, _length = line
+    if y is not None:
+        dy = y2 - y1
+        if abs(dy) < 1e-6:
+            return None
+        return float(x1 + (y - y1) * (x2 - x1) / dy)
+    if x is not None:
+        dx = x2 - x1
+        if abs(dx) < 1e-6:
+            return None
+        return float(y1 + (x - x1) * (y2 - y1) / dx)
     return None
+
+
+def _line_intersection(a, b):
+    x1, y1, x2, y2, _ = a
+    x3, y3, x4, y4, _ = b
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(den) < 1e-6:
+        return None
+    det1 = x1 * y2 - y1 * x2
+    det2 = x3 * y4 - y3 * x4
+    return (
+        (det1 * (x3 - x4) - (x1 - x2) * det2) / den,
+        (det1 * (y3 - y4) - (y1 - y2) * det2) / den,
+    )
+
+
+def _dedupe_hough_lines(lines, *, vertical: bool, reference: float):
+    """Collapse the many nearly-identical Hough segments along one gate edge."""
+    ranked = sorted(lines, key=lambda line: line[4], reverse=True)
+    kept = []
+    for line in ranked:
+        value = _line_value_at(line, y=reference) if vertical else _line_value_at(line, x=reference)
+        if value is None:
+            continue
+        duplicate = False
+        for existing in kept:
+            other = (_line_value_at(existing, y=reference) if vertical
+                     else _line_value_at(existing, x=reference))
+            if other is not None and abs(value - other) < 5.0 \
+                    and abs(_line_angle_deg(line) - _line_angle_deg(existing)) < 5.0:
+                duplicate = True
+                break
+        if not duplicate:
+            kept.append(line)
+    return kept[:12]
+
+
+def _hough_aperture_candidates(image, visual_target=None):
+    """Find four inner bar edges inside today's tracked-gate ROI.
+
+    HoloOcean's underwater lighting often makes the white gate darker than the
+    water behind it, so colour thresholding alone is unreliable.  The inner
+    aperture still has two long near-vertical and two long near-horizontal
+    edges.  This deliberately small fallback searches only around the gate
+    selected by :class:`TemporalVisionTracker`; scene-wide Hough lines are not
+    accepted as controller targets.
+    """
+    h, w = image.shape[:2]
+    if visual_target is None:
+        return []
+    cx = (float(visual_target.center_x) + 1.0) * 0.5 * w
+    cy = (float(visual_target.center_y) + 1.0) * 0.5 * h
+    bw = max(24.0, float(visual_target.width_fraction) * w)
+    bh = max(24.0, float(visual_target.height_fraction) * h)
+    half_w = max(0.18 * w, 0.80 * bw)
+    half_h = max(0.18 * h, 0.80 * bh)
+    x0, x1 = max(0, int(cx - half_w)), min(w, int(cx + half_w) + 1)
+    y0, y1 = max(0, int(cy - half_h)), min(h, int(cy + half_h) + 1)
+    if x1 - x0 < 40 or y1 - y0 < 40:
+        return []
+
+    frame = _np.asarray(image)
+    if frame.ndim != 3 or frame.shape[2] < 3:
+        return []
+    frame = frame[:, :, :3]
+    if frame.dtype != _np.uint8:
+        finite = _np.nan_to_num(frame, nan=0.0, posinf=255.0, neginf=0.0)
+        if float(_np.max(finite)) <= 1.0:
+            finite *= 255.0
+        frame = _np.clip(finite, 0.0, 255.0).astype(_np.uint8)
+    gray = _cv2.cvtColor(frame[y0:y1, x0:x1], _cv2.COLOR_BGR2GRAY)
+    gray = _cv2.GaussianBlur(gray, (3, 3), 0.0)
+    edges = _cv2.Canny(gray, 20, 60)
+    roi_w, roi_h = x1 - x0, y1 - y0
+    lines = _cv2.HoughLinesP(
+        edges, 1.0, math.pi / 180.0,
+        threshold=max(24, int(0.08 * max(roi_w, roi_h))),
+        minLineLength=max(28, int(0.14 * min(roi_w, roi_h))),
+        maxLineGap=max(10, int(0.06 * max(roi_w, roi_h))),
+    )
+    if lines is None:
+        return []
+    vertical, horizontal = [], []
+    for raw in lines:
+        lx1, ly1, lx2, ly2 = [int(v) for v in raw.reshape(-1)]
+        line = (lx1 + x0, ly1 + y0, lx2 + x0, ly2 + y0,
+                math.hypot(lx2 - lx1, ly2 - ly1))
+        angle = _line_angle_deg(line)
+        if angle >= 65.0:
+            vertical.append(line)
+        elif angle <= 25.0:
+            horizontal.append(line)
+    vertical = _dedupe_hough_lines(vertical, vertical=True, reference=cy)
+    horizontal = _dedupe_hough_lines(horizontal, vertical=False, reference=cx)
+    if len(vertical) < 2 or len(horizontal) < 2:
+        return []
+
+    vertical_positions = [
+        value for value in (_line_value_at(line, y=cy) for line in vertical)
+        if value is not None
+    ]
+    horizontal_positions = [
+        value for value in (_line_value_at(line, x=cx) for line in horizontal)
+        if value is not None
+    ]
+
+    candidates = []
+    min_w = max(35.0, 0.20 * bw)
+    min_h = max(35.0, 0.20 * bh)
+    for left in vertical:
+        left_x = _line_value_at(left, y=cy)
+        if left_x is None:
+            continue
+        for right in vertical:
+            right_x = _line_value_at(right, y=cy)
+            if right_x is None or right_x - left_x < min_w:
+                continue
+            if abs(_line_angle_deg(left) - _line_angle_deg(right)) > 15.0:
+                continue
+            for top in horizontal:
+                top_y = _line_value_at(top, x=cx)
+                if top_y is None:
+                    continue
+                for bottom in horizontal:
+                    bottom_y = _line_value_at(bottom, x=cx)
+                    if bottom_y is None or bottom_y - top_y < min_h:
+                        continue
+                    if abs(_line_angle_deg(top) - _line_angle_deg(bottom)) > 18.0:
+                        continue
+                    corners = [
+                        _line_intersection(left, top),
+                        _line_intersection(right, top),
+                        _line_intersection(right, bottom),
+                        _line_intersection(left, bottom),
+                    ]
+                    if any(point is None for point in corners):
+                        continue
+                    if any(not (-8 <= px < w + 8 and -8 <= py < h + 8) for px, py in corners):
+                        continue
+                    corners = order_corners(corners)
+                    if not validate_quad(corners, image_area=w * h, min_area_frac=0.003):
+                        continue
+                    side_lengths = [
+                        math.hypot(corners[(i + 1) % 4][0] - corners[i][0],
+                                   corners[(i + 1) % 4][1] - corners[i][1])
+                        for i in range(4)
+                    ]
+                    support = sum(min(1.0, line[4] / max(1.0, side)) for line, side in zip(
+                        (top, right, bottom, left), side_lengths
+                    )) / 4.0
+                    area = _polygon_area(corners)
+                    aperture_w = max(1.0, right_x - left_x)
+                    aperture_h = max(1.0, bottom_y - top_y)
+                    # An inner aperture edge normally has the other side of
+                    # the physical bar just outside it.  This small cue picks
+                    # the inside edge rather than the equally strong outer
+                    # silhouette, without relying on gate colour.
+                    inner_evidence = sum((
+                        any(0.025 * aperture_w <= left_x - x <= 0.20 * aperture_w
+                            for x in vertical_positions),
+                        any(0.025 * aperture_w <= x - right_x <= 0.20 * aperture_w
+                            for x in vertical_positions),
+                        any(0.025 * aperture_h <= top_y - y <= 0.20 * aperture_h
+                            for y in horizontal_positions),
+                        any(0.025 * aperture_h <= y - bottom_y <= 0.20 * aperture_h
+                            for y in horizontal_positions),
+                    )) / 4.0
+                    candidates.append((
+                        corners, "hough_inner", float(area), support, inner_evidence
+                    ))
+    return candidates
+
+
+def _aperture_candidate_score(candidate, visual_target, width: int, height: int) -> float:
+    corners, source, area = candidate[:3]
+    support = float(candidate[3]) if len(candidate) > 3 else 0.75
+    inner_evidence = float(candidate[4]) if len(candidate) > 4 else 0.0
+    cx = sum(point[0] for point in corners) / 4.0
+    cy = sum(point[1] for point in corners) / 4.0
+    if visual_target is None:
+        source_bonus = 1.0 if source == "corners" else (0.4 if source == "hough_inner" else 0.0)
+        return source_bonus + support + 0.9 * inner_evidence + area / max(1.0, width * height)
+    tx = (float(visual_target.center_x) + 1.0) * 0.5 * width
+    ty = (float(visual_target.center_y) + 1.0) * 0.5 * height
+    tw = max(24.0, float(visual_target.width_fraction) * width)
+    th = max(24.0, float(visual_target.height_fraction) * height)
+    center_error = math.hypot((cx - tx) / tw, (cy - ty) / th)
+    expected_area = max(64.0, 0.62 * float(visual_target.area_fraction) * width * height)
+    area_error = abs(math.log(max(1.0, area) / expected_area))
+    source_bonus = 0.45 if source in ("corners", "hough_inner") else 0.0
+    return (1.4 * support + 0.9 * inner_evidence + source_bonus
+            - 2.4 * center_error - 0.65 * area_error)
+
+
+def detect_aperture_corners(
+    image,
+    intr: CameraIntrinsics = DEFAULT_INTRINSICS,
+    *,
+    visual_target=None,
+):
+    """Estimate the four inner aperture corners (tl,tr,br,bl) in pixels, or None.
+
+    Uses the frame's inner hole (RETR_CCOMP child contours) and, when today's
+    tracked visual target is supplied, a local four-line fallback robust to
+    underwater colour loss. Returns ``(corners_px, source)`` or ``None``.
+    """
+    if _cv2 is None:
+        return None
+    h, w = image.shape[0], image.shape[1]
+    candidates = _mask_aperture_candidates(image)
+    candidates.extend(_hough_aperture_candidates(image, visual_target))
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda candidate: _aperture_candidate_score(
+        candidate, visual_target, w, h
+    ))
+    return best[0], best[1]
 
 
 # --------------------------------------------------------------------------- pose
@@ -353,7 +582,13 @@ def estimate_pose_pnp(corners_px, intr: CameraIntrinsics = DEFAULT_INTRINSICS, *
     return best[1] if best else None
 
 
-def projective_orientation(corners_px):
+def projective_orientation(
+    corners_px,
+    intr: CameraIntrinsics = DEFAULT_INTRINSICS,
+    *,
+    gate_width_m: float = GATE_INNER_SIZE_M,
+    gate_height_m: Optional[float] = None,
+):
     """Robust projective orientation from a quad when metric PnP is unavailable/unstable.
 
     Uses the left/right apparent side-height ratio and horizontal skew to decide
@@ -368,14 +603,17 @@ def projective_orientation(corners_px):
     bot_cx = 0.5 * (bl[0] + br[0])
     width = 0.5 * (abs(tr[0] - tl[0]) + abs(br[0] - bl[0]))
     skew = float((top_cx - bot_cx) / max(1e-3, width))
-    if abs(ratio) < 0.06:
-        hint = "frontal"
-    elif ratio > 0:
-        hint = "rotated_left"   # gate's left edge appears larger/closer
-    else:
-        hint = "rotated_right"
-    # Coarse yaw proxy from the height ratio (bounded, monotone) for a soft signal.
-    yaw_proxy = max(-45.0, min(45.0, math.degrees(math.asin(max(-1.0, min(1.0, ratio * 1.5))))))
+    # Perspective geometry for a vertical rectangular gate gives exactly
+    #   ratio = half_width * sin(yaw) / forward_distance.
+    # Estimate forward distance from the mean apparent vertical side length.
+    # The previous fixed ``ratio * 1.5`` conversion severely underestimated
+    # distant yaw and made planar PnP choose the mirrored sign in haze.
+    aperture_h_m = float(gate_height_m if gate_height_m is not None else gate_width_m)
+    mean_side_h_px = 0.5 * (left_h + right_h)
+    forward_from_height = intr.fy * aperture_h_m / max(1.0, mean_side_h_px)
+    sin_yaw = ratio * forward_from_height / max(1e-6, 0.5 * float(gate_width_m))
+    yaw_proxy = math.degrees(math.asin(max(-1.0, min(1.0, sin_yaw))))
+    hint = orientation_class(yaw_proxy)
     return {"orientation_hint": hint, "quadrilateral_skew": skew, "yaw_proxy_deg": yaw_proxy,
             "left_right_height_ratio": ratio}
 
@@ -386,6 +624,7 @@ def _normalize_point(px, py, w, h):
 
 def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
                        beacon_bearing_deg: Optional[float] = None,
+                       visual_target=None,
                        max_reprojection_px: float = 8.0,
                        gate_width_m: float = GATE_INNER_SIZE_M,
                        gate_height_m: Optional[float] = None) -> Optional[GatePoseTarget]:
@@ -399,7 +638,7 @@ def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
     if _cv2 is None or _np is None:
         return None
     h, w = int(image.shape[0]), int(image.shape[1])
-    found = detect_aperture_corners(image, intr)
+    found = detect_aperture_corners(image, intr, visual_target=visual_target)
     if found is None:
         return None
     corners_px, source = found
@@ -411,7 +650,12 @@ def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
     height_frac = (max(ys) - min(ys)) / h
     area_frac = _polygon_area(corners_px) / (w * h)
     corners_norm = [_normalize_point(px, py, w, h) for px, py in corners_px]
-    proj = projective_orientation(corners_px)
+    proj = projective_orientation(
+        corners_px,
+        intr,
+        gate_width_m=gate_width_m,
+        gate_height_m=gate_height_m,
+    )
     target = GatePoseTarget(
         center_x=(cx - w / 2.0) / (w / 2.0),
         center_y=(cy - h / 2.0) / (h / 2.0),
@@ -419,32 +663,66 @@ def estimate_gate_pose(image, *, intr: CameraIntrinsics = DEFAULT_INTRINSICS,
         height_fraction=float(height_frac), confidence=min(1.0, 4.0 * area_frac + 0.3),
         corners_normalized=corners_norm, detection_source=source,
         quadrilateral_skew=proj["quadrilateral_skew"], orientation_hint=proj["orientation_hint"],
+        orientation_present=True,
     )
     # The bar-height ratio is an unambiguous image cue for the yaw sign; use it to resolve
     # the square-planar PnP ambiguity. In the canonical convention a taller LEFT bar
     # (ratio > 0) means the gate's left edge is nearer == positive canonical yaw.
     ratio = proj["left_right_height_ratio"]
-    yaw_sign_hint = int(math.copysign(1, ratio)) if abs(ratio) > 0.06 else 0
+    projective_yaw = float(proj["yaw_proxy_deg"])
+    yaw_sign_hint = (
+        int(math.copysign(1, projective_yaw)) if abs(projective_yaw) >= 5.0 else 0
+    )
     pose = estimate_pose_pnp(corners_px, intr, yaw_sign_hint=yaw_sign_hint,
                              gate_width_m=gate_width_m, gate_height_m=gate_height_m)
     beacon_ok = True
     if pose is not None and beacon_bearing_deg is not None:
         # Bearing consistency: PnP lateral sign should agree with the beacon bearing sign.
         lateral = pose["translation"][0]
-        if abs(beacon_bearing_deg) > 8.0 and (lateral * beacon_bearing_deg) < 0 and abs(lateral) > 0.3:
+        # Camera +x is image-right, while the acoustic convention reports a
+        # right/starboard target with a *negative* bearing.  Equal signs are
+        # therefore inconsistent (the previous test was reversed).
+        if abs(beacon_bearing_deg) > 8.0 and (lateral * beacon_bearing_deg) > 0 and abs(lateral) > 0.3:
             beacon_ok = False
     if pose is not None and beacon_ok and (pose["reprojection_error_px"] or 0.0) <= max_reprojection_px:
         target.pose_present = True
         target.translation_camera_m = pose["translation"]
-        target.gate_plane_yaw_deg = pose["yaw_deg"]
+        pnp_yaw = float(pose["yaw_deg"])
+        projective_yaw = float(proj["yaw_proxy_deg"])
+        # Square-planar PnP can choose a strongly oblique solution with a tiny
+        # reprojection error even when noisy real-image corners show two bars
+        # of practically equal height.  The bar-height cue is coarse in
+        # magnitude but reliable for frontal-vs-oblique and for sign.  Use it
+        # only as a conservative veto, not as a second general pose solver.
+        # Near-frontal square PnP is two-solution ambiguous: one-pixel corner
+        # noise can produce alternating +/-10..20 degree poses with an equally
+        # tiny reprojection error. When the directly visible side-height cue
+        # says frontal, suppress even a moderate PnP obliqueness. Stronger
+        # projective evidence still leaves PnP free to estimate the magnitude.
+        frontal_conflict = abs(projective_yaw) < 8.0 and abs(pnp_yaw) > 8.0
+        sign_conflict = (
+            abs(projective_yaw) >= 5.0
+            and abs(pnp_yaw) >= 8.0
+            and math.copysign(1.0, projective_yaw) != math.copysign(1.0, pnp_yaw)
+        )
+        magnitude_conflict = abs(pnp_yaw) > max(
+            12.0, 1.8 * abs(projective_yaw) + 5.0
+        )
+        if frontal_conflict or sign_conflict or magnitude_conflict:
+            target.gate_plane_yaw_deg = projective_yaw
+            target.detection_source = "pnp_projective_yaw"
+        else:
+            target.gate_plane_yaw_deg = pnp_yaw
+            target.detection_source = "pnp"
         target.gate_plane_pitch_deg = pose["pitch_deg"]
         target.gate_plane_roll_deg = pose["roll_deg"]
         target.reprojection_error_px = pose["reprojection_error_px"]
         target.pose_confidence = float(max(0.0, min(1.0, 1.0 - (pose["reprojection_error_px"] or 0.0) / max_reprojection_px)))
-        target.detection_source = "pnp"
+        if frontal_conflict or sign_conflict or magnitude_conflict:
+            target.pose_confidence *= 0.75
         # Refine the orientation hint from the canonical metric yaw when available.
-        if pose["yaw_deg"] is not None:
-            target.orientation_hint = orientation_class(pose["yaw_deg"], frontal_threshold_deg=5.0)
+        if target.gate_plane_yaw_deg is not None:
+            target.orientation_hint = orientation_class(target.gate_plane_yaw_deg)
     else:
         target.detection_source = "projective"
         target.gate_plane_yaw_deg = proj["yaw_proxy_deg"]  # soft projective yaw
@@ -476,6 +754,17 @@ def _ema_angle_deg(prev: Optional[float], new: float, alpha: float) -> float:
     return math.degrees(math.atan2(y, x))
 
 
+def _ema_plane_angle_deg(prev: Optional[float], new: float, alpha: float) -> float:
+    """EMA for an unoriented plane angle (period 180, not 360 degrees)."""
+    new = wrap_plane_yaw_deg(new)
+    if prev is None:
+        return new
+    pr, nr = 2.0 * math.radians(prev), 2.0 * math.radians(new)
+    x = alpha * math.cos(nr) + (1.0 - alpha) * math.cos(pr)
+    y = alpha * math.sin(nr) + (1.0 - alpha) * math.sin(pr)
+    return wrap_plane_yaw_deg(0.5 * math.degrees(math.atan2(y, x)))
+
+
 class GatePoseTracker:
     """Controller-side temporal filter over past onboard gate-pose detections only.
 
@@ -484,61 +773,107 @@ class GatePoseTracker:
     ``max_age_steps`` frames without a fresh pose. Uses no future or privileged information.
     """
 
-    def __init__(self, alpha: float = 0.4, max_age_steps: int = 8):
+    def __init__(self, alpha: float = 0.4, max_age_steps: int = 4):
         self.alpha = float(alpha)
         self.max_age_steps = int(max_age_steps)
+        self.reset()
+
+    def reset(self) -> None:
         self._lat = self._vert = self._fwd = None
         self._yaw = self._pitch = None
         self._reproj = self._conf = None
+        self._center_x = self._center_y = None
+        self._area = self._width = self._height = None
+        self._corners = None
+        self._metric_pose_present = False
+        self._orientation_present = False
         self.age = 0
         self.consecutive_valid = 0
+        self.track_age_frames = 0
         self.source = "none"
 
     @property
     def has_pose(self) -> bool:
         return self._fwd is not None and self.age <= self.max_age_steps
 
+    @property
+    def has_orientation(self) -> bool:
+        return self._yaw is not None and self.age <= self.max_age_steps
+
     def update(self, target: Optional[GatePoseTarget]) -> Optional[GatePoseTarget]:
-        fresh = target is not None and target.pose_present and target.translation_camera_m is not None
+        fresh = (
+            target is not None
+            and (target.orientation_present or target.pose_present)
+            and target.gate_plane_yaw_deg is not None
+        )
         if not fresh:
             self.age += 1
             self.consecutive_valid = 0
-            if self._fwd is None or self.age > self.max_age_steps:
-                self._lat = self._vert = self._fwd = self._yaw = self._pitch = None
+            if self._yaw is None or self.age > self.max_age_steps:
+                self.reset()
                 self.source = "lost"
                 return None
             return self._as_target(stale=True, base=target)
-        t = target.translation_camera_m
         a = self.alpha
-        self._lat = _ema(self._lat, float(t[0]), a)
-        self._vert = _ema(self._vert, float(t[1]), a)
-        self._fwd = _ema(self._fwd, float(t[2]), a)
+        self._center_x = _ema(self._center_x, float(target.center_x), a)
+        self._center_y = _ema(self._center_y, float(target.center_y), a)
+        self._area = _ema(self._area, float(target.area_fraction), a)
+        self._width = _ema(self._width, float(target.width_fraction), a)
+        self._height = _ema(self._height, float(target.height_fraction), a)
+        if target.corners_normalized is not None:
+            if self._corners is None:
+                self._corners = [tuple(point) for point in target.corners_normalized]
+            else:
+                self._corners = [
+                    (_ema(old[0], new[0], a), _ema(old[1], new[1], a))
+                    for old, new in zip(self._corners, target.corners_normalized)
+                ]
+        t = target.translation_camera_m
+        if t is not None:
+            self._lat = _ema(self._lat, float(t[0]), a)
+            self._vert = _ema(self._vert, float(t[1]), a)
+            self._fwd = _ema(self._fwd, float(t[2]), a)
         if target.gate_plane_yaw_deg is not None:
-            self._yaw = _ema_angle_deg(self._yaw, float(target.gate_plane_yaw_deg), a)
+            yaw = float(target.gate_plane_yaw_deg)
+            if abs(yaw) <= 90.0 and (self._yaw is None or abs(self._yaw) <= 90.0):
+                self._yaw = _ema_plane_angle_deg(self._yaw, yaw, a)
+            else:  # backward-compatible handling for legacy non-canonical inputs
+                self._yaw = _ema_angle_deg(self._yaw, yaw, a)
         if target.gate_plane_pitch_deg is not None:
             self._pitch = _ema_angle_deg(self._pitch, float(target.gate_plane_pitch_deg), a)
         self._reproj = _ema(self._reproj, target.reprojection_error_px or 0.0, a)
         self._conf = _ema(self._conf, float(target.pose_confidence), a)
+        self._metric_pose_present = bool(target.pose_present)
+        self._orientation_present = True
         self.age = 0
         self.consecutive_valid += 1
+        self.track_age_frames += 1
         self.source = target.detection_source
         return self._as_target(stale=False, base=target)
 
     def _as_target(self, *, stale: bool, base: Optional[GatePoseTarget]) -> GatePoseTarget:
         conf = (self._conf or 0.0) * (0.6 ** self.age if stale else 1.0)  # decay stale confidence
         out = GatePoseTarget(
-            center_x=(base.center_x if base is not None else 0.0),
-            center_y=(base.center_y if base is not None else 0.0),
-            area_fraction=(base.area_fraction if base is not None else 0.0),
-            width_fraction=(base.width_fraction if base is not None else 0.0),
-            height_fraction=(base.height_fraction if base is not None else 0.0),
-            confidence=(base.confidence if base is not None else 0.0),
-            corners_normalized=(base.corners_normalized if base is not None else None),
-            pose_present=True,
-            translation_camera_m=(self._lat, self._vert, self._fwd),
+            center_x=float(self._center_x or 0.0),
+            center_y=float(self._center_y or 0.0),
+            area_fraction=float(self._area or 0.0),
+            width_fraction=float(self._width or 0.0),
+            height_fraction=float(self._height or 0.0),
+            confidence=(base.confidence if base is not None else float(conf)),
+            corners_normalized=list(self._corners) if self._corners is not None else None,
+            pose_present=self._metric_pose_present,
+            translation_camera_m=(
+                (float(self._lat), float(self._vert), float(self._fwd))
+                if self._lat is not None and self._vert is not None and self._fwd is not None
+                else None
+            ),
             gate_plane_yaw_deg=self._yaw, gate_plane_pitch_deg=self._pitch,
             reprojection_error_px=self._reproj, pose_confidence=float(max(0.0, min(1.0, conf))),
             detection_source=("stale" if stale else self.source),
-            orientation_hint=(base.orientation_hint if base is not None else "unknown"),
+            quadrilateral_skew=(base.quadrilateral_skew if base is not None else 0.0),
+            orientation_hint=orientation_class(self._yaw),
+            orientation_present=self._orientation_present,
+            predicted=stale,
+            track_age_frames=self.track_age_frames + self.age,
         )
         return out

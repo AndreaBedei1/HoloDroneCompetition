@@ -11,6 +11,12 @@
   "benchmark_task": {
     "mode": "clean_gate"
   },
+  "water_fog": {
+    "enabled": true,
+    "density": 5.0,
+    "start_distance_m": 1.0,
+    "color_rgb": [0.4, 0.6, 1.0]
+  },
   "world": {
     "package": "Ocean",
     "map": "OpenWater-Hovering",

@@ -67,6 +67,22 @@ def test_example_tracks_use_standard_gate_opening() -> None:
         assert all(gate.inner_size_m == (1.5, 1.5) for gate in config.gates)
 
 
+def test_example_tracks_share_approved_underwater_fog() -> None:
+    expected = {
+        "enabled": True,
+        "density": 5.0,
+        "start_distance_m": 1.0,
+        "color_rgb": [0.4, 0.6, 1.0],
+    }
+    for track_name in (
+        "marine_race_horseshoe_bay.json",
+        "marine_race_mixed_endurance.json",
+        "marine_race_vertical_serpent.json",
+    ):
+        raw = json.loads((TRACK_DIR / track_name).read_text(encoding="utf-8"))
+        assert raw["water_fog"] == expected
+
+
 def test_duplicate_gate_id_is_invalid() -> None:
     raw = json.loads((TRACK_DIR / "marine_race_horseshoe_bay.json").read_text(encoding="utf-8"))
     raw["gates"] = copy.deepcopy(raw["gates"])

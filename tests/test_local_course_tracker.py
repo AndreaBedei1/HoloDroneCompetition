@@ -231,6 +231,40 @@ def test_visual_association_prefers_expected_beacon_side_over_centered_next_gate
     assert selected is expected_left
 
 
+def test_visual_association_rejects_front_gate_when_expected_beacon_is_behind():
+    from marine_race_arena.controllers.vision import VisionTarget, select_visual_target_for_beacon
+
+    gate_ahead = VisionTarget(
+        center_x=-0.35,
+        center_y=0.0,
+        confidence=0.98,
+        area_fraction=0.12,
+        width_fraction=0.35,
+        height_fraction=0.36,
+    )
+
+    assert select_visual_target_for_beacon(
+        [gate_ahead], bearing_deg=178.0, range_m=0.5
+    ) is None
+
+
+def test_visual_association_rejects_tiny_next_gate_at_close_expected_range():
+    from marine_race_arena.controllers.vision import VisionTarget, select_visual_target_for_beacon
+
+    next_gate = VisionTarget(
+        center_x=0.0,
+        center_y=0.0,
+        confidence=0.98,
+        area_fraction=0.02,
+        width_fraction=0.15,
+        height_fraction=0.16,
+    )
+
+    assert select_visual_target_for_beacon(
+        [next_gate], bearing_deg=1.0, range_m=1.5
+    ) is None
+
+
 def test_default_visual_association_prefers_nearest_apparent_gate() -> None:
     from marine_race_arena.controllers.vision import (
         VisionTarget,
@@ -276,6 +310,19 @@ def test_temporal_visual_tracker_confirms_smooths_and_bridges_short_flicker() ->
     assert second_gap is not None and second_gap.predicted
     assert first_gap.confidence > second_gap.confidence
     assert expired is None
+
+
+def test_temporal_visual_tracker_drops_lock_in_rear_sector() -> None:
+    from marine_race_arena.controllers.vision import TemporalVisionTracker, VisionTarget
+
+    tracker = TemporalVisionTracker()
+    gate_ahead = VisionTarget(0.0, 0.0, 0.95, 0.10, 0.30, 0.32)
+    assert tracker.update([gate_ahead], 0.0, 2.0) is not None
+    assert tracker.update([gate_ahead], 0.0, 1.8) is not None
+    assert tracker.locked
+
+    assert tracker.update([gate_ahead], 178.0, 0.5) is None
+    assert not tracker.locked
 
 
 def test_temporal_visual_tracker_does_not_jump_to_smaller_centered_gate() -> None:

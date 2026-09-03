@@ -27,6 +27,7 @@ from marine_race_arena.controllers.gate_pose import (
     validate_quad,
     wrap_plane_yaw_deg,
 )
+from marine_race_arena.controllers.vision import VisionTarget
 
 
 def render_gate(intr, tx, ty, tz, yaw_deg, bar_frac=0.18, size_m=GATE_INNER_SIZE_M):
@@ -192,12 +193,99 @@ def test_estimate_gate_pose_end_to_end():
     assert t.translation_camera_m[2] == pytest.approx(6.0, abs=0.6)
 
 
+def test_tracked_roi_selects_the_matching_gate_when_two_are_visible():
+    background = np.array([70, 40, 20], dtype=np.uint8)
+    left = render_gate(DEFAULT_INTRINSICS, -1.7, 0.0, 6.0, 20.0)
+    right = render_gate(DEFAULT_INTRINSICS, 1.2, 0.0, 5.0, -25.0)
+    image = np.empty_like(left)
+    image[:] = background
+    left_mask = np.any(left != background, axis=2)
+    right_mask = np.any(right != background, axis=2)
+    image[left_mask] = left[left_mask]
+    image[right_mask] = right[right_mask]
+    target = VisionTarget(
+        center_x=0.25,
+        center_y=0.0,
+        confidence=0.9,
+        area_fraction=0.05,
+        width_fraction=0.25,
+        height_fraction=0.30,
+    )
+    found = detect_aperture_corners(image, DEFAULT_INTRINSICS, visual_target=target)
+    assert found is not None
+    center_x = sum(point[0] for point in found[0]) / 4.0
+    assert center_x > DEFAULT_INTRINSICS.cx
+
+
+def test_projective_consensus_vetoes_implausible_oblique_pnp(monkeypatch):
+    import marine_race_arena.controllers.gate_pose as module
+
+    corners = [(200.0, 140.0), (440.0, 140.0), (440.0, 340.0), (200.0, 340.0)]
+    monkeypatch.setattr(module, "detect_aperture_corners", lambda *args, **kwargs: (corners, "hough_inner"))
+    monkeypatch.setattr(module, "projective_orientation", lambda _corners, *args, **kwargs: {
+        "orientation_hint": "frontal",
+        "quadrilateral_skew": 0.0,
+        "yaw_proxy_deg": 0.5,
+        "left_right_height_ratio": 0.0,
+    })
+    monkeypatch.setattr(module, "estimate_pose_pnp", lambda *args, **kwargs: {
+        "translation": (0.0, 0.0, 3.0),
+        "yaw_deg": 38.0,
+        "pitch_deg": 0.0,
+        "roll_deg": 0.0,
+        "reprojection_error_px": 1.0,
+        "facing": 1.0,
+    })
+    image = np.zeros((480, 640, 3), dtype=np.uint8)
+    target = estimate_gate_pose(image)
+    assert target is not None and target.pose_present
+    assert target.detection_source == "pnp_projective_yaw"
+    assert target.gate_plane_yaw_deg == pytest.approx(0.5)
+
+
+def test_projective_consensus_stabilizes_moderate_near_frontal_pnp(monkeypatch):
+    import marine_race_arena.controllers.gate_pose as module
+
+    corners = [(200.0, 140.0), (440.0, 140.0), (440.0, 340.0), (200.0, 340.0)]
+    monkeypatch.setattr(module, "detect_aperture_corners", lambda *args, **kwargs: (corners, "hough_inner"))
+    monkeypatch.setattr(module, "projective_orientation", lambda _corners, *args, **kwargs: {
+        "orientation_hint": "frontal",
+        "quadrilateral_skew": 0.0,
+        "yaw_proxy_deg": -0.8,
+        "left_right_height_ratio": -0.01,
+    })
+    monkeypatch.setattr(module, "estimate_pose_pnp", lambda *args, **kwargs: {
+        "translation": (0.0, 0.0, 4.0),
+        "yaw_deg": 14.0,
+        "pitch_deg": 0.0,
+        "roll_deg": 0.0,
+        "reprojection_error_px": 0.2,
+        "facing": 1.0,
+    })
+
+    target = estimate_gate_pose(np.zeros((480, 640, 3), dtype=np.uint8))
+
+    assert target is not None
+    assert target.detection_source == "pnp_projective_yaw"
+    assert target.gate_plane_yaw_deg == pytest.approx(-0.8)
+
+
 def test_projective_orientation_frontal_vs_rotated():
     frontal = [(100, 100), (300, 100), (300, 300), (100, 300)]
     assert projective_orientation(frontal)["orientation_hint"] == "frontal"
     # left bar taller (closer) than right -> rotated_left
     rot = [(100, 90), (300, 130), (300, 270), (100, 310)]
     assert projective_orientation(rot)["orientation_hint"] in ("rotated_left", "rotated_right")
+
+
+@pytest.mark.parametrize("yaw", [20.0, -20.0, 35.0, -35.0])
+def test_projective_orientation_uses_apparent_distance_for_yaw(yaw):
+    image = render_gate(DEFAULT_INTRINSICS, 0.0, 0.0, 5.0, yaw)
+    corners = detect_aperture_corners(image, DEFAULT_INTRINSICS)[0]
+
+    estimate = projective_orientation(corners, DEFAULT_INTRINSICS)
+
+    assert estimate["yaw_proxy_deg"] == pytest.approx(yaw, abs=7.0)
 
 
 def test_no_gate_returns_none():
@@ -235,6 +323,13 @@ def test_tracker_handles_angular_wrap():
     tr.update(_pose(5.0, yaw=170.0))
     out = tr.update(_pose(5.0, yaw=-170.0))  # wrap across +-180; mean should be ~180, not ~0
     assert abs(abs(out.gate_plane_yaw_deg) - 180.0) < 5.0
+
+
+def test_tracker_handles_canonical_plane_wrap_at_90_degrees():
+    tr = GatePoseTracker(alpha=0.5)
+    tr.update(_pose(5.0, yaw=89.0))
+    out = tr.update(_pose(5.0, yaw=-89.0))
+    assert plane_angle_distance_deg(out.gate_plane_yaw_deg, 90.0) < 2.0
 
 
 def test_ground_truth_relative_pose_for_yaw_tracks():

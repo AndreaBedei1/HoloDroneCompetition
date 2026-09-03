@@ -233,9 +233,27 @@ def select_visual_target_for_beacon(
         return select_default_visual_target(targets)
 
     bearing_abs = abs(bearing_deg)
+    # A target more than 70 degrees off the rover nose cannot be the centre of
+    # the expected gate in the 90-degree FrontCamera. In particular, after a
+    # passage the old beacon sits behind the rover while the next gate is often
+    # visible ahead; accepting a front-camera rectangle here changes identity.
+    # The bearing is an onboard acoustic packet, not simulator geometry.
+    if bearing_abs > 70.0:
+        return None
     range_value = 999.0 if range_m is None else max(0.0, range_m)
 
     usable = [target for target in targets if target.confidence >= 0.38]
+    if range_value < 1.6:
+        # At this acoustic range a 1.5 m gate must subtend a substantial part
+        # of the image. A tiny complete rectangle is the next gate beyond the
+        # expected one, not a reappearance of the current gate after it left
+        # the frame. Keep generous thresholds for clipped/oblique apertures.
+        usable = [
+            target for target in usable
+            if target.area_fraction >= 0.05
+            or target.width_fraction >= 0.30
+            or target.height_fraction >= 0.30
+        ]
     if not usable:
         return None
     largest_area = max(target.area_fraction for target in usable)
@@ -271,8 +289,6 @@ def select_visual_target_for_beacon(
         expected_side_amount = -math.copysign(1.0, bearing_deg) * target.center_x
         min_offset = 0.10 if bearing_abs < 45.0 else 0.18
         if expected_side_amount < min_offset:
-            continue
-        if bearing_abs > 70.0 and range_value > 3.0 and target.confidence < 0.86:
             continue
         side_score = _clamp(expected_side_amount / 0.55, 0.0, 1.0)
         scored.append((target.confidence + 0.65 * side_score + 0.45 * size_score - bearing_penalty, target))
@@ -367,9 +383,23 @@ class TemporalVisionTracker:
         camera_present: bool = True,
     ) -> VisionTarget | None:
         candidates = [target for target in targets if target.confidence >= 0.38]
+        if range_m is not None and float(range_m) < 1.6:
+            candidates = [
+                target for target in candidates
+                if target.area_fraction >= 0.05
+                or target.width_fraction >= 0.30
+                or target.height_fraction >= 0.30
+            ]
         if not camera_present:
             # Missing camera data is not a detector miss and must not create a
             # synthetic observation from an image that was never received.
+            return None
+
+        # Do not carry a visual prediction through the rear sector. Keeping
+        # the old image-space lock here lets the next gate ahead inherit the
+        # identity of the just-passed expected beacon.
+        if bearing_deg is not None and abs(float(bearing_deg)) > 70.0:
+            self.reset()
             return None
 
         if self._target is None:
