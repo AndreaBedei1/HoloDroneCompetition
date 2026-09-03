@@ -9,7 +9,7 @@ future geometry, and referee state are deliberately absent.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 
 OBS_ENCODING_VERSION_LOCAL_TRANSITION = "onboard_local_transition_v1"
@@ -116,6 +116,8 @@ class LocalTransitionLearningContext:
 
     expected_beacon_id: Optional[str] = None
     depth_reference_m: Optional[float] = None
+    visual_target: Optional[Any] = None
+    use_tracked_visual_target: bool = False
     prev_action: Sequence[float] = field(
         default_factory=lambda: (0.0, 0.0, 0.0, 0.0)
     )
@@ -128,4 +130,3 @@ class LocalTransitionLearningContext:
     beacon_rate_valid: bool = False
     target_changed_recently: bool = False
     time_since_target_change_s: float = 0.0
-

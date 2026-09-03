@@ -227,6 +227,8 @@ class OnboardMultiGateContextTracker:
             laps=tracker.laps,
             depth_reference_m=self._depth_ref,
             visual_lock=visible,
+            visual_target=target,
+            use_tracked_visual_target=True,
             prev_action=action,
             camera_present=camera_present,
             vision_recently_seen=recently_seen,

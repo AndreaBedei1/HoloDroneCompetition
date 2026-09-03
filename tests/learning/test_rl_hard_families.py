@@ -445,6 +445,12 @@ def test_hard_geometry_drives_the_real_track_generator(tmp_path):
     assert len(data["gates"]) == geometry.gate_count
     assert data["universal_transition"]["pattern"] == geometry.pattern
     assert data["universal_transition"]["dataset_split"] == "train"
+    assert data["water_fog"] == {
+        "enabled": True,
+        "density": 5.0,
+        "start_distance_m": 1.0,
+        "color_rgb": [0.4, 0.6, 1.0],
+    }
     headings = [gate["rotation_rpy_deg"][2] for gate in data["gates"]]
     deltas = [round(b - a, 3) for a, b in zip(headings, headings[1:])]
     assert deltas == [round(v, 3) for v in geometry.turn_deltas_deg]

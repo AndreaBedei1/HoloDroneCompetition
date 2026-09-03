@@ -74,7 +74,8 @@ class OnboardContextTracker:
             dvl_velocity=sensors.get("DVLSensor"),
             dt=dt,
         )
-        visual_lock = getattr(tracker, "_latest_visual_target", None) is not None
+        visual_target = getattr(tracker, "_latest_visual_target", None)
+        visual_lock = visual_target is not None
         action = list(prev_action) if prev_action is not None else [0.0] * ACTION_DIM
         return LearningContext(
             expected_beacon_id=tracker.expected_beacon_id,
@@ -85,5 +86,7 @@ class OnboardContextTracker:
             laps=tracker.laps,
             depth_reference_m=self._depth_ref,
             visual_lock=visual_lock,
+            visual_target=visual_target,
+            use_tracked_visual_target=True,
             prev_action=action,
         )

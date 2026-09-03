@@ -101,6 +101,44 @@ def test_command_mapping_clamps_thrusters() -> None:
     assert all(-1.0 <= value <= 1.0 for value in thrusters)
 
 
+def test_holoocean_reset_applies_configured_water_fog_after_level_reset() -> None:
+    config, arena, _ = _config_arena_participant()
+    config = replace(
+        config,
+        raw={
+            **config.raw,
+            "water_fog": {
+                "enabled": True,
+                "density": 5.0,
+                "start_distance_m": 1.0,
+                "color_rgb": [0.4, 0.6, 1.0],
+            },
+        },
+    )
+
+    class FogEnvironment:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def reset(self):
+            self.calls.append(("reset",))
+            return None
+
+        def water_fog(self, *values):
+            self.calls.append(("water_fog", *values))
+
+    env = FogEnvironment()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = env
+
+    adapter.reset()
+
+    assert env.calls == [
+        ("reset",),
+        ("water_fog", 5.0, 1.0, 0.4, 0.6, 1.0),
+    ]
+
+
 def test_official_filter_removes_ground_truth_pose() -> None:
     config, arena, _ = _config_arena_participant()
     adapter = FallbackRaceAdapter(config, arena)

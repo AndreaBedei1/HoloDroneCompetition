@@ -101,6 +101,9 @@ class FrameSignals:
     vision_height_fraction: Optional[float]
     vision_candidates: int
     vision_implied_bearing_deg: Optional[float]
+    vision_locked: bool
+    vision_predicted: bool
+    vision_track_age_frames: int
     # beacon, from the received packet for the rover's own expected beacon
     beacon_present: bool
     beacon_id: Optional[str]
@@ -190,10 +193,7 @@ def read_frame(
     the observation the controller acted on -- not a second, cleaner reading of
     the same transmitter.
     """
-    from marine_race_arena.controllers.vision import (
-        select_visual_target_for_beacon,
-        vision_targets_from_camera,
-    )
+    from marine_race_arena.controllers.vision import vision_targets_from_camera
     from marine_race_arena.learning.observation_encoder import (
         _depth_m,
         _select_beacon_packet,
@@ -208,7 +208,9 @@ def read_frame(
     )
     b_bearing = None if packet is None else _finite(packet.get("bearing_deg"))
     b_range = None if packet is None else _finite(packet.get("range_m"))
-    target = select_visual_target_for_beacon(candidates, b_bearing, b_range)
+    # This is the exact temporally filtered target delivered to the policy,
+    # while ``candidates`` remains the raw per-frame count for diagnostics.
+    target = getattr(context, "visual_target", None)
 
     # Positive-down, via the encoder's own conversion. Reading the raw z here
     # and the already-converted reference from the context would put the two on
@@ -243,6 +245,9 @@ def read_frame(
         vision_height_fraction=None if target is None else float(target.height_fraction),
         vision_candidates=len(candidates),
         vision_implied_bearing_deg=v_bearing,
+        vision_locked=bool((diag.get("visual_track") or {}).get("locked")),
+        vision_predicted=bool(getattr(target, "predicted", False)),
+        vision_track_age_frames=int(getattr(target, "track_age_frames", 0) or 0),
         beacon_present=packet is not None,
         beacon_id=None if packet is None else str(packet.get("beacon_id")),
         beacon_bearing_deg=b_bearing,
@@ -369,7 +374,23 @@ def draw_annotated(base: np.ndarray, f: FrameSignals) -> np.ndarray:
         _label(img, "conf=%.2f  area=%.4f" % (
             f.vision_confidence or 0.0, f.vision_area_fraction or 0.0),
             (x0, max(80, y0 - 6)), VISION, 0.5)
-        _label(img, "GATE VISIBILE", (12, 48), OK, 0.7, 2)
+        if f.vision_predicted:
+            status = "GATE PRED (flicker)"
+            status_colour = BEACON
+        elif f.vision_locked:
+            status = "GATE LOCK"
+            status_colour = OK
+        else:
+            status = "GATE PROPOSTA"
+            status_colour = VISION
+        _label(
+            img,
+            "%s  age=%d" % (status, f.vision_track_age_frames),
+            (12, 48),
+            status_colour,
+            0.65,
+            2,
+        )
     else:
         _label(img, "GATE NON VISIBILE", (12, 48), BAD, 0.7, 2)
     if f.vision_candidates > 1:
@@ -564,6 +585,7 @@ def run(
     video: bool = False,
     start_paused: bool = False,
     speed: float = 1.0,
+    realtime: bool = False,
 ) -> Dict[str, Any]:
     import cv2
 
@@ -582,14 +604,23 @@ def run(
         OnboardLocalTransitionContextTracker,
     )
 
-    out = Path(out_dir or (Path("results/debug") / f"{track}_{seed}"))
+    requested_path = Path(track)
+    if requested_path.is_file():
+        path = requested_path
+        track_data = json.loads(path.read_text(encoding="utf-8"))
+        track_label = path.stem
+    else:
+        path = tf.track_path(track)
+        track_data = tf.load_track(track)
+        track_label = track
+
+    out = Path(out_dir or (Path("results/debug") / f"{track_label}_{seed}"))
     out.mkdir(parents=True, exist_ok=True)
     shots = out / "eventi"
     shots.mkdir(exist_ok=True)
     jsonl = (out / "segnali.jsonl").open("w", encoding="utf-8")
 
-    path = tf.track_path(track)
-    gate_count = len(tf.load_track(track)["track"]["gate_sequence"])
+    gate_count = len(track_data["track"]["gate_sequence"])
     steps_cap = int(max_steps or max(2000, gate_count * 900))
 
     episode = RaceEpisode(
@@ -635,7 +666,11 @@ def run(
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window, WIN_W, WIN_H + (34 if with_ground_truth else 0))
 
-    state = RunState(paused=bool(start_paused), speed=float(speed))
+    state = RunState(
+        paused=bool(start_paused),
+        speed=float(speed),
+        realtime=bool(realtime),
+    )
     previous_action = np.zeros(ACTION_DIM, dtype=np.float32)
     previous: Optional[FrameSignals] = None
     previous_crossings = 0
@@ -778,7 +813,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Debug visivo dell'osservazione onboard",
     )
-    p.add_argument("--track", default="horseshoe_bay")
+    p.add_argument(
+        "--track",
+        default="horseshoe_bay",
+        help="nome circuito ufficiale oppure percorso a un track JSON",
+    )
     p.add_argument("--seed", type=int, default=67000)
     p.add_argument("--driver", default="policy", choices=("policy", "expert"),
                    help="chi guida: la policy appresa o il controller a regole")
@@ -788,6 +827,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--video", action="store_true", help="salva anche un MP4")
     p.add_argument("--paused", action="store_true", help="parti in pausa")
     p.add_argument("--speed", type=float, default=1.0)
+    p.add_argument(
+        "--realtime", action="store_true",
+        help="sincronizza subito il replay con il tempo reale",
+    )
     p.add_argument("--with-ground-truth", action="store_true",
                    help="AGGIUNGE una striscia di confronto con la verita del "
                         "simulatore, etichettata. Non e la modalita standard.")
@@ -800,7 +843,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.track, seed=args.seed, driver=args.driver,
         checkpoint=args.checkpoint, out_dir=args.out, max_steps=args.max_steps,
         with_ground_truth=args.with_ground_truth, video=args.video,
-        start_paused=args.paused, speed=args.speed,
+        start_paused=args.paused, speed=args.speed, realtime=args.realtime,
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False), flush=True)
     return 0

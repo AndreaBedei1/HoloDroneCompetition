@@ -10,7 +10,7 @@ tracker; it consumes nothing but the camera image.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
 try:  # OpenCV is optional; the pure-Python color fallback remains available.
@@ -29,6 +29,8 @@ class VisionTarget:
     area_fraction: float = 0.0
     width_fraction: float = 0.0
     height_fraction: float = 0.0
+    track_age_frames: int = 0
+    predicted: bool = False
 
     def with_confidence(self, confidence: float) -> "VisionTarget":
         return VisionTarget(
@@ -38,6 +40,8 @@ class VisionTarget:
             area_fraction=self.area_fraction,
             width_fraction=self.width_fraction,
             height_fraction=self.height_fraction,
+            track_age_frames=self.track_age_frames,
+            predicted=self.predicted,
         )
 
 
@@ -231,12 +235,22 @@ def select_visual_target_for_beacon(
     bearing_abs = abs(bearing_deg)
     range_value = 999.0 if range_m is None else max(0.0, range_m)
 
+    usable = [target for target in targets if target.confidence >= 0.38]
+    if not usable:
+        return None
+    largest_area = max(target.area_fraction for target in usable)
     scored: list[tuple[float, VisionTarget]] = []
-    for target in targets:
-        if target.confidence < 0.38:
-            continue
+    for target in usable:
         centered_score = _clamp(1.0 - 0.75 * abs(target.center_x) - 0.25 * abs(target.center_y), 0.0, 1.0)
-        size_score = _clamp(target.area_fraction / 0.12, 0.0, 1.0)
+        absolute_size_score = _clamp(target.area_fraction / 0.12, 0.0, 1.0)
+        # Apparent frame area is the only camera-local proxy for distance.  A
+        # relative score is essential: an absolute score saturates when two
+        # gates are both reasonably large and lets the more centered, farther
+        # gate win.  The expected beacon bearing remains the association gate.
+        relative_size_score = math.sqrt(
+            max(0.0, target.area_fraction) / max(1e-9, largest_area)
+        )
+        size_score = 0.70 * relative_size_score + 0.30 * absolute_size_score
         # Consistency between where the detection sits in the image and where
         # the expected beacon says the gate should be. Penalizing mismatch
         # keeps a blob merged across several visible gates from outscoring the
@@ -249,7 +263,7 @@ def select_visual_target_for_beacon(
         bearing_penalty = 0.050 * bearing_mismatch_deg
         if bearing_abs <= 25.0:
             scored.append(
-                (target.confidence + 0.35 * centered_score + 0.20 * size_score - bearing_penalty, target)
+                (target.confidence + 0.30 * centered_score + 0.65 * size_score - bearing_penalty, target)
             )
             continue
 
@@ -261,7 +275,7 @@ def select_visual_target_for_beacon(
         if bearing_abs > 70.0 and range_value > 3.0 and target.confidence < 0.86:
             continue
         side_score = _clamp(expected_side_amount / 0.55, 0.0, 1.0)
-        scored.append((target.confidence + 0.65 * side_score + 0.15 * size_score - bearing_penalty, target))
+        scored.append((target.confidence + 0.65 * side_score + 0.45 * size_score - bearing_penalty, target))
     if not scored:
         return None
     return max(scored, key=lambda item: item[0])[1]
@@ -281,14 +295,222 @@ def _bearing_mismatch_deg(target: VisionTarget, bearing_deg: float) -> float:
 def select_default_visual_target(targets: list[VisionTarget]) -> VisionTarget | None:
     if not targets:
         return None
+    largest_area = max(max(0.0, target.area_fraction) for target in targets)
     return max(
         targets,
         key=lambda target: (
             target.confidence
-            + 0.30 * _clamp(1.0 - abs(target.center_x), 0.0, 1.0)
-            + 0.15 * _clamp(1.0 - abs(target.center_y), 0.0, 1.0)
+            + 0.85 * math.sqrt(
+                max(0.0, target.area_fraction) / max(1e-9, largest_area)
+            )
+            + 0.12 * _clamp(1.0 - abs(target.center_x), 0.0, 1.0)
+            + 0.08 * _clamp(1.0 - abs(target.center_y), 0.0, 1.0)
         ),
     )
+
+
+class TemporalVisionTracker:
+    """Causal alpha-beta tracker for the currently expected visual gate.
+
+    Acquisition needs two geometrically consistent frames before full
+    confidence is exposed.  Once locked, candidates are associated with the
+    predicted centre and apparent size, so another gate cannot steal the lock
+    merely by becoming more centered for one frame.  Up to ``max_missed_frames``
+    short detector dropouts are bridged with a confidence-decayed prediction.
+    Only camera detections and the received expected-beacon packet are used.
+    """
+
+    def __init__(
+        self,
+        *,
+        position_alpha: float = 0.62,
+        position_beta: float = 0.16,
+        size_alpha: float = 0.55,
+        size_beta: float = 0.12,
+        confirmation_frames: int = 2,
+        max_missed_frames: int = 4,
+    ) -> None:
+        self.position_alpha = float(position_alpha)
+        self.position_beta = float(position_beta)
+        self.size_alpha = float(size_alpha)
+        self.size_beta = float(size_beta)
+        self.confirmation_frames = max(1, int(confirmation_frames))
+        self.max_missed_frames = max(0, int(max_missed_frames))
+        self.reset()
+
+    def reset(self) -> None:
+        self._target: VisionTarget | None = None
+        self._velocity_x = 0.0
+        self._velocity_y = 0.0
+        self._log_area_velocity = 0.0
+        self._hits = 0
+        self._missed = 0
+
+    @property
+    def locked(self) -> bool:
+        return self._target is not None and self._hits >= self.confirmation_frames
+
+    def diagnostics(self) -> dict[str, Any]:
+        return {
+            "locked": self.locked,
+            "hits": self._hits,
+            "missed_frames": self._missed,
+            "predicted": bool(self._target is not None and self._target.predicted),
+        }
+
+    def update(
+        self,
+        targets: list[VisionTarget],
+        bearing_deg: float | None,
+        range_m: float | None,
+        *,
+        camera_present: bool = True,
+    ) -> VisionTarget | None:
+        candidates = [target for target in targets if target.confidence >= 0.38]
+        if not camera_present:
+            # Missing camera data is not a detector miss and must not create a
+            # synthetic observation from an image that was never received.
+            return None
+
+        if self._target is None:
+            candidate = select_visual_target_for_beacon(candidates, bearing_deg, range_m)
+            return self._start(candidate)
+
+        associated = self._associate(candidates, bearing_deg)
+        if associated is None:
+            if self._hits < self.confirmation_frames:
+                self.reset()
+                candidate = select_visual_target_for_beacon(candidates, bearing_deg, range_m)
+                return self._start(candidate)
+            predicted = self._prediction()
+            self._missed += 1
+            if self._missed > self.max_missed_frames:
+                self.reset()
+                candidate = select_visual_target_for_beacon(candidates, bearing_deg, range_m)
+                return self._start(candidate)
+            confidence = predicted.confidence * (0.62 ** self._missed)
+            self._target = replace(
+                predicted,
+                confidence=_clamp(confidence, 0.0, 1.0),
+                predicted=True,
+                track_age_frames=predicted.track_age_frames + 1,
+            )
+            return self._target
+
+        return self._correct(associated)
+
+    def _start(self, candidate: VisionTarget | None) -> VisionTarget | None:
+        if candidate is None:
+            return None
+        self._hits = 1
+        self._missed = 0
+        confidence = candidate.confidence
+        if self.confirmation_frames > 1:
+            # A one-frame proposal is visible to search/alignment logic but is
+            # deliberately kept below commit confidence until corroborated.
+            confidence = min(0.37, confidence * 0.55)
+        self._target = replace(
+            candidate,
+            confidence=confidence,
+            track_age_frames=1,
+            predicted=False,
+        )
+        return self._target
+
+    def _prediction(self) -> VisionTarget:
+        assert self._target is not None
+        log_area = math.log(max(1e-6, self._target.area_fraction))
+        area = math.exp(log_area + self._log_area_velocity)
+        scale = math.sqrt(area / max(1e-6, self._target.area_fraction))
+        return replace(
+            self._target,
+            center_x=_clamp(self._target.center_x + self._velocity_x, -1.0, 1.0),
+            center_y=_clamp(self._target.center_y + self._velocity_y, -1.0, 1.0),
+            area_fraction=_clamp(area, 0.0, 1.0),
+            width_fraction=_clamp(self._target.width_fraction * scale, 0.0, 1.0),
+            height_fraction=_clamp(self._target.height_fraction * scale, 0.0, 1.0),
+        )
+
+    def _associate(
+        self,
+        candidates: list[VisionTarget],
+        bearing_deg: float | None,
+    ) -> VisionTarget | None:
+        if not candidates:
+            return None
+        predicted = self._prediction()
+        predicted_area = max(1e-6, predicted.area_fraction)
+        radius = _clamp(
+            0.16 + 0.70 * max(
+                predicted.width_fraction,
+                predicted.height_fraction,
+                math.sqrt(predicted_area),
+            ),
+            0.20,
+            0.58,
+        )
+        scored: list[tuple[float, VisionTarget]] = []
+        largest_area = max(max(1e-6, target.area_fraction) for target in candidates)
+        for candidate in candidates:
+            distance = math.hypot(
+                candidate.center_x - predicted.center_x,
+                candidate.center_y - predicted.center_y,
+            )
+            scale_error = abs(math.log(max(1e-6, candidate.area_fraction) / predicted_area))
+            if distance > radius or scale_error > 1.10:
+                continue
+            bearing_error = (
+                _bearing_mismatch_deg(candidate, bearing_deg)
+                if bearing_deg is not None
+                else 0.0
+            )
+            if bearing_deg is not None and bearing_error > 32.0:
+                continue
+            relative_size = math.sqrt(max(1e-6, candidate.area_fraction) / largest_area)
+            score = (
+                1.25 * candidate.confidence
+                + 0.45 * relative_size
+                - 0.90 * (distance / radius)
+                - 0.45 * (scale_error / 1.10)
+                - 0.025 * bearing_error
+            )
+            scored.append((score, candidate))
+        return max(scored, key=lambda item: item[0])[1] if scored else None
+
+    def _correct(self, measurement: VisionTarget) -> VisionTarget:
+        assert self._target is not None
+        predicted = self._prediction()
+        innovation_x = measurement.center_x - predicted.center_x
+        innovation_y = measurement.center_y - predicted.center_y
+        center_x = predicted.center_x + self.position_alpha * innovation_x
+        center_y = predicted.center_y + self.position_alpha * innovation_y
+        self._velocity_x += self.position_beta * innovation_x
+        self._velocity_y += self.position_beta * innovation_y
+
+        predicted_log_area = math.log(max(1e-6, predicted.area_fraction))
+        measured_log_area = math.log(max(1e-6, measurement.area_fraction))
+        area_innovation = measured_log_area - predicted_log_area
+        filtered_log_area = predicted_log_area + self.size_alpha * area_innovation
+        self._log_area_velocity += self.size_beta * area_innovation
+        area = math.exp(filtered_log_area)
+        dimension_alpha = 0.60
+        width = dimension_alpha * measurement.width_fraction + (1.0 - dimension_alpha) * predicted.width_fraction
+        height = dimension_alpha * measurement.height_fraction + (1.0 - dimension_alpha) * predicted.height_fraction
+        confidence = 0.65 * measurement.confidence + 0.35 * self._target.confidence
+
+        self._hits += 1
+        self._missed = 0
+        self._target = VisionTarget(
+            center_x=_clamp(center_x, -1.0, 1.0),
+            center_y=_clamp(center_y, -1.0, 1.0),
+            confidence=_clamp(confidence, 0.0, 1.0),
+            area_fraction=_clamp(area, 0.0, 1.0),
+            width_fraction=_clamp(width, 0.0, 1.0),
+            height_fraction=_clamp(height, 0.0, 1.0),
+            track_age_frames=self._target.track_age_frames + 1,
+            predicted=False,
+        )
+        return self._target
 
 
 def vision_conflicts_with_beacon(target: VisionTarget, bearing_deg: float) -> bool:

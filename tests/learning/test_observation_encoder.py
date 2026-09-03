@@ -152,6 +152,35 @@ def test_vision_features_from_detection(monkeypatch):
     assert _feat(vec, "vision_confidence") == pytest.approx(0.9, rel=1e-5)
 
 
+def test_encoder_uses_the_tracker_target_without_redetecting(monkeypatch):
+    from marine_race_arena.controllers.vision import VisionTarget
+
+    tracked = VisionTarget(
+        center_x=-0.18,
+        center_y=0.06,
+        confidence=0.77,
+        area_fraction=0.09,
+        predicted=True,
+        track_age_frames=6,
+    )
+    context = _context()
+    context.visual_target = tracked
+    context.use_tracked_visual_target = True
+    monkeypatch.setattr(
+        enc,
+        "vision_targets_from_camera",
+        lambda image: (_ for _ in ()).throw(AssertionError("redetected frame")),
+    )
+    obs = _full_observation()
+    obs["sensors"]["FrontCamera"] = np.zeros((16, 16, 3), dtype=np.uint8)
+
+    vec = encode_observation(obs, context)
+
+    assert _feat(vec, "vision_present") == 1.0
+    assert _feat(vec, "vision_center_x") == pytest.approx(-0.18, rel=1e-5)
+    assert _feat(vec, "vision_area_fraction") == pytest.approx(0.09, rel=1e-5)
+
+
 def test_sensor_dropout_masks_present_flags():
     obs = _full_observation()
     obs["sensors"] = {}

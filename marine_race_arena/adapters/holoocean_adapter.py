@@ -98,6 +98,67 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             if isinstance(state, dict):
                 self._raw_state = state
                 self._refresh_states_from_raw()
+            self._apply_water_fog()
+
+    def _apply_water_fog(self) -> None:
+        """Queue the optional underwater visibility profile for the next tick.
+
+        HoloOcean resets the level before rebuilding its sensors, so appearance
+        commands must be queued *after* ``env.reset()``.  The command is then
+        applied on the next simulator tick and affects both the viewport and
+        onboard RGB cameras.
+        """
+
+        raw = self.config.raw.get("water_fog")
+        if raw is None or raw is False:
+            return
+        if raw is True:
+            raw = {}
+        if not isinstance(raw, Mapping):
+            raise RaceAdapterError("water_fog must be an object, true, or false.")
+        if not bool(raw.get("enabled", True)):
+            return
+
+        density = float(raw.get("density", 0.8))
+        start_distance_m = float(raw.get("start_distance_m", 5.0))
+        color = raw.get("color_rgb", [0.4, 0.6, 1.0])
+        if (
+            not math.isfinite(density)
+            or not 0.0 <= density <= 10.0
+            or not math.isfinite(start_distance_m)
+            or not 0.0 <= start_distance_m <= 10.0
+        ):
+            raise RaceAdapterError(
+                "water_fog density and start_distance_m must be finite values in [0, 10]."
+            )
+        if (
+            not isinstance(color, (list, tuple))
+            or len(color) != 3
+            or any(
+                not math.isfinite(float(component))
+                or not 0.0 <= float(component) <= 1.0
+                for component in color
+            )
+        ):
+            raise RaceAdapterError(
+                "water_fog color_rgb must contain three finite values in [0, 1]."
+            )
+
+        water_fog = getattr(self.env, "water_fog", None)
+        if not callable(water_fog):
+            raise RaceAdapterError(
+                "This HoloOcean environment does not expose water_fog()."
+            )
+        red, green, blue = (float(component) for component in color)
+        water_fog(density, start_distance_m, red, green, blue)
+        LOGGER.info(
+            "Queued underwater fog: density=%.2f start_distance_m=%.2f color_rgb=(%.2f, %.2f, %.2f).",
+            density,
+            start_distance_m,
+            red,
+            green,
+            blue,
+        )
 
     def spawn_participants(self, participants: Mapping[str, RaceParticipant]) -> None:
         if self._holoocean is None:

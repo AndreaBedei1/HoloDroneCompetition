@@ -12,7 +12,7 @@ derived from it, so the network input size and the encoder stay in lock-step.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 # --- Action contract (normalized body-frame high-level command) ---------------
 ACTION_AXES = ("surge", "sway", "heave", "yaw")
@@ -132,4 +132,6 @@ class LearningContext:
     laps: int = DEFAULT_LAPS
     depth_reference_m: Optional[float] = None
     visual_lock: bool = False
+    visual_target: Optional[Any] = None
+    use_tracked_visual_target: bool = False
     prev_action: Sequence[float] = field(default_factory=lambda: (0.0, 0.0, 0.0, 0.0))

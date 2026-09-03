@@ -47,8 +47,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
 from marine_race_arena.controllers.vision import (
+    TemporalVisionTracker,
     VisionTarget,
-    select_visual_target_for_beacon,
+    select_visual_target_for_beacon,  # backward-compatible patch point for diagnostics/tests
     vision_targets_from_camera,
 )
 
@@ -271,6 +272,7 @@ class LocalCourseTracker:
         self._last_commit_entry_evidence: Optional[Dict[str, Any]] = None
         self._advancements = 0
         self._latest_visual_target: Optional[VisionTarget] = None
+        self._vision_tracker = TemporalVisionTracker()
         self._last_advancement_evidence: Optional[Dict[str, Any]] = None
         # Bounded, controller-local evidence histories.  They contain only
         # received packet measurements and camera-derived detections, never
@@ -315,10 +317,11 @@ class LocalCourseTracker:
 
         camera_present = _camera_frame_present(camera_image)
         visual_targets = vision_targets_from_camera(camera_image) if camera_present else []
-        visual_target = select_visual_target_for_beacon(
+        visual_target = self._vision_tracker.update(
             visual_targets,
             held.bearing_deg if held is not None else None,
             held.range_m if held is not None else None,
+            camera_present=camera_present,
         )
         self._latest_visual_target = visual_target
         if visual_target is not None:
@@ -394,6 +397,7 @@ class LocalCourseTracker:
             "visual_center_y": visual.center_y if visual is not None else None,
             "visual_confidence": visual.confidence if visual is not None else None,
             "visual_area_fraction": visual.area_fraction if visual is not None else None,
+            "visual_track": self._vision_tracker.diagnostics(),
             "last_commit_center_x": self._last_commit_center_x,
             "commit_entry_reason": self._commit_entry_reason,
             "last_commit_entry_evidence": self._last_commit_entry_evidence,
@@ -567,6 +571,14 @@ class LocalCourseTracker:
                 )
                 if lost_for > config.visual_align_loss_s:
                     self.phase = PHASE_APPROACH if held is not None else PHASE_SEARCH
+                return False
+            if visual_target.predicted:
+                # A prediction stabilizes steering through a brief flicker but
+                # is not new visual evidence.  COMMIT always requires genuinely
+                # detected, consecutive frames.
+                self._centered_streak = 0
+                self._close_commit_streak = 0
+                self._proximity_commit_streak = 0
                 return False
             centered = (
                 abs(visual_target.center_x) <= config.commit_center_x_threshold
@@ -879,6 +891,7 @@ class LocalCourseTracker:
         self._recent_beacon_history.clear()
         self._recent_visual_history.clear()
         self._latest_visual_target = None
+        self._vision_tracker.reset()
 
     def _regress_after_failed_commit(
         self,

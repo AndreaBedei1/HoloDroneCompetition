@@ -209,8 +209,8 @@ def encode_observation(
 
     # --- Vision block ---------------------------------------------------------
     image = sensors.get("FrontCamera")
-    target = None
-    if image is not None:
+    target = context.visual_target if context.use_tracked_visual_target else None
+    if not context.use_tracked_visual_target and image is not None:
         try:
             targets = vision_targets_from_camera(image)
             if beacon_bearing_deg is not None:

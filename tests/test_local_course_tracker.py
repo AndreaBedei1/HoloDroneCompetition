@@ -231,6 +231,72 @@ def test_visual_association_prefers_expected_beacon_side_over_centered_next_gate
     assert selected is expected_left
 
 
+def test_default_visual_association_prefers_nearest_apparent_gate() -> None:
+    from marine_race_arena.controllers.vision import (
+        VisionTarget,
+        select_default_visual_target,
+    )
+
+    near_gate = VisionTarget(
+        center_x=0.34, center_y=0.02, confidence=0.72,
+        area_fraction=0.14, width_fraction=0.38, height_fraction=0.40,
+    )
+    centered_far_gate = VisionTarget(
+        center_x=0.0, center_y=0.0, confidence=0.96,
+        area_fraction=0.025, width_fraction=0.15, height_fraction=0.16,
+    )
+
+    assert select_default_visual_target([centered_far_gate, near_gate]) is near_gate
+
+
+def test_temporal_visual_tracker_confirms_smooths_and_bridges_short_flicker() -> None:
+    from marine_race_arena.controllers.vision import TemporalVisionTracker, VisionTarget
+
+    tracker = TemporalVisionTracker(max_missed_frames=2)
+
+    def detection(x: float, area: float = 0.10) -> VisionTarget:
+        return VisionTarget(
+            center_x=x, center_y=0.02, confidence=0.90,
+            area_fraction=area, width_fraction=0.30, height_fraction=0.32,
+        )
+
+    proposal = tracker.update([detection(0.10)], 0.0, 5.0)
+    locked = tracker.update([detection(0.14, 0.11)], 0.0, 4.8)
+
+    assert proposal is not None and proposal.confidence < 0.38
+    assert locked is not None and locked.confidence > 0.60
+    assert tracker.locked
+    assert 0.10 < locked.center_x < 0.14
+
+    first_gap = tracker.update([], 0.0, 4.7)
+    second_gap = tracker.update([], 0.0, 4.6)
+    expired = tracker.update([], 0.0, 4.5)
+
+    assert first_gap is not None and first_gap.predicted
+    assert second_gap is not None and second_gap.predicted
+    assert first_gap.confidence > second_gap.confidence
+    assert expired is None
+
+
+def test_temporal_visual_tracker_does_not_jump_to_smaller_centered_gate() -> None:
+    from marine_race_arena.controllers.vision import TemporalVisionTracker, VisionTarget
+
+    tracker = TemporalVisionTracker()
+    near = VisionTarget(0.28, 0.0, 0.82, 0.14, 0.38, 0.40)
+    tracker.update([near], bearing_deg=-15.0, range_m=4.0)
+    tracker.update([near], bearing_deg=-15.0, range_m=3.8)
+
+    continued_near = VisionTarget(0.25, 0.0, 0.75, 0.16, 0.41, 0.43)
+    centered_far = VisionTarget(0.0, 0.0, 0.99, 0.025, 0.15, 0.16)
+    selected = tracker.update(
+        [centered_far, continued_near], bearing_deg=-14.0, range_m=3.5
+    )
+
+    assert selected is not None
+    assert selected.center_x > 0.20
+    assert selected.area_fraction > 0.10
+
+
 def test_starts_in_search_on_initial_beacon():
     tracker = make_tracker()
     assert tracker.expected_beacon_id == "B01"

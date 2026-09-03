@@ -53,6 +53,8 @@ def encode_observation_local_transition(
     base_context = LearningContext(
         expected_beacon_id=context.expected_beacon_id,
         depth_reference_m=context.depth_reference_m,
+        visual_target=context.visual_target,
+        use_tracked_visual_target=context.use_tracked_visual_target,
         prev_action=context.prev_action,
     )
     base = encode_observation(observation, base_context)
@@ -91,4 +93,3 @@ def encode_observation_local_transition(
     low = np.asarray([bound[0] for bound in FEATURE_BOUNDS_LOCAL_TRANSITION], dtype=np.float32)
     high = np.asarray([bound[1] for bound in FEATURE_BOUNDS_LOCAL_TRANSITION], dtype=np.float32)
     return np.clip(vector, low, high).astype(np.float32, copy=False)
-

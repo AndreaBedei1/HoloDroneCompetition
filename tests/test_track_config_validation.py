@@ -80,3 +80,23 @@ def test_declared_length_matches_computed_length() -> None:
     config = load_track_config(TRACK_DIR / "marine_race_mixed_endurance.json")
     computed = compute_declared_path_length_m(config)
     assert abs(computed - config.track.declared_length_m) <= config.track.length_tolerance_m
+
+
+def test_water_fog_parameters_are_validated() -> None:
+    raw = json.loads(
+        (TRACK_DIR / "training" / "stage3_three_gates.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    raw["water_fog"] = {
+        "enabled": True,
+        "density": 11.0,
+        "start_distance_m": "near",
+        "color_rgb": [0.4, 0.6],
+    }
+
+    result = validate_track_config(parse_track_config(raw))
+
+    assert any("water_fog.density" in error for error in result.errors)
+    assert any("water_fog.start_distance_m" in error for error in result.errors)
+    assert any("water_fog.color_rgb" in error for error in result.errors)

@@ -218,6 +218,8 @@ class OnboardLocalTransitionContextTracker:
         context = LocalTransitionLearningContext(
             expected_beacon_id=expected_after,
             depth_reference_m=self._depth_ref,
+            visual_target=target,
+            use_tracked_visual_target=True,
             prev_action=action,
             vision_center_x_rate_s=x_rate,
             vision_center_y_rate_s=y_rate,
