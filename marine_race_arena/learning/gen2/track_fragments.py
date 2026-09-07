@@ -39,6 +39,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from marine_race_arena.learning.gen2.fog_contract import apply_approved_water_fog
+
 TRACK_DIR = Path("marine_race_arena/tracks")
 
 #: The three development circuits, by short name.
@@ -283,6 +285,7 @@ def materialize_fragment(
         ),
         **fragment.as_dict(),
     }
+    apply_approved_water_fog(data)
 
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -52,6 +52,12 @@ from marine_race_arena.learning.config_local_transition_gate_yaw import (
     OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
     OBS_ENCODING_VERSION_LOCAL_TRANSITION_GATE_YAW,
 )
+from marine_race_arena.learning.config_local_transition_27d import (
+    FEATURE_BOUNDS_LOCAL_TRANSITION_27D,
+    FEATURE_NAMES_LOCAL_TRANSITION_27D,
+    OBS_DIM_LOCAL_TRANSITION_27D,
+    OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+)
 from marine_race_arena.learning.gen2 import GEN2_ACTION_CONTRACT
 
 GEN2_ARCHITECTURE_ID = "gen2_recurrent_lstm_v1"
@@ -80,6 +86,10 @@ GEN2_GATE_YAW_ARCH = Gen2Architecture(
     architecture_id="gen2_recurrent_lstm_gate_yaw_v2",
     obs_dim=OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
 )
+GEN2_27D_ARCH = Gen2Architecture(
+    architecture_id="gen2_recurrent_lstm_27d_v1",
+    obs_dim=OBS_DIM_LOCAL_TRANSITION_27D,
+)
 
 
 def _observation_contract(architecture: Gen2Architecture):
@@ -98,6 +108,12 @@ def _observation_contract(architecture: Gen2Architecture):
             OBS_ENCODING_VERSION_LOCAL_TRANSITION_GATE_YAW,
             FEATURE_NAMES_LOCAL_TRANSITION_GATE_YAW,
             FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW,
+        )
+    if int(architecture.obs_dim) == OBS_DIM_LOCAL_TRANSITION_27D:
+        return (
+            OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+            FEATURE_NAMES_LOCAL_TRANSITION_27D,
+            FEATURE_BOUNDS_LOCAL_TRANSITION_27D,
         )
     raise ValueError(f"unsupported Gen-2 observation dimension {architecture.obs_dim}")
 
@@ -221,7 +237,11 @@ def build_gen2_recurrent_ppo(
             obs_std=obs_std,
             expected_obs_dim=int(architecture.obs_dim),
             expected_contract=observation_contract,
-            legacy_prefix_dim=OBS_DIM_LOCAL_TRANSITION,
+            legacy_prefix_dim=(
+                int(architecture.obs_dim)
+                if int(architecture.obs_dim) <= OBS_DIM_LOCAL_TRANSITION
+                else OBS_DIM_LOCAL_TRANSITION
+            ),
         ),
         share_features_extractor=True,
         lstm_hidden_size=int(architecture.lstm_hidden_size),

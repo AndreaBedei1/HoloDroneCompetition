@@ -115,11 +115,38 @@ class MarineRaceGymEnv(_GYM_BASE):
                 "onboard_ppo_sequence_v4",
                 "onboard_local_transition_v1",
                 "onboard_local_transition_gate_yaw_v2",
+                "onboard_local_transition_27d_v1",
             }:
                 raise ValueError(
                     f"unsupported observation encoding {self.observation_encoding_version!r}"
                 )
-            if self.observation_encoding_version == "onboard_local_transition_gate_yaw_v2":
+            if self.observation_encoding_version == "onboard_local_transition_27d_v1":
+                from marine_race_arena.learning.config_local_transition_27d import (
+                    FEATURE_BOUNDS_LOCAL_TRANSITION_27D,
+                    OBS_DIM_LOCAL_TRANSITION_27D,
+                )
+                from marine_race_arena.learning.gen2.fog_contract import (
+                    assert_approved_water_fog_dict,
+                )
+                from marine_race_arena.learning.observation_encoder_local_transition_27d import (
+                    encode_observation_local_transition_27d,
+                )
+                from marine_race_arena.learning.reward_local_transition import (
+                    LocalTransitionTrainingReward,
+                )
+                from marine_race_arena.learning.tracker_context_local_transition_27d import (
+                    OnboardLocalTransition27dContextTracker,
+                )
+
+                raw_fog = getattr(self._episode.context.config, "raw", {}).get("water_fog")
+                assert_approved_water_fog_dict(raw_fog, context_label=str(track))
+
+                self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION_27D
+                self._obs_dim = OBS_DIM_LOCAL_TRANSITION_27D
+                self._context_type = OnboardLocalTransition27dContextTracker
+                self._encoder = encode_observation_local_transition_27d
+                default_reward = LocalTransitionTrainingReward()
+            elif self.observation_encoding_version == "onboard_local_transition_gate_yaw_v2":
                 from marine_race_arena.learning.config_local_transition_gate_yaw import (
                     FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW,
                     OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
