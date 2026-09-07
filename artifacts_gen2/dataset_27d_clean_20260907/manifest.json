@@ -1,0 +1,275 @@
+{
+  "schema_version": "gen2_expert_corpus_27d_v1",
+  "observation_contract": "onboard_local_transition_27d_v1",
+  "observation_dim": 27,
+  "feature_names": [
+    "beacon_present",
+    "beacon_bearing_sin",
+    "beacon_bearing_cos",
+    "beacon_elevation_norm",
+    "beacon_range_norm",
+    "vision_center_x",
+    "vision_center_y",
+    "vision_area_fraction",
+    "depth_norm",
+    "dvl_surge_norm",
+    "dvl_sway_norm",
+    "dvl_heave_norm",
+    "dvl_present",
+    "imu_yaw_rate_norm",
+    "previous_surge",
+    "previous_sway",
+    "previous_heave",
+    "previous_yaw",
+    "vision_center_x_rate",
+    "vision_center_y_rate",
+    "beacon_bearing_rate",
+    "beacon_elevation_rate",
+    "beacon_range_rate",
+    "target_changed_recently",
+    "gate_orientation_present",
+    "gate_yaw_sin",
+    "gate_yaw_cos"
+  ],
+  "action_dim": 4,
+  "expert": "rule_gate_center_then_commit",
+  "shard_count": 6,
+  "corpus_sha256": "f6b7d55d5c72d8d983dfc06c311a03fc8759554aac56e532989ea37ff0c370da",
+  "statistics": {
+    "episodes": 6,
+    "transitions": 8445,
+    "completed_episodes": 6,
+    "completion_rate": 1.0,
+    "gate_success_rate": 1.0,
+    "vision_availability": 0.6827,
+    "orientation_availability": 0.6639,
+    "dvl_availability": 0.5005,
+    "episode_length_steps": {
+      "min": 301,
+      "max": 3363,
+      "mean": 1407.5,
+      "median": 1135
+    },
+    "by_source": {
+      "horseshoe_bay": 1,
+      "horseshoe_bay_G01-G03": 1,
+      "mixed_endurance": 1,
+      "mixed_endurance_G14-G16": 1,
+      "vertical_serpent": 1,
+      "vertical_serpent_G08-G10": 1
+    }
+  },
+  "shards": [
+    {
+      "file": "fragment_03_009400.npz",
+      "bytes": 33993,
+      "sha256": "437e7820ec19f66d7558904e52c0aa1d6ad2ae96d92e456e11fc8fb69fef14fa"
+    },
+    {
+      "file": "fragment_04_009500.npz",
+      "bytes": 51029,
+      "sha256": "2565894b50c5c3cc19b688720b5df3e05050b2582a478d662b363acdeda87deb"
+    },
+    {
+      "file": "fragment_05_009600.npz",
+      "bytes": 50590,
+      "sha256": "cd437480c91f07d77eacd5fe86780c3db3920a0b0226db4b805534efe3b0baa9"
+    },
+    {
+      "file": "full_track_00_009100.npz",
+      "bytes": 188515,
+      "sha256": "8a584e122f155f02bc85f9cb463c730c9b17427cc9db4883d97682588a4f3342"
+    },
+    {
+      "file": "full_track_01_009200.npz",
+      "bytes": 219178,
+      "sha256": "faeeb3b7618cffaad58ee887c68df74ddf4bab7f99a68d0a8090b7ed896be8c2"
+    },
+    {
+      "file": "full_track_02_009300.npz",
+      "bytes": 343317,
+      "sha256": "ee1c22fce9bb840cdc952f1929008146a086bee5c671cd506d8b28e751746411"
+    }
+  ],
+  "fog": {
+    "required": {
+      "enabled": true,
+      "density": 5.0,
+      "start_distance_m": 1.0,
+      "color_rgb": [
+        0.4,
+        0.6,
+        1.0
+      ]
+    },
+    "sources": [
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments\\horseshoe_bay_G01-G03.json",
+        "water_fog": {
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ],
+          "density": 5.0,
+          "enabled": true,
+          "start_distance_m": 1.0
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments\\vertical_serpent_G08-G10.json",
+        "water_fog": {
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ],
+          "density": 5.0,
+          "enabled": true,
+          "start_distance_m": 1.0
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments\\mixed_endurance_G14-G16.json",
+        "water_fog": {
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ],
+          "density": 5.0,
+          "enabled": true,
+          "start_distance_m": 1.0
+        },
+        "valid": true
+      }
+    ],
+    "all_valid": true
+  },
+  "actual_adapter": "holoocean",
+  "fallback_used": false,
+  "git_sha": "cf75961ee4a8d01b450aa33792a8236f0d911f10",
+  "allow_long_collection": true,
+  "episodes_per_source": 1,
+  "sources": [
+    {
+      "name": "horseshoe_bay",
+      "track": "horseshoe_bay",
+      "kind": "full_track",
+      "fragment": null
+    },
+    {
+      "name": "vertical_serpent",
+      "track": "vertical_serpent",
+      "kind": "full_track",
+      "fragment": null
+    },
+    {
+      "name": "mixed_endurance",
+      "track": "mixed_endurance",
+      "kind": "full_track",
+      "fragment": null
+    },
+    {
+      "name": "horseshoe_bay_G01-G03",
+      "track": "horseshoe_bay",
+      "kind": "fragment",
+      "fragment": {
+        "track": "horseshoe_bay",
+        "start_index": 0,
+        "end_index": 2,
+        "gate_ids": [
+          "G01",
+          "G02",
+          "G03"
+        ],
+        "inbound_gate_id": null,
+        "grown_for_link": false,
+        "length": 3,
+        "name": "horseshoe_bay_G01-G03"
+      }
+    },
+    {
+      "name": "vertical_serpent_G08-G10",
+      "track": "vertical_serpent",
+      "kind": "fragment",
+      "fragment": {
+        "track": "vertical_serpent",
+        "start_index": 7,
+        "end_index": 9,
+        "gate_ids": [
+          "G08",
+          "G09",
+          "G10"
+        ],
+        "inbound_gate_id": "G07",
+        "grown_for_link": false,
+        "length": 3,
+        "name": "vertical_serpent_G08-G10"
+      }
+    },
+    {
+      "name": "mixed_endurance_G14-G16",
+      "track": "mixed_endurance",
+      "kind": "fragment",
+      "fragment": {
+        "track": "mixed_endurance",
+        "start_index": 13,
+        "end_index": 15,
+        "gate_ids": [
+          "G14",
+          "G15",
+          "G16"
+        ],
+        "inbound_gate_id": "G13",
+        "grown_for_link": false,
+        "length": 3,
+        "name": "mixed_endurance_G14-G16"
+      }
+    }
+  ]
+}

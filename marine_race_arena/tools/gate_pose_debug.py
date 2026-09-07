@@ -37,6 +37,16 @@ from marine_race_arena.controllers.gate_pose import (
     wrap_plane_yaw_deg,
 )
 from marine_race_arena.controllers.vision import VisionTarget, vision_targets_from_camera
+from marine_race_arena.learning.config_local_transition_27d import (
+    OBS_DIM_LOCAL_TRANSITION_27D,
+    OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+)
+from marine_race_arena.learning.observation_encoder_local_transition_27d import (
+    encode_observation_local_transition_27d,
+)
+from marine_race_arena.learning.tracker_context_local_transition_27d import (
+    OnboardLocalTransition27dContextTracker,
+)
 
 
 TRACKS = {
@@ -642,6 +652,7 @@ def run_track(
         dt=0.1,
         adapter="holoocean",
         allow_fallback=False,
+        headless=not show_window,
         max_steps=max_steps + warmup_steps,
         official=True,
         current_profile="none",
@@ -656,6 +667,7 @@ def run_track(
     window = "Gate Pose Visual Validation -- ONBOARD ONLY"
     previous_expected: Optional[str] = None
     previous_yaw: Optional[float] = None
+    previous_action = np.zeros(4, dtype=np.float32)
     saved_events: set[str] = set()
 
     try:
@@ -668,6 +680,11 @@ def run_track(
             raw = episode.step(zero).observation
 
         expert.reset(dict(_mission_info(episode.context.config, episode.participant_id)))
+        onboard_tracker = OnboardLocalTransition27dContextTracker(
+            total_beacons=len(episode.context.config.track.gate_sequence),
+            laps=int(episode.context.config.race.laps),
+        )
+        onboard_tracker.reset(raw)
         gate_width_m, gate_height_m = _aperture_size(episode.context.config)
         if show_window:
             cv2.namedWindow(window, cv2.WINDOW_NORMAL)
@@ -680,30 +697,35 @@ def run_track(
 
         for step in range(max_steps):
             command = expert.step(dict(raw))
-            tracker = expert.tracker
+            context = onboard_tracker.context(
+                raw, dt=episode.dt, prev_action=previous_action.tolist()
+            )
+            encoded = encode_observation_local_transition_27d(raw, context)
+            if encoded.shape != (OBS_DIM_LOCAL_TRANSITION_27D,) or not np.isfinite(encoded).all():
+                raise RuntimeError("27-D diagnostic observation is invalid")
+            tracker = onboard_tracker.tracker
             expected = tracker.expected_beacon_id
             if previous_expected is not None and expected != previous_expected:
                 pose_tracker.reset()
                 previous_yaw = None
-            visual = getattr(tracker, "_latest_visual_target", None)
+            visual = context.visual_target
             sensors = raw.get("sensors") if isinstance(raw.get("sensors"), Mapping) else {}
             image = sensors.get("FrontCamera")
             raw_candidates = vision_targets_from_camera(image) if image is not None else []
-            fresh_pose = (
-                estimate_gate_pose(
-                    image,
-                    intr=DEFAULT_INTRINSICS,
-                    visual_target=visual,
-                    gate_width_m=gate_width_m,
-                    gate_height_m=gate_height_m,
-                )
-                if image is not None and visual is not None and not visual.predicted else None
-            )
-            pose = pose_tracker.update(fresh_pose)
+            pose = onboard_tracker.last_gate_pose
             online = _online_frame(
                 label, step, raw, tracker, visual, pose, len(raw_candidates), previous_yaw
             )
             online_row = asdict(online)
+            online_row.update({
+                "observation_contract": OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+                "observation_dim": OBS_DIM_LOCAL_TRANSITION_27D,
+                "observation_finite": True,
+                "observation_27d": [float(value) for value in encoded],
+                "gate_orientation_present_feature": float(encoded[24]),
+                "gate_yaw_sin_feature": float(encoded[25]),
+                "gate_yaw_cos_feature": float(encoded[26]),
+            })
             online_rows.append(online_row)
             online_file.write(json.dumps(online_row, ensure_ascii=False) + "\n")
             online_file.flush()
@@ -767,6 +789,10 @@ def run_track(
                 previous_yaw = float(pose.gate_plane_yaw_deg)
             outcome = episode.step(command)
             raw = outcome.observation
+            previous_action = np.asarray(
+                [float(command.get(axis, 0.0)) for axis in ("surge", "sway", "heave", "yaw")],
+                dtype=np.float32,
+            )
             if outcome.terminated or outcome.truncated:
                 break
     finally:
@@ -787,6 +813,10 @@ def run_track(
         "controller_inputs": "official onboard observation only",
         "pose_inputs": "FrontCamera pixels + camera-derived tracked ROI",
         "ground_truth_mode": "separate offline scoring only" if offline_ground_truth else "disabled",
+        "diagnostic_only": True,
+        "include_in_training_dataset": False,
+        "observation_contract": OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+        "observation_dim": OBS_DIM_LOCAL_TRANSITION_27D,
         "metrics": metrics,
         "output_dir": str(out.resolve()),
         "screenshots": [str(path.resolve()) for path in sorted(screenshots.glob("*.png"))],
@@ -838,6 +868,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="logga GT in un file separato, solo per scoring offline")
     parser.add_argument("--validate-all", action="store_true",
                         help="esegue headless i tre circuiti con scoring GT separato")
+    parser.add_argument("--visual-smoke-all", action="store_true",
+                        help="esegue un episodio diagnostico visibile per ciascun circuito")
     parser.add_argument("--out", default=None,
                         help="radice output; ogni esecuzione crea comunque una directory nuova")
     return parser
@@ -845,7 +877,33 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.validate_all:
+    if args.visual_smoke_all:
+        summaries = []
+        for index, name in enumerate(TRACKS):
+            summaries.append(run_track(
+                name,
+                seed=args.seed + index,
+                max_steps=args.max_steps,
+                warmup_steps=args.warmup_steps,
+                show_window=True,
+                start_paused=args.paused,
+                video=args.video,
+                offline_ground_truth=True,
+                out_root=args.out or "artifacts_gen2/visual_collection_smoke",
+            ))
+        report = {
+            "generated_local": datetime.now().isoformat(timespec="seconds"),
+            "diagnostic_only": True,
+            "include_in_training_dataset": False,
+            "tracks": summaries,
+            "training_started": False,
+        }
+        base = Path(args.out or "artifacts_gen2/visual_collection_smoke")
+        base.mkdir(parents=True, exist_ok=True)
+        report_path = base / "visual_smoke_report.json"
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print("[visual-smoke-27d] " + json.dumps({"report": str(report_path.resolve())}, indent=2), flush=True)
+    elif args.validate_all:
         validate_all(args)
     else:
         run_track(

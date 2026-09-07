@@ -156,6 +156,7 @@ class RaceEpisode:
         dt: float = 0.1,
         adapter: str = "fallback",
         allow_fallback: bool = True,
+        headless: bool = True,
         max_steps: Optional[int] = None,
         official: bool = True,
         duration_s: Optional[float] = None,
@@ -171,6 +172,7 @@ class RaceEpisode:
         self.dt = float(dt)
         self.adapter_name = adapter
         self.allow_fallback = allow_fallback
+        self.headless = bool(headless)
         self.max_steps = max_steps
         self.official = official
         self.duration_s = duration_s
@@ -226,6 +228,7 @@ class RaceEpisode:
             seed=self.seed,
             adapter=self.adapter_name,
             allow_fallback=self.allow_fallback,
+            headless=self.headless,
             official=self.official,
             duration_s=self.duration_s,
             start_randomization=self.start_randomization,

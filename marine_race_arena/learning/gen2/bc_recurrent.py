@@ -36,7 +36,7 @@ from torch import nn
 
 from marine_race_arena.learning.config import ACTION_AXES, ACTION_DIM
 from marine_race_arena.learning.config_local_transition import OBS_DIM_LOCAL_TRANSITION
-from marine_race_arena.learning.gen2.dataset import Gen2Episode, observation_statistics
+from marine_race_arena.learning.gen2.dataset import Gen2Episode
 
 
 @dataclass
@@ -123,7 +123,8 @@ def _pad_batch(batch: Sequence[Gen2Episode]) -> Tuple[np.ndarray, np.ndarray, np
     """Return ``(obs, target, mask, episode_starts)`` shaped ``(B, L, ...)``."""
     size = len(batch)
     length = max(len(e) for e in batch)
-    obs = np.zeros((size, length, OBS_DIM_LOCAL_TRANSITION), dtype=np.float32)
+    obs_dim = int(batch[0].observations.shape[1])
+    obs = np.zeros((size, length, obs_dim), dtype=np.float32)
     target = np.zeros((size, length, ACTION_DIM), dtype=np.float32)
     mask = np.zeros((size, length), dtype=np.float32)
     starts = np.zeros((size, length), dtype=np.float32)
@@ -139,7 +140,7 @@ def _pad_batch(batch: Sequence[Gen2Episode]) -> Tuple[np.ndarray, np.ndarray, np
 def _forward_actor_chunk(policy, obs_chunk: th.Tensor, starts_chunk: th.Tensor, states):
     """Run the actor path over ``(B, L, 35)`` and return ``(mean, new_states)``."""
     batch, length, _ = obs_chunk.shape
-    flat = obs_chunk.reshape(batch * length, OBS_DIM_LOCAL_TRANSITION)
+    flat = obs_chunk.reshape(batch * length, obs_chunk.shape[-1])
     features = policy.extract_features(flat)
     if isinstance(features, tuple):  # share_features_extractor=False
         features = features[0]
@@ -236,7 +237,10 @@ def train_recurrent_bc(
         # to: splitting after replication leaks duplicates across the boundary.
         train_episodes = list(episodes)
     if latch_normalization:
-        mean, std = observation_statistics(train_episodes)
+        values = np.concatenate([episode.observations for episode in train_episodes], axis=0).astype(np.float64)
+        mean = values.mean(axis=0).astype(np.float32)
+        std = values.std(axis=0).astype(np.float32)
+        std[std < 1e-3] = 1.0
         extractor = policy.features_extractor
         if not hasattr(extractor, "set_normalization"):
             raise TypeError("Gen-2 BC requires the Gen2ObsEncoder features extractor")
