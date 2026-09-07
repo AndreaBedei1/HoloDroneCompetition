@@ -74,6 +74,7 @@ class MarineRaceGymEnv(_GYM_BASE):
         start_randomization=None,
         episode_seed_stream: Optional[int] = None,
         observation_encoding_version: str = OBS_ENCODING_VERSION,
+        initial_body_velocity: Optional[Tuple[float, float, float]] = None,
     ) -> None:
         if gym is None:  # pragma: no cover - only without gymnasium installed
             raise ImportError(
@@ -113,11 +114,32 @@ class MarineRaceGymEnv(_GYM_BASE):
                 OBS_ENCODING_VERSION_V3,
                 "onboard_ppo_sequence_v4",
                 "onboard_local_transition_v1",
+                "onboard_local_transition_gate_yaw_v2",
             }:
                 raise ValueError(
                     f"unsupported observation encoding {self.observation_encoding_version!r}"
                 )
-            if self.observation_encoding_version == "onboard_local_transition_v1":
+            if self.observation_encoding_version == "onboard_local_transition_gate_yaw_v2":
+                from marine_race_arena.learning.config_local_transition_gate_yaw import (
+                    FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW,
+                    OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
+                )
+                from marine_race_arena.learning.observation_encoder_local_transition_gate_yaw import (
+                    encode_observation_local_transition_gate_yaw,
+                )
+                from marine_race_arena.learning.reward_local_transition import (
+                    LocalTransitionTrainingReward,
+                )
+                from marine_race_arena.learning.tracker_context_local_transition_gate_yaw import (
+                    OnboardLocalTransitionGateYawContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW
+                self._obs_dim = OBS_DIM_LOCAL_TRANSITION_GATE_YAW
+                self._context_type = OnboardLocalTransitionGateYawContextTracker
+                self._encoder = encode_observation_local_transition_gate_yaw
+                default_reward = LocalTransitionTrainingReward()
+            elif self.observation_encoding_version == "onboard_local_transition_v1":
                 from marine_race_arena.learning.config_local_transition import (
                     FEATURE_BOUNDS_LOCAL_TRANSITION,
                     OBS_DIM_LOCAL_TRANSITION,
@@ -180,6 +202,9 @@ class MarineRaceGymEnv(_GYM_BASE):
         # always passes an explicit seed, so it is unaffected.
         self._episode_seed_stream = episode_seed_stream
         self._episode_counter = 0
+        # Controller-invisible fragment initialization.  This reconstructs the
+        # inbound velocity of an exact track window; it is never encoded.
+        self._initial_body_velocity = initial_body_velocity
 
         low = np.array([b[0] for b in self._feature_bounds], dtype=np.float32)
         high = np.array([b[1] for b in self._feature_bounds], dtype=np.float32)
@@ -207,6 +232,15 @@ class MarineRaceGymEnv(_GYM_BASE):
             effective_seed = int(self._episode_seed_stream) + self._episode_counter
             self._episode_counter += 1
         obs_dict = self._episode.reset(seed=effective_seed)
+        if self._initial_body_velocity is not None:
+            from marine_race_arena.learning.gen2.track_fragments import (
+                apply_initial_body_velocity,
+            )
+
+            if apply_initial_body_velocity(
+                self._episode, self._initial_body_velocity
+            ):
+                obs_dict = self._episode._build_observation()
         ctx_cfg = self._episode.context.config
         total_beacons = max(1, len(ctx_cfg.track.gate_sequence))
         laps = max(1, int(ctx_cfg.race.laps))

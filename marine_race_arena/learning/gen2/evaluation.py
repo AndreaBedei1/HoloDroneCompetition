@@ -39,6 +39,9 @@ from marine_race_arena.learning.config_local_transition import (
     OBS_DIM_LOCAL_TRANSITION,
     OBS_ENCODING_VERSION_LOCAL_TRANSITION,
 )
+from marine_race_arena.learning.config_local_transition_gate_yaw import (
+    OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
+)
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
 from marine_race_arena.learning.episode import RaceEpisode
 from marine_race_arena.learning.gen2 import GEN2_ACTION_CONTRACT
@@ -187,15 +190,36 @@ def run_policy_episode(
             raw = episode._build_observation()
         config = episode.context.config
         gate_total = len(config.track.gate_sequence)
-        context_source = OnboardLocalTransitionContextTracker(
-            total_beacons=max(1, gate_total), laps=max(1, int(config.race.laps))
-        )
+        controller_obs_dim = int(controller.model.observation_space.shape[0])
+        if controller_obs_dim == OBS_DIM_LOCAL_TRANSITION_GATE_YAW:
+            from marine_race_arena.learning.observation_encoder_local_transition_gate_yaw import (
+                encode_observation_local_transition_gate_yaw,
+            )
+            from marine_race_arena.learning.tracker_context_local_transition_gate_yaw import (
+                OnboardLocalTransitionGateYawContextTracker,
+            )
+
+            context_source = OnboardLocalTransitionGateYawContextTracker(
+                total_beacons=max(1, gate_total),
+                laps=max(1, int(config.race.laps)),
+            )
+            encode_for_policy = encode_observation_local_transition_gate_yaw
+        elif controller_obs_dim == OBS_DIM_LOCAL_TRANSITION:
+            context_source = OnboardLocalTransitionContextTracker(
+                total_beacons=max(1, gate_total),
+                laps=max(1, int(config.race.laps)),
+            )
+            encode_for_policy = encode_observation_local_transition
+        else:
+            raise ValueError(
+                f"unsupported Gen-2 controller observation dimension {controller_obs_dim}"
+            )
         context_source.reset(raw)
         controller.reset()
 
         while steps < max_steps:
             context = context_source.context(raw, dt=float(dt), prev_action=previous_action.tolist())
-            encoded = encode_observation_local_transition(raw, context)
+            encoded = encode_for_policy(raw, context)
             observations.append(encoded)
 
             action = np.asarray(

@@ -36,6 +36,7 @@ import torch as th
 import gymnasium as gym
 from gymnasium import spaces
 from torch import nn
+from torch.nn import functional as F
 
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
@@ -44,6 +45,12 @@ from marine_race_arena.learning.config_local_transition import (
     FEATURE_NAMES_LOCAL_TRANSITION,
     OBS_DIM_LOCAL_TRANSITION,
     OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+)
+from marine_race_arena.learning.config_local_transition_gate_yaw import (
+    FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW,
+    FEATURE_NAMES_LOCAL_TRANSITION_GATE_YAW,
+    OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
+    OBS_ENCODING_VERSION_LOCAL_TRANSITION_GATE_YAW,
 )
 from marine_race_arena.learning.gen2 import GEN2_ACTION_CONTRACT
 
@@ -69,6 +76,30 @@ class Gen2Architecture:
 
 
 GEN2_ARCH = Gen2Architecture()
+GEN2_GATE_YAW_ARCH = Gen2Architecture(
+    architecture_id="gen2_recurrent_lstm_gate_yaw_v2",
+    obs_dim=OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
+)
+
+
+def _observation_contract(architecture: Gen2Architecture):
+    if int(architecture.obs_dim) == OBS_DIM_LOCAL_TRANSITION:
+        from marine_race_arena.learning.config_local_transition import (
+            FEATURE_BOUNDS_LOCAL_TRANSITION,
+        )
+
+        return (
+            OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+            FEATURE_NAMES_LOCAL_TRANSITION,
+            FEATURE_BOUNDS_LOCAL_TRANSITION,
+        )
+    if int(architecture.obs_dim) == OBS_DIM_LOCAL_TRANSITION_GATE_YAW:
+        return (
+            OBS_ENCODING_VERSION_LOCAL_TRANSITION_GATE_YAW,
+            FEATURE_NAMES_LOCAL_TRANSITION_GATE_YAW,
+            FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW,
+        )
+    raise ValueError(f"unsupported Gen-2 observation dimension {architecture.obs_dim}")
 
 
 class Gen2ObsEncoder(BaseFeaturesExtractor):
@@ -88,14 +119,17 @@ class Gen2ObsEncoder(BaseFeaturesExtractor):
         hidden: Sequence[int] = GEN2_ARCH.encoder_hidden,
         obs_mean: Optional[Sequence[float]] = None,
         obs_std: Optional[Sequence[float]] = None,
+        expected_obs_dim: int = OBS_DIM_LOCAL_TRANSITION,
+        expected_contract: str = OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+        legacy_prefix_dim: int = OBS_DIM_LOCAL_TRANSITION,
     ) -> None:
         features_dim = int(hidden[-1])
         super().__init__(observation_space, features_dim=features_dim)
         obs_dim = int(observation_space.shape[0])
-        if obs_dim != OBS_DIM_LOCAL_TRANSITION:
+        if obs_dim != int(expected_obs_dim):
             raise ValueError(
-                f"Gen-2 requires the {OBS_DIM_LOCAL_TRANSITION}-feature contract "
-                f"{OBS_ENCODING_VERSION_LOCAL_TRANSITION!r}, got obs_dim={obs_dim}"
+                f"Gen-2 requires the {int(expected_obs_dim)}-feature contract "
+                f"{expected_contract!r}, got obs_dim={obs_dim}"
             )
         mean = np.zeros(obs_dim, np.float32) if obs_mean is None else np.asarray(obs_mean, np.float32)
         std = np.ones(obs_dim, np.float32) if obs_std is None else np.asarray(obs_std, np.float32)
@@ -103,6 +137,7 @@ class Gen2ObsEncoder(BaseFeaturesExtractor):
             raise ValueError("normalization statistics must be one value per feature")
         self.register_buffer("obs_mean", th.as_tensor(mean, dtype=th.float32))
         self.register_buffer("obs_std", th.as_tensor(np.maximum(std, 1e-3), dtype=th.float32))
+        self.legacy_prefix_dim = int(legacy_prefix_dim)
 
         layers: list = []
         previous = obs_dim
@@ -124,6 +159,28 @@ class Gen2ObsEncoder(BaseFeaturesExtractor):
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         normalized = (observations - self.obs_mean) / self.obs_std
+        # Preserve the parent's exact 35-column GEMM when a contract appends
+        # neutral, zero-weight features.  Evaluating one 38-column GEMM can
+        # change floating-point reduction order even when its last columns are
+        # zero.  Splitting the legacy and appended contributions makes neutral
+        # recurrent parity exact while still allowing PPO to learn the new
+        # columns normally after the first update.
+        if normalized.shape[-1] > self.legacy_prefix_dim:
+            first = self.encoder[0]
+            legacy = F.linear(
+                normalized[..., : self.legacy_prefix_dim],
+                # The slice has a 38-column stride; make it physically 35-wide
+                # so PyTorch selects the same GEMM/reduction as the parent.
+                first.weight[..., : self.legacy_prefix_dim].contiguous(),
+                first.bias,
+            )
+            appended = F.linear(
+                normalized[..., self.legacy_prefix_dim :],
+                first.weight[..., self.legacy_prefix_dim :],
+                None,
+            )
+            encoded = th.tanh(legacy + appended)
+            return self.encoder[2:](encoded)
         return self.encoder(normalized)
 
 
@@ -152,6 +209,8 @@ def build_gen2_recurrent_ppo(
     """Construct the Gen-2 ``RecurrentPPO``.  BC optimizes this object directly."""
     from sb3_contrib import RecurrentPPO
 
+    observation_contract, feature_names, _bounds = _observation_contract(architecture)
+
     policy_kwargs = dict(
         activation_fn=nn.Tanh,
         net_arch=dict(pi=list(architecture.head_hidden), vf=list(architecture.head_hidden)),
@@ -160,6 +219,9 @@ def build_gen2_recurrent_ppo(
             hidden=tuple(architecture.encoder_hidden),
             obs_mean=obs_mean,
             obs_std=obs_std,
+            expected_obs_dim=int(architecture.obs_dim),
+            expected_contract=observation_contract,
+            legacy_prefix_dim=OBS_DIM_LOCAL_TRANSITION,
         ),
         share_features_extractor=True,
         lstm_hidden_size=int(architecture.lstm_hidden_size),
@@ -190,20 +252,24 @@ def build_gen2_recurrent_ppo(
     # Provenance travels with the checkpoint so a stale policy can never be
     # loaded into a different contract by accident.
     model.gen2_architecture = architecture.as_dict()
-    model.gen2_obs_contract = OBS_ENCODING_VERSION_LOCAL_TRANSITION
+    model.gen2_obs_contract = observation_contract
     model.gen2_action_contract = GEN2_ACTION_CONTRACT
-    model.gen2_feature_names = list(FEATURE_NAMES_LOCAL_TRANSITION)
+    model.gen2_feature_names = list(feature_names)
     return model
 
 
-def gen2_observation_space() -> spaces.Box:
-    from marine_race_arena.learning.config_local_transition import (
-        FEATURE_BOUNDS_LOCAL_TRANSITION,
+def gen2_observation_space(
+    architecture: Gen2Architecture = GEN2_ARCH,
+) -> spaces.Box:
+    _contract, _names, bounds = _observation_contract(architecture)
+    low = np.asarray([b[0] for b in bounds], dtype=np.float32)
+    high = np.asarray([b[1] for b in bounds], dtype=np.float32)
+    return spaces.Box(
+        low=low,
+        high=high,
+        shape=(int(architecture.obs_dim),),
+        dtype=np.float32,
     )
-
-    low = np.asarray([b[0] for b in FEATURE_BOUNDS_LOCAL_TRANSITION], dtype=np.float32)
-    high = np.asarray([b[1] for b in FEATURE_BOUNDS_LOCAL_TRANSITION], dtype=np.float32)
-    return spaces.Box(low=low, high=high, shape=(OBS_DIM_LOCAL_TRANSITION,), dtype=np.float32)
 
 
 def gen2_action_space() -> spaces.Box:
@@ -222,7 +288,7 @@ def build_gen2_policy_for_training(
     """Build the Gen-2 ``RecurrentPPO`` without needing a live simulator."""
     from stable_baselines3.common.vec_env import DummyVecEnv
 
-    env = DummyVecEnv([lambda: _GymContractEnv()])
+    env = DummyVecEnv([lambda: _GymContractEnv(architecture)])
     return build_gen2_recurrent_ppo(
         env,
         architecture=architecture,
@@ -245,16 +311,23 @@ class _GymContractEnv(gym.Env):
     metadata: Dict[str, Any] = {"render_modes": []}
     render_mode = None
 
-    def __init__(self) -> None:
+    def __init__(self, architecture: Gen2Architecture = GEN2_ARCH) -> None:
         super().__init__()
-        self.observation_space = gen2_observation_space()
+        self.architecture = architecture
+        self.observation_space = gen2_observation_space(architecture)
         self.action_space = gen2_action_space()
 
     def reset(self, *, seed: Optional[int] = None, options=None):
-        return np.zeros(OBS_DIM_LOCAL_TRANSITION, np.float32), {}
+        return np.zeros(int(self.architecture.obs_dim), np.float32), {}
 
     def step(self, _action):
-        return np.zeros(OBS_DIM_LOCAL_TRANSITION, np.float32), 0.0, True, False, {}
+        return (
+            np.zeros(int(self.architecture.obs_dim), np.float32),
+            0.0,
+            True,
+            False,
+            {},
+        )
 
     def close(self) -> None:
         return None
@@ -294,9 +367,10 @@ class Gen2RecurrentController:
         if first_step:
             self.reset()
         vector = np.asarray(observation, dtype=np.float32).reshape(1, -1)
-        if vector.shape[1] != OBS_DIM_LOCAL_TRANSITION:
+        expected_dim = int(self.model.observation_space.shape[0])
+        if vector.shape[1] != expected_dim:
             raise ValueError(
-                f"Gen-2 controller expects {OBS_DIM_LOCAL_TRANSITION} features, "
+                f"Gen-2 controller expects {expected_dim} features, "
                 f"got {vector.shape[1]}"
             )
         starts = np.asarray([self._episode_started], dtype=bool)
@@ -361,14 +435,22 @@ def write_policy_manifest(model, path: str | Path, **extra: Any) -> Path:
     """Record architecture, contracts and parameter counts next to a checkpoint."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    architecture_data = getattr(model, "gen2_architecture", GEN2_ARCH.as_dict())
+    obs_dim = int(model.observation_space.shape[0])
+    if obs_dim == OBS_DIM_LOCAL_TRANSITION_GATE_YAW:
+        contract = OBS_ENCODING_VERSION_LOCAL_TRANSITION_GATE_YAW
+        feature_names = FEATURE_NAMES_LOCAL_TRANSITION_GATE_YAW
+    else:
+        contract = OBS_ENCODING_VERSION_LOCAL_TRANSITION
+        feature_names = FEATURE_NAMES_LOCAL_TRANSITION
     payload = {
         "schema_version": "gen2_policy_manifest_v1",
-        "architecture": getattr(model, "gen2_architecture", GEN2_ARCH.as_dict()),
-        "observation_contract": OBS_ENCODING_VERSION_LOCAL_TRANSITION,
+        "architecture": architecture_data,
+        "observation_contract": contract,
         "action_contract": GEN2_ACTION_CONTRACT,
-        "observation_dim": OBS_DIM_LOCAL_TRANSITION,
+        "observation_dim": obs_dim,
         "action_dim": ACTION_DIM,
-        "feature_names": list(FEATURE_NAMES_LOCAL_TRANSITION),
+        "feature_names": list(feature_names),
         "parameters": policy_parameter_count(model),
         **extra,
     }

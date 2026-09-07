@@ -265,6 +265,31 @@ def test_visual_association_rejects_tiny_next_gate_at_close_expected_range():
     ) is None
 
 
+def test_initial_visual_association_rejects_gate_far_from_expected_beacon():
+    from marine_race_arena.controllers.vision import VisionTarget, select_visual_target_for_beacon
+
+    later_gate = VisionTarget(
+        center_x=-0.87,
+        center_y=-0.66,
+        confidence=0.99,
+        area_fraction=0.08,
+        width_fraction=0.28,
+        height_fraction=0.30,
+    )
+    expected_gate = VisionTarget(
+        center_x=0.0,
+        center_y=0.02,
+        confidence=0.62,
+        area_fraction=0.05,
+        width_fraction=0.22,
+        height_fraction=0.24,
+    )
+
+    assert select_visual_target_for_beacon(
+        [later_gate, expected_gate], bearing_deg=0.0, range_m=4.5
+    ) is expected_gate
+
+
 def test_default_visual_association_prefers_nearest_apparent_gate() -> None:
     from marine_race_arena.controllers.vision import (
         VisionTarget,

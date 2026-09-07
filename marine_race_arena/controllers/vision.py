@@ -257,6 +257,10 @@ def select_visual_target_for_beacon(
     if not usable:
         return None
     largest_area = max(target.area_fraction for target in usable)
+    has_bearing_consistent_candidate = any(
+        _bearing_mismatch_deg(candidate, bearing_deg) <= 32.0
+        for candidate in usable
+    )
     scored: list[tuple[float, VisionTarget]] = []
     for target in usable:
         centered_score = _clamp(1.0 - 0.75 * abs(target.center_x) - 0.25 * abs(target.center_y), 0.0, 1.0)
@@ -274,6 +278,11 @@ def select_visual_target_for_beacon(
         # keeps a blob merged across several visible gates from outscoring the
         # actual expected gate.
         bearing_mismatch_deg = _bearing_mismatch_deg(target, bearing_deg)
+        # Use the same hard identity gate as temporal association on the first
+        # proposal.  Otherwise a high-confidence later gate can win one frame
+        # before the tracker has a history to associate against.
+        if has_bearing_consistent_candidate and bearing_mismatch_deg > 32.0:
+            continue
         # In a multi-gate view, the most centered/high-confidence rectangle can
         # be the *next* gate. Keep the expected beacon's noisy bearing as the
         # dominant association cue at every range instead of bypassing it in

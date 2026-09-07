@@ -54,7 +54,7 @@ OUT_OF_BOUNDS_PENALTY = -50.0
 WRONG_DIRECTION_PENALTY = -25.0
 #: Shaping only.  Accumulated over the horizon these stay well under one gate.
 PROGRESS_REWARD = 0.30
-TIME_PENALTY = -0.001          # -6.0 over the horizon, against 20.0 per gate
+TIME_PENALTY = 0.0             # phase 1 learns reliability, never speed
 STALL_PENALTY = -0.005         # -30.0 if it stalls the entire episode
 #: Below this body speed the vehicle is treated as not making progress.
 STALL_SPEED_M_S = 0.05
@@ -161,10 +161,14 @@ class ReliabilityReward:
         self.gate_count = int(gate_count)
         self.breakdown = RewardBreakdown()
         self._previous_gates = 0
+        self._previous_counts: Dict[str, int] = {}
+        self._completion_paid = False
 
     def reset(self, env=None) -> None:
         self.breakdown = RewardBreakdown()
         self._previous_gates = 0
+        self._previous_counts = {}
+        self._completion_paid = False
 
     def __call__(self, env, step, gate_delta: int, action) -> Tuple[float, Dict[str, float]]:
         reward = 0.0
@@ -179,21 +183,39 @@ class ReliabilityReward:
 
         referee = env.episode.context.referee.states[env.episode.participant_id]
         status = getattr(referee.status, "value", str(referee.status))
-        if status == "FINISHED" and self._previous_gates >= self.gate_count:
+        if (
+            status == "FINISHED"
+            and self._previous_gates >= self.gate_count
+            and not self._completion_paid
+        ):
             reward += COMPLETION_BONUS
             self.breakdown.completion += COMPLETION_BONUS
             parts["completion"] = COMPLETION_BONUS
+            self._completion_paid = True
 
-        if bool(step.collision):
-            reward += COLLISION_PENALTY
-            self.breakdown.collision += COLLISION_PENALTY
-            parts["collision"] = COLLISION_PENALTY
-
-        bounds = env.episode.context.arena.bounds
-        if bounds.violation_reason(step.current_state.position) is not None:
-            reward += OUT_OF_BOUNDS_PENALTY
-            self.breakdown.out_of_bounds += OUT_OF_BOUNDS_PENALTY
-            parts["out_of_bounds"] = OUT_OF_BOUNDS_PENALTY
+        event_specs = (
+            ("collision", "collision_events", COLLISION_PENALTY),
+            ("obstacle_collision", "obstacle_collision_events", COLLISION_PENALTY),
+            ("out_of_bounds", "out_of_bounds_events", OUT_OF_BOUNDS_PENALTY),
+            ("wrong_direction", "wrong_direction_crossings", WRONG_DIRECTION_PENALTY),
+            ("missed_gate", "missed_gate_attempts", MISSED_GATE_PENALTY),
+        )
+        for part, attribute, penalty in event_specs:
+            current = int(getattr(referee, attribute, 0))
+            previous = self._previous_counts.get(attribute, 0)
+            delta = max(0, current - previous)
+            self._previous_counts[attribute] = current
+            if not delta:
+                continue
+            value = float(penalty * delta)
+            reward += value
+            field_name = "collision" if part == "obstacle_collision" else part
+            setattr(
+                self.breakdown,
+                field_name,
+                getattr(self.breakdown, field_name) + value,
+            )
+            parts[field_name] = parts.get(field_name, 0.0) + value
 
         speed = float(np.linalg.norm(np.asarray(step.current_state.position)
                                      - np.asarray(step.previous_state.position)))
