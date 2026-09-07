@@ -441,6 +441,124 @@ features:
 * **`beacon_range_rate` sits on a clip bound 37.4% of the time**, which
   suggests its scale is too small for the range rates that actually occur.
 
+## `onboard_local_transition_gate_yaw_v2` — the 38-D gate-yaw smoke
+
+The 35-feature contract tells the policy *where* the gate is and never *how it
+is turned*. Bearing, elevation and apparent area are all invariant to gate
+yaw, so a gate presented edge-on and a gate presented square-on are the same
+observation. Three appended features close that gap, and nothing else changes:
+
+| # | feature | meaning |
+|---|---|---|
+| 36 | `gate_orientation_present` | 1 when a camera plane-yaw estimate exists this step |
+| 37 | `gate_yaw_sin` | sin of the estimated gate-plane yaw, 0 when absent |
+| 38 | `gate_yaw_cos` | cos of the estimated gate-plane yaw, 0 when absent |
+
+`cos(0) = 1` is never emitted without its mask: when the estimate is missing all
+three values are exactly zero, so "absent" is representable and is not confused
+with "square-on". The estimate comes from `estimate_gate_pose` on the
+`FrontCamera` image, searching only the ROI already associated with the locally
+expected acoustic beacon, filtered by `GatePoseTracker(alpha=0.38,
+max_age_steps=4)` and reset on every target change. No map, referee state,
+global pose or per-gate configured geometry reaches the policy; the only prior
+is the competition-constant 1.5 m x 1.5 m aperture used as a scale.
+
+### Transfer is an identity, verified bit-exactly
+
+`best_completion_policy.zip` (`2546ab2f…`) is expanded 35 -> 38 in place: 26
+same-shape tensors copied verbatim, 9 expanded (`obs_mean`, `obs_std` and
+`encoder.0.weight` in each of the three feature-extractor copies), and the three
+new input columns initialized to exactly zero, with `obs_mean = 0` and
+`obs_std = 1` on the new dimensions. Recurrent parity against the parent is
+bit-exact over 32 samples (max absolute deviation 0.0), so the 38-D policy
+*starts* as the parent and any behaviour change is attributable to
+optimization, not to the widening. The parent hash was re-checked after the run
+and is unchanged.
+
+### The smoke — 6 144 timesteps, matched-seed A/B
+
+Deliberately short and explicitly under-powered: one trial per circuit, on the
+same seeds, with `statistical_significance_claimed = false` written into the
+report. It answers "does the widened policy train and step through the full
+pipeline", not "is it better".
+
+* 6 144 steps, 8 PPO updates, lr 3e-5, clip 0.08, `target_kl` 0.01, seed 8400
+* 6 workers: the three full circuits plus one exact 3-gate fragment each
+* fog verified on all three official tracks (`density 5.0`, `start 1.0 m`,
+  `color (0.4, 0.6, 1.0)`); the underwater vision fix is unconditional code in
+  `vision.py`, so both policies were scored through it
+* parent evaluated at 35-D, candidate at 38-D — `run_policy_episode` dispatches
+  the encoder on the checkpoint's own observation dimension
+
+| Circuit | seed | | parent | candidate |
+|---|---|---|---|---|
+| Horseshoe Bay | 67000 | completed | **yes** 12/12 | **yes** 12/12 |
+| | | time | 187.0 s | 264.3 s (+77.3) |
+| | | safety | 0 / 0 / 0 | 0 / 0 / 0 |
+| Vertical Serpent | 67200 | completed | **yes** 17/17 | **no**, DNF at gate 11 |
+| | | time | 247.6 s | — (10/17 gates) |
+| | | safety | 0 / 0 / 0 | 0 coll / 7 OOB / 1 wrong-dir |
+| Mixed Endurance | 67100 | completed | **yes** 22/22 | **no**, DNF at gate 9 |
+| | | time | 360.5 s | — (8/22 gates) |
+| | | safety | 0 / 0 / 0 | 2 coll / 0 OOB / 0 wrong-dir |
+| **total** | | | **3/3, 51/51 gates, 0 events** | **1/3, 30/51 gates, 9 events** |
+
+Safety is reported as collisions / out-of-bounds / wrong-direction raw event
+counts. The parent is clean everywhere and beats the rule baseline on all three
+(-38.9 s, -43.0 s, -112.4 s). This is a regression.
+
+### The regression is not caused by the three new features
+
+Measured directly on the weights, comparing the zero-initialized 38-D policy to
+the candidate:
+
+| what moved | l2 of the change |
+|---|---|
+| the three new input columns (from zero) | 3.9e-3, max abs weight 3.0e-4 |
+| the original 35 input columns | 1.2e-2 |
+| whole policy, all 29 changed tensors | 8.3e-2 |
+
+The new columns are still essentially zero after 8 updates — largest single
+weight 3.0e-4 against an encoder whose column norms are order 1 — so the new
+features cannot yet be steering the vehicle. What moved is everything else:
+the LSTM, the heads and the *old* input columns, which drifted three times
+further than the new ones. Relative drift is tiny (1.4e-2 on `action_net.weight`,
+~1e-3 elsewhere) and it was still enough to turn 3/3 into 1/3.
+
+That is the finding worth keeping: **`best_completion_policy` sits on a sharp
+optimum, and a ~0.1% relative perturbation of the recurrent policy destroys
+long-horizon gate chaining.** It is consistent with the known first-transition
+fragility — the two DNFs are re-targeting failures at gates 9 and 11, not
+control failures — and it means a gate-yaw campaign cannot be run as "resume
+PPO and see". Either the trunk is frozen while the new columns learn, or the
+step size and KL bound go down by an order of magnitude, or both.
+
+### What the three features actually do on the tracks
+
+Measured over 300 steps per circuit with the parent driving, under fog and the
+corrected vision, in the preflight that gated this run:
+
+| Circuit | `gate_orientation_present` | median \|yaw\| | p95 \|yaw\| | p95 yaw jump | zeros when absent |
+|---|---|---|---|---|---|
+| Horseshoe Bay | 85.0% | 5.5° | 48.5° | 5.3° | 45/45 |
+| Vertical Serpent | 83.0% | 14.9° | 35.7° | 5.1° | 51/51 |
+| Mixed Endurance | 67.3% | 0.6° | 26.0° | 5.6° | 98/98 |
+
+Conditional on vision, orientation is available 96.9–98.5% of the time, so the
+availability spread across circuits is a vision-availability property, not a
+pose-estimator property — Mixed Endurance simply sees a gate less often.
+`sin`/`cos` stay on the unit circle to 4e-8, every one of the 900 logged rows is
+finite, the encoded mask never disagrees with the context, and the filter never
+holds an estimate older than 4 frames. The signal is well-formed and
+informative; it is the optimization that has not used it yet.
+
+### Status
+
+Regression on n=1 per circuit. No candidate is promoted, no alias moves,
+`best_completion_policy` is untouched at `2546ab2f…`. The smoke is recorded as
+a pipeline validation and a fragility measurement, not as evidence about the
+gate-yaw contract, which has not yet been given enough training to be judged.
+
 ## Cycle
 
 Short iterations, each answering one question:
