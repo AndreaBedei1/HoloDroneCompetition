@@ -101,3 +101,8 @@ results/rl_public/**/*.mp4
 
 # Debug tool output: frames, screenshots and clips, regenerated on demand.
 results/debug/
+
+# Gen-2 local dataset/checkpoint artifacts; commit only compact manifests,
+# provenance and validation reports.
+/artifacts_gen2/**/*.zip
+/artifacts_gen2/**/progress.json

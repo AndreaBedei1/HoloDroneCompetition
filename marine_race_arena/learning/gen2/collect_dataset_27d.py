@@ -85,7 +85,7 @@ def collect_one(source: Mapping[str, Any], *, seed: int, max_steps: Optional[int
     try:
         raw = episode.reset(seed=seed)
         fragment = source.get("fragment")
-        if fragment and source["kind"] == "fragment":
+        if fragment and source.get("source_type", source.get("kind")) in {"fragment", "exact_fragment"}:
             tf.apply_initial_body_velocity(episode, tf.inbound_body_velocity(tf.TrackFragment(**{k: fragment[k] for k in ("track", "start_index", "end_index", "gate_ids", "inbound_gate_id", "grown_for_link")})))
             raw = episode._build_observation()
         total = len(episode.context.config.track.gate_sequence)
@@ -116,12 +116,19 @@ def collect_one(source: Mapping[str, Any], *, seed: int, max_steps: Optional[int
         final_progress = episode.referee_progress()
         status = str(final_progress.get("status", ""))
         completed = status.upper().endswith("FINISHED") or int(final_progress.get("valid_gate_crossings", 0)) >= total
+        referee_state = episode.context.referee.states.get(episode.participant_id)
         meta = {
             "seed": int(seed), "source": str(source["name"]), "track": str(source["track"]),
-            "kind": str(source["kind"]), "fragment": source.get("fragment"),
+            "kind": str(source.get("source_type", source["kind"])),
+            "source_type": str(source.get("source_type", source["kind"])),
+            "fragment": source.get("fragment"),
             "steps": len(observations), "gate_count": total,
             "gates_completed": int(final_progress.get("valid_gate_crossings", 0)), "completed": bool(completed),
             "status": status, "collisions": int(collisions),
+            "out_of_bounds_events": int(getattr(referee_state, "out_of_bounds_events", 0)),
+            "wrong_direction_crossings": int(getattr(referee_state, "wrong_direction_crossings", 0)),
+            "missed_gate_attempts": int(getattr(referee_state, "missed_gate_attempts", 0)),
+            "obstacle_collision_events": int(getattr(referee_state, "obstacle_collision_events", 0)),
             "vision_steps": vision_steps, "orientation_steps": orientation_steps, "dvl_steps": dvl_steps,
             "actual_adapter": episode.actual_adapter, "fallback_used": episode.fallback_used,
             "fog": dict(APPROVED_WATER_FOG), "currents": "disabled",

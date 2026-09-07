@@ -33,33 +33,139 @@
   ],
   "action_dim": 4,
   "expert": "rule_gate_center_then_commit",
-  "shard_count": 6,
-  "corpus_sha256": "f6b7d55d5c72d8d983dfc06c311a03fc8759554aac56e532989ea37ff0c370da",
+  "shard_count": 22,
+  "corpus_sha256": "56e54e7c796aa00e0957f6e30e962c59e7c07c1a9e8241097d30fd3b0d2fb4c2",
   "statistics": {
-    "episodes": 6,
-    "transitions": 8445,
-    "completed_episodes": 6,
+    "episodes": 22,
+    "transitions": 33424,
+    "completed_episodes": 22,
     "completion_rate": 1.0,
     "gate_success_rate": 1.0,
-    "vision_availability": 0.6827,
-    "orientation_availability": 0.6639,
+    "vision_availability": 0.6764,
+    "orientation_availability": 0.6607,
     "dvl_availability": 0.5005,
     "episode_length_steps": {
       "min": 301,
-      "max": 3363,
-      "mean": 1407.5,
-      "median": 1135
+      "max": 3392,
+      "mean": 1519.3,
+      "median": 1772
     },
     "by_source": {
       "horseshoe_bay": 1,
       "horseshoe_bay_G01-G03": 1,
+      "horseshoe_bay_G07-G09_extra": 1,
+      "horseshoe_bay_extra01": 1,
+      "horseshoe_bay_extra02": 1,
+      "horseshoe_bay_extra03": 1,
       "mixed_endurance": 1,
+      "mixed_endurance_G02-G04_extra": 1,
+      "mixed_endurance_G08-G10_extra": 1,
       "mixed_endurance_G14-G16": 1,
+      "mixed_endurance_extra01": 1,
+      "mixed_endurance_extra02": 1,
+      "mixed_endurance_extra03": 1,
+      "synthetic_simple_120001": 1,
+      "synthetic_simple_120002": 1,
+      "synthetic_simple_120003": 1,
       "vertical_serpent": 1,
-      "vertical_serpent_G08-G10": 1
+      "vertical_serpent_G08-G10": 1,
+      "vertical_serpent_G08-G10_extra": 1,
+      "vertical_serpent_extra01": 1,
+      "vertical_serpent_extra02": 1,
+      "vertical_serpent_extra03": 1
+    },
+    "by_source_type": {
+      "exact_fragment": 7,
+      "full_track": 12,
+      "synthetic_simple": 3
+    },
+    "transitions_by_source_type": {
+      "exact_fragment": 2908,
+      "full_track": 28939,
+      "synthetic_simple": 1577
     }
   },
   "shards": [
+    {
+      "file": "extended_exact_fragment_09_010109.npz",
+      "bytes": 45673,
+      "sha256": "bd765f2db2524a2d310dffca94d2d4b46e6d9efbf86c28b79b80a003cb640ac7"
+    },
+    {
+      "file": "extended_exact_fragment_10_010110.npz",
+      "bytes": 40479,
+      "sha256": "b91264a429e5077efe1afe79a7102004c6754637ae41404109745977fdaf0ac9"
+    },
+    {
+      "file": "extended_exact_fragment_11_010111.npz",
+      "bytes": 42907,
+      "sha256": "e9b3ee1b7bd29d4e49a7f7c41ce9a26b1b6ec1ad86751cdc89478482b77e744f"
+    },
+    {
+      "file": "extended_exact_fragment_12_010112.npz",
+      "bytes": 49160,
+      "sha256": "01b434205c3582f8bbf3d54c634908e301f4f70affc0b7884da4de4713638d16"
+    },
+    {
+      "file": "extended_full_track_00_010100.npz",
+      "bytes": 188186,
+      "sha256": "3b523b4b0a88896c164728e81c260f6f4a2f5c3d5c023b94e09c0f738b137fde"
+    },
+    {
+      "file": "extended_full_track_01_010101.npz",
+      "bytes": 188431,
+      "sha256": "ec9ab43c551b39e59989911b3fac12f94907ae077e03c629b08f64c30f52b328"
+    },
+    {
+      "file": "extended_full_track_02_010102.npz",
+      "bytes": 186159,
+      "sha256": "33570800fc4f0bcfe1e6facdf1f4b513b8a6da1887df78ce17a945fe8a261ae0"
+    },
+    {
+      "file": "extended_full_track_03_010103.npz",
+      "bytes": 224270,
+      "sha256": "070d97a8a7cc47905c22b24265c5d4b5d05b4efef2853ee498dfba88bac0b9f0"
+    },
+    {
+      "file": "extended_full_track_04_010104.npz",
+      "bytes": 226340,
+      "sha256": "db4f54ca03c301939f6c78c389aceec8dd6d096c60a5e830ffccc3cdbc0a3f76"
+    },
+    {
+      "file": "extended_full_track_05_010105.npz",
+      "bytes": 223022,
+      "sha256": "bb2bfe72ced0d75d315b3743fca44cd46585b5e612a12ea251d2aa894f05f99d"
+    },
+    {
+      "file": "extended_full_track_06_010106.npz",
+      "bytes": 344297,
+      "sha256": "a294d5d5d4418a3c5d147b51dee5e817ef573d6f41b73ef2ed87531b0b31b711"
+    },
+    {
+      "file": "extended_full_track_07_010107.npz",
+      "bytes": 344086,
+      "sha256": "6fd890e548287c05ea759390f133b1660d409f5449e99ab538c2d04cf523be7d"
+    },
+    {
+      "file": "extended_full_track_08_010108.npz",
+      "bytes": 347154,
+      "sha256": "1977b6f01a6a51ee15594b5701a0c81142cd6ad65c2f2fd6f3ebe239a3a46e4a"
+    },
+    {
+      "file": "extended_synthetic_simple_13_010113.npz",
+      "bytes": 51886,
+      "sha256": "b7986b0613af3329dfd51ea4976728b1d66872bb25cc4847e6360056e68e71f6"
+    },
+    {
+      "file": "extended_synthetic_simple_14_010114.npz",
+      "bytes": 51696,
+      "sha256": "66dc4efba3dfc70e81536c52a2e5a42d6488993b352aab8c58f5d3ef0f14e946"
+    },
+    {
+      "file": "extended_synthetic_simple_15_010115.npz",
+      "bytes": 64887,
+      "sha256": "ad2ca401300bacafca09dcf0ead734af23cda29b8bfa073d2084bdf1f0b1b979"
+    },
     {
       "file": "fragment_03_009400.npz",
       "bytes": 33993,
@@ -91,6 +197,12 @@
       "sha256": "ee1c22fce9bb840cdc952f1929008146a086bee5c671cd506d8b28e751746411"
     }
   ],
+  "corpus_role": "clean_pilot_extension_for_bc",
+  "pilot_episodes_preserved": 6,
+  "extension_episodes": 16,
+  "allow_long_collection": true,
+  "actual_adapter": "holoocean",
+  "fallback_used": false,
   "fog": {
     "required": {
       "enabled": true,
@@ -105,6 +217,62 @@
     "sources": [
       {
         "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -146,7 +314,35 @@
         "valid": true
       },
       {
-        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments\\horseshoe_bay_G01-G03.json",
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments_extended\\horseshoe_bay_G07-G09.json",
         "water_fog": {
           "color_rgb": [
             0.4,
@@ -160,7 +356,7 @@
         "valid": true
       },
       {
-        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments\\vertical_serpent_G08-G10.json",
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments_extended\\vertical_serpent_G08-G10.json",
         "water_fog": {
           "color_rgb": [
             0.4,
@@ -174,7 +370,7 @@
         "valid": true
       },
       {
-        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments\\mixed_endurance_G14-G16.json",
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments_extended\\mixed_endurance_G02-G04.json",
         "water_fog": {
           "color_rgb": [
             0.4,
@@ -184,92 +380,608 @@
           "density": 5.0,
           "enabled": true,
           "start_distance_m": 1.0
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\fragments_extended\\mixed_endurance_G08-G10.json",
+        "water_fog": {
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ],
+          "density": 5.0,
+          "enabled": true,
+          "start_distance_m": 1.0
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\synthetic_simple\\synthetic_simple_120001.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\synthetic_simple\\synthetic_simple_120002.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "artifacts_gen2\\dataset_27d_clean_20260907\\synthetic_simple\\synthetic_simple_120003.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
         },
         "valid": true
       }
     ],
     "all_valid": true
   },
-  "actual_adapter": "holoocean",
-  "fallback_used": false,
-  "git_sha": "cf75961ee4a8d01b450aa33792a8236f0d911f10",
-  "allow_long_collection": true,
-  "episodes_per_source": 1,
-  "sources": [
-    {
-      "name": "horseshoe_bay",
-      "track": "horseshoe_bay",
-      "kind": "full_track",
-      "fragment": null
-    },
-    {
-      "name": "vertical_serpent",
-      "track": "vertical_serpent",
-      "kind": "full_track",
-      "fragment": null
-    },
-    {
-      "name": "mixed_endurance",
-      "track": "mixed_endurance",
-      "kind": "full_track",
-      "fragment": null
-    },
-    {
-      "name": "horseshoe_bay_G01-G03",
-      "track": "horseshoe_bay",
-      "kind": "fragment",
-      "fragment": {
-        "track": "horseshoe_bay",
-        "start_index": 0,
-        "end_index": 2,
-        "gate_ids": [
-          "G01",
-          "G02",
-          "G03"
+  "extension_provenance": {
+    "envelope": {
+      "samples": {
+        "spacing_m": [
+          7.211795892841117,
+          7.211795892841117,
+          7.002856560004639,
+          8.485870609430714,
+          9.488940931421167,
+          11.000454536063499,
+          9.488940931421167,
+          8.485870609430714,
+          7.002856560004639,
+          7.211795892841117,
+          7.213875518748574,
+          7.602631123499285,
+          6.332456079595025,
+          6.4265076052238514,
+          7.7278716345446625,
+          7.749193506423749,
+          6.545991139621257,
+          6.447480127925948,
+          7.613803254615921,
+          7.707788269017254,
+          6.4265076052238514,
+          6.372597586541928,
+          7.707788269017254,
+          7.671375365604266,
+          6.322183167229498,
+          7.2780491891715045,
+          8.38570211729465,
+          8.246817568007675,
+          8.5463442476886,
+          10.012492197250394,
+          10.637668917577761,
+          9.5,
+          8.558621384311845,
+          10.071742649611338,
+          9.5,
+          10.229369482035537,
+          10.319399207318224,
+          9.91766101457395,
+          9.459915433025815,
+          8.284926070883191,
+          9.233092656309694,
+          9.4678403028357,
+          10.024470060806207,
+          9.233092656309694,
+          9.873702446397704,
+          10.647065323364933,
+          10.653168542738822,
+          9.907572861200668
         ],
-        "inbound_gate_id": null,
-        "grown_for_link": false,
-        "length": 3,
-        "name": "horseshoe_bay_G01-G03"
+        "abs_yaw_delta_deg": [
+          11.300000000000011,
+          27.900000000000006,
+          7.699999999999989,
+          34.19999999999999,
+          22.5,
+          17.0,
+          22.5,
+          34.19999999999999,
+          7.699999999999989,
+          27.900000000000006,
+          11.300000000000011,
+          13.199999999999989,
+          28.400000000000006,
+          28.400000000000006,
+          9.099999999999994,
+          9.099999999999994,
+          28.400000000000006,
+          28.400000000000006,
+          9.099999999999994,
+          9.099999999999994,
+          28.400000000000006,
+          28.400000000000006,
+          9.099999999999994,
+          9.099999999999994,
+          28.400000000000006,
+          24.900000000000006,
+          8.400000000000006,
+          3.4000000000000057,
+          12.0,
+          9.699999999999989,
+          8.599999999999994,
+          30.5,
+          29.400000000000006,
+          1.5,
+          24.900000000000006,
+          23.19999999999999,
+          16.69999999999999,
+          1.8000000000000114,
+          28.099999999999994,
+          38.69999999999999,
+          21.30000000000001,
+          6.099999999999994,
+          21.80000000000001,
+          21.19999999999999,
+          53.69999999999999,
+          3.8000000000000114,
+          2.0,
+          2.0
+        ],
+        "abs_depth_delta_m": [
+          0.09999999999999964,
+          0.10000000000000053,
+          0.20000000000000018,
+          0.09999999999999964,
+          0.20000000000000018,
+          0.10000000000000053,
+          0.20000000000000018,
+          0.10000000000000053,
+          0.20000000000000018,
+          0.09999999999999964,
+          0.20000000000000018,
+          0.7999999999999998,
+          0.7000000000000002,
+          1.2999999999999998,
+          1.5999999999999996,
+          1.7000000000000002,
+          1.8000000000000007,
+          1.4000000000000004,
+          0.9000000000000004,
+          1.5000000000000004,
+          1.3000000000000003,
+          1.0,
+          1.5,
+          1.2999999999999998,
+          0.5999999999999996,
+          0.5999999999999996,
+          0.40000000000000036,
+          0.09999999999999964,
+          0.20000000000000018,
+          0.5,
+          0.40000000000000036,
+          0.5,
+          0.5,
+          1.2000000000000002,
+          0.5,
+          0.8000000000000007,
+          0.6999999999999993,
+          0.6000000000000005,
+          0.7000000000000002,
+          0.7999999999999998,
+          0.5,
+          0.7999999999999998,
+          0.7000000000000002,
+          0.5,
+          0.7000000000000002,
+          0.5999999999999996,
+          0.7000000000000002,
+          0.39999999999999947
+        ]
+      },
+      "percentiles": {
+        "spacing_q50_m": 8.435786363362682,
+        "spacing_q90_m": 10.256378399620344,
+        "abs_yaw_delta_q50_deg": 19.099999999999994,
+        "abs_yaw_delta_q90_deg": 29.730000000000008,
+        "abs_depth_delta_q50_m": 0.5999999999999996,
+        "abs_depth_delta_q90_m": 1.4300000000000006
       }
     },
-    {
-      "name": "vertical_serpent_G08-G10",
-      "track": "vertical_serpent",
-      "kind": "fragment",
-      "fragment": {
-        "track": "vertical_serpent",
-        "start_index": 7,
-        "end_index": 9,
-        "gate_ids": [
-          "G08",
-          "G09",
-          "G10"
-        ],
-        "inbound_gate_id": "G07",
-        "grown_for_link": false,
-        "length": 3,
-        "name": "vertical_serpent_G08-G10"
-      }
-    },
-    {
-      "name": "mixed_endurance_G14-G16",
-      "track": "mixed_endurance",
-      "kind": "fragment",
-      "fragment": {
-        "track": "mixed_endurance",
-        "start_index": 13,
-        "end_index": 15,
-        "gate_ids": [
-          "G14",
-          "G15",
-          "G16"
-        ],
-        "inbound_gate_id": "G13",
-        "grown_for_link": false,
-        "length": 3,
-        "name": "mixed_endurance_G14-G16"
-      }
+    "synthetic_provenance": {
+      "source_type": "synthetic_simple",
+      "derived_from": "official_tracks",
+      "envelope": {
+        "samples": {
+          "spacing_m": [
+            7.211795892841117,
+            7.211795892841117,
+            7.002856560004639,
+            8.485870609430714,
+            9.488940931421167,
+            11.000454536063499,
+            9.488940931421167,
+            8.485870609430714,
+            7.002856560004639,
+            7.211795892841117,
+            7.213875518748574,
+            7.602631123499285,
+            6.332456079595025,
+            6.4265076052238514,
+            7.7278716345446625,
+            7.749193506423749,
+            6.545991139621257,
+            6.447480127925948,
+            7.613803254615921,
+            7.707788269017254,
+            6.4265076052238514,
+            6.372597586541928,
+            7.707788269017254,
+            7.671375365604266,
+            6.322183167229498,
+            7.2780491891715045,
+            8.38570211729465,
+            8.246817568007675,
+            8.5463442476886,
+            10.012492197250394,
+            10.637668917577761,
+            9.5,
+            8.558621384311845,
+            10.071742649611338,
+            9.5,
+            10.229369482035537,
+            10.319399207318224,
+            9.91766101457395,
+            9.459915433025815,
+            8.284926070883191,
+            9.233092656309694,
+            9.4678403028357,
+            10.024470060806207,
+            9.233092656309694,
+            9.873702446397704,
+            10.647065323364933,
+            10.653168542738822,
+            9.907572861200668
+          ],
+          "abs_yaw_delta_deg": [
+            11.300000000000011,
+            27.900000000000006,
+            7.699999999999989,
+            34.19999999999999,
+            22.5,
+            17.0,
+            22.5,
+            34.19999999999999,
+            7.699999999999989,
+            27.900000000000006,
+            11.300000000000011,
+            13.199999999999989,
+            28.400000000000006,
+            28.400000000000006,
+            9.099999999999994,
+            9.099999999999994,
+            28.400000000000006,
+            28.400000000000006,
+            9.099999999999994,
+            9.099999999999994,
+            28.400000000000006,
+            28.400000000000006,
+            9.099999999999994,
+            9.099999999999994,
+            28.400000000000006,
+            24.900000000000006,
+            8.400000000000006,
+            3.4000000000000057,
+            12.0,
+            9.699999999999989,
+            8.599999999999994,
+            30.5,
+            29.400000000000006,
+            1.5,
+            24.900000000000006,
+            23.19999999999999,
+            16.69999999999999,
+            1.8000000000000114,
+            28.099999999999994,
+            38.69999999999999,
+            21.30000000000001,
+            6.099999999999994,
+            21.80000000000001,
+            21.19999999999999,
+            53.69999999999999,
+            3.8000000000000114,
+            2.0,
+            2.0
+          ],
+          "abs_depth_delta_m": [
+            0.09999999999999964,
+            0.10000000000000053,
+            0.20000000000000018,
+            0.09999999999999964,
+            0.20000000000000018,
+            0.10000000000000053,
+            0.20000000000000018,
+            0.10000000000000053,
+            0.20000000000000018,
+            0.09999999999999964,
+            0.20000000000000018,
+            0.7999999999999998,
+            0.7000000000000002,
+            1.2999999999999998,
+            1.5999999999999996,
+            1.7000000000000002,
+            1.8000000000000007,
+            1.4000000000000004,
+            0.9000000000000004,
+            1.5000000000000004,
+            1.3000000000000003,
+            1.0,
+            1.5,
+            1.2999999999999998,
+            0.5999999999999996,
+            0.5999999999999996,
+            0.40000000000000036,
+            0.09999999999999964,
+            0.20000000000000018,
+            0.5,
+            0.40000000000000036,
+            0.5,
+            0.5,
+            1.2000000000000002,
+            0.5,
+            0.8000000000000007,
+            0.6999999999999993,
+            0.6000000000000005,
+            0.7000000000000002,
+            0.7999999999999998,
+            0.5,
+            0.7999999999999998,
+            0.7000000000000002,
+            0.5,
+            0.7000000000000002,
+            0.5999999999999996,
+            0.7000000000000002,
+            0.39999999999999947
+          ]
+        },
+        "percentiles": {
+          "spacing_q50_m": 8.435786363362682,
+          "spacing_q90_m": 10.256378399620344,
+          "abs_yaw_delta_q50_deg": 19.099999999999994,
+          "abs_yaw_delta_q90_deg": 29.730000000000008,
+          "abs_depth_delta_q50_m": 0.5999999999999996,
+          "abs_depth_delta_q90_m": 1.4300000000000006
+        }
+      },
+      "specs": [
+        {
+          "family_version": "synthetic_simple_v1",
+          "seed": 120001,
+          "gate_count": 4,
+          "pattern": "soft_left",
+          "spacings_m": [
+            8.435786363362682,
+            8.435786363362682,
+            8.435786363362682
+          ],
+          "turn_deltas_deg": [
+            14.865000000000004,
+            14.865000000000004,
+            14.865000000000004
+          ],
+          "vertical_deltas_m": [
+            0.0,
+            0.7150000000000003,
+            0.0
+          ],
+          "initial_yaw_error_deg": 0.0,
+          "initial_lateral_offset_m": 0.0,
+          "start_distance_m": 4.5,
+          "relaxation_passes": 0
+        },
+        {
+          "family_version": "synthetic_simple_v1",
+          "seed": 120002,
+          "gate_count": 4,
+          "pattern": "soft_right",
+          "spacings_m": [
+            8.435786363362682,
+            8.435786363362682,
+            8.435786363362682
+          ],
+          "turn_deltas_deg": [
+            -14.865000000000004,
+            -14.865000000000004,
+            -14.865000000000004
+          ],
+          "vertical_deltas_m": [
+            0.0,
+            -0.7150000000000003,
+            0.0
+          ],
+          "initial_yaw_error_deg": 0.0,
+          "initial_lateral_offset_m": 0.0,
+          "start_distance_m": 4.5,
+          "relaxation_passes": 0
+        },
+        {
+          "family_version": "synthetic_simple_v1",
+          "seed": 120003,
+          "gate_count": 5,
+          "pattern": "soft_s",
+          "spacings_m": [
+            8.435786363362682,
+            8.435786363362682,
+            8.435786363362682,
+            8.435786363362682
+          ],
+          "turn_deltas_deg": [
+            14.865000000000004,
+            -14.865000000000004,
+            7.432500000000002,
+            -7.432500000000002
+          ],
+          "vertical_deltas_m": [
+            0.7150000000000003,
+            0.0,
+            -0.7150000000000003,
+            0.0
+          ],
+          "initial_yaw_error_deg": 0.0,
+          "initial_lateral_offset_m": 0.0,
+          "start_distance_m": 4.5,
+          "relaxation_passes": 0
+        }
+      ]
     }
-  ]
+  },
+  "accepted_sources": [
+    {
+      "source": "horseshoe_bay_extra01",
+      "source_type": "full_track",
+      "seed": 10100,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_00_010100.npz",
+      "steps": 1788,
+      "gates_completed": 12
+    },
+    {
+      "source": "horseshoe_bay_extra02",
+      "source_type": "full_track",
+      "seed": 10101,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_01_010101.npz",
+      "steps": 1784,
+      "gates_completed": 12
+    },
+    {
+      "source": "horseshoe_bay_extra03",
+      "source_type": "full_track",
+      "seed": 10102,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_02_010102.npz",
+      "steps": 1761,
+      "gates_completed": 12
+    },
+    {
+      "source": "vertical_serpent_extra01",
+      "source_type": "full_track",
+      "seed": 10103,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_03_010103.npz",
+      "steps": 2094,
+      "gates_completed": 17
+    },
+    {
+      "source": "vertical_serpent_extra02",
+      "source_type": "full_track",
+      "seed": 10104,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_04_010104.npz",
+      "steps": 2102,
+      "gates_completed": 17
+    },
+    {
+      "source": "vertical_serpent_extra03",
+      "source_type": "full_track",
+      "seed": 10105,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_05_010105.npz",
+      "steps": 2085,
+      "gates_completed": 17
+    },
+    {
+      "source": "mixed_endurance_extra01",
+      "source_type": "full_track",
+      "seed": 10106,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_06_010106.npz",
+      "steps": 3367,
+      "gates_completed": 22
+    },
+    {
+      "source": "mixed_endurance_extra02",
+      "source_type": "full_track",
+      "seed": 10107,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_07_010107.npz",
+      "steps": 3369,
+      "gates_completed": 22
+    },
+    {
+      "source": "mixed_endurance_extra03",
+      "source_type": "full_track",
+      "seed": 10108,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_full_track_08_010108.npz",
+      "steps": 3392,
+      "gates_completed": 22
+    },
+    {
+      "source": "horseshoe_bay_G07-G09_extra",
+      "source_type": "exact_fragment",
+      "seed": 10109,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_exact_fragment_09_010109.npz",
+      "steps": 430,
+      "gates_completed": 3
+    },
+    {
+      "source": "vertical_serpent_G08-G10_extra",
+      "source_type": "exact_fragment",
+      "seed": 10110,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_exact_fragment_10_010110.npz",
+      "steps": 361,
+      "gates_completed": 3
+    },
+    {
+      "source": "mixed_endurance_G02-G04_extra",
+      "source_type": "exact_fragment",
+      "seed": 10111,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_exact_fragment_11_010111.npz",
+      "steps": 400,
+      "gates_completed": 3
+    },
+    {
+      "source": "mixed_endurance_G08-G10_extra",
+      "source_type": "exact_fragment",
+      "seed": 10112,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_exact_fragment_12_010112.npz",
+      "steps": 469,
+      "gates_completed": 3
+    },
+    {
+      "source": "synthetic_simple_120001",
+      "source_type": "synthetic_simple",
+      "seed": 10113,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_synthetic_simple_13_010113.npz",
+      "steps": 483,
+      "gates_completed": 4
+    },
+    {
+      "source": "synthetic_simple_120002",
+      "source_type": "synthetic_simple",
+      "seed": 10114,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_synthetic_simple_14_010114.npz",
+      "steps": 482,
+      "gates_completed": 4
+    },
+    {
+      "source": "synthetic_simple_120003",
+      "source_type": "synthetic_simple",
+      "seed": 10115,
+      "shard": "artifacts_gen2\\dataset_27d_clean_20260907\\episodes\\extended_synthetic_simple_15_010115.npz",
+      "steps": 612,
+      "gates_completed": 5
+    }
+  ],
+  "rejected_sources": [],
+  "git_sha": "ccb4d8a7d4ba8744e0705606ad436fd160df9374"
 }

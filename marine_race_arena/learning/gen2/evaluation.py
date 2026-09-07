@@ -42,6 +42,7 @@ from marine_race_arena.learning.config_local_transition import (
 from marine_race_arena.learning.config_local_transition_gate_yaw import (
     OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
 )
+from marine_race_arena.learning.config_local_transition_27d import OBS_DIM_LOCAL_TRANSITION_27D
 from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
 from marine_race_arena.learning.episode import RaceEpisode
 from marine_race_arena.learning.gen2 import GEN2_ACTION_CONTRACT
@@ -52,6 +53,8 @@ from marine_race_arena.learning.observation_encoder_local_transition import (
 from marine_race_arena.learning.tracker_context_local_transition import (
     OnboardLocalTransitionContextTracker,
 )
+from marine_race_arena.learning.observation_encoder_local_transition_27d import encode_observation_local_transition_27d
+from marine_race_arena.learning.tracker_context_local_transition_27d import OnboardLocalTransition27dContextTracker
 
 #: Sequence positions reported on the unconditional survival curve.
 SURVIVAL_GATES: Tuple[int, ...] = (1, 2, 3, 5, 8, 12, 17, 22)
@@ -92,6 +95,8 @@ class Gen2EvalEpisode:
     initial_yaw_error_deg: float
     initial_lateral_offset_m: float
     wall_time_s: float
+    vision_availability: float = 0.0
+    orientation_availability: float = 0.0
 
     def as_row(self) -> Dict[str, Any]:
         return asdict(self)
@@ -106,6 +111,10 @@ def _transition_quality(
     the same information the policy had -- not privileged referee state.
     """
     if len(crossings) == 0 or len(observations) == 0:
+        return None, None, None
+    # The compact 27-D contract intentionally omits the legacy transition
+    # diagnostics used by this optional report block.
+    if observations.shape[1] <= max(_FEATURE_INDEX.values()):
         return None, None, None
     crossed = np.flatnonzero(np.asarray(crossings) >= 1)
     if crossed.size == 0:
@@ -210,17 +219,27 @@ def run_policy_episode(
                 laps=max(1, int(config.race.laps)),
             )
             encode_for_policy = encode_observation_local_transition
+        elif controller_obs_dim == OBS_DIM_LOCAL_TRANSITION_27D:
+            context_source = OnboardLocalTransition27dContextTracker(
+                total_beacons=max(1, gate_total),
+                laps=max(1, int(config.race.laps)),
+            )
+            encode_for_policy = encode_observation_local_transition_27d
         else:
             raise ValueError(
                 f"unsupported Gen-2 controller observation dimension {controller_obs_dim}"
             )
         context_source.reset(raw)
         controller.reset()
+        vision_steps = 0
+        orientation_steps = 0
 
         while steps < max_steps:
             context = context_source.context(raw, dt=float(dt), prev_action=previous_action.tolist())
             encoded = encode_for_policy(raw, context)
             observations.append(encoded)
+            vision_steps += int(getattr(context, "visual_target", None) is not None)
+            orientation_steps += int(bool(getattr(context, "gate_orientation_present", False)))
 
             action = np.asarray(
                 controller.act(encoded, first_step=(steps == 0)), dtype=np.float32
@@ -281,6 +300,8 @@ def run_policy_episode(
             initial_yaw_error_deg=float(spec.initial_yaw_error_deg) if spec else 0.0,
             initial_lateral_offset_m=float(spec.initial_lateral_offset_m) if spec else 0.0,
             wall_time_s=round(time.perf_counter() - started, 2),
+            vision_availability=round(vision_steps / max(1, steps), 4),
+            orientation_availability=round(orientation_steps / max(1, steps), 4),
         )
     finally:
         episode.close()

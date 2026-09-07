@@ -126,6 +126,14 @@ def corpus_statistics(episodes: Sequence[Gen2Episode27d]) -> Dict[str, Any]:
         return {"episodes": 0, "transitions": 0}
     lengths = np.asarray([len(episode) for episode in episodes], dtype=np.int64)
     total = max(1, int(lengths.sum()))
+    def _episode_source_type(episode: Gen2Episode27d) -> str:
+        explicit = episode.meta.get("source_type")
+        if explicit:
+            return str(explicit)
+        # Pilot shards predate the explicit source_type field.
+        kind = str(episode.meta.get("kind", "unknown"))
+        return "exact_fragment" if kind == "fragment" else kind
+
     return {
         "episodes": len(episodes),
         "transitions": int(lengths.sum()),
@@ -137,6 +145,26 @@ def corpus_statistics(episodes: Sequence[Gen2Episode27d]) -> Dict[str, Any]:
         "dvl_availability": round(sum(int(e.meta.get("dvl_steps", 0)) for e in episodes) / total, 4),
         "episode_length_steps": {"min": int(lengths.min()), "max": int(lengths.max()), "mean": round(float(lengths.mean()), 1), "median": int(np.median(lengths))},
         "by_source": {str(source): sum(1 for e in episodes if e.meta.get("source") == source) for source in sorted({str(e.meta.get("source")) for e in episodes})},
+        "by_source_type": {
+            stype: sum(
+                1 for e in episodes
+                if _episode_source_type(e) == stype
+            )
+            for stype in sorted({
+                _episode_source_type(e)
+                for e in episodes
+            })
+        },
+        "transitions_by_source_type": {
+            stype: int(sum(
+                len(e) for e in episodes
+                if _episode_source_type(e) == stype
+            ))
+            for stype in sorted({
+                _episode_source_type(e)
+                for e in episodes
+            })
+        },
     }
 
 

@@ -252,6 +252,15 @@ def train_recurrent_bc(
         if module is not None:
             trainable += list(module.parameters())
     trainable += list(policy.mlp_extractor.policy_net.parameters())
+    if config.train_value_head:
+        # Keep the critic/representation side trainable for downstream value
+        # targets; the action-only BC loss simply supplies no critic gradient.
+        critic_lstm = getattr(policy, "lstm_critic", None)
+        if critic_lstm is not None:
+            trainable += list(critic_lstm.parameters())
+        value_net = getattr(policy.mlp_extractor, "value_net", None)
+        if value_net is not None:
+            trainable += list(value_net.parameters())
     optimizer = th.optim.Adam(
         trainable, lr=config.learning_rate, weight_decay=config.weight_decay
     )
