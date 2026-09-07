@@ -501,10 +501,11 @@ pipeline", not "is it better".
 | Mixed Endurance | 67100 | completed | **yes** 22/22 | **no**, DNF at gate 9 |
 | | | time | 360.5 s | — (8/22 gates) |
 | | | safety | 0 / 0 / 0 | 2 coll / 0 OOB / 0 wrong-dir |
-| **total** | | | **3/3, 51/51 gates, 0 events** | **1/3, 30/51 gates, 9 events** |
+| **total** | | | **3/3, 51/51 gates, 0 events** | **1/3, 30/51 gates, 10 events** |
 
 Safety is reported as collisions / out-of-bounds / wrong-direction raw event
-counts. The parent is clean everywhere and beats the rule baseline on all three
+counts; the candidate total is 2 + 7 + 1, plus 2 missed-gate attempts counted
+separately. The parent is clean everywhere and beats the rule baseline on all three
 (-38.9 s, -43.0 s, -112.4 s). This is a regression.
 
 ### The regression is not caused by the three new features
