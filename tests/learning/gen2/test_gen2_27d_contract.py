@@ -379,3 +379,76 @@ def test_dataset_rollout_micro_smoke():
     assert report["observations_shape"] == (2, 27)
     assert report["actions_shape"] == (2, 4)
     assert report["contract"] == OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D
+    assert report["actual_adapter"] == "fallback"
+    assert report["fallback_used"] is True
+
+
+def test_production_commands_forbid_fallback():
+    """11. Production 27-D commands strictly default to holoocean and forbid fallback."""
+    from marine_race_arena.learning.gen2 import preflight_27d, prepare_dataset_27d, train_ppo_27d
+
+    # Preflight defaults
+    preflight_args = preflight_27d.build_parser().parse_args(["--out", "tmp_out"])
+    assert preflight_args.adapter == "holoocean"
+    assert preflight_args.allow_fallback is False
+
+    # Dataset collection defaults
+    prep_args = prepare_dataset_27d.build_parser().parse_args([])
+    assert prep_args.adapter == "holoocean"
+    assert prep_args.allow_fallback is False
+    assert prep_args.allow_long_collection is False
+
+    # Runtime call forbids fallback adapter when allow_fallback=False
+    track_path = tf.track_path("horseshoe_bay")
+    with pytest.raises(ValueError, match="strictly requires adapter='holoocean'"):
+        prepare_dataset_27d.collect_expert_27d_rollout(
+            track_path, adapter="fallback", allow_fallback=False
+        )
+
+    with pytest.raises(ValueError, match="strictly requires adapter='holoocean'"):
+        preflight_27d.audit_circuit_27d(
+            "horseshoe_bay",
+            controller=None,
+            output_dir=Path("tmp"),
+            adapter="fallback",
+            allow_fallback=False,
+        )
+
+    # Gym env factory forbids fallback
+    with pytest.raises(ValueError, match="forbids allow_fallback=True"):
+        train_ppo_27d.make_gen2_27d_env(track_path, allow_fallback=True)
+
+    with pytest.raises(ValueError, match="strictly requires adapter='holoocean'"):
+        train_ppo_27d.make_gen2_27d_env(track_path, adapter="fallback", allow_fallback=False)
+
+
+def test_long_dataset_collection_hard_block():
+    """12. Dataset collection beyond MAX_SMOKE_STEPS is strictly blocked without authorization."""
+    track_path = tf.track_path("horseshoe_bay")
+    with pytest.raises(RuntimeError, match="Long dataset collection is strictly blocked"):
+        collect_expert_27d_rollout(
+            track_path,
+            adapter="fallback",
+            allow_fallback=True,
+            max_steps=50,
+            allow_long_collection=False,
+        )
+
+
+def test_adapter_tracking_on_gym_env_and_episode():
+    """13. Episode and GymEnv accurately track actual_adapter and fallback_used."""
+    from marine_race_arena.learning.gym_env import MarineRaceGymEnv
+
+    track_path = tf.track_path("horseshoe_bay")
+    env = MarineRaceGymEnv(
+        str(track_path),
+        adapter="fallback",
+        allow_fallback=True,
+        observation_encoding_version=OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+    )
+    obs, info = env.reset(seed=123)
+    assert env.actual_adapter == "fallback"
+    assert env.fallback_used is True
+    assert env.episode.actual_adapter == "fallback"
+    assert env.episode.fallback_used is True
+    env.close()

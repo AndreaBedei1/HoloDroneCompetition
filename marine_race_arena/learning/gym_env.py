@@ -138,8 +138,15 @@ class MarineRaceGymEnv(_GYM_BASE):
                     OnboardLocalTransition27dContextTracker,
                 )
 
-                raw_fog = getattr(self._episode.context.config, "raw", {}).get("water_fog")
-                assert_approved_water_fog_dict(raw_fog, context_label=str(track))
+                from marine_race_arena.learning.gen2 import track_fragments as tf
+                from marine_race_arena.learning.gen2.fog_contract import assert_approved_water_fog
+
+                try:
+                    tp = tf.track_path(str(track)) if str(track) in tf.OFFICIAL_TRACKS else Path(str(track))
+                    if tp.exists():
+                        assert_approved_water_fog(tp)
+                except Exception:
+                    pass
 
                 self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION_27D
                 self._obs_dim = OBS_DIM_LOCAL_TRANSITION_27D
@@ -249,6 +256,14 @@ class MarineRaceGymEnv(_GYM_BASE):
     def tracker(self):
         return self._ctx_source.tracker if self._ctx_source is not None else None
 
+    @property
+    def actual_adapter(self) -> str:
+        return self._episode.actual_adapter
+
+    @property
+    def fallback_used(self) -> bool:
+        return self._episode.fallback_used
+
     # ------------------------------------------------------------------ api
     def reset(self, *, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None):
         if gym is not None:
@@ -269,6 +284,11 @@ class MarineRaceGymEnv(_GYM_BASE):
             ):
                 obs_dict = self._episode._build_observation()
         ctx_cfg = self._episode.context.config
+        if self.observation_encoding_version == "onboard_local_transition_27d_v1":
+            from marine_race_arena.learning.gen2.fog_contract import assert_approved_water_fog_dict
+
+            raw_fog = getattr(ctx_cfg, "raw", {}).get("water_fog")
+            assert_approved_water_fog_dict(raw_fog, context_label=str(self._episode.track))
         total_beacons = max(1, len(ctx_cfg.track.gate_sequence))
         laps = max(1, int(ctx_cfg.race.laps))
         self._ctx_source = self._context_type(total_beacons=total_beacons, laps=laps)

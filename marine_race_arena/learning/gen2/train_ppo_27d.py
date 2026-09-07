@@ -48,6 +48,34 @@ SAFE_ENV_COUNT = 6
 PARENT_CHECKPOINT_DEFAULT = "results/rl/gen2/best/best_completion_policy.zip"
 
 
+def make_gen2_27d_env(
+    track: str | Path,
+    *,
+    seed: int = 0,
+    adapter: str = "holoocean",
+    allow_fallback: bool = False,
+    **kwargs: Any,
+) -> MarineRaceGymEnv:
+    """Production Gymnasium factory for Gen-2 27-D RL.
+
+    Mandatorily enforces adapter='holoocean' and allow_fallback=False.
+    """
+    if allow_fallback:
+        raise ValueError("Production 27-D env factory strictly forbids allow_fallback=True.")
+    if adapter != "holoocean":
+        raise ValueError(
+            f"Production 27-D env factory strictly requires adapter='holoocean'. Got {adapter!r}."
+        )
+    return MarineRaceGymEnv(
+        str(track),
+        seed=seed,
+        adapter="holoocean",
+        allow_fallback=False,
+        observation_encoding_version=OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
+        **kwargs,
+    )
+
+
 @dataclass(frozen=True)
 class TrainingSource27d:
     name: str

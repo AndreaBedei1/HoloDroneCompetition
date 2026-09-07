@@ -199,6 +199,17 @@ class RaceEpisode:
     def step_count(self) -> int:
         return self._step_count
 
+    @property
+    def actual_adapter(self) -> str:
+        ctx = self._require_ctx()
+        from marine_race_arena.adapters.holoocean_adapter import HoloOceanRaceAdapter
+
+        return "holoocean" if isinstance(ctx.adapter, HoloOceanRaceAdapter) else "fallback"
+
+    @property
+    def fallback_used(self) -> bool:
+        return self.actual_adapter != "holoocean"
+
     def _require_ctx(self) -> RaceContext:
         if self._ctx is None:
             raise RuntimeError("RaceEpisode.reset() must be called before use.")

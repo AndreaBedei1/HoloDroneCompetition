@@ -63,12 +63,25 @@ def collect_expert_27d_rollout(
     track_path: str | Path,
     *,
     seed: int = 0,
-    adapter: str = "fallback",
-    allow_fallback: bool = True,
+    adapter: str = "holoocean",
+    allow_fallback: bool = False,
     max_steps: int = MAX_SMOKE_STEPS,
+    allow_long_collection: bool = False,
     initial_body_velocity: Optional[Tuple[float, float, float]] = None,
 ) -> Dict[str, Any]:
     """Run one expert rollout recording 27-D observations and expert actions."""
+    if max_steps > MAX_SMOKE_STEPS and not allow_long_collection:
+        raise RuntimeError(
+            f"Long dataset collection is strictly blocked during preparation phase "
+            f"(requested {max_steps} steps > MAX_SMOKE_STEPS={MAX_SMOKE_STEPS}). "
+            f"Pass allow_long_collection=True only when authorized."
+        )
+
+    if not allow_fallback and adapter != "holoocean":
+        raise ValueError(
+            f"Production 27-D dataset collection strictly requires adapter='holoocean' and allow_fallback=False. Got {adapter!r}."
+        )
+
     track_path = Path(track_path)
     assert_approved_water_fog(track_path)
 
@@ -85,6 +98,11 @@ def collect_expert_27d_rollout(
 
     try:
         raw_obs = episode.reset()
+        actual_adapter = episode.actual_adapter
+        fallback_used = episode.fallback_used
+        if not allow_fallback and fallback_used:
+            raise RuntimeError("Fallback adapter was used when allow_fallback is False!")
+
         if initial_body_velocity is not None:
             tf.apply_initial_body_velocity(episode, initial_body_velocity)
             raw_obs = episode._build_observation()
@@ -143,6 +161,9 @@ def collect_expert_27d_rollout(
 
         return {
             "track": str(track_path),
+            "requested_adapter": adapter,
+            "actual_adapter": actual_adapter,
+            "fallback_used": fallback_used,
             "steps": len(obs_list),
             "observations_shape": (len(obs_list), OBS_DIM_LOCAL_TRANSITION_27D),
             "actions_shape": (len(action_list), ACTION_DIM),
@@ -199,3 +220,43 @@ def prepare_dataset_sources(output_dir: str | Path) -> Dict[str, Any]:
     manifest_path = out / "dataset_sources_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Prepare 27-D dataset sources or collect expert micro-rollout")
+    parser.add_argument("--manifest-out", default=None, help="Directory to materialize fragment sources and manifest")
+    parser.add_argument("--track", default=None, help="Track name or path to collect expert rollout on")
+    parser.add_argument("--steps", type=int, default=MAX_SMOKE_STEPS)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--adapter", default="holoocean", choices=["holoocean", "fallback"])
+    parser.add_argument("--allow-fallback", action="store_true", default=False)
+    parser.add_argument("--allow-long-collection", action="store_true", default=False)
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.manifest_out:
+        manifest = prepare_dataset_sources(args.manifest_out)
+        print(json.dumps({"manifest": str(Path(args.manifest_out) / "dataset_sources_manifest.json")}, indent=2))
+        return 0
+
+    if args.track:
+        track_path = tf.track_path(args.track) if args.track in tf.OFFICIAL_TRACKS else Path(args.track)
+        res = collect_expert_27d_rollout(
+            track_path,
+            seed=args.seed,
+            adapter=args.adapter,
+            allow_fallback=args.allow_fallback,
+            max_steps=args.steps,
+            allow_long_collection=args.allow_long_collection,
+        )
+        print(json.dumps(res, indent=2))
+        return 0
+
+    print("Please specify --manifest-out or --track.", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -60,14 +60,19 @@ def audit_circuit_27d(
     *,
     controller,
     output_dir: Path,
-    adapter: str = "fallback",
-    allow_fallback: bool = True,
+    adapter: str = "holoocean",
+    allow_fallback: bool = False,
     seed: int = 8300,
     steps: int = 150,
 ) -> Dict[str, Any]:
     """Audit one circuit with 27-D contract without learning."""
     track_path = tf.track_path(track)
     assert_approved_water_fog(track_path)
+
+    if not allow_fallback and adapter != "holoocean":
+        raise ValueError(
+            f"Production 27-D audit strictly requires adapter='holoocean' and allow_fallback=False. Got {adapter!r}."
+        )
 
     episode = RaceEpisode(
         str(track_path),
@@ -85,6 +90,13 @@ def audit_circuit_27d(
 
     try:
         raw = episode.reset()
+        actual_adapter = episode.actual_adapter
+        fallback_used = episode.fallback_used
+        if not allow_fallback and fallback_used:
+            raise RuntimeError(
+                f"Production 27-D audit strictly forbids fallback adapter! Got {actual_adapter} on {track}."
+            )
+
         ctx_cfg = episode.context.config
         tracker = OnboardLocalTransition27dContextTracker(
             total_beacons=len(ctx_cfg.track.gate_sequence),
@@ -134,13 +146,15 @@ def audit_circuit_27d(
 
         summary = {
             "track": track,
-            "adapter": adapter,
+            "requested_adapter": adapter,
+            "actual_adapter": actual_adapter,
+            "fallback_used": fallback_used,
             "steps": valid_steps,
             "all_finite": all_finite,
             "all_within_bounds": all_within_bounds,
             "vision_fraction": round(vision_present_steps / max(1, valid_steps), 4),
             "orientation_fraction": round(orient_present_steps / max(1, valid_steps), 4),
-            "pass": all_finite and all_within_bounds and (valid_steps > 0),
+            "pass": all_finite and all_within_bounds and (valid_steps > 0) and (not fallback_used if not allow_fallback else True),
         }
         (out / "audit_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
         return summary
@@ -152,8 +166,8 @@ def run_preflight_27d(
     *,
     parent_path: str | Path = PARENT_CHECKPOINT_DEFAULT,
     output_dir: str | Path,
-    adapter: str = "fallback",
-    allow_fallback: bool = True,
+    adapter: str = "holoocean",
+    allow_fallback: bool = False,
     steps: int = 100,
     seed: int = 8300,
 ) -> Dict[str, Any]:
@@ -190,8 +204,12 @@ def run_preflight_27d(
         raise RuntimeError("Parent checkpoint modified during preflight!")
 
     all_passed = all(s["pass"] for s in summaries)
+    actual_adapter_overall = "holoocean" if all(s.get("actual_adapter") == "holoocean" for s in summaries) else "fallback"
+    fallback_used_overall = any(s.get("fallback_used", False) for s in summaries)
     report = {
         "schema_version": "gen2_preflight_27d_v1",
+        "actual_adapter": actual_adapter_overall,
+        "fallback_used": fallback_used_overall,
         "parent_checkpoint": str(parent_path),
         "parent_sha256": hash_before,
         "parent_immutable": True,
@@ -199,7 +217,7 @@ def run_preflight_27d(
         "learning_updates": 0,
         "fog": fog_report,
         "tracks": summaries,
-        "pass": all_passed,
+        "pass": all_passed and (not fallback_used_overall if not allow_fallback else True),
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     report_file = out / "preflight_report.json"
@@ -214,8 +232,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", required=True)
     parser.add_argument("--steps", type=int, default=100)
     parser.add_argument("--seed", type=int, default=8300)
-    parser.add_argument("--adapter", default="fallback")
-    parser.add_argument("--allow-fallback", action="store_true", default=True)
+    parser.add_argument("--adapter", default="holoocean", choices=["holoocean", "fallback"])
+    parser.add_argument("--allow-fallback", action="store_true", default=False)
     return parser
 
 
