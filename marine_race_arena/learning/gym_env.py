@@ -363,10 +363,23 @@ class MarineRaceGymEnv(_GYM_BASE):
         return self._encoder(obs_dict, context)
 
     def _info(self, terminated: bool, truncated: bool, components: Mapping[str, float]) -> Dict[str, Any]:
+        state = self._episode.context.referee.states.get(self._episode.participant_id)
+        status = getattr(getattr(state, "status", None), "value", "") if state is not None else ""
+        gates_completed = int(getattr(state, "valid_gate_crossings", 0)) if state is not None else 0
         return {
             "reward_components": dict(components),
             "step_count": self._episode.step_count,
             "expected_gate_id": self._episode.expected_gate_id(),
+            "status": str(status),
+            "gates_completed": gates_completed,
+            "completed": bool(str(status).upper().endswith("FINISHED")),
+            "collision_events": int(getattr(state, "collision_events", 0)) if state is not None else 0,
+            "obstacle_collision_events": int(getattr(state, "obstacle_collision_events", 0)) if state is not None else 0,
+            "out_of_bounds_events": int(getattr(state, "out_of_bounds_events", 0)) if state is not None else 0,
+            "wrong_direction_crossings": int(getattr(state, "wrong_direction_crossings", 0)) if state is not None else 0,
+            "missed_gate_attempts": int(getattr(state, "missed_gate_attempts", 0)) if state is not None else 0,
+            "actual_adapter": self.actual_adapter,
+            "fallback_used": self.fallback_used,
         }
 
     def close(self):

@@ -33,6 +33,11 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 
 try:
+    import gymnasium as gym
+except ImportError:  # pragma: no cover - monitor is RL-only
+    gym = None
+
+try:
     import cv2
 except ImportError:
     cv2 = None
@@ -196,7 +201,7 @@ def render_monitor_overlay(
     return frame
 
 
-class Gen2MonitorSnapshotWrapper:
+class Gen2MonitorSnapshotWrapper(gym.Wrapper if gym is not None else object):
     """Gym wrapper for Worker 0 that captures rare snapshots during training.
 
     Completely headless: saves PNG and JSON directly to disk, no display windows.
@@ -210,7 +215,10 @@ class Gen2MonitorSnapshotWrapper:
         snapshot_interval_episodes: int = 50,
         run_name: str = "run",
     ) -> None:
-        self.env = env
+        if gym is not None:
+            super().__init__(env)
+        else:  # pragma: no cover
+            self.env = env
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.snapshot_interval_episodes = max(1, int(snapshot_interval_episodes))

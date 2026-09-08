@@ -106,3 +106,11 @@ results/debug/
 # provenance and validation reports.
 /artifacts_gen2/**/*.zip
 /artifacts_gen2/**/progress.json
+# Regenerable PPO debug logs, snapshots and materialized fragment configs.
+/artifacts_gen2/**/monitor/
+/artifacts_gen2/**/monitor_snapshots/
+/artifacts_gen2/**/training_tracks/
+/artifacts_gen2/**/*.monitor.csv
+/artifacts_gen2/**/*.png
+# Keep local PPO smoke attempts out of Git; compact reports may be force-added.
+/artifacts_gen2/ppo_27d_smoke_*/
