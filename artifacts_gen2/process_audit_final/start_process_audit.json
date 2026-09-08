@@ -1,0 +1,84 @@
+﻿{
+    "timestamp":  "2026-09-08T11:09:47.9409656+02:00",
+    "current_user":  "andrea.bedei3",
+    "processes":  [
+                      {
+                          "pid":  26764,
+                          "name":  "python.exe",
+                          "parent_pid":  26664,
+                          "owner":  "PERSONALE\\andrea.bedei3",
+                          "command_line":  "\".venv\\Scripts\\python.exe\"  -m src.cli worker --interval 60 ",
+                          "executable_path":  "C:\\Users\\andrea.bedei3\\Desktop\\Instagram\\.venv\\Scripts\\python.exe",
+                          "start_time":  "2026-08-23T05:47:02.1501467+02:00",
+                          "cpu_s":  0,
+                          "ram_bytes":  3964928,
+                          "classification":  "unrelated_or_unknown"
+                      },
+                      {
+                          "pid":  27556,
+                          "name":  "python.exe",
+                          "parent_pid":  26764,
+                          "owner":  "PERSONALE\\andrea.bedei3",
+                          "command_line":  "\".venv\\Scripts\\python.exe\"  -m src.cli worker --interval 60 ",
+                          "executable_path":  "C:\\Python314\\python.exe",
+                          "start_time":  "2026-08-23T05:47:02.1780527+02:00",
+                          "cpu_s":  920.0625,
+                          "ram_bytes":  62967808,
+                          "classification":  "unrelated_or_unknown"
+                      },
+                      {
+                          "pid":  28052,
+                          "name":  "python.exe",
+                          "parent_pid":  60144,
+                          "owner":  "PERSONALE\\andrea.bedei3",
+                          "command_line":  "\"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe\"  \"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\zotero-mcp.exe\" ",
+                          "executable_path":  "C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe",
+                          "start_time":  "2026-09-02T16:32:07.7518185+02:00",
+                          "cpu_s":  0.015625,
+                          "ram_bytes":  3768320,
+                          "classification":  "unrelated_or_unknown"
+                      },
+                      {
+                          "pid":  58020,
+                          "name":  "python.exe",
+                          "parent_pid":  28052,
+                          "owner":  "PERSONALE\\andrea.bedei3",
+                          "command_line":  "\"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe\"  \"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\zotero-mcp.exe\" ",
+                          "executable_path":  "C:\\Python314\\python.exe",
+                          "start_time":  "2026-09-02T16:32:07.7684903+02:00",
+                          "cpu_s":  3.8125,
+                          "ram_bytes":  71180288,
+                          "classification":  "unrelated_or_unknown"
+                      },
+                      {
+                          "pid":  27588,
+                          "name":  "python.exe",
+                          "parent_pid":  87724,
+                          "owner":  "",
+                          "command_line":  null,
+                          "executable_path":  null,
+                          "start_time":  "2026-09-07T19:14:25.5866250+02:00",
+                          "cpu_s":  416331.9375,
+                          "ram_bytes":  5169967104,
+                          "classification":  "project_gen2_orphan_candidate"
+                      },
+                      {
+                          "pid":  97164,
+                          "name":  "python.exe",
+                          "parent_pid":  92968,
+                          "owner":  "",
+                          "command_line":  null,
+                          "executable_path":  null,
+                          "start_time":  "2026-09-07T22:28:58.5644381+02:00",
+                          "cpu_s":  35022.4375,
+                          "ram_bytes":  1661882368,
+                          "classification":  "project_gen2_orphan_candidate"
+                      }
+                  ],
+    "gpu_query":  "nvidia-smi --query-compute-apps=pid,name,used_memory --format=csv,noheader",
+    "selected_for_shutdown":  [
+                                  27588,
+                                  97164
+                              ],
+    "notes":  "27588 and 97164 were stale high-memory python roots under bash, with no active child and no active run; treated as orphan Gen2 candidates. Instagram/Zotero Python trees were unrelated."
+}

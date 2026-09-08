@@ -157,8 +157,12 @@ class ReliabilityReward:
     event must score below the same run without one.
     """
 
-    def __init__(self, gate_count: int) -> None:
+    def __init__(self, gate_count: int, *, collision_penalty: float = COLLISION_PENALTY) -> None:
         self.gate_count = int(gate_count)
+        # Keep collision accounting entry-based, but allow a campaign to make
+        # the safety signal moderately stronger without changing the global
+        # reward contract used by existing experiments.
+        self.collision_penalty = float(collision_penalty)
         self.breakdown = RewardBreakdown()
         self._previous_gates = 0
         self._previous_counts: Dict[str, int] = {}
@@ -194,8 +198,8 @@ class ReliabilityReward:
             self._completion_paid = True
 
         event_specs = (
-            ("collision", "collision_events", COLLISION_PENALTY),
-            ("obstacle_collision", "obstacle_collision_events", COLLISION_PENALTY),
+            ("collision", "collision_events", self.collision_penalty),
+            ("obstacle_collision", "obstacle_collision_events", self.collision_penalty),
             ("out_of_bounds", "out_of_bounds_events", OUT_OF_BOUNDS_PENALTY),
             ("wrong_direction", "wrong_direction_crossings", WRONG_DIRECTION_PENALTY),
             ("missed_gate", "missed_gate_attempts", MISSED_GATE_PENALTY),
