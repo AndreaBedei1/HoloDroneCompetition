@@ -1,0 +1,192 @@
+{
+  "start_checkpoint": "artifacts_gen2\\ppo_27d_speed_campaign_B_20260908_retry5\\start_candidate_25k.zip",
+  "observation_contract": "onboard_local_transition_27d_v1",
+  "observation_dim": 27,
+  "sources": [
+    {
+      "name": "speed_full_horseshoe_bay_00",
+      "track": "horseshoe_bay",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+      "gate_count": 12,
+      "max_steps": 10800,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "speed_full_horseshoe_bay_01",
+      "track": "horseshoe_bay",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+      "gate_count": 12,
+      "max_steps": 10800,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "speed_full_vertical_serpent_00",
+      "track": "vertical_serpent",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+      "gate_count": 17,
+      "max_steps": 15300,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "speed_full_vertical_serpent_01",
+      "track": "vertical_serpent",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+      "gate_count": 17,
+      "max_steps": 15300,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "speed_full_mixed_endurance_00",
+      "track": "mixed_endurance",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+      "gate_count": 22,
+      "max_steps": 19800,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "speed_full_mixed_endurance_01",
+      "track": "mixed_endurance",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+      "gate_count": 22,
+      "max_steps": 19800,
+      "initial_body_velocity": null
+    }
+  ],
+  "source_balance": "two alternating full-circuit copies per track; no fragments/synthetic",
+  "worker_count": 3,
+  "copy_schedule": "copy 0/1 alternated at each environment recycle",
+  "fog": {
+    "required": {
+      "enabled": true,
+      "density": 5.0,
+      "start_distance_m": 1.0,
+      "color_rgb": [
+        0.4,
+        0.6,
+        1.0
+      ]
+    },
+    "sources": [
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      },
+      {
+        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "water_fog": {
+          "enabled": true,
+          "density": 5.0,
+          "start_distance_m": 1.0,
+          "color_rgb": [
+            0.4,
+            0.6,
+            1.0
+          ]
+        },
+        "valid": true
+      }
+    ],
+    "all_valid": true
+  },
+  "reward": {
+    "gate_crossing_bonus": 20.0,
+    "completion_bonus": 50.0,
+    "time_penalty_per_step": -0.01,
+    "terminal_failure_penalty": -55.0,
+    "collision_penalty": -35.0,
+    "energy_penalty": 0.0,
+    "jerk_penalty": 0.0
+  },
+  "ppo": {
+    "learning_rate": 1e-05,
+    "clip_range": 0.08,
+    "target_kl": 0.01,
+    "n_epochs": 2,
+    "batch_size": 128,
+    "n_steps": 256,
+    "max_grad_norm": 0.5,
+    "ent_coef": 0.0
+  },
+  "milestones": [
+    50000,
+    100000,
+    150000,
+    200000,
+    300000,
+    400000,
+    500000
+  ],
+  "environment_recycle_interval": 10000
+}

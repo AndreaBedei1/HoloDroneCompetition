@@ -139,6 +139,7 @@ class RewardBreakdown:
     progress: float = 0.0
     time: float = 0.0
     stall: float = 0.0
+    terminal_failure: float = 0.0
 
     @property
     def total(self) -> float:
@@ -157,22 +158,35 @@ class ReliabilityReward:
     event must score below the same run without one.
     """
 
-    def __init__(self, gate_count: int, *, collision_penalty: float = COLLISION_PENALTY) -> None:
+    def __init__(
+        self,
+        gate_count: int,
+        *,
+        collision_penalty: float = COLLISION_PENALTY,
+        completion_bonus: float = COMPLETION_BONUS,
+        time_penalty: float = TIME_PENALTY,
+        terminal_failure_penalty: float = 0.0,
+    ) -> None:
         self.gate_count = int(gate_count)
         # Keep collision accounting entry-based, but allow a campaign to make
         # the safety signal moderately stronger without changing the global
         # reward contract used by existing experiments.
         self.collision_penalty = float(collision_penalty)
+        self.completion_bonus = float(completion_bonus)
+        self.time_penalty = float(time_penalty)
+        self.terminal_failure_penalty = float(terminal_failure_penalty)
         self.breakdown = RewardBreakdown()
         self._previous_gates = 0
         self._previous_counts: Dict[str, int] = {}
         self._completion_paid = False
+        self._terminal_failure_paid = False
 
     def reset(self, env=None) -> None:
         self.breakdown = RewardBreakdown()
         self._previous_gates = 0
         self._previous_counts = {}
         self._completion_paid = False
+        self._terminal_failure_paid = False
 
     def __call__(self, env, step, gate_delta: int, action) -> Tuple[float, Dict[str, float]]:
         reward = 0.0
@@ -192,10 +206,20 @@ class ReliabilityReward:
             and self._previous_gates >= self.gate_count
             and not self._completion_paid
         ):
-            reward += COMPLETION_BONUS
-            self.breakdown.completion += COMPLETION_BONUS
-            parts["completion"] = COMPLETION_BONUS
+            reward += self.completion_bonus
+            self.breakdown.completion += self.completion_bonus
+            parts["completion"] = self.completion_bonus
             self._completion_paid = True
+
+        if (
+            self.terminal_failure_penalty
+            and status in {"DNF", "TIMEOUT", "OUT_OF_BOUNDS", "CRASHED"}
+            and not self._terminal_failure_paid
+        ):
+            reward += self.terminal_failure_penalty
+            self.breakdown.terminal_failure += self.terminal_failure_penalty
+            parts["terminal_failure"] = self.terminal_failure_penalty
+            self._terminal_failure_paid = True
 
         event_specs = (
             ("collision", "collision_events", self.collision_penalty),
@@ -233,9 +257,9 @@ class ReliabilityReward:
             self.breakdown.stall += STALL_PENALTY
             parts["stall"] = STALL_PENALTY
 
-        reward += TIME_PENALTY
-        self.breakdown.time += TIME_PENALTY
-        parts["time"] = TIME_PENALTY
+        reward += self.time_penalty
+        self.breakdown.time += self.time_penalty
+        parts["time"] = self.time_penalty
         return float(reward), parts
 
 

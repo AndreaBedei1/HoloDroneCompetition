@@ -138,6 +138,19 @@ class MarineRaceGymEnv(_GYM_BASE):
                     OnboardLocalTransition27dContextTracker,
                 )
 
+                # Validate the static track contract during construction.  The
+                # episode context is intentionally unset until reset(), so do
+                # not dereference ``self._episode.context`` here.
+                from marine_race_arena.config.loader import load_track_config
+                static_config = load_track_config(
+                    track,
+                    benchmark_task=benchmark_task,
+                    current_profile=current_profile,
+                    obstacles=obstacles,
+                    obstacle_density=obstacle_density,
+                )
+                raw_fog = getattr(static_config, "raw", {}).get("water_fog")
+                assert_approved_water_fog_dict(raw_fog, context_label=str(track))
                 from marine_race_arena.learning.gen2 import track_fragments as tf
                 from marine_race_arena.learning.gen2.fog_contract import assert_approved_water_fog
 

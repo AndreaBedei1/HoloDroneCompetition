@@ -1,0 +1,32 @@
+{
+    "status":  "interrupted_worker_restart_storm",
+    "timesteps":  26880,
+    "last_record":  {
+                        "timestep":  28416,
+                        "episodes":  0,
+                        "completion_rate":  0.0,
+                        "mean_gates":  0.0,
+                        "safety_events":  0,
+                        "mean_reward_last500":  0.08540399459200557,
+                        "action_mean":  [
+                                            0.1872203350843241,
+                                            -0.0005959502661880833,
+                                            -0.0011968476930330023,
+                                            0.00015078110216866966
+                                        ],
+                        "action_std":  [
+                                           0.09999732167833816,
+                                           0.03060744002640298,
+                                           0.07074648722859654,
+                                           0.03275732662062856
+                                       ],
+                        "action_saturation":  0.0,
+                        "approx_kl":  0.0036651280242949724,
+                        "policy_loss":  1.1195370461791754E-05,
+                        "value_loss":  33.056034833192825,
+                        "entropy_loss":  14.529988845189413,
+                        "clip_fraction":  0.24674479166666666
+                    },
+    "reason":  "Six HoloOcean workers repeatedly restarted during first rollout chunk; no metric advancement",
+    "timestamp":  "2026-09-08T18:52:30.2988305+02:00"
+}
