@@ -1,0 +1,34 @@
+\begin{table}[t]
+\centering
+\caption{Onboard perception audit along the reference controller's own
+trajectory on the three official circuits, real HoloOcean, 60 frames per
+circuit. Ground truth was used only offline to score the front end and never
+entered the control loop.}
+\label{tab:perception_audit}
+\mratablestyle
+\begin{tabular}{@{}lrrrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{Availability} & \multicolumn{3}{c}{Plane orientation error} & \multicolumn{2}{c}{Association} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(l){8-9}
+Circuit & Det. & 4-corner & PnP & med.\ ($^{\circ}$) & p90 ($^{\circ}$) & $>\!30^{\circ}$ & multi & correct \\
+\midrule
+Horseshoe Bay    & 0.900 & 0.817 & 0.517 & 0.018 & 1.204 & 0.000 & 7  & 1.000 \\
+Vertical Serpent & 0.883 & 0.783 & 0.483 & 1.129 & 4.287 & 0.000 & 4  & 1.000 \\
+Mixed Endurance  & 0.917 & 0.833 & 0.533 & 0.064 & 0.064 & 0.000 & 11 & 1.000 \\
+\bottomrule
+\end{tabular}
+\mratablenote
+\emph{Det.}: fraction of frames with at least one accepted detection.
+\emph{4-corner}: fraction with a validated aperture quadrilateral.
+\emph{PnP}: fraction with a metric planar-PnP solution.
+\emph{multi}: number of frames in which more than one candidate was present.
+\emph{correct}: fraction of multi-candidate frames whose online association agreed
+with an offline referee selection within a normalized centre tolerance of $0.25$;
+the online target and the offline selection agreed on every frame of all three
+circuits. No circuit recorded a wrong orientation sign, a gross orientation error
+above $30^{\circ}$, a frame-to-frame yaw jump above $20^{\circ}$, or an
+unintended online target switch. On Mixed Endurance the expected gate was outside
+the field of view in $3$ of the $60$ frames; the in-view detection and four-corner
+rates there are $0.912$ and $0.825$. This is a characterization of the perception
+component from a diagnostic capture, not a controller performance claim.
+\end{table}

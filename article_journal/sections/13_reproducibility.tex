@@ -1,0 +1,137 @@
+\section{Reproducibility}
+\label{sec:reproducibility}
+
+Every number in this paper is traceable to a released artifact through a recorded
+chain of identifiers. This section documents that chain so a reader can verify a
+value, re-derive a table, or run an equivalent experiment.
+
+\subsection{Repository and Environment}
+
+The implementation, the track configurations, the controllers, the evaluation
+harness and the aggregated result artifacts are available in a public
+repository~\cite{holodronecompetition2026}. The benchmark environment is
+HoloOcean 2.3.0 with its Ocean world, Python 3.9.25 and the pinned dependency set
+in \cmd{requirements.txt}; the learning extension adds a separate pinned set in
+\cmd{requirements-rl.txt} (Gymnasium 1.0.0, PyTorch 2.8.0,
+Stable-Baselines3 2.7.1) that is deliberately installed into a distinct
+environment so the benchmark environment used for the frozen matrix remains
+unchanged. Runs reported here were executed on Windows 10 build 26200.
+
+\subsection{Configuration-Driven Experiments}
+
+A race is fully specified by one JSON file (Section~\ref{sec:configuration}):
+world bounds and environment, the ordered gate sequence with centres, passage
+directions and aperture sizes, the beacon network and its noise parameters, the
+current profiles, the obstacle generation rules, the participants with their
+vehicles, sensors, controllers and release delays, and the referee's validation
+margins, penalties and scoring rules. A single entry point runs any of them, and
+a controller is loaded by alias, by dotted module path or by file path plus class
+name without modifying the package (Section~\ref{sec:controller}). Reproducing a
+reported condition therefore requires the track file, the controller identifier
+and the seed, all of which are recorded per run.
+
+\subsection{Seeds and Determinism}
+
+Beacon packet randomness is seeded by the run seed, the transmitter, the receiver
+and the transmission index, so reception is independent of participant count and
+of the order in which controllers are polled; a fleet run is reproducible for
+this reason. Inter-vehicle packet loss and procedural course generation draw from
+seeded generators. For the learning extension, seed bands are registered by role
+--- training, validation, test and final holdout --- in a seed registry committed
+to the repository, and each evaluation records both requested and completed
+seeds. The matched benchmark of Section~\ref{sec:eval_rq5} evaluated every
+controller on the same seed set and the same generated geometries, which is what
+makes its paired statistics valid.
+
+\subsection{Manifests, Fingerprints and Hashes}
+
+Three levels of provenance are recorded.
+
+\emph{Per-run.} Each run emits a line-delimited event log and a machine-readable
+summary (R5), plus metadata giving the track, controller, seed, command line,
+requested and actual adapter, fallback-disabled status, control timestep,
+requested and measured current vector, and the observation and action contract
+versions.
+
+\emph{Per-experiment.} The 78-run matrix carries a complete experiment manifest
+recording the experiment-generation commit
+(\cmd{df098ef4\ldots}), a source-tree fingerprint over the package's Python and
+JSON files (\cmd{e7d31077\ldots}), the HoloOcean version, the Python version, the
+operating system, the fallback status and the physical current-coupling status
+for every run. It also asserts matrix completeness: 78 of 78 expected runs, no
+missing and no unexpected metadata.
+
+\emph{Per-artifact.} Learned-controller evaluations additionally record the model
+path and its SHA-256, the track file SHA-256 and the suite commit. The frozen
+Generation-1 policy carries a freeze record written with an exclusive create,
+containing the checkpoint SHA-256 (\cmd{60ffdca1\ldots}), the git commit at
+freeze time and the transition count, and the readiness thresholds are hashed
+inside that record so that a later edit to the defaults would be detectable.
+Holdout accesses are recorded in a hash-chained ledger of 60 entries.
+
+\subsection{Regenerating Tables and Figures}
+
+All result tables and figures in this paper are \emph{post-processing} of
+existing artifacts: no command listed below launches the simulator or modifies a
+raw artifact.
+
+\begin{lstlisting}[language=bash]
+# Result tables from the frozen 78-run matrix (also runs the penalty-identity check)
+python article/regenerate_tables.py --check
+
+# Track layouts and the controller-comparison plot, from track JSON and artifacts
+python article/figures/generate_figures.py
+
+# Journal figures: perception panels and learning plots, from committed artifacts
+python article_journal/scripts/make_perception_figure.py
+python article_journal/scripts/make_learning_figures.py
+
+# Manuscript
+cd article_journal && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+\end{lstlisting}
+
+Running \cmd{regenerate\_tables.py} against the frozen matrix reproduces the
+clean-track, current, fleet and coordination values of
+Tables~\ref{tab:clean_tracks}, \ref{tab:currents} and \ref{tab:fleet} exactly, and
+also verifies the penalty identity $T^{\mathrm{pen}}=T^{\mathrm{official}}+P$ on
+every finished run. The two journal figure scripts write a provenance JSON
+alongside each output recording their input files and asserting that no simulator
+was launched.
+
+\subsection{Re-Running Experiments}
+
+Reproducing a run rather than a table requires HoloOcean and the recorded seed.
+Every experimental command is stored verbatim in the per-run metadata; a clean
+single-vehicle run has the form
+
+\begin{lstlisting}[language=bash]
+python -m marine_race_arena.scripts.run_marine_race \
+  --track marine_race_arena/tracks/marine_race_horseshoe_bay.json \
+  --benchmark-task clean_gate \
+  --controller rule_gate_center_then_commit \
+  --adapter holoocean --seed 0 --dt 0.033 \
+  --duration 560.0 --current-profile none --official
+\end{lstlisting}
+
+and the current-free demonstration of Section~\ref{sec:eval_rq1} is driven by
+committed scripts that pass \cmd{--current-profile none} and assert
+\cmd{currents\_actual}$\,=\,[0,0,0]$ in the manifest before any episode runs.
+Two conventions are worth restating for anyone attempting a comparison. First,
+the engine-free fallback adapter exists for deterministic unit testing and must
+be disabled for any reported result; the manifest field
+\cmd{adapter\_actual} records which adapter actually ran. Second, the control
+timestep must match the condition being reproduced: $\Delta t=0.033$\,s for the
+78-run matrix and $\Delta t=0.1$\,s for the current-free demonstration and the
+matched learned-controller benchmark.
+
+\subsection{Updating the Learning Results}
+
+The learning section is deliberately structured so that its tables can be
+refreshed without rewriting the manuscript. A new frozen checkpoint is added by
+recording its SHA-256 in the benchmark package manifest, running the same matched
+suite on the same registered seeds, and regenerating
+Tables~\ref{tab:learning}--\ref{tab:learning_paired} and
+Fig.~\ref{fig:learning_group_success} from the resulting aggregate files. The
+methodology of Section~\ref{sec:learning} --- observation encoding, reward,
+curriculum, readiness gate and evaluation protocol --- is independent of any
+particular checkpoint and does not change when the numbers do.

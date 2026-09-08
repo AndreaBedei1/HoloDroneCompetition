@@ -114,3 +114,18 @@ results/debug/
 /artifacts_gen2/**/*.png
 # Keep local PPO smoke attempts out of Git; compact reports may be force-added.
 /artifacts_gen2/ppo_27d_smoke_*/
+
+# Journal manuscript (article_journal/) build artifacts.
+# main.pdf IS tracked so the compiled manuscript travels with the sources;
+# submission_flat/ is a build product of scripts/flatten_submission.py and would
+# duplicate every figure, so it stays out of the repository.
+article_journal/*.aux
+article_journal/*.bbl
+article_journal/*.blg
+article_journal/*.fdb_latexmk
+article_journal/*.fls
+article_journal/*.log
+article_journal/*.out
+article_journal/*.synctex.gz
+article_journal/*.spl
+article_journal/submission_flat/

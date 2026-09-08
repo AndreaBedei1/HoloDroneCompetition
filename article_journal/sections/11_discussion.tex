@@ -1,0 +1,173 @@
+\section{Discussion}
+\label{sec:discussion}
+
+The experiments of Section~\ref{sec:evaluation} are individually unsurprising and
+collectively point at something more general: for underwater autonomy, the
+difficulty is concentrated in places that a conventional control benchmark does
+not probe. This section develops that argument.
+
+\subsection{Why Racing Is a Useful Benchmark for Underwater Autonomy}
+
+Racing is often justified by speed, but speed is not what makes it valuable here.
+An ordered gate course imposes three requirements that a station-keeping,
+trajectory-tracking or docking task does not. It requires \emph{sequential
+commitment}: the vehicle must decide which of several possible targets is the
+right one, and a wrong commitment is unrecoverable rather than merely costly. It
+requires \emph{repeated re-acquisition}: after each passage the target changes
+discontinuously, and the cue that identified the old target now actively
+misleads, because the just-cleared beacon sits behind the vehicle while the next
+gate is visible ahead. And it requires \emph{sustained composition}: a per-gate
+success rate of $0.95$ yields a $22$-gate completion rate of $0.32$, so a course
+of realistic length is a severe amplifier of small per-transition defects.
+
+Our results show all three biting. The perception audit
+(Section~\ref{sec:perception_audit}) found multiple simultaneous gate candidates
+in $4$ to $11$ frames per 60-frame capture, so the commitment problem is real
+rather than hypothetical. The learned policies cross their first gate with
+probability $1.000$ and lose more than a quarter of episodes at the very first
+transition, so re-acquisition, not crossing, is the binding skill. And the
+survival curve of Fig.~\ref{fig:learning_survival} is the composition amplifier
+made visible. A benchmark built around a single manoeuvre would have measured
+none of these.
+
+\subsection{What Information Separation Buys}
+
+Enforcing the boundary of \eqref{eq:boundary} has a cost --- the controller must
+reconstruct course progress it could otherwise be handed --- and it is worth
+being explicit about what the cost buys.
+
+It buys comparability. Because the observation map is fixed and structurally
+independent of the referee, the 474-episode comparison of
+Section~\ref{sec:eval_rq5} attributes differences to the policy rather than to
+the information each policy was allowed. A hand-written controller and a neural
+network that see different inputs cannot be meaningfully ranked, and in the
+absence of an enforced contract they usually do.
+
+It buys a measurable quantity where there would otherwise be an assumption.
+Because the controller maintains its own progress estimate and the referee
+maintains the official one, their disagreement is data
+(Table~\ref{tab:local_vs_referee}). The result --- 1467 of 1474 advancements
+matched, with a median controller lag of $0.858$\,s, 11 false and 7 missed local
+advancements, and no finish-order inversion --- is worth reading in both
+directions. The controller is nearly always right, which shows that
+onboard-only ordered navigation is tractable and that the benchmark is not
+measuring an impossible task. But it is not \emph{always} right, and the residual
+$0.75\%$ of false advancements is exactly the error that a benchmark handing
+progress to the controller would define out of existence.
+
+It buys interpretable failure. Because the referee terminates on a missed gate
+using privileged geometry, a policy that loses the sequence is scored as having
+lost the sequence, not as having achieved a low gate count for unclear reasons.
+This is what allowed us to determine that $90.6\%$ of learned-policy failures on
+official circuits are sequential rather than physical, which is a substantially
+more actionable diagnosis than an aggregate completion rate.
+
+\subsection{What the Controller Comparison Shows}
+
+The Continuous Servo versus Center-then-Commit comparison is a single-variable
+ablation, and its outcome is condition-dependent rather than uniform: the staged
+passage costs $1.7\%$ of time on a short planar circuit, loses on a vertically
+serpentine one, and is decisive on a long mixed one ($5/5$ against $2/5$) and
+under a moderate current ($3/5$ against $2/5$, with roughly half the collisions).
+
+We read this as a statement about where visual feedback should be trusted rather
+than about which controller is better. Both controllers use the same detector and
+the same association logic; they differ only in whether they continue to act on
+the image during the passage itself. The near-field regime is where the detector
+is least reliable --- bars clip at the image border and the contour becomes
+partial --- and it is also where the aperture margin is smallest. Suspending
+visual correction there substitutes a stable but open-loop traversal for a
+closed-loop one driven by a degraded measurement. That trade is favourable
+exactly when the number of passages is large or the vehicle is being pushed off
+line, which matches the pattern in Tables~\ref{tab:clean_tracks}
+and~\ref{tab:currents}. Neither controller is optimal, and we do not present them
+as such; their value is that a benchmark which ranks them identically would be
+insensitive to a real design decision.
+
+\subsection{What Degradation Under Currents Means}
+
+The current results carry a methodological warning that generalizes beyond this
+benchmark. Both reference controllers achieve a perfect score with zero events on
+clean Horseshoe Bay and fall to $2/5$ and $3/5$ with $43.4$ and $25.2$ collisions
+on the same circuit under a moderate current. Clean-track performance therefore
+carries almost no information about disturbance robustness, and an evaluation
+protocol reporting only clean completion would rank these controllers on a
+dimension that vanishes under the mildest realistic perturbation.
+
+The non-monotonic collision count is a second warning of the same kind. Under the
+strong profile both controllers record essentially no collisions, not because
+they handle the disturbance but because they stall after three of twelve gates
+and never reach the contact-dense part of the course. Any safety metric reported
+without a progress metric is invertible in this way, which is why
+Table~\ref{tab:currents} reports gates, times and events together and why the
+referee's ranking key \eqref{eq:ranking} orders unfinished participants by
+progress before collisions.
+
+\subsection{Why Multi-Vehicle Evaluation Belongs in the Same Framework}
+
+The three-vehicle result isolates a failure that does not exist at the level of
+an individual controller. Each vehicle in the uncoordinated convoy is running a
+controller that completes the circuit reliably on its own; the $127.3$ mean gate
+and world collisions arise because two correct controllers pursuing the same
+aperture with the same centring objective converge to the same point in space.
+Coordination, not individual competence, is the binding constraint, and it is
+observable only in a framework where several vehicles share a world and a single
+team score.
+
+The design choice that makes this measurable is the conjunction in
+\eqref{eq:team_finished}: the team finishes only if every vehicle finishes, so a
+fast leader cannot compensate for a stranded follower. The complementary choice
+is that a yielding vehicle is still subject to the independent stuck penalty ---
+LF(2) trips it once per run at simultaneous release --- so a policy that buys
+safety by waiting pays for the waiting in the same currency it saves. Together
+these make the coordination trade-off visible in the score rather than in a
+side channel.
+
+\subsection{Deterministic Baselines and Learned Controllers}
+
+The most instructive result of this study is that learned and rule-based
+controllers fail differently, and that the difference is structural rather than a
+matter of degree.
+
+The rule controller succeeds by construction on the composition problem: its
+\cmd{LocalCourseTracker} maintains an explicit ordered state and refuses to
+advance without agreement between camera, acoustic and Doppler evidence
+(Section~\ref{sec:local_tracker}), so chaining is guaranteed by the architecture
+and the residual risk lies in individual passages. Its cost is speed and
+generality --- it is slower than every PPO checkpoint on the geometries they both
+solve, by $6.8$ to $7.1$\,s per episode, and its thresholds were designed for this
+course family.
+
+The learned policies invert the profile. They acquire and cross an individual
+gate very well, and do it faster, but they hold the ordered sequence in an
+implicit recurrent-free representation that receives no gate index and no mission
+length by design (Section~\ref{sec:learning_obs}). What they lack is precisely
+what the rule controller has for free: a committed, verified notion of \emph{which
+gate is next}. The failure signature follows directly --- crossing probability
+$1.000$ at the first gate, $0.733$ through the first full transition, and a
+$90.6\%$ share of missed-gate terminations among official-circuit failures.
+
+This suggests that the productive question is not whether learned control can
+replace a rule baseline in underwater racing, but where the boundary between
+learned and structured components should be placed. The hybrid controller in
+Table~\ref{tab:learning} is one point on that spectrum --- a deterministic
+backbone with a learned visual servo, reaching $86.7\%$ on the official circuits
+--- and its position is consistent with the diagnosis, since it retains explicit
+sequence management while learning the part that is genuinely a control problem.
+We report it separately and make no learned-control claim from it, but its
+existence supports the reading that the gap is in sequence management rather than
+in gate-following skill.
+
+\subsection{The Benchmark as a Testbed}
+
+Taken together, the results suggest that \mra{}'s value is less as a leaderboard
+than as an instrument. The three properties that produced the findings above ---
+a fixed observation boundary, an ordered-sequence termination rule and an
+independent scorer --- are the same three that made those findings legible. The
+current-free demonstration shows the task is solvable; the current sweep shows
+clean success does not transfer; the coordination study shows team-level failures
+that individual evaluation cannot see; and the matched learned-controller
+benchmark shows a specific, addressable capability gap rather than a diffuse
+performance deficit. Each of these is a statement about what to work on next, and
+none of them would have survived a protocol that pooled conditions, reported
+aggregate completion, or let the controller consult the scorer.

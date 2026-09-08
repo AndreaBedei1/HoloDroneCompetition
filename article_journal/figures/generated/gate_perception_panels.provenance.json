@@ -1,0 +1,23 @@
+{
+  "figure": "gate_perception_panels.pdf",
+  "script": "article_journal/scripts/make_perception_figure.py",
+  "operation": "crop + English state badge only; detector overlays untouched",
+  "sources": [
+    "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002/screenshots/00000_detection_without_corners.png",
+    "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000/screenshots/00001_corners_B01.png",
+    "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001/screenshots/00035_multi_candidate_lock.png"
+  ],
+  "source_capture_report": "artifacts_gen2/visual_collection_smoke/visual_smoke_report.json",
+  "adapter": "holoocean",
+  "seeds": [
+    67002,
+    67000,
+    67001
+  ],
+  "tracks": [
+    "mixed_endurance",
+    "vertical_serpent",
+    "horseshoe_bay"
+  ],
+  "holoocean_launched_by_this_script": false
+}

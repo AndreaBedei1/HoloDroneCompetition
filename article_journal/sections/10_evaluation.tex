@@ -1,0 +1,334 @@
+\section{Experimental Evaluation}
+\label{sec:evaluation}
+
+This evaluation does not seek an optimal underwater racing controller. It asks
+whether the benchmark, the observation contract, the referee and the team scoring
+behave as specified, and whether they expose differences between autonomy
+strategies that a coarser protocol would hide. We organize the experiments around
+five research questions rather than chronologically, and we report failures of the
+reference controllers and of the learned policies as results rather than as
+caveats.
+
+\begin{description}
+\item[RQ1] Can \mra{} support fully onboard autonomous completion across
+heterogeneous underwater racing circuits?
+\item[RQ2] Does the benchmark expose meaningful differences between autonomous
+control strategies?
+\item[RQ3] How do environmental currents affect benchmark performance?
+\item[RQ4] Can the same evaluation framework support multi-vehicle and
+team-level racing?
+\item[RQ5] Can learning-based controllers be integrated and evaluated under the
+same observation and referee contract?
+\end{description}
+
+\subsection{Protocol, Metrics and Provenance}
+\label{sec:eval_protocol}
+
+Three independent bodies of evidence are reported, and they are never pooled.
+
+\paragraph{The systematic benchmark matrix} 78 real-HoloOcean runs generated
+under a frozen source-tree fingerprint recorded in the artifact manifest. It
+covers both reference controllers on the three clean circuits and under the
+\texttt{medium} and \texttt{strong} Horseshoe Bay currents, homogeneous
+two-vehicle fleets, and matched three-vehicle coordination trials. Clean, current
+and fleet cases use five seeds; coordination uses three seeds under simultaneous
+and staggered release. Control runs at $\Delta t=0.033$\,s ($30$\,Hz). This matrix
+answers RQ2, RQ3 and RQ4, and supplies the boundary measurement of
+Section~\ref{sec:eval_boundary}.
+
+\paragraph{The current-free completion demonstration} A focused nine-run
+demonstration that the reference controller completes each official circuit end
+to end with currents explicitly disabled and verified zero in the manifest, at
+$\Delta t=0.1$\,s ($10$\,Hz). This answers RQ1.
+
+\paragraph{The matched controller benchmark} 474 episodes in which six
+controllers --- one rule-based, one hybrid, three PPO checkpoints and one
+behaviour-cloning policy --- ran an identical suite of test groups, generated and
+official geometries, seeds, adapter and simulator configuration, at
+$\Delta t=0.1$\,s. This answers RQ5.
+
+All performance trials use the reference HoloOcean adapter, a BlueROV2-class
+vehicle, official onboard-only observations, no current compensation and no
+obstacles, with the standard gate apertures and referee margin unchanged
+throughout (R4). Separate setup checks confirm that both named current profiles
+and seeded static obstacles instantiate on every circuit; these are construction
+checks, not obstacle-avoidance trials, and no obstacle result is claimed.
+
+The reported metrics are completion, completed gates, official and penalized
+time, collisions, out-of-bounds events, wrong-direction crossings and stuck
+events. Fleet and coordination trials add inter-vehicle proximity events and team
+times. Time statistics use finished runs only and are undefined where nothing
+finished; gate and event means use all seeds. Dispersions are sample standard
+deviations (ddof$\,{=}\,$1). Proportions carry Wilson $95\%$ intervals where
+sample sizes are small enough for the normal approximation to mislead. Paired
+comparisons use two-sided sign tests on matched seeds.
+
+Every run records the experiment-generation commit, the source-tree fingerprint
+or model SHA-256, the HoloOcean version, the track file and its SHA-256, the
+requested and actual adapter, the fallback-disabled status, the current profile
+and measured current vector, the control timestep and the seed. A run whose
+actual adapter was not HoloOcean, or which permitted the engine-free fallback,
+does not appear in any table in this paper.
+
+\subsection{RQ1: Onboard-Only Completion Across Heterogeneous Circuits}
+\label{sec:eval_rq1}
+
+The first question a racing benchmark must answer about itself is whether its
+task is solvable at all under its own restrictions. If no controller can complete
+a circuit using only onboard sensing, the benchmark measures the difficulty of an
+impossible problem rather than the quality of autonomy.
+
+Table~\ref{tab:current_free} answers this affirmatively and without qualification
+for the current-free setting. The Center-then-Commit controller completed all
+three official circuits in every one of nine runs: 3/3 on Horseshoe Bay (12
+gates), 3/3 on Vertical Serpent (17 gates) and 3/3 on Mixed Endurance (22 gates),
+for 51 of 51 gates in total. Across those nine runs the referee recorded zero
+gate, bar or world collisions, zero out-of-bounds events and zero
+wrong-direction crossings, and penalized time equalled official time in every
+run because no penalty was ever charged. Every run manifest independently
+confirms the conditions under which this was achieved: the real HoloOcean adapter
+was used, the engine-free fallback was disabled, the requested and measured
+current vector was $[0,0,0]$, and the controller received no privileged input.
+
+\input{tables/current_free}
+
+Completion time scales with course length roughly as expected from the track
+geometry: $236.0\pm6.9$\,s over $93.8$\,m, $308.6\pm6.5$\,s over $118.3$\,m and
+$480.4\pm15.7$\,s over $206.3$\,m, i.e.\ approximately $0.40$, $0.38$ and
+$0.43$\,m/s of course progress. The consistency of that rate across three
+structurally different circuits --- planar, vertically serpentine and long mixed
+--- indicates that the limiting factor is the controller's gate-by-gate
+acquire--align--commit cycle rather than any circuit-specific difficulty.
+
+We are deliberate about the scope of this result and about its relationship to
+the systematic matrix. This is a \emph{focused completion demonstration}: three
+seeds per circuit, one controller, no disturbance, at a $10$\,Hz control rate. It
+establishes that the task is achievable end to end under the full observation
+contract, and it does so with a per-run manifest that makes the claim auditable.
+It is not a performance characterization, and it does not supersede the broader
+evaluation of Sections~\ref{sec:eval_rq2}--\ref{sec:eval_rq4}, which uses five
+seeds, both controllers, three disturbance conditions and a $30$\,Hz control
+rate. The two are complementary and are reported separately for that reason; in
+particular, the times in Table~\ref{tab:current_free} are systematically longer
+than those in Table~\ref{tab:clean_tracks} because the control rate differs by a
+factor of three, and the two must not be compared.
+
+\subsection{RQ2: Do Control Strategies Separate?}
+\label{sec:eval_rq2}
+
+A benchmark that ranks every reasonable controller identically is not measuring
+anything. The two reference controllers of Section~\ref{sec:controller} are an
+unusually clean test of this, because they differ in exactly one respect --- what
+happens during \textsc{commit} and \textsc{verify\_exit} --- while sharing
+observations, guidance, tracker and confirmation logic.
+
+\input{tables/clean_tracks}
+\input{figures/controller_comparison}
+
+Table~\ref{tab:clean_tracks} and Fig.~\ref{fig:controller_comparison} show that
+the answer depends on the circuit, and that neither controller dominates. On the
+short, largely planar Horseshoe Bay circuit the two are effectively tied: both
+complete all $12$ gates in all five seeds with no collision, out-of-bounds or
+stuck event, and the staged controller is $3.2$\,s slower
+($197.7\pm7.1$\,s versus $194.5\pm4.8$\,s), a $1.7\%$ penalty with no measured
+safety benefit. Constant re-centring is cheap here, and paying nothing for it is
+the right trade.
+
+The controllers separate on the harder circuits, and they separate in opposite
+directions. On Vertical Serpent, Continuous Servo is more reliable, finishing
+$5/5$ against $4/5$ and completing $17.0$ against $14.8$ mean gates. On Mixed
+Endurance, which is more than twice as long, the ordering reverses far more
+sharply: Center-then-Commit finishes all five seeds and completes every gate
+($22.0/22$), while Continuous Servo finishes only $2/5$ and averages $17.0/22$.
+
+The mechanism is consistent with the design argument of
+Section~\ref{sec:center_commit_baseline}. Continuous visual correction is
+harmless when a passage is short and the approach is well conditioned, and it
+becomes a liability when partial near-field contours make the image centroid
+move quickly at exactly the moment the aperture margin is smallest. A long course
+compounds this: each passage is an independent opportunity for a late correction
+to fail, so a small per-gate risk becomes a large per-course risk. That
+Continuous Servo nonetheless wins on Vertical Serpent shows the trade is not
+one-directional --- repeated vertical transitions appear to benefit from
+continuous re-centring more than they suffer from late corrections --- which is
+precisely the kind of condition-dependent result a single-circuit benchmark would
+have concealed. The comparison is limited to the three official circuits, two
+current profiles and the evaluated seeds.
+
+\subsection{RQ3: Behaviour Under Environmental Currents}
+\label{sec:eval_rq3}
+
+Performance degrades sharply and non-uniformly as current strength increases
+(Table~\ref{tab:currents}). Under the \texttt{medium} Horseshoe Bay profile,
+Continuous Servo finishes $2/5$ runs, averages $8.4/12$ completed gates and
+$43.4$ gate and world collisions per run, with finished-only official and
+penalized times of $337.9\pm19.2$\,s and $692.9\pm75.7$\,s. Center-then-Commit
+finishes $3/5$, averages $8.8/12$ gates and $25.2$ collisions, with finished-only
+times of $217.3\pm1.5$\,s and $223.9\pm1.8$\,s. Neither controller finishes a
+single \texttt{strong} run: Continuous Servo averages $3.0/12$ gates with no gate
+or world collision, and Center-then-Commit $3.2/12$ gates with $0.8$.
+
+\input{tables/currents}
+
+Two features of these numbers require comment, because both are easy to
+misread.
+
+First, the collision counts are \emph{non-monotonic} in current strength: the
+medium profile records many collisions ($43.4$ and $25.2$) while the strong
+profile records almost none ($0.0$ and $0.8$). This is not evidence of better
+control under the stronger disturbance. Under \texttt{strong} the vehicles
+complete only $3.0$--$3.2$ of $12$ gates and stall early, so they rarely reach
+the gate-dense region of the circuit where contacts accumulate. Fewer collisions
+here reflect less progress, not more skill, and a benchmark that reported
+collision counts without completion would invert the ranking.
+
+Second, the \texttt{strong} profile is best read as a saturation regime rather
+than a graded difficulty. Its constant set-flow component alone is
+$[0.75,1.05,0]$\,m/s, a magnitude of $1.29$\,m/s, about $2.7\times$ the mean
+course speed the same vehicle sustains on clean Horseshoe Bay ($93.8$\,m in
+$194.5$\,s, i.e.\ $\approx\!0.48$\,m/s). No controller restricted to this
+vehicle's actuation can make sustained forward progress against it, so the
+condition functions as a stress case that confirms the disturbance is physically
+coupled rather than as an informative comparison point. The \texttt{medium}
+profile ($0.65$\,m/s constant component) is the informative regime, and there the
+staged controller is clearly the more robust: more completions, roughly half the
+collisions, and finished runs $120.6$\,s faster.
+
+The headline finding for benchmark design is the gap between
+Table~\ref{tab:clean_tracks} and Table~\ref{tab:currents}. Both controllers score
+a perfect $5/5$ with zero events on clean Horseshoe Bay, and drop to $2/5$ and
+$3/5$ with tens of collisions on the same circuit under a moderate current.
+Clean-track success is therefore not a proxy for robustness, and any evaluation
+protocol that reports only clean completion will rank controllers on a dimension
+that disappears the moment the water moves. The quantitative current sweep is
+limited to Horseshoe Bay (Section~\ref{sec:limitations}).
+
+\subsection{RQ4: Multi-Vehicle and Team-Level Evaluation}
+\label{sec:eval_rq4}
+
+\input{tables/fleet}
+
+The upper block of Table~\ref{tab:fleet} validates that team execution works.
+With either controller, a homogeneous two-vehicle fleet on clean Horseshoe Bay at
+a $90$\,s release gap finishes $24/24$ team gates in all five seeds, with no gate
+or world collision, no inter-vehicle proximity event, no out-of-bounds and no
+stuck event. Mean team elapsed and penalized times coincide at $303.1\pm3.2$\,s
+for Continuous Servo and $308.0\pm5.8$\,s for Center-then-Commit. This is
+deliberately a low-contact case: it exercises multi-vehicle spawning, staggered
+release, independent per-vehicle referee state, ranking and team aggregation
+without the vehicles interacting, and it confirms requirement R6, since the
+per-vehicle behaviour matches the single-vehicle case.
+
+The interacting case is the interesting one. A heterogeneous three-vehicle
+convoy --- a Continuous Servo leader followed by two Center-then-Commit vehicles
+--- converges on the same apertures, and the consequences are severe. At an $8$\,s
+gap the uncoordinated convoy finishes only $2/3$ runs, averages $34.3/36$ team
+gates, $127.3$ gate and world collisions and $2.0$ inter-vehicle proximity events
+per run. At simultaneous release it still finishes $3/3$, but averages $9.3$
+collisions and $2.3$ proximity events.
+
+The distributed leader--follower policy of \eqref{eq:yield} removes this
+entirely. At both gaps, LF(1) finishes $3/3$ with $36.0/36$ team gates and zero
+gate, world, proximity, out-of-bounds and stuck events, at $266.0\pm8.3$\,s
+(gap $8$\,s) and $262.3\pm7.7$\,s (gap $0$\,s). The more conservative LF(2)
+also eliminates contact but is consistently slower ($285.7\pm3.8$\,s and
+$288.3\pm1.3$\,s) and, at simultaneous release, its longer hold trips the
+independent stuck timer once per run, raising its penalized team time to
+$303.3\pm1.3$\,s. A larger nominal gate separation therefore bought no additional
+safety in these conditions while costing both time and a penalty, which is why
+LF(1) is the recommended default and LF(2) is retained only as a conservative
+comparison.
+
+Two properties of this result matter beyond the numbers. The coordination policy
+consumes only the vehicle's own tracker state, a static predecessor assignment
+and teammate-authored messages delivered over a channel with range-dependent
+latency and loss; it never reads referee progress or a teammate's true position,
+so the improvement is achieved inside the same information boundary that
+constrains everything else. And the cost of coordination is visible in the score
+rather than hidden: LF(2)'s stuck penalty is charged by the same independent
+referee that charges a collision, so a policy that buys safety by waiting pays
+for the waiting. This evidence is limited to one clean circuit, three vehicles,
+two release gaps and three seeds.
+
+\subsection{RQ5: Learned Controllers Under the Same Contract}
+\label{sec:eval_rq5}
+
+\input{tables/learning}
+\input{figures/learning_group_success}
+
+Table~\ref{tab:learning} and Fig.~\ref{fig:learning_group_success} report the
+474-episode matched benchmark. The integration question is answered first and
+plainly: five controllers of three different kinds --- rule-based, hybrid and
+learned --- ran the identical suite through the identical interface, were scored
+by the same referee, and produced directly comparable, paired results. No part of
+the runner, adapter or referee was modified to accommodate a neural policy, and
+the evaluation manifests confirm that every action of the policy-only controllers
+was policy-generated.
+
+The performance question has a more interesting answer than a single ranking
+would suggest. On the eight generated test groups of one to three gates, learned
+policies are competitive with the rule baseline: PPO~525k matches it at $100\%$,
+PPO~1000k reaches $96.9\%$ and PPO~900k $90.6\%$, against the baseline's $100\%$.
+On the three full official circuits the picture inverts: the rule baseline
+completes $93.3\%$ while the best PPO checkpoint reaches $40.0\%$, the others
+$26.7\%$ and $20.0\%$, and the behaviour-cloning policy $0\%$.
+
+Table~\ref{tab:learning_paired} shows that "worse" is the wrong summary. Over the
+79 episodes each controller shares with the rule baseline on identical seeds and
+geometries, all three PPO checkpoints are simultaneously \emph{significantly less
+reliable} (sign-test $p\le0.001$ on discordant completion pairs) and
+\emph{significantly faster} on the episodes they do complete ($\Delta t$ between
+$-6.77$ and $-7.05$\,s, $p\le0.001$). The learned policies are not degraded
+versions of the rule controller; they occupy a different point on the
+speed--reliability trade-off, and they reach it without any of the hand-designed
+staging that the rule controller uses.
+
+\input{tables/learning_paired}
+
+\paragraph{The failure is sequential, not physical} The decisive diagnostic is
+\emph{how} learned policies fail. Of the 32 PPO failures on official circuits, 29
+($90.6\%$) are referee-terminal missed-gate events and only 3 are time limits;
+none is an out-of-bounds termination. The median failure occurs after completing
+$23.9\%$ of the course. The policies are not crashing into gates or leaving the
+world; they are crossing a gate and then failing to acquire the next one, at
+which point the referee's ordered-sequence test
+(Section~\ref{sec:referee}) terminates the run.
+
+Fig.~\ref{fig:learning_survival} makes the same point quantitatively for the
+frozen Generation-1 policy, whose readiness evaluation instrumented survival
+explicitly. The probability of crossing the first gate from episode start is
+$1.000$ ($120/120$), and it falls to $0.733$ ($88/120$) for the full gate-1 to
+gate-2 transition, $0.575$ at gate 8 and $0.300$ at gate 22. Survivor-conditioned
+transition rates conceal this: measured over all 500 transition cases the
+universal transition success rate is $0.820$, which looks like a policy that
+usually chains correctly, whereas the unconditional survival curve shows that
+more than a quarter of episodes are lost at the very first transition. Reporting
+conditional rates alone would have made a policy that cannot chain look like a
+policy that chains well.
+
+\input{figures/learning_survival}
+
+\paragraph{A pre-registered negative result} Table~\ref{tab:learning_holdout}
+reports the readiness gate and the paired final holdout for that policy. The gate
+returned FAIL on 4 of its 19 registered criteria --- universal transition success
+($0.820$ against a bound of $0.900$) and completion at 3, 5 and 8 gates --- with
+no override requested or applied. Carried into the holdout as registered, the
+frozen policy completed $0$ of $30$ official-circuit trials while the paired rule
+controller completed $30$ of $30$, crossing $87$ of $510$ gates; every PPO episode
+crossed at least gate~1 and then terminated on a missed gate at the next attempted
+gate. The consistency between the procedural gate and the downstream outcome is
+itself informative: a pre-registered chaining criterion measured on generated
+geometry predicted circuit-level failure, which is what such a gate is for.
+
+\input{tables/learning_holdout}
+
+\paragraph{What this says about the benchmark} These results are reported as a
+retrospective diagnostic rather than a held-out generalization claim, because the
+three official circuits were opened by the exploratory holdout whose ledger
+records all sixty accesses (Section~\ref{sec:learning_eval_protocol}). With that
+scoping stated, the finding stands: under a fixed observation contract and an
+impartial referee, current PPO policies trained on procedural geometry learn a
+competent single-gate transition and fail to chain it over a long ordered
+sequence. The benchmark's ordered-gate termination rule is what makes this
+visible; a scoring rule that credited any gate crossing would have reported the
+same policies as broadly successful.

@@ -1,0 +1,35 @@
+\begin{figure}[t]
+\centering
+\scriptsize
+\begin{tikzpicture}[
+  node distance=0.42cm,
+  box/.style={draw, rounded corners=2pt, fill=mralight, align=center,
+    text width=2.35cm, minimum height=0.72cm, inner sep=3pt},
+  acou/.style={draw, rounded corners=2pt, fill=white, align=center,
+    text width=2.35cm, minimum height=0.72cm, inner sep=3pt},
+  arrow/.style={-Latex, thick},
+  lbl/.style={font=\tiny}
+]
+\node[box] (cam) {FrontCamera\ RGB image};
+\node[box, right=of cam] (edge) {grayscale\ + Canny};
+\node[box, right=of edge] (cont) {closed contours\ + bounding boxes};
+\node[box, right=of cont] (filt) {geometric filter\ size, aspect, $\Pi$, $\alpha$};
+\node[box, below=0.75cm of filt] (cands) {candidate list\ $(c_x,c_y,\alpha,\gamma)$, top 8};
+\node[acou, left=of cands] (assoc) {association\ FOV, bearing, size gates};
+\node[acou, left=of assoc] (beacon) {expected-beacon\ packet $(\beta,\tilde\rho)$};
+\node[box, left=of beacon] (out) {visual target\ or \emph{none}};
+
+\draw[arrow] (cam) -- (edge);
+\draw[arrow] (edge) -- (cont);
+\draw[arrow] (cont) -- (filt);
+\draw[arrow] (filt) -- (cands);
+\draw[arrow] (cands) -- (assoc);
+\draw[arrow] (beacon) -- (assoc);
+\draw[arrow] (assoc) -- (out);
+\end{tikzpicture}
+\caption{The onboard gate-perception front end. Camera pixels produce an
+unlabelled candidate list; the controller's own expected-beacon packet supplies
+the bearing that selects among them. No simulator gate pose, global vehicle pose
+or referee target enters any stage.}
+\label{fig:perception_pipeline}
+\end{figure}
