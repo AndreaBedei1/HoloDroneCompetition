@@ -1,0 +1,13 @@
+{
+  "label": "after_partial_final_benchmark_cleanup_before_speed_campaign",
+  "holodeck_project_processes": 0,
+  "gen2_benchmark_processes": 0,
+  "nvidia_smi_checked": true,
+  "unresolved_project_orphan_candidates": [
+    {"pid": 99192, "parent_pid": 64476, "name": "python.exe", "reason": "blank command line, legacy shell; taskkill denied"},
+    {"pid": 64476, "parent_pid": 13948, "name": "bash.exe", "reason": "legacy shell parent; taskkill denied"}
+  ],
+  "clearly_unrelated_processes_preserved": [".venv src.cli workers", "zotero-mcp workers"],
+  "orphan_gen2_python_processes": "unknown_protected_legacy_candidates",
+  "orphan_holodeck_processes": 0
+}

@@ -1,0 +1,201 @@
+{
+  "experiment": "bc_extreme_corners_v2",
+  "purpose": "PREPARE-ONLY plan for corrective/extreme-corner expert demonstrations. Do NOT collect or train until the Stage-2 PPO diagnostic is complete and only if it fails to improve extreme-corner robustness. The frozen BC model is never modified.",
+  "criterion": {
+    "lateral_m": [
+      0.8,
+      1.0
+    ],
+    "yaw_deg": [
+      12.0,
+      15.0
+    ],
+    "all_sign_combinations": true,
+    "depth_and_longitudinal": "still randomized by the spec"
+  },
+  "spec": {
+    "lateral_offset_m": 1.0,
+    "depth_offset_m": 0.5,
+    "yaw_offset_deg": 15.0,
+    "longitudinal_offset_m": 0.5,
+    "beacon_angular_noise_std_deg": 0.2,
+    "beacon_range_noise_std_m": 0.2,
+    "beacon_dropout_probability": 0.02
+  },
+  "n_per_quadrant": 5,
+  "seed_scan_range": [
+    20000,
+    60000
+  ],
+  "quadrant_counts": {
+    "lat+_yaw+": 5,
+    "lat+_yaw-": 5,
+    "lat-_yaw+": 5,
+    "lat-_yaw-": 5
+  },
+  "selected_seeds": [
+    20013,
+    20023,
+    20045,
+    20102,
+    20103,
+    20152,
+    20233,
+    20238,
+    20268,
+    20269,
+    20284,
+    20293,
+    20313,
+    20319,
+    20328,
+    20337,
+    20389,
+    20406,
+    20437,
+    20801
+  ],
+  "selected": [
+    {
+      "seed": 20013,
+      "lateral_offset_m": 0.9706,
+      "yaw_offset_deg": 12.4638,
+      "longitudinal_offset_m": -0.0077,
+      "depth_offset_m": -0.1315
+    },
+    {
+      "seed": 20023,
+      "lateral_offset_m": 0.9088,
+      "yaw_offset_deg": 12.8282,
+      "longitudinal_offset_m": -0.2778,
+      "depth_offset_m": 0.4214
+    },
+    {
+      "seed": 20268,
+      "lateral_offset_m": 0.9196,
+      "yaw_offset_deg": 14.7686,
+      "longitudinal_offset_m": -0.1791,
+      "depth_offset_m": -0.1577
+    },
+    {
+      "seed": 20406,
+      "lateral_offset_m": 0.9359,
+      "yaw_offset_deg": 14.157,
+      "longitudinal_offset_m": 0.4225,
+      "depth_offset_m": 0.0773
+    },
+    {
+      "seed": 20437,
+      "lateral_offset_m": 0.8459,
+      "yaw_offset_deg": 14.9116,
+      "longitudinal_offset_m": -0.4024,
+      "depth_offset_m": -0.302
+    },
+    {
+      "seed": 20045,
+      "lateral_offset_m": 0.9048,
+      "yaw_offset_deg": -12.7594,
+      "longitudinal_offset_m": 0.4815,
+      "depth_offset_m": -0.0182
+    },
+    {
+      "seed": 20102,
+      "lateral_offset_m": 0.9385,
+      "yaw_offset_deg": -13.7843,
+      "longitudinal_offset_m": -0.1508,
+      "depth_offset_m": 0.3898
+    },
+    {
+      "seed": 20233,
+      "lateral_offset_m": 0.9733,
+      "yaw_offset_deg": -14.3859,
+      "longitudinal_offset_m": 0.1485,
+      "depth_offset_m": 0.2313
+    },
+    {
+      "seed": 20293,
+      "lateral_offset_m": 0.8043,
+      "yaw_offset_deg": -12.6504,
+      "longitudinal_offset_m": 0.0753,
+      "depth_offset_m": 0.3377
+    },
+    {
+      "seed": 20319,
+      "lateral_offset_m": 0.8559,
+      "yaw_offset_deg": -13.6633,
+      "longitudinal_offset_m": -0.0716,
+      "depth_offset_m": -0.2084
+    },
+    {
+      "seed": 20103,
+      "lateral_offset_m": -0.9009,
+      "yaw_offset_deg": 13.8924,
+      "longitudinal_offset_m": -0.3229,
+      "depth_offset_m": -0.085
+    },
+    {
+      "seed": 20152,
+      "lateral_offset_m": -0.8191,
+      "yaw_offset_deg": 14.3357,
+      "longitudinal_offset_m": 0.2795,
+      "depth_offset_m": -0.4024
+    },
+    {
+      "seed": 20269,
+      "lateral_offset_m": -0.988,
+      "yaw_offset_deg": 12.4565,
+      "longitudinal_offset_m": -0.391,
+      "depth_offset_m": -0.4832
+    },
+    {
+      "seed": 20313,
+      "lateral_offset_m": -0.9599,
+      "yaw_offset_deg": 13.982,
+      "longitudinal_offset_m": 0.1137,
+      "depth_offset_m": -0.0572
+    },
+    {
+      "seed": 20328,
+      "lateral_offset_m": -0.8374,
+      "yaw_offset_deg": 13.808,
+      "longitudinal_offset_m": 0.2899,
+      "depth_offset_m": 0.4354
+    },
+    {
+      "seed": 20238,
+      "lateral_offset_m": -0.9227,
+      "yaw_offset_deg": -12.0962,
+      "longitudinal_offset_m": -0.4972,
+      "depth_offset_m": 0.2252
+    },
+    {
+      "seed": 20284,
+      "lateral_offset_m": -0.988,
+      "yaw_offset_deg": -13.9074,
+      "longitudinal_offset_m": 0.2916,
+      "depth_offset_m": -0.0152
+    },
+    {
+      "seed": 20337,
+      "lateral_offset_m": -0.9807,
+      "yaw_offset_deg": -14.228,
+      "longitudinal_offset_m": 0.2602,
+      "depth_offset_m": 0.0826
+    },
+    {
+      "seed": 20389,
+      "lateral_offset_m": -0.8516,
+      "yaw_offset_deg": -12.6849,
+      "longitudinal_offset_m": 0.4768,
+      "depth_offset_m": 0.2321
+    },
+    {
+      "seed": 20801,
+      "lateral_offset_m": -0.9949,
+      "yaw_offset_deg": -13.1004,
+      "longitudinal_offset_m": 0.363,
+      "depth_offset_m": 0.4188
+    }
+  ],
+  "prepared_collect_command": "python -m marine_race_arena.learning.collect_demos --track marine_race_arena/tracks/training/stage1_single_gate.json --seeds 20013,20023,20045,20102,20103,20152,20233,20238,20268,20269,20284,20293,20313,20319,20328,20337,20389,20406,20437,20801 --out results/rl/stage2/demos_extreme_v2 --adapter holoocean --randomize   # RUN ONLY after the Stage-2 diagnostic and if corrective demos are warranted"
+}

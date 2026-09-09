@@ -5,6 +5,10 @@ from __future__ import annotations
 import importlib
 import logging
 import math
+import os
+import random
+import subprocess
+import time
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from marine_race_arena.adapters.base import AdapterParticipantState, BaseRaceAdapter, RaceAdapterError, RaceAdapterUnavailable
@@ -12,9 +16,48 @@ from marine_race_arena.adapters.visual_spawner import HoloOceanVisualSpawner
 from marine_race_arena.arena.gate_factory import VisualGate
 from marine_race_arena.arena.obstacle import OBSTACLE_PHYSICS_DYNAMIC, Obstacle
 from marine_race_arena.config.schema import Vector3
+from marine_race_arena.learning.rl_engine_health import qualify_engine_start
+from marine_race_arena.learning.rl_engine_startup import engine_start_slot
 from marine_race_arena.participants.participant import RaceParticipant
 
 LOGGER = logging.getLogger(__name__)
+
+#: Per-engine handshake retries.  The real failure observed in production was
+#: ``OpenSemaphore`` returning ERROR_FILE_NOT_FOUND for
+#: ``Global\HOLODECK_LOADING_SEM<uuid>``: the named kernel object the client
+#: waits on never appeared.  BrokenPipeError/EOFError in the vector-env parent
+#: were only the downstream symptom of the worker then exiting.  One engine
+#: losing its handshake must cost one engine restart, not a whole trainer.
+ENGINE_HANDSHAKE_BACKOFF = (2.0, 4.0, 8.0, 15.0, 20.0, 20.0, 20.0, 20.0)
+
+#: Substrings identifying a handshake/startup failure that a fresh UUID can fix.
+_HANDSHAKE_SIGNATURES = (
+    "opensemaphore",
+    "holodeck_loading_sem",
+    "timed out waiting for binary to load",
+    "timed out or error waiting for engine",
+    "createsemaphore",
+    "openfilemapping",
+    "the system cannot find the file specified",
+    "impossibile trovare il file specificato",
+)
+
+
+def is_engine_handshake_failure(exc: BaseException) -> bool:
+    """Whether this failure is a retryable engine handshake problem."""
+
+    from marine_race_arena.learning.rl_engine_health import EngineStartupFailed
+
+    if isinstance(exc, EngineStartupFailed):
+        return True
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(signature in text for signature in _HANDSHAKE_SIGNATURES)
+
+
+def _jittered(delay: float) -> float:
+    """Spread concurrent retries so they do not collide again in lockstep."""
+
+    return max(0.0, float(delay) * (1.0 + random.uniform(-0.25, 0.25)))
 
 
 class HoloOceanRaceAdapter(BaseRaceAdapter):
@@ -55,6 +98,67 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             if isinstance(state, dict):
                 self._raw_state = state
                 self._refresh_states_from_raw()
+            self._apply_water_fog()
+
+    def _apply_water_fog(self) -> None:
+        """Queue the optional underwater visibility profile for the next tick.
+
+        HoloOcean resets the level before rebuilding its sensors, so appearance
+        commands must be queued *after* ``env.reset()``.  The command is then
+        applied on the next simulator tick and affects both the viewport and
+        onboard RGB cameras.
+        """
+
+        raw = self.config.raw.get("water_fog")
+        if raw is None or raw is False:
+            return
+        if raw is True:
+            raw = {}
+        if not isinstance(raw, Mapping):
+            raise RaceAdapterError("water_fog must be an object, true, or false.")
+        if not bool(raw.get("enabled", True)):
+            return
+
+        density = float(raw.get("density", 0.8))
+        start_distance_m = float(raw.get("start_distance_m", 5.0))
+        color = raw.get("color_rgb", [0.4, 0.6, 1.0])
+        if (
+            not math.isfinite(density)
+            or not 0.0 <= density <= 10.0
+            or not math.isfinite(start_distance_m)
+            or not 0.0 <= start_distance_m <= 10.0
+        ):
+            raise RaceAdapterError(
+                "water_fog density and start_distance_m must be finite values in [0, 10]."
+            )
+        if (
+            not isinstance(color, (list, tuple))
+            or len(color) != 3
+            or any(
+                not math.isfinite(float(component))
+                or not 0.0 <= float(component) <= 1.0
+                for component in color
+            )
+        ):
+            raise RaceAdapterError(
+                "water_fog color_rgb must contain three finite values in [0, 1]."
+            )
+
+        water_fog = getattr(self.env, "water_fog", None)
+        if not callable(water_fog):
+            raise RaceAdapterError(
+                "This HoloOcean environment does not expose water_fog()."
+            )
+        red, green, blue = (float(component) for component in color)
+        water_fog(density, start_distance_m, red, green, blue)
+        LOGGER.info(
+            "Queued underwater fog: density=%.2f start_distance_m=%.2f color_rgb=(%.2f, %.2f, %.2f).",
+            density,
+            start_distance_m,
+            red,
+            green,
+            blue,
+        )
 
     def spawn_participants(self, participants: Mapping[str, RaceParticipant]) -> None:
         if self._holoocean is None:
@@ -183,6 +287,37 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             rotation=[float(rotation_rpy_deg[0]), float(rotation_rpy_deg[1]), float(rotation_rpy_deg[2])],
         )
 
+    def set_participant_body_velocity(
+        self,
+        participant_id: str,
+        body_velocity: Vector3,
+    ) -> None:
+        """Apply a privileged reset velocity without exposing it to policy code."""
+
+        if self.env is None:
+            raise RaceAdapterError("HoloOcean environment is not initialized.")
+        agents = getattr(self.env, "agents", None)
+        agent = agents.get(participant_id) if isinstance(agents, dict) else None
+        setter = getattr(agent, "set_physics_state", None)
+        if agent is None or not callable(setter):
+            raise RaceAdapterError(
+                f"HoloOcean agent '{participant_id}' cannot set reset velocity."
+            )
+        state = self.get_participant_state(participant_id)
+        yaw = math.radians(float(state.rotation_rpy_deg[2]))
+        surge, sway, heave = map(float, body_velocity)
+        velocity = [
+            math.cos(yaw) * surge - math.sin(yaw) * sway,
+            math.sin(yaw) * surge + math.cos(yaw) * sway,
+            heave,
+        ]
+        setter(
+            location=list(map(float, state.position)),
+            rotation=list(map(float, state.rotation_rpy_deg)),
+            velocity=velocity,
+            angular_velocity=[0.0, 0.0, 0.0],
+        )
+
     def get_collision_state(self, participant_id: str) -> bool:
         sensors = self._agent_sensors(participant_id)
         for key, value in sensors.items():
@@ -224,42 +359,262 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
         self.visual_spawner = None
         if env is None:
             return
-        close = getattr(env, "close", None)
-        if callable(close):
-            close()
+        world_process = getattr(env, "_world_process", None)
+        environment_uuid = getattr(env, "_uuid", None)
+        lifecycle_error: Optional[Exception] = None
+        try:
+            close = getattr(env, "close", None)
+            if callable(close):
+                close()
+            else:
+                exit_environment = getattr(env, "__exit__", None)
+                if callable(exit_environment):
+                    # HoloOcean 2.3.0 exposes lifecycle cleanup through its
+                    # context manager rather than close().
+                    exit_environment(None, None, None)
+        except Exception as exc:  # pragma: no cover - real engine failure path
+            lifecycle_error = exc
+        finally:
+            self._ensure_world_process_stopped(world_process)
+            self._ensure_uuid_process_stopped(environment_uuid)
+            self._ensure_owned_holodeck_children_stopped()
+        if lifecycle_error is not None:
+            raise lifecycle_error
+
+    @staticmethod
+    def _ensure_world_process_stopped(world_process: Any) -> None:
+        """Reap the exact engine child if HoloOcean lifecycle cleanup leaked it."""
+
+        if world_process is None:
             return
-        exit_environment = getattr(env, "__exit__", None)
-        if callable(exit_environment):
-            # HoloOcean 2.3.0 exposes lifecycle cleanup through its context
-            # manager, not close().  __exit__ unlinks shared memory and waits
-            # for this environment's exact Holodeck child process to stop.
-            exit_environment(None, None, None)
+        try:
+            if world_process.poll() is not None:
+                return
+        except (AttributeError, OSError):
+            return
+
+        pid = int(world_process.pid)
+        LOGGER.warning(
+            "HoloOcean lifecycle cleanup left Holodeck PID %s alive; reaping it.",
+            pid,
+        )
+        try:
+            world_process.kill()
+        except (OSError, ProcessLookupError):
+            return
+        try:
+            world_process.wait(timeout=2)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+
+        if os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                LOGGER.exception("Forced cleanup failed for Holodeck PID %s.", pid)
+        else:  # pragma: no cover - kill() normally completes on POSIX
+            try:
+                world_process.kill()
+            except (OSError, ProcessLookupError):
+                return
+        try:
+            world_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            LOGGER.error("Holodeck PID %s remained alive after forced cleanup.", pid)
+
+    @staticmethod
+    def _ensure_uuid_process_stopped(environment_uuid: Any) -> None:
+        """Reap a Windows Holodeck process that outlived its Popen handle."""
+
+        if os.name != "nt" or not environment_uuid:
+            return
+        try:
+            import psutil
+        except ImportError:  # pragma: no cover - psutil is in the RL environment
+            LOGGER.error(
+                "Cannot verify HoloOcean UUID %s cleanup because psutil is unavailable.",
+                environment_uuid,
+            )
+            return
+
+        marker = f"--HolodeckUUID={environment_uuid}"
+        for process in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                name = str(process.info.get("name") or "").lower()
+                command = " ".join(process.info.get("cmdline") or ())
+                if name != "holodeck.exe" or marker not in command:
+                    continue
+                LOGGER.warning(
+                    "HoloOcean UUID %s left Holodeck PID %s alive; reaping it.",
+                    environment_uuid,
+                    process.pid,
+                )
+                process.kill()
+                process.wait(timeout=5)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+            except psutil.TimeoutExpired:
+                LOGGER.error(
+                    "Holodeck PID %s for UUID %s survived UUID cleanup.",
+                    process.pid,
+                    environment_uuid,
+                )
+
+    @staticmethod
+    def _ensure_owned_holodeck_children_stopped(owner_pid: Optional[int] = None) -> None:
+        """Enforce zero Holodeck children after a sequential adapter closes."""
+
+        if os.name != "nt":
+            return
+        try:
+            import psutil
+        except ImportError:  # pragma: no cover - psutil is in the RL environment
+            return
+        owner = os.getpid() if owner_pid is None else int(owner_pid)
+        for process in psutil.process_iter(["pid", "ppid", "name"]):
+            try:
+                name = str(process.info.get("name") or "").lower()
+                if name != "holodeck.exe" or int(process.info.get("ppid", -1)) != owner:
+                    continue
+                LOGGER.warning(
+                    "Closed adapter left owned Holodeck PID %s alive; reaping it.",
+                    process.pid,
+                )
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                process.wait(timeout=5)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+            except (psutil.TimeoutExpired, OSError, subprocess.TimeoutExpired):
+                LOGGER.error(
+                    "Owned Holodeck PID %s survived final cleanup.", process.pid
+                )
 
     @property
     def active_environment_name(self) -> Optional[str]:
         return self._active_environment_name
 
+    @property
+    def environment_uuid(self) -> Optional[str]:
+        """HoloOcean's automatically generated process/shared-memory UUID."""
+
+        value = getattr(self.env, "_uuid", None)
+        return None if value is None else str(value)
+
     def _make_environment(self) -> Any:
         failures: list[str] = []
         for environment_name in self._environment_candidates():
             scenario = self._build_scenario(environment_name)
-            try:
-                LOGGER.info("Trying HoloOcean scenario config for %s.", environment_name)
-                env = self._holoocean.make(
-                    scenario_cfg=scenario,
-                    show_viewport=not self.headless,
-                    ticks_per_sec=scenario.get("ticks_per_sec", 30),
-                    frames_per_sec=scenario.get("frames_per_sec", True),
-                )
-                self._active_environment_name = environment_name
-                LOGGER.info("Initialized HoloOcean environment %s.", environment_name)
-                return env
-            except Exception as exc:
-                failures.append(f"{environment_name} scenario_cfg failed: {type(exc).__name__}: {exc}")
+            for attempt, delay in enumerate(ENGINE_HANDSHAKE_BACKOFF, start=1):
+                try:
+                    LOGGER.info(
+                        "Trying HoloOcean scenario config for %s (attempt %d/%d).",
+                        environment_name, attempt, len(ENGINE_HANDSHAKE_BACKOFF),
+                    )
+                    # Serialise the *actual* engine birth.  Everything else --
+                    # the vector-env construction, already-warm engines, the
+                    # learner -- runs unconstrained; only this window is
+                    # exclusive.
+                    with engine_start_slot(
+                        owner=f"{environment_name} pid={os.getpid()}",
+                        on_wait=self._on_engine_start_wait,
+                    ):
+                        env = self._holoocean.make(
+                            scenario_cfg=scenario,
+                            show_viewport=not self.headless,
+                            ticks_per_sec=scenario.get("ticks_per_sec", 30),
+                            frames_per_sec=scenario.get("frames_per_sec", True),
+                        )
+                        # A live Holodeck.exe is not a healthy engine.  Qualify
+                        # it before releasing the slot so a half-initialised
+                        # engine can never be handed to a learner as ready.
+                        self._last_engine_health = qualify_engine_start(
+                            env, environment_name=environment_name
+                        )
+                    self._active_environment_name = environment_name
+                    self._engine_start_attempts = attempt
+                    LOGGER.info(
+                        "Initialized HoloOcean environment %s on attempt %d.",
+                        environment_name, attempt,
+                    )
+                    return env
+                except Exception as exc:
+                    self._record_engine_start_failure(environment_name, exc, attempt)
+                    # holoocean.make() can raise after its Unreal child is
+                    # already running.  No environment was returned, so the
+                    # failed candidate cannot be closed through its context
+                    # manager -- reap only this process's own engines.
+                    self._ensure_owned_holodeck_children_stopped()
+                    retryable = is_engine_handshake_failure(exc)
+                    last = attempt >= len(ENGINE_HANDSHAKE_BACKOFF)
+                    if not retryable or last:
+                        failures.append(
+                            f"{environment_name} scenario_cfg failed after "
+                            f"{attempt} attempt(s): {type(exc).__name__}: {exc}"
+                        )
+                        break
+                    # A fresh holoocean.make() allocates a brand-new UUID, so
+                    # the retry never reuses the named object that failed.
+                    LOGGER.warning(
+                        "engine_handshake_retry for %s: %s; retrying in %.1fs "
+                        "with a fresh UUID.", environment_name, exc, delay,
+                    )
+                    time.sleep(_jittered(delay))
         raise RaceAdapterUnavailable(
             "Could not initialize a custom BlueROV2 HoloOcean scenario for any configured environment. "
             + " | ".join(failures)
         )
+
+    @staticmethod
+    def _on_engine_start_wait(record: Mapping[str, Any]) -> None:
+        LOGGER.info(
+            "%s: waiting %.1fs for a HoloOcean start slot (holders: %s).",
+            record.get("state"),
+            float(record.get("waited_seconds", 0.0)),
+            record.get("current_owners"),
+        )
+
+    def _record_engine_start_failure(
+        self, environment_name: str, exc: BaseException, attempt: int = 1
+    ) -> None:
+        """Keep enough forensic detail to classify the failure after the fact."""
+
+        handshake = is_engine_handshake_failure(exc)
+        self._last_engine_health = {
+            "healthy": False,
+            "environment_name": environment_name,
+            "stage": "make",
+            "attempt": int(attempt),
+            "error": f"{type(exc).__name__}: {exc}",
+            "classification": (
+                "engine_handshake_retry" if handshake else "engine_start_failed"
+            ),
+            "retryable": handshake,
+            "pid": os.getpid(),
+        }
+        LOGGER.warning(
+            "HoloOcean engine start failed for %s (attempt %d, %s): %s",
+            environment_name, attempt,
+            "engine_handshake_retry" if handshake else "fatal", exc,
+        )
+
+    @property
+    def last_engine_health(self) -> Optional[Dict[str, Any]]:
+        """Diagnostics from the most recent engine start attempt."""
+
+        return getattr(self, "_last_engine_health", None)
 
     def _environment_candidates(self) -> list[str]:
         candidates = [
@@ -282,7 +637,9 @@ class HoloOceanRaceAdapter(BaseRaceAdapter):
             "package_name": self.config.world.package or "Ocean",
             "main_agent": next(iter(self._participants.keys()), "bluerov2_01"),
             "ticks_per_sec": 30,
-            "frames_per_sec": True,
+            "frames_per_sec": self.config.raw.get(
+                "holoocean_frames_per_sec", True
+            ),
             "window_width": 1280,
             "window_height": 720,
             "current": {"vehicle_debugging": False},

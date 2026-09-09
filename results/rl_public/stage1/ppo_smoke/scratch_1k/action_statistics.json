@@ -1,0 +1,38 @@
+{
+  "initial_action_std": {
+    "mode": "scratch",
+    "source": "sb3_default",
+    "note": "PPO-from-scratch keeps Stable-Baselines3's default log_std (~1.0 std)."
+  },
+  "training_log_metrics": {
+    "approx_kl": 8.8202716e-05,
+    "entropy_loss": -5.675755596160888,
+    "clip_fraction": 0.0,
+    "explained_variance": 0.03525900840759277,
+    "policy_gradient_loss": -0.0008669379180062719,
+    "value_loss": 14.571936321258544,
+    "policy_std_mean": 1.000042200088501,
+    "loss": 6.938240051269531
+  },
+  "final_per_axis_exploration_std": {
+    "surge": 0.9996930956840515,
+    "sway": 1.0006227493286133,
+    "heave": 0.999880850315094,
+    "yaw": 1.0002810955047607
+  },
+  "sampled_action_mean_per_axis": {
+    "surge": -0.0038067835848778486,
+    "sway": 0.01157438289374113,
+    "heave": 0.011563390493392944,
+    "yaw": -0.015108910389244556
+  },
+  "sampled_action_std_per_axis": {
+    "surge": 0.998548686504364,
+    "sway": 1.0029538869857788,
+    "heave": 1.0037003755569458,
+    "yaw": 0.9945598840713501
+  },
+  "sampled_action_saturation_frac": 0.326625,
+  "all_actions_finite": true,
+  "note": "Statistics sampled from the FINAL policy on random in-range observations (not a HoloOcean rollout); characterizes exploration width and saturation."
+}

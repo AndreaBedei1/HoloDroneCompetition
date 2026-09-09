@@ -1,0 +1,19 @@
+{
+  "packages": {
+    "python": "3.9.25",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.0.2",
+    "torch": "2.8.0+cpu",
+    "gymnasium": "1.0.0",
+    "stable_baselines3": "2.7.1",
+    "holoocean": "2.3.0"
+  },
+  "git_sha": "6bb9ca0ec22b3147dc33681a99a9874556baf917",
+  "adapter_requested": "holoocean",
+  "allow_fallback": false,
+  "obs_encoding_version": "onboard_only_v1",
+  "adapter_actual": "holoocean",
+  "fallback_used": false,
+  "wall_clock_s": 616.537,
+  "final_num_timesteps": 1000
+}

@@ -1,0 +1,133 @@
+{
+  "package": "visual_pose_v2",
+  "branch": "feature/visual-pose-multigate",
+  "base": "feature/rl-controller@5a02838",
+  "code_sha_at_publish": "8ab0a063af2de1d1440676576bd970a2ec082ad2",
+  "experiment_sha": "8ab0a063af2de1d1440676576bd970a2ec082ad2",
+  "adapter": "holoocean",
+  "fallback_used": false,
+  "currents": "disabled (current-free)",
+  "conclusion_category": "ENGINEERING SUCCESS",
+  "conclusion": "A fully autonomous onboard-only controller (deterministic rule_gate_center_then_commit) completes all three official circuits in real HoloOcean with currents disabled, no fallback, no manual intervention and no privileged input: Horseshoe 3/3, Vertical 3/3, Mixed 3/3 (referee FINISHED, all gates, zero collisions/out-of-bounds). This exceeds the >=3/5 target. The learned single-gate BC-v1 does NOT generalise to multi-gate on its own (0/8); the hybrid_gate_controller integrates BC-v1's visual servo onto the deterministic backbone. Metric visual gate-pose (observation v2) remains unreliable on real images and is optional, not a blocker.",
+  "official_no_current": {
+    "all_circuits_completed_at_least_once": true,
+    "all_circuits_meet_3of5": true,
+    "circuits": [
+      {
+        "circuit": "horseshoe",
+        "expected_gates": 12,
+        "completions": 3,
+        "n_eval": 3,
+        "completion_rate": 1.0,
+        "currents_actual": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "currents_are_zero": true,
+        "benchmark_task_override": null,
+        "adapter_actual": "holoocean",
+        "fallback_allowed": false
+      },
+      {
+        "circuit": "vertical",
+        "expected_gates": 17,
+        "completions": 3,
+        "n_eval": 3,
+        "completion_rate": 1.0,
+        "currents_actual": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "currents_are_zero": true,
+        "benchmark_task_override": null,
+        "adapter_actual": "holoocean",
+        "fallback_allowed": false
+      },
+      {
+        "circuit": "mixed",
+        "expected_gates": 22,
+        "completions": 3,
+        "n_eval": 3,
+        "completion_rate": 1.0,
+        "currents_actual": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "currents_are_zero": true,
+        "benchmark_task_override": "clean_gate",
+        "adapter_actual": "holoocean",
+        "fallback_allowed": false
+      }
+    ]
+  },
+  "multigate_bc_v1": {
+    "two_gate_straight": {
+      "max_gates_reached": 1,
+      "completions": 0,
+      "first_failure_counts": {
+        "RETURN_TO_PREVIOUS_GATE": 1,
+        "COLLISION": 2
+      }
+    },
+    "two_gate_left_curve": {
+      "max_gates_reached": 0,
+      "completions": 0,
+      "first_failure_counts": {
+        "COLLISION": 2
+      }
+    },
+    "three_gate_s_curve": {
+      "max_gates_reached": 1,
+      "completions": 0,
+      "first_failure_counts": {
+        "COLLISION": 2,
+        "RETURN_TO_PREVIOUS_GATE": 1
+      }
+    }
+  },
+  "corrected_vision_pose": {
+    "detection_rate": 0.283,
+    "pose_availability_rate": 0.117,
+    "median_yaw_error_deg": 48.16,
+    "orientation_class_accuracy": 0.0,
+    "median_distance_error_m": 1.732,
+    "n_frames": 60
+  },
+  "vision_acceptance": "FAILS metric and projective acceptance (detection<70%, class accuracy 0%); geometric vision not reliable on real images; observation v2 not wired in (Case A: circuits solved without it).",
+  "frozen_unchanged": {
+    "main": "f4d63751fd935f724a9dce3ea802f76e1e27d45f",
+    "bc_v1_model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3"
+  },
+  "hybrid_controller": {
+    "architecture": "Deterministic RuleGateCenterThenCommit backbone + frozen BC-v1 visual servo blended only in VISUAL_ALIGN (weight ramped by visual confidence, capped 0.55). Backbone is sole authority in SEARCH/APPROACH/COMMIT/VERIFY_EXIT/ADVANCE.",
+    "multigate": {
+      "two_gate": {
+        "completions": 2,
+        "n_seeds": 2,
+        "expected_gates": 2
+      },
+      "three_gate": {
+        "completions": 2,
+        "n_seeds": 2,
+        "expected_gates": 3
+      }
+    },
+    "circuit_horseshoe": {
+      "completions": 2,
+      "n_eval": 2,
+      "completion_rate": 1.0,
+      "mean_gates": 12.0,
+      "total_out_of_bounds": 0,
+      "total_collisions": 0
+    },
+    "vs_bc_v1_alone": {
+      "two_gate_straight": "0/3 (max 1 gate)",
+      "two_gate_left_curve": "0/2 (max 0)",
+      "three_gate_s_curve": "0/3 (max 1 gate)"
+    },
+    "note": "Learning-integrated controller completes multi-gate and a full circuit current-free where BC-v1 alone completes 0/8 multi-gate."
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "parent": "artifacts_gen2\\bc_27d_clean_20260907\\parent_warmstart_27d.zip",
+  "parent_sha256": "e0d5628d231065d530ac52ba07fd42c32f722c2f1e7c885e03af34dd9f83dcf2",
+  "bc_policy_used": false,
+  "observation_contract": "onboard_local_transition_27d_v1",
+  "observation_dim": 27,
+  "total_timesteps_requested": 5120,
+  "sources": [
+    {
+      "name": "full_horseshoe_bay",
+      "track": "horseshoe_bay",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+      "gate_count": 12,
+      "max_steps": 10800,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "full_vertical_serpent",
+      "track": "vertical_serpent",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+      "gate_count": 17,
+      "max_steps": 15300,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "full_mixed_endurance",
+      "track": "mixed_endurance",
+      "kind": "full_circuit",
+      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+      "gate_count": 22,
+      "max_steps": 19800,
+      "initial_body_velocity": null
+    },
+    {
+      "name": "horseshoe_bay_G07-G09",
+      "track": "horseshoe_bay",
+      "kind": "exact_fragment",
+      "path": "artifacts_gen2\\ppo_27d_smoke_20260908_retry\\training_tracks\\horseshoe_bay_G07-G09.json",
+      "gate_count": 3,
+      "max_steps": 2700,
+      "initial_body_velocity": [
+        0.4,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "vertical_serpent_G08-G10",
+      "track": "vertical_serpent",
+      "kind": "exact_fragment",
+      "path": "artifacts_gen2\\ppo_27d_smoke_20260908_retry\\training_tracks\\vertical_serpent_G08-G10.json",
+      "gate_count": 3,
+      "max_steps": 2700,
+      "initial_body_velocity": [
+        0.4,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "name": "mixed_endurance_G02-G04",
+      "track": "mixed_endurance",
+      "kind": "exact_fragment",
+      "path": "artifacts_gen2\\ppo_27d_smoke_20260908_retry\\training_tracks\\mixed_endurance_G02-G04.json",
+      "gate_count": 3,
+      "max_steps": 2700,
+      "initial_body_velocity": [
+        0.4,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "source_audit": {
+    "fog": {
+      "required": {
+        "enabled": true,
+        "density": 5.0,
+        "start_distance_m": 1.0,
+        "color_rgb": [
+          0.4,
+          0.6,
+          1.0
+        ]
+      },
+      "sources": [
+        {
+          "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+          "water_fog": {
+            "enabled": true,
+            "density": 5.0,
+            "start_distance_m": 1.0,
+            "color_rgb": [
+              0.4,
+              0.6,
+              1.0
+            ]
+          },
+          "valid": true
+        },
+        {
+          "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+          "water_fog": {
+            "enabled": true,
+            "density": 5.0,
+            "start_distance_m": 1.0,
+            "color_rgb": [
+              0.4,
+              0.6,
+              1.0
+            ]
+          },
+          "valid": true
+        },
+        {
+          "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+          "water_fog": {
+            "enabled": true,
+            "density": 5.0,
+            "start_distance_m": 1.0,
+            "color_rgb": [
+              0.4,
+              0.6,
+              1.0
+            ]
+          },
+          "valid": true
+        },
+        {
+          "track_path": "artifacts_gen2\\ppo_27d_smoke_20260908_retry\\training_tracks\\horseshoe_bay_G07-G09.json",
+          "water_fog": {
+            "color_rgb": [
+              0.4,
+              0.6,
+              1.0
+            ],
+            "density": 5.0,
+            "enabled": true,
+            "start_distance_m": 1.0
+          },
+          "valid": true
+        },
+        {
+          "track_path": "artifacts_gen2\\ppo_27d_smoke_20260908_retry\\training_tracks\\vertical_serpent_G08-G10.json",
+          "water_fog": {
+            "color_rgb": [
+              0.4,
+              0.6,
+              1.0
+            ],
+            "density": 5.0,
+            "enabled": true,
+            "start_distance_m": 1.0
+          },
+          "valid": true
+        },
+        {
+          "track_path": "artifacts_gen2\\ppo_27d_smoke_20260908_retry\\training_tracks\\mixed_endurance_G02-G04.json",
+          "water_fog": {
+            "color_rgb": [
+              0.4,
+              0.6,
+              1.0
+            ],
+            "density": 5.0,
+            "enabled": true,
+            "start_distance_m": 1.0
+          },
+          "valid": true
+        }
+      ],
+      "all_valid": true
+    },
+    "source_count": 6,
+    "synthetic_included": false
+  },
+  "reward_hierarchy": {
+    "all_hold": true,
+    "checks": {
+      "gate_outweighs_full_time_penalty": true,
+      "completion_outweighs_time": true,
+      "gates_outweigh_full_stall_penalty": true,
+      "out_of_bounds_outweighs_two_gates": true,
+      "wrong_direction_outweighs_one_gate": true,
+      "missed_gate_outweighs_one_gate": true,
+      "time_penalty_is_small": true,
+      "slow_completion_beats_fast_dnf": true
+    },
+    "worst_case_time_penalty": 0.0,
+    "worst_case_stall_penalty": -30.0,
+    "one_gate_reward": 20.0,
+    "horizon_steps": 6000
+  },
+  "ppo": {
+    "learning_rate": 1e-05,
+    "clip_range": 0.06,
+    "target_kl": 0.0075,
+    "n_epochs": 1,
+    "n_steps": 256,
+    "batch_size": 128,
+    "ent_coef": 0.0,
+    "max_grad_norm": 0.5,
+    "efficiency_reward": false,
+    "reliability_reward": true
+  }
+}

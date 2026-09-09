@@ -1,0 +1,140 @@
+{
+  "run_name": "universal_transition_ppo_generic_sequence_v5_rewarm_fixed_seed23001",
+  "output_root": "results/rl/universal_transition/longrun",
+  "observation_version": "onboard_local_transition_v1",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "initialization": {
+    "mode": "parallel_continuation",
+    "parent_run_dir": "results/rl/universal_transition/longrun/universal_transition_ppo_generic_sequence_v2_seed23001",
+    "parent_checkpoint": "ppo_528384_steps.zip",
+    "parent_sha256": "05a1cb383e8170b477c2fedfbec3d7f0549628713873af9f7c82f97110360a16",
+    "parent_total_environment_transitions": 528384,
+    "parent_n_envs": 2,
+    "parent_n_steps": 1024,
+    "parent_verified_evaluation": {
+      "unseen_100_cases": {
+        "universal_transition_success_rate": 0.87,
+        "first_gate_crossing_rate": 1.0,
+        "long_sequence_completion_score": 0.6667
+      },
+      "dedicated_400_cases": {
+        "universal_transition_success_rate": 0.8075,
+        "first_gate_crossing_rate": 1.0,
+        "long_sequence_completion_score": 0.5
+      }
+    },
+    "selection_reason": "ppo_528384 retained: still the only checkpoint with large-sample evidence (n=412 dedicated, 0.8075; n=112 unseen 0.87). PPO v4's own checkpoints have only n=112 evaluations (0.77 at 579,584 and 0.73 at 628,736) and were trained at the WRONG learning rate (3.489754e-06 instead of the configured 7e-06), so they carry no better evidence. No matched large-sample comparison was run.",
+    "reshard_reason": "unchanged 2x1024; continuation only re-warms optimizer pressure",
+    "predecessor_run": "results/rl/universal_transition/longrun/universal_transition_ppo_generic_sequence_v4_rewarm_seed23001",
+    "predecessor_defect": "restore_model_training_state reimposed the parent's learning rate on every optimizer param group AND restored the parent's exhausted schedule (current_progress_remaining 0.0, last_value at its floor). Because AbsoluteLearningRateSchedule ratchets (last_value = min(last_value, value)) and SB3 re-reads the schedule every train(), the configured 7e-06 could never take effect. v4 ran at 3.489754098360656e-06, byte-identical to v3."
+  },
+  "seed": 23001,
+  "worker_seed_base": 43001,
+  "torch_threads": 1,
+  "new_environment_steps": 2000000,
+  "n_envs": 2,
+  "adapter": "holoocean",
+  "allow_fallback": false,
+  "holoocean_frames_per_sec": false,
+  "max_episode_steps": 3600,
+  "ppo": {
+    "hidden_sizes": [
+      256,
+      256
+    ],
+    "learning_rate": 7e-06,
+    "final_learning_rate": 3e-06,
+    "learning_rate_schedule": "linear",
+    "n_steps": 1024,
+    "batch_size": 256,
+    "n_epochs": 3,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "clip_range": 0.05,
+    "target_kl": 0.004,
+    "ent_coef": 0.0002
+  },
+  "curriculum": {
+    "initial_difficulty": "G1",
+    "maximum_difficulty": "G6",
+    "transition_focus_fraction": 0.7
+  },
+  "competence_gate": {
+    "min_first_gate_crossing_rate": 0.8,
+    "min_target_switch_rate": 0.7,
+    "min_universal_transition_success_rate": 0.2,
+    "min_completed_gate_count": 10,
+    "min_completed_gates_per_episode": 0.5,
+    "min_fraction_of_episodes_reaching_first_gate": 0.8,
+    "min_mean_distance_travelled_m": 1.0,
+    "min_mean_absolute_action": 0.02,
+    "min_nontrivial_action_fraction": 0.25,
+    "min_transition_cases": 50
+  },
+  "reward": {},
+  "evaluation": {
+    "early_schedule": [
+      578384,
+      628384,
+      728384
+    ],
+    "frequency": 100000,
+    "checkpoint_frequency": 10000,
+    "seed": 88001,
+    "transition_cases": 100,
+    "full_cases_per_length": 2,
+    "intermediate_parallel_workers": 2,
+    "rollback_consecutive_evaluations": 2,
+    "dedicated_seed": 88001,
+    "dedicated_transition_cases": 400,
+    "dedicated_full_cases_per_length": 2,
+    "dedicated_parallel_workers": 4,
+    "dedicated_min_interval_transitions": 250000,
+    "dedicated_material_improvement": 0.05,
+    "probe_frequency": 50000,
+    "probe_transition_cases": 60,
+    "milestone_transition_cases": 1000
+  },
+  "data_roles": {
+    "train": "train",
+    "intermediate_evaluation": "validation",
+    "dedicated_evaluation": "test"
+  },
+  "activity_gate": {
+    "min_mean_absolute_action": 0.02,
+    "min_nontrivial_action_fraction": 0.25,
+    "min_mean_distance_travelled_m": 1.0,
+    "min_first_gate_reach_fraction": 0.2,
+    "min_completed_gate_rate": 0.05,
+    "warning_windows": 2,
+    "inactive_windows": 4,
+    "minimum_episodes": 10
+  },
+  "sequence_curriculum": {
+    "enabled": true
+  },
+  "provenance": {
+    "git_sha": "3b486646648cf7c95cc4b7c6512bdc59c60c1bda",
+    "curriculum_version": "generic_sequence_curriculum_v1",
+    "seed_split_version": "rl_holdout_policy_v1",
+    "reward_status": "frozen: reward_contract_coherent_freeze_it",
+    "predecessor_run": "universal_transition_ppo_generic_sequence_v3_seed23001",
+    "predecessor_finding": "PPO_OPTIMIZATION_STALLED: relative policy movement 1.3e-5 per 2048-tx rollout, 3.98e-3 total across 645k transitions, log_std frozen at -2.526, learning rate decaying to 1e-6. Competent and non-degenerate, but the optimizer was doing effectively nothing.",
+    "change": "optimizer learning pressure only; clip/entropy/arch/reward/curriculum unchanged",
+    "fix": "continuation now installs its OWN schedule after the parent restore, then applies the configured rate to every param group, then asserts both the optimizer groups and the schedule yield it; lr_rewarm_verified is recorded"
+  },
+  "lr_rewarm": {
+    "minimum_learning_rate": 3e-06,
+    "maximum_learning_rate": 1.5e-05,
+    "initial_learning_rate": 7e-06,
+    "target_kl": 0.004,
+    "stalled_kl_fraction": 0.1,
+    "hot_kl_fraction": 1.0,
+    "stalled_clip_fraction": 0.02,
+    "max_clip_fraction": 0.3,
+    "stalled_relative_update": 5e-05,
+    "sustained_rollouts": 5,
+    "increase_factor": 1.25,
+    "decrease_factor": 0.7
+  }
+}

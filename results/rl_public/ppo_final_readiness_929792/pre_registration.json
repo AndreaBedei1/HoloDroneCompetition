@@ -1,0 +1,106 @@
+{
+  "schema_version": "ppo_final_readiness_pre_registration_v1",
+  "purpose": "judge the immutable final PPO against the unchanged readiness gate",
+  "artifact_freeze": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl_public\\ppo_final_generic_929792\\artifact_freeze.json",
+  "checkpoint_sha256": "60ffdca1a6afc0260487d90cc7282a285cbafd46e76d32a316348c13f5fdfe32",
+  "plan": {
+    "schema_version": "rl_matched_benchmark_v1",
+    "paired": true,
+    "seed_role": "validation",
+    "seed_band": {
+      "name": "validation",
+      "start": 5000000,
+      "size": 50000,
+      "end": 5050000
+    },
+    "seeds": [
+      5000000
+    ],
+    "validation_offset": 0,
+    "difficulty": "G1",
+    "dataset_split": "validation",
+    "transition_cases": 500,
+    "full_cases_per_length": 20,
+    "cases_per_candidate": null,
+    "candidates": [
+      {
+        "name": "ppo_final_generic_929792",
+        "checkpoint": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl\\universal_transition\\final\\ppo_final_generic_929792.zip",
+        "sha256": "60ffdca1a6afc0260487d90cc7282a285cbafd46e76d32a316348c13f5fdfe32",
+        "algorithm": "ppo",
+        "seeds": [
+          5000000
+        ]
+      }
+    ],
+    "selection_rule": {
+      "version": "matched_selection_rule_v1",
+      "step_0_reject": {
+        "min_nontrivial_action_fraction": 0.25,
+        "min_mean_absolute_action": 0.02,
+        "max_out_of_bounds_rate": 0.05,
+        "max_wrong_direction_rate": 0.1,
+        "max_collision_episode_rate": 0.35
+      },
+      "criteria": [
+        "sequence_reliability",
+        "universal_transition_success",
+        "safety",
+        "switch_alignment_quality",
+        "smoothness"
+      ],
+      "length_weight_exponent": 1.0,
+      "primary_paired_metric": "case_success",
+      "confidence": 0.95,
+      "bootstrap_resamples": 10000,
+      "bootstrap_seed": 20260808
+    },
+    "selection_rule_fingerprint": "3db7936485ea79fc0e4aa938cc72a9284ad9dbca063ca61c85ac9a9710a6dbd9",
+    "utc": "2026-08-17T04:29:36Z",
+    "plan_fingerprint": "cb074c1c21e9cc1c2e4b154cf1fcff705fd5df55b422f4c0e5aec4e2c2920280"
+  },
+  "verified_case_bands": {
+    "dataset_split": "validation",
+    "seeds": {
+      "5000000": {
+        "cases": 620,
+        "distinct_episode_seeds": 618,
+        "episode_seed_range": [
+          5000317,
+          5049965
+        ]
+      }
+    }
+  },
+  "readiness_thresholds": {
+    "schema_version": "rl_readiness_gate_v1",
+    "min_universal_transition_success": 0.9,
+    "min_first_gate_crossing": 0.97,
+    "min_target_switch": 0.85,
+    "min_new_target_alignment": 0.85,
+    "completion_by_length": {
+      "3": 0.95,
+      "5": 0.9,
+      "8": 0.75,
+      "12": 0.5,
+      "17": 0.25,
+      "22": 0.25
+    },
+    "ladder_min_rung": "G3",
+    "min_ladder_transition_success": 0.5,
+    "min_ladder_first_gate_crossing": 0.8,
+    "max_out_of_bounds_rate": 0.01,
+    "max_collision_episode_rate": 0.2,
+    "required_dataset_split": "validation",
+    "primary_difficulty": "G1",
+    "min_transition_cases": 500,
+    "min_full_cases_per_length": 20,
+    "min_ladder_rung_cases": 30,
+    "narrow_miss_margin": 0.02,
+    "max_overridden_criteria": 2
+  },
+  "readiness_thresholds_sha256": "b33f1e163afc1423e52e2256b8c565bade14e533ee1caaadd07b18eb92969b35",
+  "final_circuits_sealed": true,
+  "training_permanently_closed": true,
+  "result_dependent_changes_permitted": false
+}

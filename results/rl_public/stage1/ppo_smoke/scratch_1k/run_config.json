@@ -1,0 +1,49 @@
+{
+  "stage": "stage1",
+  "algorithm": "ppo_scratch",
+  "track": "marine_race_arena/tracks/training/stage1_single_gate.json",
+  "total_timesteps": 1000,
+  "hidden_sizes": [
+    256,
+    256
+  ],
+  "train_seed": 0,
+  "checkpoint_freq": 500,
+  "eval_freq": 1000,
+  "bc_initialized": false,
+  "resuming": false,
+  "ppo_kwargs": {
+    "learning_rate": 5e-05,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "ent_coef": 0.0,
+    "target_kl": 0.01,
+    "clip_range": 0.1,
+    "n_steps": 500,
+    "batch_size": 100,
+    "n_epochs": 2,
+    "device": "cpu"
+  },
+  "env_kwargs": {
+    "adapter": "holoocean",
+    "allow_fallback": false,
+    "max_steps": 200,
+    "dt": 0.1
+  },
+  "obs_dim": 36,
+  "action_dim": 4,
+  "obs_encoding_version": "onboard_only_v1",
+  "action_contract_version": "surge_sway_heave_yaw_pm1_v1",
+  "bc_action_std_config": {
+    "mode": "from_validation",
+    "std_min": 0.05,
+    "std_max": 0.15,
+    "log_std_fallback": -2.5
+  },
+  "bc_report_path": null,
+  "action_std": {
+    "mode": "scratch",
+    "source": "sb3_default",
+    "note": "PPO-from-scratch keeps Stable-Baselines3's default log_std (~1.0 std)."
+  }
+}

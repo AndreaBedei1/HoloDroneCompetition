@@ -1,0 +1,13 @@
+{
+  "best_model.zip": {
+    "path": "results\\rl\\stage1\\ppo_bcinit\\20260724_005542\\best_model\\best_model.zip",
+    "bytes": 627811,
+    "sha256": "47ca57f766555eb09ad562b6012bf740686003b9566a83894b1c1985e3430263"
+  },
+  "final_model.zip": {
+    "path": "results\\rl\\stage1\\ppo_bcinit\\20260724_005542\\final_model.zip",
+    "bytes": 1852878,
+    "sha256": "a4cf8e34e7a9927764d5ab3021ff16836914246878d78071cc49902b1215c63c"
+  },
+  "note": "SB3 model ZIPs stay under results/rl/ (git-ignored); hashes + reproduce.txt published for audit."
+}

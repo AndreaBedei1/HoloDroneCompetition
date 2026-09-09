@@ -1,0 +1,5 @@
+controller_a,controller_b,groups,paired_episodes,a_successes,b_successes,a_full_completions,b_full_completions,only_a_finished,only_b_finished,reliability_sign_test_p,time_delta_mean_s,time_delta_ci_low,time_delta_ci_high,a_faster_episodes,b_faster_episodes,time_sign_test_p,jerk_delta_mean,path_length_delta_mean_m,a_safety_events,b_safety_events
+ppo_final_generic_929792,rule_gate_center_then_commit,all,30,0,30,0,30,0,30,0.0,,,,0,0,,0.0474,,84,0
+ppo_final_generic_929792,rule_gate_center_then_commit,official_horseshoe_bay,10,0,10,0,10,0,10,0.00195,,,,0,0,,0.0434,,0,0
+ppo_final_generic_929792,rule_gate_center_then_commit,official_vertical_serpent,10,0,10,0,10,0,10,0.00195,,,,0,0,,0.0463,,84,0
+ppo_final_generic_929792,rule_gate_center_then_commit,official_mixed_endurance,10,0,10,0,10,0,10,0.00195,,,,0,0,,0.0524,,0,0

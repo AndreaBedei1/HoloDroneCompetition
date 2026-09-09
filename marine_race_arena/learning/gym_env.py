@@ -1,0 +1,399 @@
+"""Gymnasium-compatible, step-wise Marine Race environment.
+
+Wraps :class:`~marine_race_arena.learning.episode.RaceEpisode` (which reuses the
+benchmark runner internals) with the Gymnasium API. The policy sees only the
+encoded onboard observation; the reward may use privileged simulator/referee
+state and is therefore kept in a separate, swappable ``reward_fn``.
+
+Observation: fixed ``float32`` vector of size ``OBS_DIM`` (see
+:mod:`observation_encoder`). Action: ``float32`` vector ``[surge, sway, heave,
+yaw]`` in ``[-1, 1]`` mapped straight to the normalized body-frame command; the
+adapter clamps to the vehicle's control limits.
+
+Gymnasium (and, for the default reward, nothing else) is imported lazily so the
+numpy-only learning modules stay importable without it.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+
+import numpy as np
+
+try:  # Gymnasium is an RL-only dependency (requirements-rl.txt).
+    import gymnasium as gym
+    from gymnasium import spaces
+
+    _GYM_BASE = gym.Env
+except Exception as exc:  # pragma: no cover - exercised only without gymnasium
+    gym = None
+    spaces = None
+    _GYM_BASE = object
+    _GYM_IMPORT_ERROR = exc
+else:
+    _GYM_IMPORT_ERROR = None
+
+from marine_race_arena.learning.config import (
+    ACTION_AXES,
+    ACTION_DIM,
+    FEATURE_BOUNDS,
+    OBS_DIM,
+    OBS_ENCODING_VERSION,
+)
+from marine_race_arena.learning.episode import EpisodeStep, RaceEpisode
+from marine_race_arena.learning.observation_encoder import encode_observation
+from marine_race_arena.learning.reward import TrainingReward
+from marine_race_arena.learning.tracker_context import OnboardContextTracker
+
+# Reward callable: (env, step, gate_delta, action) -> (reward, components_dict).
+# A reward object may also expose ``reset(env)`` to restart per-episode state.
+RewardFn = Callable[["MarineRaceGymEnv", EpisodeStep, int, np.ndarray], Tuple[float, Dict[str, float]]]
+
+
+class MarineRaceGymEnv(_GYM_BASE):
+    """Single-vehicle, onboard-only Gymnasium environment over a marine race."""
+
+    metadata = {"render_modes": []}
+
+    def __init__(
+        self,
+        track: str,
+        *,
+        seed: int = 0,
+        dt: float = 0.1,
+        adapter: str = "fallback",
+        allow_fallback: bool = True,
+        max_steps: int = 2000,
+        official: bool = True,
+        duration_s: Optional[float] = None,
+        benchmark_task: Optional[str] = None,
+        current_profile: Optional[str] = None,
+        obstacles: Optional[str] = None,
+        obstacle_density: Optional[str] = None,
+        reward_fn: Optional[RewardFn] = None,
+        start_randomization=None,
+        episode_seed_stream: Optional[int] = None,
+        observation_encoding_version: str = OBS_ENCODING_VERSION,
+        initial_body_velocity: Optional[Tuple[float, float, float]] = None,
+    ) -> None:
+        if gym is None:  # pragma: no cover - only without gymnasium installed
+            raise ImportError(
+                "gymnasium is required for MarineRaceGymEnv; install requirements-rl.txt"
+            ) from _GYM_IMPORT_ERROR
+        super().__init__()
+        self._episode = RaceEpisode(
+            track,
+            seed=seed,
+            dt=dt,
+            adapter=adapter,
+            allow_fallback=allow_fallback,
+            max_steps=max_steps,
+            official=official,
+            duration_s=duration_s,
+            benchmark_task=benchmark_task,
+            current_profile=current_profile,
+            obstacles=obstacles,
+            obstacle_density=obstacle_density,
+            start_randomization=start_randomization,
+        )
+        self.observation_encoding_version = str(observation_encoding_version)
+        if self.observation_encoding_version == OBS_ENCODING_VERSION:
+            self._feature_bounds = FEATURE_BOUNDS
+            self._obs_dim = OBS_DIM
+            self._context_type = OnboardContextTracker
+            self._encoder = encode_observation
+            default_reward = TrainingReward()
+        else:
+            from marine_race_arena.learning.config_v3 import (
+                FEATURE_BOUNDS_V3,
+                OBS_DIM_V3,
+                OBS_ENCODING_VERSION_V3,
+            )
+
+            if self.observation_encoding_version not in {
+                OBS_ENCODING_VERSION_V3,
+                "onboard_ppo_sequence_v4",
+                "onboard_local_transition_v1",
+                "onboard_local_transition_gate_yaw_v2",
+                "onboard_local_transition_27d_v1",
+            }:
+                raise ValueError(
+                    f"unsupported observation encoding {self.observation_encoding_version!r}"
+                )
+            if self.observation_encoding_version == "onboard_local_transition_27d_v1":
+                from marine_race_arena.learning.config_local_transition_27d import (
+                    FEATURE_BOUNDS_LOCAL_TRANSITION_27D,
+                    OBS_DIM_LOCAL_TRANSITION_27D,
+                )
+                from marine_race_arena.learning.gen2.fog_contract import (
+                    assert_approved_water_fog_dict,
+                )
+                from marine_race_arena.learning.observation_encoder_local_transition_27d import (
+                    encode_observation_local_transition_27d,
+                )
+                from marine_race_arena.learning.reward_local_transition import (
+                    LocalTransitionTrainingReward,
+                )
+                from marine_race_arena.learning.tracker_context_local_transition_27d import (
+                    OnboardLocalTransition27dContextTracker,
+                )
+
+                # Validate the static track contract during construction.  The
+                # episode context is intentionally unset until reset(), so do
+                # not dereference ``self._episode.context`` here.
+                from marine_race_arena.config.loader import load_track_config
+                static_config = load_track_config(
+                    track,
+                    benchmark_task=benchmark_task,
+                    current_profile=current_profile,
+                    obstacles=obstacles,
+                    obstacle_density=obstacle_density,
+                )
+                raw_fog = getattr(static_config, "raw", {}).get("water_fog")
+                assert_approved_water_fog_dict(raw_fog, context_label=str(track))
+                from marine_race_arena.learning.gen2 import track_fragments as tf
+                from marine_race_arena.learning.gen2.fog_contract import assert_approved_water_fog
+
+                try:
+                    tp = tf.track_path(str(track)) if str(track) in tf.OFFICIAL_TRACKS else Path(str(track))
+                    if tp.exists():
+                        assert_approved_water_fog(tp)
+                except Exception:
+                    pass
+
+                self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION_27D
+                self._obs_dim = OBS_DIM_LOCAL_TRANSITION_27D
+                self._context_type = OnboardLocalTransition27dContextTracker
+                self._encoder = encode_observation_local_transition_27d
+                default_reward = LocalTransitionTrainingReward()
+            elif self.observation_encoding_version == "onboard_local_transition_gate_yaw_v2":
+                from marine_race_arena.learning.config_local_transition_gate_yaw import (
+                    FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW,
+                    OBS_DIM_LOCAL_TRANSITION_GATE_YAW,
+                )
+                from marine_race_arena.learning.observation_encoder_local_transition_gate_yaw import (
+                    encode_observation_local_transition_gate_yaw,
+                )
+                from marine_race_arena.learning.reward_local_transition import (
+                    LocalTransitionTrainingReward,
+                )
+                from marine_race_arena.learning.tracker_context_local_transition_gate_yaw import (
+                    OnboardLocalTransitionGateYawContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION_GATE_YAW
+                self._obs_dim = OBS_DIM_LOCAL_TRANSITION_GATE_YAW
+                self._context_type = OnboardLocalTransitionGateYawContextTracker
+                self._encoder = encode_observation_local_transition_gate_yaw
+                default_reward = LocalTransitionTrainingReward()
+            elif self.observation_encoding_version == "onboard_local_transition_v1":
+                from marine_race_arena.learning.config_local_transition import (
+                    FEATURE_BOUNDS_LOCAL_TRANSITION,
+                    OBS_DIM_LOCAL_TRANSITION,
+                )
+                from marine_race_arena.learning.observation_encoder_local_transition import (
+                    encode_observation_local_transition,
+                )
+                from marine_race_arena.learning.reward_local_transition import (
+                    LocalTransitionTrainingReward,
+                )
+                from marine_race_arena.learning.tracker_context_local_transition import (
+                    OnboardLocalTransitionContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_LOCAL_TRANSITION
+                self._obs_dim = OBS_DIM_LOCAL_TRANSITION
+                self._context_type = OnboardLocalTransitionContextTracker
+                self._encoder = encode_observation_local_transition
+                default_reward = LocalTransitionTrainingReward()
+            elif self.observation_encoding_version == "onboard_ppo_sequence_v4":
+                from marine_race_arena.learning.config_sequence import (
+                    FEATURE_BOUNDS_SEQUENCE,
+                    OBS_DIM_SEQUENCE,
+                )
+                from marine_race_arena.learning.observation_encoder_sequence import (
+                    encode_observation_sequence,
+                )
+                from marine_race_arena.learning.reward_sequence import SequenceTrainingReward
+                from marine_race_arena.learning.tracker_context_sequence import (
+                    OnboardSequenceContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_SEQUENCE
+                self._obs_dim = OBS_DIM_SEQUENCE
+                self._context_type = OnboardSequenceContextTracker
+                self._encoder = encode_observation_sequence
+                default_reward = SequenceTrainingReward()
+            else:
+                from marine_race_arena.learning.observation_encoder_v3 import (
+                    encode_observation_v3,
+                )
+                from marine_race_arena.learning.reward_v3 import MultiGateTrainingReward
+                from marine_race_arena.learning.tracker_context_v3 import (
+                    OnboardMultiGateContextTracker,
+                )
+
+                self._feature_bounds = FEATURE_BOUNDS_V3
+                self._obs_dim = OBS_DIM_V3
+                self._context_type = OnboardMultiGateContextTracker
+                self._encoder = encode_observation_v3
+                default_reward = MultiGateTrainingReward()
+        self._reward_fn: RewardFn = reward_fn or default_reward
+        self._ctx_source = None
+        self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
+        self._last_gates = 0
+        # Evaluation-only motion accounting; never encoded into the observation.
+        self._prev_position: Optional[np.ndarray] = None
+        # Training-only: when set and reset() is called without an explicit seed, vary the
+        # randomization seed each episode so training sees diverse randomized starts. Eval
+        # always passes an explicit seed, so it is unaffected.
+        self._episode_seed_stream = episode_seed_stream
+        self._episode_counter = 0
+        # Controller-invisible fragment initialization.  This reconstructs the
+        # inbound velocity of an exact track window; it is never encoded.
+        self._initial_body_velocity = initial_body_velocity
+
+        low = np.array([b[0] for b in self._feature_bounds], dtype=np.float32)
+        high = np.array([b[1] for b in self._feature_bounds], dtype=np.float32)
+        self.observation_space = spaces.Box(
+            low=low, high=high, shape=(self._obs_dim,), dtype=np.float32
+        )
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(ACTION_DIM,), dtype=np.float32)
+
+    # ------------------------------------------------------------------ props
+    @property
+    def episode(self) -> RaceEpisode:
+        return self._episode
+
+    @property
+    def tracker(self):
+        return self._ctx_source.tracker if self._ctx_source is not None else None
+
+    @property
+    def actual_adapter(self) -> str:
+        return self._episode.actual_adapter
+
+    @property
+    def fallback_used(self) -> bool:
+        return self._episode.fallback_used
+
+    # ------------------------------------------------------------------ api
+    def reset(self, *, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None):
+        if gym is not None:
+            super().reset(seed=seed)
+        effective_seed = seed
+        if (effective_seed is None and self._episode_seed_stream is not None
+                and self._episode.start_randomization is not None):
+            effective_seed = int(self._episode_seed_stream) + self._episode_counter
+            self._episode_counter += 1
+        obs_dict = self._episode.reset(seed=effective_seed)
+        if self._initial_body_velocity is not None:
+            from marine_race_arena.learning.gen2.track_fragments import (
+                apply_initial_body_velocity,
+            )
+
+            if apply_initial_body_velocity(
+                self._episode, self._initial_body_velocity
+            ):
+                obs_dict = self._episode._build_observation()
+        ctx_cfg = self._episode.context.config
+        if self.observation_encoding_version == "onboard_local_transition_27d_v1":
+            from marine_race_arena.learning.gen2.fog_contract import assert_approved_water_fog_dict
+
+            raw_fog = getattr(ctx_cfg, "raw", {}).get("water_fog")
+            assert_approved_water_fog_dict(raw_fog, context_label=str(self._episode.track))
+        total_beacons = max(1, len(ctx_cfg.track.gate_sequence))
+        laps = max(1, int(ctx_cfg.race.laps))
+        self._ctx_source = self._context_type(total_beacons=total_beacons, laps=laps)
+        self._ctx_source.reset(obs_dict)
+        self._prev_action = np.zeros(ACTION_DIM, dtype=np.float32)
+        self._last_gates = self._episode.referee_progress()["valid_gate_crossings"]
+        self._prev_position = None
+        if hasattr(self._reward_fn, "reset"):
+            self._reward_fn.reset(self)
+        encoded = self._encode(obs_dict)
+        return encoded, self._info(terminated=False, truncated=False, components={})
+
+    def step(self, action):
+        action = np.asarray(action, dtype=np.float32).reshape(-1)
+        if action.shape[0] != ACTION_DIM:
+            raise ValueError(f"action must have {ACTION_DIM} elements, got {action.shape[0]}")
+        action = np.clip(np.nan_to_num(action, nan=0.0), -1.0, 1.0)
+        command = {axis: float(action[i]) for i, axis in enumerate(ACTION_AXES)}
+
+        step = self._episode.step(command)
+        gates_now = self._episode.referee_progress()["valid_gate_crossings"]
+        gate_delta = max(0, gates_now - self._last_gates)
+        self._last_gates = gates_now
+
+        reward, components = self._reward_fn(self, step, gate_delta, action)
+        # Temporal convention: observation o_(t+1) carries the action a_t that was
+        # actually applied this step, so update prev_action BEFORE encoding. This
+        # matches TrajectoryRecorder and RLGateController (train/inference parity).
+        self._prev_action = action
+        encoded = self._encode(step.observation)
+        info = self._info(step.terminated, step.truncated, components)
+        info["gate_crossings"] = gates_now
+        bounds = self._episode.context.arena.bounds
+        position = step.current_state.position
+        out_of_bounds_frame = bounds.violation_reason(position) is not None
+        x, y, z = position
+        boundary_margin = min(
+            x - bounds.x_min,
+            bounds.x_max - x,
+            y - bounds.y_min,
+            bounds.y_max - y,
+            z - bounds.z_min,
+            bounds.z_max - z,
+        )
+        # Scalar step displacement only: enough to detect a policy that refuses
+        # to move, without exposing any pose to the observation or the policy.
+        current_position = np.asarray(position, dtype=np.float64)
+        step_distance = (
+            0.0
+            if self._prev_position is None
+            else float(np.linalg.norm(current_position - self._prev_position))
+        )
+        self._prev_position = current_position
+        info.update(
+            {
+                "collision_contact_frame": bool(step.collision),
+                "obstacle_collision_frame": bool(step.obstacle_collisions),
+                "out_of_bounds_frame": bool(out_of_bounds_frame),
+                "safety_warning_frame": bool(
+                    not out_of_bounds_frame and boundary_margin <= 0.5
+                ),
+                "step_distance_m": step_distance,
+            }
+        )
+        return encoded, float(reward), bool(step.terminated), bool(step.truncated), info
+
+    def _encode(self, obs_dict: Mapping[str, Any]) -> np.ndarray:
+        assert self._ctx_source is not None
+        context = self._ctx_source.context(
+            obs_dict, dt=self._episode.dt, prev_action=self._prev_action.tolist()
+        )
+        return self._encoder(obs_dict, context)
+
+    def _info(self, terminated: bool, truncated: bool, components: Mapping[str, float]) -> Dict[str, Any]:
+        state = self._episode.context.referee.states.get(self._episode.participant_id)
+        status = getattr(getattr(state, "status", None), "value", "") if state is not None else ""
+        gates_completed = int(getattr(state, "valid_gate_crossings", 0)) if state is not None else 0
+        return {
+            "reward_components": dict(components),
+            "step_count": self._episode.step_count,
+            "expected_gate_id": self._episode.expected_gate_id(),
+            "status": str(status),
+            "gates_completed": gates_completed,
+            "completed": bool(str(status).upper().endswith("FINISHED")),
+            "collision_events": int(getattr(state, "collision_events", 0)) if state is not None else 0,
+            "obstacle_collision_events": int(getattr(state, "obstacle_collision_events", 0)) if state is not None else 0,
+            "out_of_bounds_events": int(getattr(state, "out_of_bounds_events", 0)) if state is not None else 0,
+            "wrong_direction_crossings": int(getattr(state, "wrong_direction_crossings", 0)) if state is not None else 0,
+            "missed_gate_attempts": int(getattr(state, "missed_gate_attempts", 0)) if state is not None else 0,
+            "actual_adapter": self.actual_adapter,
+            "fallback_used": self.fallback_used,
+        }
+
+    def close(self):
+        self._episode.close()

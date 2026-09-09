@@ -1,0 +1,617 @@
+{
+  "schema_version": "ppo_final_readiness_evidence_v1",
+  "utc": "2026-08-17T08:03:26Z",
+  "policy": "ppo_final_generic_929792",
+  "dataset_split": "validation",
+  "difficulty": "G1",
+  "sources": {
+    "evaluation": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl_public\\ppo_final_readiness_929792\\ppo_final_generic_929792\\seed_5000000\\evaluation.json",
+    "evaluation_sha256": "a968a11183bd48d94d4753291ee4ad4fc6d55dff476adbe1f9809a388f4b9dbe",
+    "ladder": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition-sac\\results\\rl_public\\ppo_difficulty_ladder\\ppo_final_generic_929792_ladder.json",
+    "ladder_sha256": "94c8db267c8e8d32fcd4ffc68051e9f254991d57aacbc678ee46159e0e0a808d"
+  },
+  "sample_contract": {
+    "transition_cases": 500,
+    "full_sequence_cases": 120,
+    "full_sequence_cases_by_length": {
+      "3": 20,
+      "5": 20,
+      "8": 20,
+      "12": 20,
+      "17": 20,
+      "22": 20
+    }
+  },
+  "transition_metrics": {
+    "universal_transition_success": {
+      "successes": 410,
+      "n": 500,
+      "rate": 0.82,
+      "wilson95": [
+        0.7839253300173655,
+        0.851195092087241
+      ]
+    },
+    "first_gate_crossing": {
+      "successes": 500,
+      "n": 500,
+      "rate": 1.0,
+      "wilson95": [
+        0.9923756595384479,
+        1.0
+      ]
+    },
+    "target_switch": {
+      "successes": 441,
+      "n": 500,
+      "rate": 0.882,
+      "wilson95": [
+        0.8507680121388806,
+        0.9074069917484936
+      ]
+    },
+    "new_target_alignment": {
+      "successes": 426,
+      "n": 500,
+      "rate": 0.852,
+      "wilson95": [
+        0.8181938697042727,
+        0.8804385946107945
+      ]
+    },
+    "new_target_range_decrease": {
+      "successes": 440,
+      "n": 500,
+      "rate": 0.88,
+      "wilson95": [
+        0.8485804013755894,
+        0.9056250998736309
+      ]
+    },
+    "collision_episodes": 41,
+    "collision_events": 513,
+    "missed_gate_dnf": 69,
+    "wrong_direction_events": 1,
+    "out_of_bounds_episodes": 0
+  },
+  "sequence_completion": {
+    "3": {
+      "completed": 16,
+      "n": 20,
+      "rate": 0.8,
+      "wilson95": [
+        0.5839825677481065,
+        0.9193423374202019
+      ]
+    },
+    "5": {
+      "completed": 17,
+      "n": 20,
+      "rate": 0.85,
+      "wilson95": [
+        0.6395811352592431,
+        0.9476312541037835
+      ]
+    },
+    "8": {
+      "completed": 11,
+      "n": 20,
+      "rate": 0.55,
+      "wilson95": [
+        0.34208534245034233,
+        0.7418021417443759
+      ]
+    },
+    "12": {
+      "completed": 14,
+      "n": 20,
+      "rate": 0.7,
+      "wilson95": [
+        0.4810271816464765,
+        0.8545227551323956
+      ]
+    },
+    "17": {
+      "completed": 7,
+      "n": 20,
+      "rate": 0.35,
+      "wilson95": [
+        0.18119182410108206,
+        0.5671457233147638
+      ]
+    },
+    "22": {
+      "completed": 6,
+      "n": 20,
+      "rate": 0.3,
+      "wilson95": [
+        0.14547724486760436,
+        0.5189728183535234
+      ]
+    }
+  },
+  "unconditional_survival_from_episode_start": {
+    "1": {
+      "crossed": 120,
+      "eligible_episodes_from_start": 120,
+      "probability": 1.0,
+      "wilson95": [
+        0.9689808335812966,
+        1.0
+      ]
+    },
+    "2": {
+      "crossed": 88,
+      "eligible_episodes_from_start": 120,
+      "probability": 0.7333333333333333,
+      "wilson95": [
+        0.647875606138524,
+        0.8043154495327476
+      ]
+    },
+    "3": {
+      "crossed": 86,
+      "eligible_episodes_from_start": 120,
+      "probability": 0.7166666666666667,
+      "wilson95": [
+        0.6302979754694596,
+        0.7895937190824355
+      ]
+    },
+    "5": {
+      "crossed": 67,
+      "eligible_episodes_from_start": 100,
+      "probability": 0.67,
+      "wilson95": [
+        0.5730534379509054,
+        0.7543687726587196
+      ]
+    },
+    "8": {
+      "crossed": 46,
+      "eligible_episodes_from_start": 80,
+      "probability": 0.575,
+      "wilson95": [
+        0.4656928984656886,
+        0.6774343821039822
+      ]
+    },
+    "12": {
+      "crossed": 32,
+      "eligible_episodes_from_start": 60,
+      "probability": 0.5333333333333333,
+      "wilson95": [
+        0.4089342702715789,
+        0.6537209395856151
+      ]
+    },
+    "17": {
+      "crossed": 15,
+      "eligible_episodes_from_start": 40,
+      "probability": 0.375,
+      "wilson95": [
+        0.24222979167233272,
+        0.5296756086269889
+      ]
+    },
+    "22": {
+      "crossed": 6,
+      "eligible_episodes_from_start": 20,
+      "probability": 0.3,
+      "wilson95": [
+        0.14547724486760436,
+        0.5189728183535234
+      ]
+    }
+  },
+  "metric_clarification": {
+    "first_gate_crossing": "Crossing gate 1. It does not assert that the gate-1 to gate-2 switch, reacquisition, alignment and range-decrease sequence also succeeded.",
+    "first_transition": "Full gate-1 to gate-2 transition at sequence position 1: gate 1 crossed, target switched, gate 2 aligned, and range decreased.",
+    "first_transition_successes": 88,
+    "first_transition_n": 120,
+    "first_transition_rate": 0.7333333333333333
+  },
+  "difficulty_ladder": {
+    "schema_version": "ppo_difficulty_ladder_v1",
+    "checkpoint": "results\\rl\\universal_transition\\final\\ppo_final_generic_929792.zip",
+    "sha256": "60ffdca1a6afc0260487d90cc7282a285cbafd46e76d32a316348c13f5fdfe32",
+    "dataset_split": "validation",
+    "seed": 5000000,
+    "transition_cases": 60,
+    "full_cases_per_length": 2,
+    "rungs": [
+      {
+        "difficulty": "G1",
+        "n": 60,
+        "success": 0.8333333333333334,
+        "success_ci": [
+          0.7196838683638547,
+          0.9068682302080855
+        ],
+        "first_gate": 1.0,
+        "switch": 0.9,
+        "alignment": 0.8666666666666667,
+        "collisions": 5,
+        "out_of_bounds": 0,
+        "missed_gate_dnf": 4,
+        "long_sequence": 0.6666666666666666
+      },
+      {
+        "difficulty": "G2",
+        "n": 60,
+        "success": 0.8,
+        "success_ci": [
+          0.6821819419437211,
+          0.8817149467710251
+        ],
+        "first_gate": 1.0,
+        "switch": 0.85,
+        "alignment": 0.8333333333333334,
+        "collisions": 6,
+        "out_of_bounds": 0,
+        "missed_gate_dnf": 6,
+        "long_sequence": 0.5
+      },
+      {
+        "difficulty": "G3",
+        "n": 60,
+        "success": 0.75,
+        "success_ci": [
+          0.6276792992295218,
+          0.8422347746994333
+        ],
+        "first_gate": 1.0,
+        "switch": 0.85,
+        "alignment": 0.7833333333333333,
+        "collisions": 6,
+        "out_of_bounds": 0,
+        "missed_gate_dnf": 7,
+        "long_sequence": 0.5833333333333334
+      },
+      {
+        "difficulty": "G4",
+        "n": 60,
+        "success": 0.75,
+        "success_ci": [
+          0.6276792992295218,
+          0.8422347746994333
+        ],
+        "first_gate": 1.0,
+        "switch": 0.85,
+        "alignment": 0.7666666666666667,
+        "collisions": 6,
+        "out_of_bounds": 0,
+        "missed_gate_dnf": 4,
+        "long_sequence": 0.5
+      },
+      {
+        "difficulty": "G5",
+        "n": 60,
+        "success": 0.6833333333333333,
+        "success_ci": [
+          0.5576623297382323,
+          0.7869413244763347
+        ],
+        "first_gate": 1.0,
+        "switch": 0.9166666666666666,
+        "alignment": 0.7333333333333333,
+        "collisions": 13,
+        "out_of_bounds": 0,
+        "missed_gate_dnf": 9,
+        "long_sequence": 0.16666666666666666
+      },
+      {
+        "difficulty": "G6",
+        "n": 60,
+        "success": 0.5333333333333333,
+        "success_ci": [
+          0.4089342702715789,
+          0.6537209395856151
+        ],
+        "first_gate": 0.9833333333333333,
+        "switch": 0.9,
+        "alignment": 0.6333333333333333,
+        "collisions": 17,
+        "out_of_bounds": 0,
+        "missed_gate_dnf": 7,
+        "long_sequence": 0.08333333333333333
+      }
+    ]
+  },
+  "readiness": {
+    "schema_version": "rl_readiness_gate_v1",
+    "ready": false,
+    "ready_without_override": false,
+    "failures": [
+      "universal_transition_success",
+      "completion_3_gate",
+      "completion_5_gate",
+      "completion_8_gate"
+    ],
+    "narrow_misses": [
+      "completion_5_gate"
+    ],
+    "unmeasured": [],
+    "thresholds": {
+      "schema_version": "rl_readiness_gate_v1",
+      "min_universal_transition_success": 0.9,
+      "min_first_gate_crossing": 0.97,
+      "min_target_switch": 0.85,
+      "min_new_target_alignment": 0.85,
+      "completion_by_length": {
+        "3": 0.95,
+        "5": 0.9,
+        "8": 0.75,
+        "12": 0.5,
+        "17": 0.25,
+        "22": 0.25
+      },
+      "ladder_min_rung": "G3",
+      "min_ladder_transition_success": 0.5,
+      "min_ladder_first_gate_crossing": 0.8,
+      "max_out_of_bounds_rate": 0.01,
+      "max_collision_episode_rate": 0.2,
+      "required_dataset_split": "validation",
+      "primary_difficulty": "G1",
+      "min_transition_cases": 500,
+      "min_full_cases_per_length": 20,
+      "min_ladder_rung_cases": 30,
+      "narrow_miss_margin": 0.02,
+      "max_overridden_criteria": 2
+    },
+    "thresholds_sha256": "b33f1e163afc1423e52e2256b8c565bade14e533ee1caaadd07b18eb92969b35",
+    "criteria": [
+      {
+        "name": "universal_transition_success",
+        "metric": "universal_transition_success_rate",
+        "group": "competence",
+        "direction": "min",
+        "bound": 0.9,
+        "observed": 0.82,
+        "evaluated": true,
+        "satisfied": false,
+        "shortfall": 0.08000000000000007,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "first_gate_crossing",
+        "metric": "first_gate_crossing_rate",
+        "group": "competence",
+        "direction": "min",
+        "bound": 0.97,
+        "observed": 1.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "target_switch",
+        "metric": "target_switch_rate",
+        "group": "competence",
+        "direction": "min",
+        "bound": 0.85,
+        "observed": 0.882,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "new_target_alignment",
+        "metric": "new_target_alignment_rate",
+        "group": "competence",
+        "direction": "min",
+        "bound": 0.85,
+        "observed": 0.852,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "ladder_transition_success",
+        "metric": "difficulty_ladder[G3].success",
+        "group": "competence",
+        "direction": "min",
+        "bound": 0.5,
+        "observed": 0.75,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "ladder_first_gate_crossing",
+        "metric": "difficulty_ladder[G3].first_gate",
+        "group": "competence",
+        "direction": "min",
+        "bound": 0.8,
+        "observed": 1.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "completion_3_gate",
+        "metric": "full_sequence_success_by_length[3].completion_rate",
+        "group": "sequence_completion",
+        "direction": "min",
+        "bound": 0.95,
+        "observed": 0.8,
+        "evaluated": true,
+        "satisfied": false,
+        "shortfall": 0.1499999999999999,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "completion_5_gate",
+        "metric": "full_sequence_success_by_length[5].completion_rate",
+        "group": "sequence_completion",
+        "direction": "min",
+        "bound": 0.9,
+        "observed": 0.85,
+        "evaluated": true,
+        "satisfied": false,
+        "shortfall": 0.050000000000000044,
+        "narrow_miss": true,
+        "overridable": true
+      },
+      {
+        "name": "completion_8_gate",
+        "metric": "full_sequence_success_by_length[8].completion_rate",
+        "group": "sequence_completion",
+        "direction": "min",
+        "bound": 0.75,
+        "observed": 0.55,
+        "evaluated": true,
+        "satisfied": false,
+        "shortfall": 0.19999999999999996,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "completion_12_gate",
+        "metric": "full_sequence_success_by_length[12].completion_rate",
+        "group": "sequence_completion",
+        "direction": "min",
+        "bound": 0.5,
+        "observed": 0.7,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "completion_17_gate",
+        "metric": "full_sequence_success_by_length[17].completion_rate",
+        "group": "sequence_completion",
+        "direction": "min",
+        "bound": 0.25,
+        "observed": 0.35,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "completion_22_gate",
+        "metric": "full_sequence_success_by_length[22].completion_rate",
+        "group": "sequence_completion",
+        "direction": "min",
+        "bound": 0.25,
+        "observed": 0.3,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": true
+      },
+      {
+        "name": "out_of_bounds_rate",
+        "metric": "out_of_bounds_episodes/n_eval",
+        "group": "safety",
+        "direction": "max",
+        "bound": 0.01,
+        "observed": 0.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      },
+      {
+        "name": "collision_episode_rate",
+        "metric": "collision_episodes/n_eval",
+        "group": "safety",
+        "direction": "max",
+        "bound": 0.2,
+        "observed": 0.06612903225806452,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      },
+      {
+        "name": "matched_validation_split",
+        "metric": "dataset_split",
+        "group": "evidence",
+        "direction": "min",
+        "bound": 1.0,
+        "observed": 1.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      },
+      {
+        "name": "matched_difficulty",
+        "metric": "difficulty",
+        "group": "evidence",
+        "direction": "min",
+        "bound": 1.0,
+        "observed": 1.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      },
+      {
+        "name": "ladder_mid_rung_coverage",
+        "metric": "difficulty_ladder.rungs[>=G3, n>=30]",
+        "group": "evidence",
+        "direction": "min",
+        "bound": 1.0,
+        "observed": 4.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      },
+      {
+        "name": "transition_cases",
+        "metric": "transition_n",
+        "group": "evidence",
+        "direction": "min",
+        "bound": 500.0,
+        "observed": 500.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      },
+      {
+        "name": "full_sequence_cases_per_length",
+        "metric": "full_sequence_success_by_length[*].n",
+        "group": "evidence",
+        "direction": "min",
+        "bound": 20.0,
+        "observed": 20.0,
+        "evaluated": true,
+        "satisfied": true,
+        "shortfall": 0.0,
+        "narrow_miss": false,
+        "overridable": false
+      }
+    ],
+    "override": null,
+    "override_decisions": []
+  },
+  "manual_override_applied": false,
+  "training_closed_regardless_of_verdict": true
+}

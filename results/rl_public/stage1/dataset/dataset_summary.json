@@ -1,0 +1,50 @@
+{
+  "total_demonstration_episodes": 34,
+  "expert_completion_rate": 1.0,
+  "demonstration_seed_ranges": {
+    "demos_rand": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "demos_rand2": [
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33
+    ]
+  },
+  "start_randomization": "stage2 (see randomization_manifest.json)",
+  "datasets": [
+    "results\\rl\\stage1\\demos_rand\\stage1_demos.npz",
+    "results\\rl\\stage1\\demos_rand2\\stage1_demos.npz"
+  ],
+  "note": "Raw .npz datasets stay under results/rl/ (git-ignored); hashes published here for audit."
+}

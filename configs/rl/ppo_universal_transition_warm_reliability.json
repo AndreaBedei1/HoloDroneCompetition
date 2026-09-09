@@ -1,0 +1,68 @@
+{
+  "run_name": "universal_transition_warm_reliability_seed23001",
+  "output_root": "results/rl/universal_transition/longrun",
+  "observation_version": "onboard_local_transition_v1",
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "initialization": {
+    "mode": "warm_start_transition_checkpoint",
+    "source_checkpoint": "results/rl/universal_transition/ab_comparison/ab_selective_warm_atomic_v3_seed23001/checkpoints/ppo_40960_steps.zip",
+    "source_sha256": "74b1f83c6f9c740dcc307b271ff1393dd86de9e210e3a8788036f7c91a708747"
+  },
+  "seed": 23001,
+  "worker_seed_base": 43001,
+  "torch_threads": 1,
+  "new_environment_steps": 1000000,
+  "n_envs": 2,
+  "adapter": "holoocean",
+  "allow_fallback": false,
+  "holoocean_frames_per_sec": false,
+  "max_episode_steps": 3600,
+  "ppo": {
+    "hidden_sizes": [256, 256],
+    "learning_rate": 0.000006,
+    "final_learning_rate": 0.000001,
+    "learning_rate_schedule": "linear",
+    "n_steps": 1024,
+    "batch_size": 256,
+    "n_epochs": 3,
+    "gamma": 0.995,
+    "gae_lambda": 0.95,
+    "clip_range": 0.05,
+    "target_kl": 0.004,
+    "ent_coef": 0.0002
+  },
+  "curriculum": {
+    "initial_difficulty": "G1",
+    "maximum_difficulty": "G6",
+    "transition_focus_fraction": 0.70
+  },
+  "competence_gate": {
+    "min_first_gate_crossing_rate": 0.80,
+    "min_target_switch_rate": 0.70,
+    "min_universal_transition_success_rate": 0.20,
+    "min_completed_gate_count": 10,
+    "min_completed_gates_per_episode": 0.50,
+    "min_fraction_of_episodes_reaching_first_gate": 0.80,
+    "min_mean_distance_travelled_m": 1.0,
+    "min_mean_absolute_action": 0.02,
+    "min_nontrivial_action_fraction": 0.25,
+    "min_transition_cases": 50
+  },
+  "reward": {},
+  "evaluation": {
+    "early_schedule": [25000, 50000, 75000, 100000, 150000],
+    "frequency": 50000,
+    "checkpoint_frequency": 10000,
+    "seed": 88001,
+    "transition_cases": 100,
+    "full_cases_per_length": 2,
+    "intermediate_parallel_workers": 2,
+    "rollback_consecutive_evaluations": 2,
+    "dedicated_seed": 88001,
+    "dedicated_transition_cases": 1000,
+    "dedicated_full_cases_per_length": 2,
+    "dedicated_parallel_workers": 2,
+    "dedicated_min_interval_transitions": 100000,
+    "dedicated_material_improvement": 0.05
+  }
+}

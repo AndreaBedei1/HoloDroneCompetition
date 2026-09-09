@@ -1,0 +1,48 @@
+{
+  "generated_utc": "2026-07-23T23:05:05Z",
+  "commit": "6bb9ca0ec22b3147dc33681a99a9874556baf917",
+  "purpose": "Workflow smoke tests only. 1,000 steps is NOT convergence.",
+  "no_superiority_claim": "These smokes verify plumbing (both arms run, checkpoint, resume, log action stats, and BC-init is not destroyed immediately). No scientific superiority claim is made from 1,000 steps.",
+  "development_seeds": [
+    1200,
+    1201,
+    1202,
+    1203,
+    1204
+  ],
+  "final_evaluation_requires_new_unseen_seeds": true,
+  "notes": [
+    "The BC-init run was additionally RESUMED to 1,500 steps to test resume, so its total_timesteps is 1,500 while the scratch control is 1,000. Completion is 1.0 throughout the BC-init run; see resume_smoke for the resume verification.",
+    "Action saturation (sampled from the final policy) contrasts the arms: the BC-init warm-start keeps exploration tight (near-zero saturation) while scratch keeps SB3's wide default std (much higher saturation). This is why the warm-start is applied.",
+    "1,000 steps is far from convergence for the scratch arm; its 0% completion is expected and is NOT evidence against from-scratch PPO."
+  ],
+  "bcinit_1k": {
+    "run_dir": "results\\rl\\stage1\\ppo_bcinit\\20260724_005542",
+    "algorithm": "ppo_bcinit",
+    "total_timesteps": 1000,
+    "bc_initialized": true,
+    "timestep_zero_completion": 1.0,
+    "final_completion": 1.0,
+    "best_completion": 1.0,
+    "action_saturation_frac": 0.0,
+    "adapter_actual": "holoocean",
+    "wall_clock_s": 513.736
+  },
+  "scratch_1k": {
+    "run_dir": "results\\rl\\stage1\\ppo_scratch\\20260724_004200",
+    "algorithm": "ppo_scratch",
+    "total_timesteps": 1000,
+    "bc_initialized": false,
+    "timestep_zero_completion": 0.0,
+    "final_completion": 0.0,
+    "best_completion": 0.0,
+    "action_saturation_frac": 0.326625,
+    "adapter_actual": "holoocean",
+    "wall_clock_s": 616.537
+  },
+  "resume_smoke": {
+    "present": true,
+    "no_duplicate_timestep_zero": true,
+    "final_num_timesteps": 1500
+  }
+}

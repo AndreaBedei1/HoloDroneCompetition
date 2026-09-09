@@ -1,0 +1,6 @@
+{
+  "filename": "best_model.pt",
+  "bytes": 309175,
+  "sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+  "source_path": "results\\rl\\stage1\\bc_rand_combined\\best_model.pt"
+}

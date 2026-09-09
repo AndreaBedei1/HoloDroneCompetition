@@ -231,6 +231,144 @@ def test_visual_association_prefers_expected_beacon_side_over_centered_next_gate
     assert selected is expected_left
 
 
+def test_visual_association_rejects_front_gate_when_expected_beacon_is_behind():
+    from marine_race_arena.controllers.vision import VisionTarget, select_visual_target_for_beacon
+
+    gate_ahead = VisionTarget(
+        center_x=-0.35,
+        center_y=0.0,
+        confidence=0.98,
+        area_fraction=0.12,
+        width_fraction=0.35,
+        height_fraction=0.36,
+    )
+
+    assert select_visual_target_for_beacon(
+        [gate_ahead], bearing_deg=178.0, range_m=0.5
+    ) is None
+
+
+def test_visual_association_rejects_tiny_next_gate_at_close_expected_range():
+    from marine_race_arena.controllers.vision import VisionTarget, select_visual_target_for_beacon
+
+    next_gate = VisionTarget(
+        center_x=0.0,
+        center_y=0.0,
+        confidence=0.98,
+        area_fraction=0.02,
+        width_fraction=0.15,
+        height_fraction=0.16,
+    )
+
+    assert select_visual_target_for_beacon(
+        [next_gate], bearing_deg=1.0, range_m=1.5
+    ) is None
+
+
+def test_initial_visual_association_rejects_gate_far_from_expected_beacon():
+    from marine_race_arena.controllers.vision import VisionTarget, select_visual_target_for_beacon
+
+    later_gate = VisionTarget(
+        center_x=-0.87,
+        center_y=-0.66,
+        confidence=0.99,
+        area_fraction=0.08,
+        width_fraction=0.28,
+        height_fraction=0.30,
+    )
+    expected_gate = VisionTarget(
+        center_x=0.0,
+        center_y=0.02,
+        confidence=0.62,
+        area_fraction=0.05,
+        width_fraction=0.22,
+        height_fraction=0.24,
+    )
+
+    assert select_visual_target_for_beacon(
+        [later_gate, expected_gate], bearing_deg=0.0, range_m=4.5
+    ) is expected_gate
+
+
+def test_default_visual_association_prefers_nearest_apparent_gate() -> None:
+    from marine_race_arena.controllers.vision import (
+        VisionTarget,
+        select_default_visual_target,
+    )
+
+    near_gate = VisionTarget(
+        center_x=0.34, center_y=0.02, confidence=0.72,
+        area_fraction=0.14, width_fraction=0.38, height_fraction=0.40,
+    )
+    centered_far_gate = VisionTarget(
+        center_x=0.0, center_y=0.0, confidence=0.96,
+        area_fraction=0.025, width_fraction=0.15, height_fraction=0.16,
+    )
+
+    assert select_default_visual_target([centered_far_gate, near_gate]) is near_gate
+
+
+def test_temporal_visual_tracker_confirms_smooths_and_bridges_short_flicker() -> None:
+    from marine_race_arena.controllers.vision import TemporalVisionTracker, VisionTarget
+
+    tracker = TemporalVisionTracker(max_missed_frames=2)
+
+    def detection(x: float, area: float = 0.10) -> VisionTarget:
+        return VisionTarget(
+            center_x=x, center_y=0.02, confidence=0.90,
+            area_fraction=area, width_fraction=0.30, height_fraction=0.32,
+        )
+
+    proposal = tracker.update([detection(0.10)], 0.0, 5.0)
+    locked = tracker.update([detection(0.14, 0.11)], 0.0, 4.8)
+
+    assert proposal is not None and proposal.confidence < 0.38
+    assert locked is not None and locked.confidence > 0.60
+    assert tracker.locked
+    assert 0.10 < locked.center_x < 0.14
+
+    first_gap = tracker.update([], 0.0, 4.7)
+    second_gap = tracker.update([], 0.0, 4.6)
+    expired = tracker.update([], 0.0, 4.5)
+
+    assert first_gap is not None and first_gap.predicted
+    assert second_gap is not None and second_gap.predicted
+    assert first_gap.confidence > second_gap.confidence
+    assert expired is None
+
+
+def test_temporal_visual_tracker_drops_lock_in_rear_sector() -> None:
+    from marine_race_arena.controllers.vision import TemporalVisionTracker, VisionTarget
+
+    tracker = TemporalVisionTracker()
+    gate_ahead = VisionTarget(0.0, 0.0, 0.95, 0.10, 0.30, 0.32)
+    assert tracker.update([gate_ahead], 0.0, 2.0) is not None
+    assert tracker.update([gate_ahead], 0.0, 1.8) is not None
+    assert tracker.locked
+
+    assert tracker.update([gate_ahead], 178.0, 0.5) is None
+    assert not tracker.locked
+
+
+def test_temporal_visual_tracker_does_not_jump_to_smaller_centered_gate() -> None:
+    from marine_race_arena.controllers.vision import TemporalVisionTracker, VisionTarget
+
+    tracker = TemporalVisionTracker()
+    near = VisionTarget(0.28, 0.0, 0.82, 0.14, 0.38, 0.40)
+    tracker.update([near], bearing_deg=-15.0, range_m=4.0)
+    tracker.update([near], bearing_deg=-15.0, range_m=3.8)
+
+    continued_near = VisionTarget(0.25, 0.0, 0.75, 0.16, 0.41, 0.43)
+    centered_far = VisionTarget(0.0, 0.0, 0.99, 0.025, 0.15, 0.16)
+    selected = tracker.update(
+        [centered_far, continued_near], bearing_deg=-14.0, range_m=3.5
+    )
+
+    assert selected is not None
+    assert selected.center_x > 0.20
+    assert selected.area_fraction > 0.10
+
+
 def test_starts_in_search_on_initial_beacon():
     tracker = make_tracker()
     assert tracker.expected_beacon_id == "B01"
@@ -446,6 +584,135 @@ def test_close_range_commit_rescue_rejects_far_or_oblique_beacon(
 
     assert scenario.tracker.phase == PHASE_VISUAL_ALIGN
     assert scenario.tracker.local_completed == 0
+
+
+def _local_transition_tracker(total=2):
+    """Tracker thresholds used by onboard_local_transition_v1."""
+    from marine_race_arena.learning.tracker_context_local_transition import (
+        LOCAL_TRANSITION_TRACKER_CONFIG,
+    )
+
+    return LocalCourseTracker(
+        initial_beacon_id="B01",
+        total_beacons=total,
+        config=LOCAL_TRANSITION_TRACKER_CONFIG,
+    )
+
+
+def test_local_transition_proximity_commit_accepts_cropped_offcenter_gate():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+
+    # The first observation enters VISUAL_ALIGN.  The following two camera +
+    # close expected-beacon observations establish the local-only rescue.
+    for _ in range(3):
+        result = scenario.step(
+            range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2
+        )
+
+    assert result.phase == PHASE_COMMIT
+    evidence = scenario.tracker.diagnostics()["last_commit_entry_evidence"]
+    assert evidence["reason"] == "proximity_passage_rescue"
+    assert abs(evidence["visual_center_x"]) > 0.30
+
+
+def test_local_transition_proximity_commit_requires_consecutive_camera_evidence():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+
+    scenario.step(range_m=0.8, bearing=10.0, camera=cropped)
+    scenario.step(range_m=0.8, bearing=10.0, camera=cropped)
+    assert scenario.tracker.diagnostics()["proximity_commit_streak"] == 1
+    scenario.step(range_m=0.8, bearing=10.0, camera=empty_frame())
+    assert scenario.tracker.diagnostics()["proximity_commit_streak"] == 0
+    scenario.step(range_m=0.8, bearing=10.0, camera=cropped)
+
+    assert scenario.tracker.phase == PHASE_VISUAL_ALIGN
+
+
+def test_local_transition_cropped_true_passage_advances_from_onboard_evidence():
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+    for _ in range(3):
+        scenario.step(range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2)
+    assert scenario.tracker.phase == PHASE_COMMIT
+
+    # Establish the tight passage envelope and enough DVL displacement, then
+    # require two fresh rear-sector packets plus range turnaround and visual
+    # disappearance before advancing.
+    scenario.step(range_m=0.55, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    scenario.step(range_m=0.50, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    scenario.step(range_m=0.50, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    assert scenario.tracker.phase == PHASE_VERIFY_EXIT
+    scenario.step(range_m=0.90, bearing=100.0, camera=empty_frame(), dvl_vx=0.4)
+    result = scenario.step(
+        range_m=0.90, bearing=100.0, camera=empty_frame(), dvl_vx=0.4
+    )
+
+    assert result.just_advanced
+    assert scenario.tracker.expected_beacon_id == "B02"
+
+
+def test_local_transition_proximity_near_miss_outside_tight_envelope_never_advances():
+    """A transit that cannot have gone through the aperture must not advance.
+
+    The distance is measured to the beacon, which sits 0.35 m up the gate's own
+    up-axis rather than at the centre of the 1.5 m aperture. The far corner of
+    a legitimate pass is therefore hypot(0.75, 0.75 + 0.35) = 1.33 m from the
+    beacon, and that -- not a hand-picked number -- is what separates a pass
+    from a miss.
+
+    This test used to place the miss at 0.80 m and assert no advance. Under the
+    geometry above, 0.80 m from the beacon implies at most
+    sqrt(0.80^2 - 0.35^2) = 0.72 m of lateral offset, which is *inside* the
+    0.75 m half-aperture: the scenario was a valid edge pass being asserted to
+    fail. Rejecting it is what stalled the observation tracker on Vertical
+    Serpent and Mixed Endurance, permanently, after a single rejected passage.
+
+    A scalar range to an off-centre beacon cannot fully separate a pass from a
+    miss -- a 0.9 m lateral miss sits at 0.97 m, inside the envelope. The
+    envelope is the outer bound, and the exit evidence below it does the rest.
+    So the miss is now placed where it is unambiguously outside.
+    """
+    scenario = Scenario(_local_transition_tracker())
+    cropped = gate_frame(center_x_px=115, center_y_px=95, half=27)
+    for _ in range(3):
+        scenario.step(range_m=0.8, bearing=10.0, camera=cropped, dvl_vx=0.2)
+    assert scenario.tracker.phase == PHASE_COMMIT
+
+    # 1.6 m from the beacon: no point inside the aperture is that far away.
+    for _ in range(4):
+        scenario.step(range_m=1.60, bearing=0.0, camera=empty_frame(), dvl_vx=0.5)
+    for _ in range(6):
+        scenario.step(range_m=2.10, bearing=120.0, camera=empty_frame(), dvl_vx=0.5)
+
+    assert scenario.advancements == 0
+    assert scenario.tracker.local_completed == 0
+    assert not scenario.tracker.diagnostics()["close_range_confirmed"]
+
+
+def test_local_transition_envelope_admits_every_pass_through_the_aperture():
+    """The envelope must not reject a transit that really went through.
+
+    The counterpart to the test above: the corner of the aperture diagonally
+    opposite the beacon is the hardest legitimate case, and it has to be
+    admitted. A tracker that rejects it has no way back -- it keeps waiting for
+    a gate the rover has already left behind.
+    """
+    import math
+
+    from marine_race_arena.learning.tracker_context_local_transition import (
+        BEACON_UP_OFFSET_M,
+        GATE_APERTURE_HALF_SIZE_M,
+        LOCAL_TRANSITION_TRACKER_CONFIG,
+    )
+
+    worst_legitimate_pass_m = math.hypot(
+        GATE_APERTURE_HALF_SIZE_M, GATE_APERTURE_HALF_SIZE_M + BEACON_UP_OFFSET_M
+    )
+    assert LOCAL_TRANSITION_TRACKER_CONFIG.min_range_for_passage_m >= (
+        worst_legitimate_pass_m
+    )
 
 
 def test_commit_without_dvl_displacement_does_not_advance():

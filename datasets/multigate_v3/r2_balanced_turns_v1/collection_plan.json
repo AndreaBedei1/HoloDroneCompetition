@@ -1,0 +1,2626 @@
+{
+  "schema_version": "multigate_balanced_collection_plan_v1",
+  "created_utc": "2026-07-27T19:00:59Z",
+  "counts": {
+    "straight": 30,
+    "left": 50,
+    "right": 50
+  },
+  "split_counts": {
+    "test": 12,
+    "validation": 35,
+    "train": 83
+  },
+  "angle_bands_deg": [
+    0.0,
+    5.0,
+    10.0,
+    15.0,
+    20.0,
+    30.0,
+    40.0,
+    45.0
+  ],
+  "rows": [
+    {
+      "episode_id": 0,
+      "seed": 26000,
+      "split": "test",
+      "geometry_group": "straight:a0:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.1587826999577152,
+        "beacon_range_noise_std_m": 0.07530107762633027,
+        "beacon_dropout_probability": 0.017233742161970333,
+        "visibility_scale": 0.919260158574185,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 1,
+      "seed": 26001,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.517685528531275,
+        "beacon_range_noise_std_m": 0.029788807470240153,
+        "beacon_dropout_probability": 0.012862011384102581,
+        "visibility_scale": 0.8920013356730513,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 2,
+      "seed": 26002,
+      "split": "validation",
+      "geometry_group": "straight:a5:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.19648422355324935,
+        "beacon_range_noise_std_m": 0.07344288650872406,
+        "beacon_dropout_probability": 0.012955861478474676,
+        "visibility_scale": 0.9378671805494496,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 3,
+      "seed": 26003,
+      "split": "train",
+      "geometry_group": "straight:a0:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.19572905057434287,
+        "beacon_range_noise_std_m": 0.005593306243848639,
+        "beacon_dropout_probability": 0.004836004639886001,
+        "visibility_scale": 0.8620068041062237,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 4,
+      "seed": 26004,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.40838548888558646,
+        "beacon_range_noise_std_m": 0.052530084037416616,
+        "beacon_dropout_probability": 0.0008707927051530962,
+        "visibility_scale": 0.8957210559512034,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 5,
+      "seed": 26005,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.7544912805502638,
+        "beacon_range_noise_std_m": 0.023039302707819845,
+        "beacon_dropout_probability": 0.016177897205890256,
+        "visibility_scale": 0.8513212831442584,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 6,
+      "seed": 26006,
+      "split": "validation",
+      "geometry_group": "straight:a0:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.7441074978884884,
+        "beacon_range_noise_std_m": 0.020538296404758273,
+        "beacon_dropout_probability": 0.013441970973582424,
+        "visibility_scale": 0.8703276871096322,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 7,
+      "seed": 26007,
+      "split": "train",
+      "geometry_group": "straight:a5:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.6781071587347884,
+        "beacon_range_noise_std_m": 0.06693871305824355,
+        "beacon_dropout_probability": 0.009541892681330709,
+        "visibility_scale": 0.9148812608910788,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 8,
+      "seed": 26008,
+      "split": "test",
+      "geometry_group": "straight:a5:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.4544807230439132,
+        "beacon_range_noise_std_m": 0.04753348792987213,
+        "beacon_dropout_probability": 0.011808415647230413,
+        "visibility_scale": 0.9359577980507272,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 9,
+      "seed": 26009,
+      "split": "test",
+      "geometry_group": "straight:a0:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.9735865501938928,
+        "beacon_range_noise_std_m": 0.0016564526933053347,
+        "beacon_dropout_probability": 0.012798062726456616,
+        "visibility_scale": 0.8692717760184944,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 10,
+      "seed": 26010,
+      "split": "validation",
+      "geometry_group": "straight:a5:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.8523171940872256,
+        "beacon_range_noise_std_m": 0.04134450479963867,
+        "beacon_dropout_probability": 0.011320888167511887,
+        "visibility_scale": 0.9462525872918457,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 11,
+      "seed": 26011,
+      "split": "validation",
+      "geometry_group": "straight:a5:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.9198092471345843,
+        "beacon_range_noise_std_m": 0.017519624378987225,
+        "beacon_dropout_probability": 0.00908672555671722,
+        "visibility_scale": 0.9441926836235693,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 12,
+      "seed": 26012,
+      "split": "train",
+      "geometry_group": "straight:a0:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.012806380805823747,
+        "beacon_range_noise_std_m": 0.06886792964438465,
+        "beacon_dropout_probability": 0.011386431575137253,
+        "visibility_scale": 0.9596237289714433,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 13,
+      "seed": 26013,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.9208395258322943,
+        "beacon_range_noise_std_m": 0.03505312380615841,
+        "beacon_dropout_probability": 0.0007852641233276825,
+        "visibility_scale": 0.9646476778519981,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 14,
+      "seed": 26014,
+      "split": "train",
+      "geometry_group": "straight:a5:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.6631108519430218,
+        "beacon_range_noise_std_m": 0.03607632472864309,
+        "beacon_dropout_probability": 0.013868717363539333,
+        "visibility_scale": 0.890451888956663,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 15,
+      "seed": 26015,
+      "split": "validation",
+      "geometry_group": "straight:a0:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.2639404486447847,
+        "beacon_range_noise_std_m": 0.005410770129071745,
+        "beacon_dropout_probability": 0.01736459786452554,
+        "visibility_scale": 0.9460518084162941,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 16,
+      "seed": 26016,
+      "split": "test",
+      "geometry_group": "straight:a5:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.00992863170261038,
+        "beacon_range_noise_std_m": 0.039308479544279386,
+        "beacon_dropout_probability": 0.005760544832485484,
+        "visibility_scale": 0.8781946177326839,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 17,
+      "seed": 26017,
+      "split": "test",
+      "geometry_group": "straight:a5:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.9521693238257501,
+        "beacon_range_noise_std_m": 0.008777226040814696,
+        "beacon_dropout_probability": 0.01003456664738822,
+        "visibility_scale": 0.9110165678387404,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 18,
+      "seed": 26018,
+      "split": "train",
+      "geometry_group": "straight:a0:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.8214210791637202,
+        "beacon_range_noise_std_m": 0.04546211812180668,
+        "beacon_dropout_probability": 0.002754706130584299,
+        "visibility_scale": 0.9966825229425851,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 19,
+      "seed": 26019,
+      "split": "validation",
+      "geometry_group": "straight:a5:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.6726061632831555,
+        "beacon_range_noise_std_m": 0.012926242492213103,
+        "beacon_dropout_probability": 0.013606208876414871,
+        "visibility_scale": 0.8597842381241955,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 20,
+      "seed": 26020,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.8873492947763316,
+        "beacon_range_noise_std_m": 0.05601612017095661,
+        "beacon_dropout_probability": 0.013330375438848296,
+        "visibility_scale": 0.9261981185422565,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 21,
+      "seed": 26021,
+      "split": "train",
+      "geometry_group": "straight:a0:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.06781893441628939,
+        "beacon_range_noise_std_m": 0.02818490523299027,
+        "beacon_dropout_probability": 0.016238738425305675,
+        "visibility_scale": 0.872071991587163,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 22,
+      "seed": 26022,
+      "split": "train",
+      "geometry_group": "straight:a5:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.6177696774197504,
+        "beacon_range_noise_std_m": 0.0010129060124798705,
+        "beacon_dropout_probability": 0.003935883259512661,
+        "visibility_scale": 0.9916025382922771,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 23,
+      "seed": 26023,
+      "split": "train",
+      "geometry_group": "straight:a5:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.762201152300116,
+        "beacon_range_noise_std_m": 0.01890449309069143,
+        "beacon_dropout_probability": 0.015798185119259418,
+        "visibility_scale": 0.8958133530224941,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 24,
+      "seed": 26024,
+      "split": "test",
+      "geometry_group": "straight:a0:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.8376473738578579,
+        "beacon_range_noise_std_m": 0.02040276361305647,
+        "beacon_dropout_probability": 0.015822319304706026,
+        "visibility_scale": 0.8906754752052904,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 25,
+      "seed": 26025,
+      "split": "test",
+      "geometry_group": "straight:a5:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.7418643966047119,
+        "beacon_range_noise_std_m": 0.03280028210187013,
+        "beacon_dropout_probability": 0.0007227617037692391,
+        "visibility_scale": 0.9579700286835794,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 26,
+      "seed": 26026,
+      "split": "train",
+      "geometry_group": "straight:a5:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.12161238543088193,
+        "beacon_range_noise_std_m": 0.013516691590787425,
+        "beacon_dropout_probability": 0.001084772384259387,
+        "visibility_scale": 0.8898106304856304,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 27,
+      "seed": 26027,
+      "split": "train",
+      "geometry_group": "straight:a0:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.7566284364493784,
+        "beacon_range_noise_std_m": 0.029822551689462413,
+        "beacon_dropout_probability": 0.005640866295576688,
+        "visibility_scale": 0.9833919611538084,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 28,
+      "seed": 26028,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 5.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.41486858962188256,
+        "beacon_range_noise_std_m": 0.04696477679015379,
+        "beacon_dropout_probability": 0.0016692790279109883,
+        "visibility_scale": 0.8989182768924167,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 29,
+      "seed": 26029,
+      "split": "validation",
+      "geometry_group": "straight:a5:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -5.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.22973150511489226,
+        "beacon_range_noise_std_m": 0.05296481250420219,
+        "beacon_dropout_probability": 0.014727180762170387,
+        "visibility_scale": 0.8922731763017169,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 30,
+      "seed": 26030,
+      "split": "train",
+      "geometry_group": "left:a10:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.004117091459456934,
+        "beacon_range_noise_std_m": 0.07469590397601043,
+        "beacon_dropout_probability": 0.005443880517877717,
+        "visibility_scale": 0.9438528661276387,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 31,
+      "seed": 26031,
+      "split": "train",
+      "geometry_group": "left:a15:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.48028404148292114,
+        "beacon_range_noise_std_m": 0.05922411763148493,
+        "beacon_dropout_probability": 0.018408058889179006,
+        "visibility_scale": 0.8809856581665317,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 32,
+      "seed": 26032,
+      "split": "train",
+      "geometry_group": "left:a20:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.24204792953828025,
+        "beacon_range_noise_std_m": 0.06578457728386514,
+        "beacon_dropout_probability": 0.01202334414485499,
+        "visibility_scale": 0.9481860922448874,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 33,
+      "seed": 26033,
+      "split": "train",
+      "geometry_group": "left:a30:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.7016013387027167,
+        "beacon_range_noise_std_m": 0.012799931735768065,
+        "beacon_dropout_probability": 0.014654215093003329,
+        "visibility_scale": 0.9266254545204253,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 34,
+      "seed": 26034,
+      "split": "train",
+      "geometry_group": "left:a40:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.6243773173711981,
+        "beacon_range_noise_std_m": 0.0608612292338268,
+        "beacon_dropout_probability": 0.0016784978283063978,
+        "visibility_scale": 0.8895839085257868,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 35,
+      "seed": 26035,
+      "split": "validation",
+      "geometry_group": "left:a45:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.9790891259472788,
+        "beacon_range_noise_std_m": 0.047927523462664684,
+        "beacon_dropout_probability": 0.007070318143234651,
+        "visibility_scale": 0.9520065931435991,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 36,
+      "seed": 26036,
+      "split": "train",
+      "geometry_group": "left:a10:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.8946323098645331,
+        "beacon_range_noise_std_m": 0.009321279647984433,
+        "beacon_dropout_probability": 0.015076356013353625,
+        "visibility_scale": 0.950838356862929,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 37,
+      "seed": 26037,
+      "split": "train",
+      "geometry_group": "left:a15:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.8886324232176791,
+        "beacon_range_noise_std_m": 0.018107012417980146,
+        "beacon_dropout_probability": 0.013682650546522132,
+        "visibility_scale": 0.9957940779989211,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 38,
+      "seed": 26038,
+      "split": "validation",
+      "geometry_group": "left:a20:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.4844238778003874,
+        "beacon_range_noise_std_m": 0.044410079789516985,
+        "beacon_dropout_probability": 0.006023901865798407,
+        "visibility_scale": 0.9057283902694857,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 39,
+      "seed": 26039,
+      "split": "train",
+      "geometry_group": "left:a30:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.454543736812838,
+        "beacon_range_noise_std_m": 0.05012931733878674,
+        "beacon_dropout_probability": 0.005028010725985692,
+        "visibility_scale": 0.9515760409448832,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 40,
+      "seed": 26040,
+      "split": "train",
+      "geometry_group": "left:a40:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.8902584724564183,
+        "beacon_range_noise_std_m": 0.06848108775645131,
+        "beacon_dropout_probability": 0.01240000619826281,
+        "visibility_scale": 0.9304104560512554,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 41,
+      "seed": 26041,
+      "split": "validation",
+      "geometry_group": "left:a45:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.44647854061438774,
+        "beacon_range_noise_std_m": 0.07400993912016436,
+        "beacon_dropout_probability": 0.006685443167468932,
+        "visibility_scale": 0.9277134655617554,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 42,
+      "seed": 26042,
+      "split": "train",
+      "geometry_group": "left:a10:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.6437958298092719,
+        "beacon_range_noise_std_m": 0.04780736816392159,
+        "beacon_dropout_probability": 0.017709234394383263,
+        "visibility_scale": 0.9402325764555274,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 43,
+      "seed": 26043,
+      "split": "train",
+      "geometry_group": "left:a15:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.5692041519247225,
+        "beacon_range_noise_std_m": 0.027649298583000102,
+        "beacon_dropout_probability": 0.005564412934461767,
+        "visibility_scale": 0.9601078149254774,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 44,
+      "seed": 26044,
+      "split": "validation",
+      "geometry_group": "left:a20:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.6720373595863673,
+        "beacon_range_noise_std_m": 0.07821380251079882,
+        "beacon_dropout_probability": 0.015064194563207409,
+        "visibility_scale": 0.8737837810264032,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 45,
+      "seed": 26045,
+      "split": "train",
+      "geometry_group": "left:a30:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.9887635274131206,
+        "beacon_range_noise_std_m": 0.0360318749641565,
+        "beacon_dropout_probability": 0.0030637273774394005,
+        "visibility_scale": 0.9142677543167569,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 46,
+      "seed": 26046,
+      "split": "validation",
+      "geometry_group": "left:a40:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.25037802164763356,
+        "beacon_range_noise_std_m": 0.02903211319520194,
+        "beacon_dropout_probability": 0.01185138616144371,
+        "visibility_scale": 0.8782300574139712,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 47,
+      "seed": 26047,
+      "split": "validation",
+      "geometry_group": "left:a45:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.4604549148395981,
+        "beacon_range_noise_std_m": 0.04695398478491646,
+        "beacon_dropout_probability": 0.01886909947699327,
+        "visibility_scale": 0.889224116146839,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 48,
+      "seed": 26048,
+      "split": "train",
+      "geometry_group": "left:a10:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.998554284316735,
+        "beacon_range_noise_std_m": 0.06370142164658298,
+        "beacon_dropout_probability": 0.013381300452597703,
+        "visibility_scale": 0.9630528469371145,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 49,
+      "seed": 26049,
+      "split": "validation",
+      "geometry_group": "left:a15:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.6415641106618967,
+        "beacon_range_noise_std_m": 0.012188779537610106,
+        "beacon_dropout_probability": 0.01912122704918932,
+        "visibility_scale": 0.94457098584424,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 50,
+      "seed": 26050,
+      "split": "train",
+      "geometry_group": "left:a20:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.32761674513998973,
+        "beacon_range_noise_std_m": 0.0028474024467259706,
+        "beacon_dropout_probability": 0.01865782963919766,
+        "visibility_scale": 0.8527369389168402,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 51,
+      "seed": 26051,
+      "split": "train",
+      "geometry_group": "left:a30:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.6390228456421186,
+        "beacon_range_noise_std_m": 0.06803098513381112,
+        "beacon_dropout_probability": 0.00386166523330161,
+        "visibility_scale": 0.9538160159474418,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 52,
+      "seed": 26052,
+      "split": "test",
+      "geometry_group": "left:a40:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.7532856510638675,
+        "beacon_range_noise_std_m": 0.0006836915353395412,
+        "beacon_dropout_probability": 0.008143407025860258,
+        "visibility_scale": 0.8677061404195678,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 53,
+      "seed": 26053,
+      "split": "train",
+      "geometry_group": "left:a45:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.22728870039889604,
+        "beacon_range_noise_std_m": 0.0028953351566887876,
+        "beacon_dropout_probability": 0.011042238475060964,
+        "visibility_scale": 0.908829003627446,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 54,
+      "seed": 26054,
+      "split": "train",
+      "geometry_group": "left:a10:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.37668835699598235,
+        "beacon_range_noise_std_m": 0.016995498883966276,
+        "beacon_dropout_probability": 0.007280236608665562,
+        "visibility_scale": 0.9945102410143195,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 55,
+      "seed": 26055,
+      "split": "train",
+      "geometry_group": "left:a15:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.4102815970283552,
+        "beacon_range_noise_std_m": 0.05620740492228433,
+        "beacon_dropout_probability": 0.0013351602914314742,
+        "visibility_scale": 0.9210458951389949,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 56,
+      "seed": 26056,
+      "split": "train",
+      "geometry_group": "left:a20:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.16478040253083348,
+        "beacon_range_noise_std_m": 0.05584733066416577,
+        "beacon_dropout_probability": 0.019882906919338052,
+        "visibility_scale": 0.9247432946206425,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 57,
+      "seed": 26057,
+      "split": "train",
+      "geometry_group": "left:a30:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.921046747544677,
+        "beacon_range_noise_std_m": 0.03960530375731339,
+        "beacon_dropout_probability": 0.005460060745416529,
+        "visibility_scale": 0.9359452497058286,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 58,
+      "seed": 26058,
+      "split": "train",
+      "geometry_group": "left:a40:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.7457035960822511,
+        "beacon_range_noise_std_m": 0.012750275264377891,
+        "beacon_dropout_probability": 0.006119270582621928,
+        "visibility_scale": 0.9793658566530523,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 59,
+      "seed": 26059,
+      "split": "train",
+      "geometry_group": "left:a45:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.7863150593535319,
+        "beacon_range_noise_std_m": 0.03133518029593131,
+        "beacon_dropout_probability": 0.014788416315874648,
+        "visibility_scale": 0.9356844326832304,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 60,
+      "seed": 26060,
+      "split": "train",
+      "geometry_group": "left:a10:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.5153677971508158,
+        "beacon_range_noise_std_m": 0.014685925644860242,
+        "beacon_dropout_probability": 0.004629229320287967,
+        "visibility_scale": 0.8636465001529983,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 61,
+      "seed": 26061,
+      "split": "validation",
+      "geometry_group": "left:a15:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.6181161700889206,
+        "beacon_range_noise_std_m": 0.03898538761630924,
+        "beacon_dropout_probability": 0.008308876157503517,
+        "visibility_scale": 0.8745621679990916,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 62,
+      "seed": 26062,
+      "split": "train",
+      "geometry_group": "left:a20:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.8051415612652425,
+        "beacon_range_noise_std_m": 0.02441499687390631,
+        "beacon_dropout_probability": 0.01593845762064692,
+        "visibility_scale": 0.8836562380625393,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 63,
+      "seed": 26063,
+      "split": "validation",
+      "geometry_group": "left:a30:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.3767074666441539,
+        "beacon_range_noise_std_m": 0.0524452707481252,
+        "beacon_dropout_probability": 0.019913782208591253,
+        "visibility_scale": 0.911927285888104,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 64,
+      "seed": 26064,
+      "split": "train",
+      "geometry_group": "left:a40:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.3984200802555369,
+        "beacon_range_noise_std_m": 0.059116890638010386,
+        "beacon_dropout_probability": 0.017883844272663835,
+        "visibility_scale": 0.889653257131744,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 65,
+      "seed": 26065,
+      "split": "train",
+      "geometry_group": "left:a45:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.11306582406737775,
+        "beacon_range_noise_std_m": 0.07609393466094286,
+        "beacon_dropout_probability": 0.018524186241880423,
+        "visibility_scale": 0.9177905676655012,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 66,
+      "seed": 26066,
+      "split": "train",
+      "geometry_group": "left:a10:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.5198138590126273,
+        "beacon_range_noise_std_m": 0.005338943046436526,
+        "beacon_dropout_probability": 0.01691626956255245,
+        "visibility_scale": 0.9352203719203633,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 67,
+      "seed": 26067,
+      "split": "train",
+      "geometry_group": "left:a15:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.8272429163105621,
+        "beacon_range_noise_std_m": 0.009776585875771912,
+        "beacon_dropout_probability": 0.003232056829304273,
+        "visibility_scale": 0.9104993468877483,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 68,
+      "seed": 26068,
+      "split": "train",
+      "geometry_group": "left:a20:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.24839578305279852,
+        "beacon_range_noise_std_m": 0.028782237413450193,
+        "beacon_dropout_probability": 0.011183909734150042,
+        "visibility_scale": 0.8985264385037872,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 69,
+      "seed": 26069,
+      "split": "train",
+      "geometry_group": "left:a30:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.8548328327184168,
+        "beacon_range_noise_std_m": 0.03205738416223421,
+        "beacon_dropout_probability": 0.01804278444634414,
+        "visibility_scale": 0.9585397586874901,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 70,
+      "seed": 26070,
+      "split": "train",
+      "geometry_group": "left:a40:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.19733704817139752,
+        "beacon_range_noise_std_m": 0.054335199448216055,
+        "beacon_dropout_probability": 0.0010648741153837138,
+        "visibility_scale": 0.9423353070188504,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 71,
+      "seed": 26071,
+      "split": "validation",
+      "geometry_group": "left:a45:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.3641201278689362,
+        "beacon_range_noise_std_m": 0.020208974538495267,
+        "beacon_dropout_probability": 0.007607394943275621,
+        "visibility_scale": 0.9510981702253121,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 72,
+      "seed": 26072,
+      "split": "train",
+      "geometry_group": "left:a10:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.6516183643511024,
+        "beacon_range_noise_std_m": 0.06392714667228142,
+        "beacon_dropout_probability": 0.003067589823350385,
+        "visibility_scale": 0.905277872655321,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 73,
+      "seed": 26073,
+      "split": "train",
+      "geometry_group": "left:a15:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.49146148275377877,
+        "beacon_range_noise_std_m": 0.03537016267930078,
+        "beacon_dropout_probability": 0.015240460339107214,
+        "visibility_scale": 0.9445459123693256,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 74,
+      "seed": 26074,
+      "split": "validation",
+      "geometry_group": "left:a20:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.15140558203566934,
+        "beacon_range_noise_std_m": 0.003983289672131889,
+        "beacon_dropout_probability": 0.013731106138503658,
+        "visibility_scale": 0.8630682712298183,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 75,
+      "seed": 26075,
+      "split": "train",
+      "geometry_group": "left:a30:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.8611915703059234,
+        "beacon_range_noise_std_m": 0.011623000311264776,
+        "beacon_dropout_probability": 0.011283437237344788,
+        "visibility_scale": 0.898224686705247,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 76,
+      "seed": 26076,
+      "split": "train",
+      "geometry_group": "left:a40:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.06526910756735482,
+        "beacon_range_noise_std_m": 0.05449604976439441,
+        "beacon_dropout_probability": 0.00869575702803586,
+        "visibility_scale": 0.9950970579101596,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 77,
+      "seed": 26077,
+      "split": "validation",
+      "geometry_group": "left:a45:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": 45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.9995194365834151,
+        "beacon_range_noise_std_m": 0.0713908485416909,
+        "beacon_dropout_probability": 0.00045976094933610325,
+        "visibility_scale": 0.9036074639771533,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 78,
+      "seed": 26078,
+      "split": "train",
+      "geometry_group": "left:a10:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.7863231249168621,
+        "beacon_range_noise_std_m": 0.013586348837894714,
+        "beacon_dropout_probability": 0.014569902422572212,
+        "visibility_scale": 0.9838732382030908,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 79,
+      "seed": 26079,
+      "split": "train",
+      "geometry_group": "left:a15:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.027822506690988957,
+        "beacon_range_noise_std_m": 0.07957192790537289,
+        "beacon_dropout_probability": 0.015172942962043044,
+        "visibility_scale": 0.9208973205118566,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 80,
+      "seed": 26080,
+      "split": "train",
+      "geometry_group": "right:a10:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.00626791227775203,
+        "beacon_range_noise_std_m": 0.03451075748155317,
+        "beacon_dropout_probability": 0.01304843686924635,
+        "visibility_scale": 0.9938097209718888,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 81,
+      "seed": 26081,
+      "split": "train",
+      "geometry_group": "right:a15:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.15737875918639344,
+        "beacon_range_noise_std_m": 0.03881274578542167,
+        "beacon_dropout_probability": 0.00038212809616243514,
+        "visibility_scale": 0.9116489264313387,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 82,
+      "seed": 26082,
+      "split": "validation",
+      "geometry_group": "right:a20:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.6411083430377049,
+        "beacon_range_noise_std_m": 0.04091697663654457,
+        "beacon_dropout_probability": 0.006100283427803079,
+        "visibility_scale": 0.8503545698011346,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 83,
+      "seed": 26083,
+      "split": "validation",
+      "geometry_group": "right:a30:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.7980250015114071,
+        "beacon_range_noise_std_m": 0.037575717168532634,
+        "beacon_dropout_probability": 0.008905783847023419,
+        "visibility_scale": 0.8856043645404865,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 84,
+      "seed": 26084,
+      "split": "train",
+      "geometry_group": "right:a40:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.8931643283562594,
+        "beacon_range_noise_std_m": 0.034560997061919195,
+        "beacon_dropout_probability": 0.018774591583597004,
+        "visibility_scale": 0.8977867072090974,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 85,
+      "seed": 26085,
+      "split": "test",
+      "geometry_group": "right:a45:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.44304357817112905,
+        "beacon_range_noise_std_m": 0.07616106774699682,
+        "beacon_dropout_probability": 0.017603375296363976,
+        "visibility_scale": 0.9693711816210115,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 86,
+      "seed": 26086,
+      "split": "validation",
+      "geometry_group": "right:a10:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.83694334143605,
+        "beacon_range_noise_std_m": 0.006962235574087066,
+        "beacon_dropout_probability": 0.012967118760331289,
+        "visibility_scale": 0.9612437719244111,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 87,
+      "seed": 26087,
+      "split": "validation",
+      "geometry_group": "right:a15:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.7897278344675609,
+        "beacon_range_noise_std_m": 0.020190784245517398,
+        "beacon_dropout_probability": 0.0074373767173985875,
+        "visibility_scale": 0.9968674533885659,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 88,
+      "seed": 26088,
+      "split": "train",
+      "geometry_group": "right:a20:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.22243286478155533,
+        "beacon_range_noise_std_m": 0.07656806610191008,
+        "beacon_dropout_probability": 0.009112380178929609,
+        "visibility_scale": 0.9520123047493448,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 89,
+      "seed": 26089,
+      "split": "train",
+      "geometry_group": "right:a30:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.965115709591657,
+        "beacon_range_noise_std_m": 0.07546859672029524,
+        "beacon_dropout_probability": 0.0005501187210690461,
+        "visibility_scale": 0.9457894865595693,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 90,
+      "seed": 26090,
+      "split": "train",
+      "geometry_group": "right:a40:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.1954315115218862,
+        "beacon_range_noise_std_m": 0.06284174559509265,
+        "beacon_dropout_probability": 0.0034378170502035953,
+        "visibility_scale": 0.8878149713287896,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 91,
+      "seed": 26091,
+      "split": "validation",
+      "geometry_group": "right:a45:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.25211072866661377,
+        "beacon_range_noise_std_m": 0.04436476261334469,
+        "beacon_dropout_probability": 0.01227001322594666,
+        "visibility_scale": 0.916489136821586,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 92,
+      "seed": 26092,
+      "split": "train",
+      "geometry_group": "right:a10:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.3767654943903832,
+        "beacon_range_noise_std_m": 0.07432260249096549,
+        "beacon_dropout_probability": 0.010021167494837797,
+        "visibility_scale": 0.986076751368661,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 93,
+      "seed": 26093,
+      "split": "train",
+      "geometry_group": "right:a15:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.5891164056886808,
+        "beacon_range_noise_std_m": 0.04495869163798338,
+        "beacon_dropout_probability": 0.019061177420247,
+        "visibility_scale": 0.9608521223859593,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 94,
+      "seed": 26094,
+      "split": "test",
+      "geometry_group": "right:a20:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.2747090067523681,
+        "beacon_range_noise_std_m": 0.030276111071324517,
+        "beacon_dropout_probability": 0.0007716217309188811,
+        "visibility_scale": 0.8524931688587821,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 95,
+      "seed": 26095,
+      "split": "train",
+      "geometry_group": "right:a30:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.15014937557290942,
+        "beacon_range_noise_std_m": 0.025938317668582983,
+        "beacon_dropout_probability": 0.01440035058929125,
+        "visibility_scale": 0.8626224930677477,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 96,
+      "seed": 26096,
+      "split": "train",
+      "geometry_group": "right:a40:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.74211709363314,
+        "beacon_range_noise_std_m": 0.022563327129141744,
+        "beacon_dropout_probability": 0.005960212024665299,
+        "visibility_scale": 0.9555480205536325,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 97,
+      "seed": 26097,
+      "split": "train",
+      "geometry_group": "right:a45:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.6183215367879145,
+        "beacon_range_noise_std_m": 0.06079282831736717,
+        "beacon_dropout_probability": 0.0020769933720114664,
+        "visibility_scale": 0.8846368131104924,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 98,
+      "seed": 26098,
+      "split": "train",
+      "geometry_group": "right:a10:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.04161168492821954,
+        "beacon_range_noise_std_m": 0.07042302656440681,
+        "beacon_dropout_probability": 0.006149680949646912,
+        "visibility_scale": 0.9046175091769517,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 99,
+      "seed": 26099,
+      "split": "train",
+      "geometry_group": "right:a15:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.015171557305630246,
+        "beacon_range_noise_std_m": 0.04024945294971153,
+        "beacon_dropout_probability": 0.010364086639970429,
+        "visibility_scale": 0.8620082732094345,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 100,
+      "seed": 26100,
+      "split": "train",
+      "geometry_group": "right:a20:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.9494598413885208,
+        "beacon_range_noise_std_m": 0.060096618275514865,
+        "beacon_dropout_probability": 0.007562875459200423,
+        "visibility_scale": 0.98267936917694,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 101,
+      "seed": 26101,
+      "split": "train",
+      "geometry_group": "right:a30:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.7471176005052029,
+        "beacon_range_noise_std_m": 0.010820254513193328,
+        "beacon_dropout_probability": 0.018434070908200397,
+        "visibility_scale": 0.8761490364750785,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 102,
+      "seed": 26102,
+      "split": "train",
+      "geometry_group": "right:a40:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.9842791510788517,
+        "beacon_range_noise_std_m": 0.0538119193863256,
+        "beacon_dropout_probability": 0.01915008109856929,
+        "visibility_scale": 0.9159836468300387,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 103,
+      "seed": 26103,
+      "split": "train",
+      "geometry_group": "right:a45:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.3430292155305009,
+        "beacon_range_noise_std_m": 0.067519740243133,
+        "beacon_dropout_probability": 0.01537393019603906,
+        "visibility_scale": 0.9182684813978572,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 104,
+      "seed": 26104,
+      "split": "train",
+      "geometry_group": "right:a10:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.4394273601518671,
+        "beacon_range_noise_std_m": 0.07805845580919735,
+        "beacon_dropout_probability": 0.010042350742368429,
+        "visibility_scale": 0.9823668613492085,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 105,
+      "seed": 26105,
+      "split": "train",
+      "geometry_group": "right:a15:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.8590814868333652,
+        "beacon_range_noise_std_m": 0.039016560529921515,
+        "beacon_dropout_probability": 0.003699105219148653,
+        "visibility_scale": 0.9975266981250994,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 106,
+      "seed": 26106,
+      "split": "train",
+      "geometry_group": "right:a20:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.36893436994969564,
+        "beacon_range_noise_std_m": 0.014386515466416023,
+        "beacon_dropout_probability": 0.002720931404982896,
+        "visibility_scale": 0.8666420438585425,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 107,
+      "seed": 26107,
+      "split": "train",
+      "geometry_group": "right:a30:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.5025695520014969,
+        "beacon_range_noise_std_m": 0.054329560676381033,
+        "beacon_dropout_probability": 0.016346999512340043,
+        "visibility_scale": 0.9398729654027992,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 108,
+      "seed": 26108,
+      "split": "train",
+      "geometry_group": "right:a40:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.7742072090560669,
+        "beacon_range_noise_std_m": 0.040136300484006286,
+        "beacon_dropout_probability": 0.012848171795987566,
+        "visibility_scale": 0.9625152231605179,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 109,
+      "seed": 26109,
+      "split": "test",
+      "geometry_group": "right:a45:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.5017980690946136,
+        "beacon_range_noise_std_m": 0.06550630712147773,
+        "beacon_dropout_probability": 0.003800628796129726,
+        "visibility_scale": 0.9189690608974639,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 110,
+      "seed": 26110,
+      "split": "train",
+      "geometry_group": "right:a10:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.6283221269741882,
+        "beacon_range_noise_std_m": 0.0019617826357546165,
+        "beacon_dropout_probability": 0.006068112030054214,
+        "visibility_scale": 0.8802701363169094,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 111,
+      "seed": 26111,
+      "split": "train",
+      "geometry_group": "right:a15:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.273634712742009,
+        "beacon_range_noise_std_m": 0.00428689180731757,
+        "beacon_dropout_probability": 0.012351846997799733,
+        "visibility_scale": 0.9282676437250463,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 112,
+      "seed": 26112,
+      "split": "train",
+      "geometry_group": "right:a20:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.48978219813954627,
+        "beacon_range_noise_std_m": 0.06495008304567934,
+        "beacon_dropout_probability": 0.00016697207709826634,
+        "visibility_scale": 0.9693166464795127,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 113,
+      "seed": 26113,
+      "split": "train",
+      "geometry_group": "right:a30:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.9592640163321562,
+        "beacon_range_noise_std_m": 0.052605304179781646,
+        "beacon_dropout_probability": 0.004406371959978665,
+        "visibility_scale": 0.8876867348756131,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 114,
+      "seed": 26114,
+      "split": "train",
+      "geometry_group": "right:a40:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.11446836614777478,
+        "beacon_range_noise_std_m": 0.07978327259930111,
+        "beacon_dropout_probability": 0.005486723480337745,
+        "visibility_scale": 0.9656613880549415,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 115,
+      "seed": 26115,
+      "split": "train",
+      "geometry_group": "right:a45:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.5892918213074276,
+        "beacon_range_noise_std_m": 0.04136423129527752,
+        "beacon_dropout_probability": 0.00879280995197661,
+        "visibility_scale": 0.9416580748933362,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 116,
+      "seed": 26116,
+      "split": "train",
+      "geometry_group": "right:a10:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.23868449201064812,
+        "beacon_range_noise_std_m": 0.05268605086661288,
+        "beacon_dropout_probability": 0.00409827760157508,
+        "visibility_scale": 0.957441850595364,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 117,
+      "seed": 26117,
+      "split": "train",
+      "geometry_group": "right:a15:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.5626690110504649,
+        "beacon_range_noise_std_m": 0.06725901438183504,
+        "beacon_dropout_probability": 0.004055365977360412,
+        "visibility_scale": 0.9278303805878967,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 118,
+      "seed": 26118,
+      "split": "validation",
+      "geometry_group": "right:a20:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.02615275850191212,
+        "beacon_range_noise_std_m": 0.04101963997260762,
+        "beacon_dropout_probability": 0.016563116045054366,
+        "visibility_scale": 0.9955012856181171,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 119,
+      "seed": 26119,
+      "split": "validation",
+      "geometry_group": "right:a30:d6:z+0",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.4643301292184976,
+        "beacon_range_noise_std_m": 0.0687452936963668,
+        "beacon_dropout_probability": 0.01653690448452141,
+        "visibility_scale": 0.9490052398127766,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 120,
+      "seed": 26120,
+      "split": "train",
+      "geometry_group": "right:a40:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.38648547828800406,
+        "beacon_range_noise_std_m": 0.05881068003011833,
+        "beacon_dropout_probability": 0.01414915569492121,
+        "visibility_scale": 0.911248909956181,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 121,
+      "seed": 26121,
+      "split": "test",
+      "geometry_group": "right:a45:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": -1.0,
+        "beacon_bearing_noise_std_deg": 0.5956127252223488,
+        "beacon_range_noise_std_m": 0.021037551826906337,
+        "beacon_dropout_probability": 0.0015601483351944379,
+        "visibility_scale": 0.9343867758308484,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 122,
+      "seed": 26122,
+      "split": "validation",
+      "geometry_group": "right:a10:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.1412912082438461,
+        "beacon_range_noise_std_m": 0.04967415657789162,
+        "beacon_dropout_probability": 0.008335374984167832,
+        "visibility_scale": 0.9208762873063685,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 123,
+      "seed": 26123,
+      "split": "validation",
+      "geometry_group": "right:a15:d6:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": -0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": -0.5,
+        "beacon_bearing_noise_std_deg": 0.19910048267029612,
+        "beacon_range_noise_std_m": 0.0685308176606306,
+        "beacon_dropout_probability": 0.0030545243350211517,
+        "visibility_scale": 0.8886104166890078,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 124,
+      "seed": 26124,
+      "split": "train",
+      "geometry_group": "right:a20:d4:z+0.5",
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": 0.6,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.12694631957569258,
+        "beacon_range_noise_std_m": 0.06290723391192167,
+        "beacon_dropout_probability": 0.009088939547943166,
+        "visibility_scale": 0.8874601206495184,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 125,
+      "seed": 26125,
+      "split": "train",
+      "geometry_group": "right:a30:d4:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -30.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": 0.3,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -15.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.3323961788365517,
+        "beacon_range_noise_std_m": 0.028939111488027195,
+        "beacon_dropout_probability": 0.00297701311416656,
+        "visibility_scale": 0.8902928080976205,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 126,
+      "seed": 26126,
+      "split": "train",
+      "geometry_group": "right:a40:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -40.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": -8.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.9254126962407908,
+        "beacon_range_noise_std_m": 0.012329907547635148,
+        "beacon_dropout_probability": 0.004976536404749587,
+        "visibility_scale": 0.9243346690970605,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 127,
+      "seed": 26127,
+      "split": "validation",
+      "geometry_group": "right:a45:d6:z-0.5",
+      "geometry": {
+        "signed_turn_deg": -45.0,
+        "gate_separation_m": 6.5,
+        "lateral_displacement_m": 0.8,
+        "vertical_displacement_m": -0.6,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.5,
+        "beacon_bearing_noise_std_deg": 0.8135234781613441,
+        "beacon_range_noise_std_m": 0.07530069398400883,
+        "beacon_dropout_probability": 0.0008732590210916147,
+        "visibility_scale": 0.9073961142016095,
+        "source": "balanced_expert",
+        "stage": "C4"
+      }
+    },
+    {
+      "episode_id": 128,
+      "seed": 26128,
+      "split": "train",
+      "geometry_group": "right:a10:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -10.0,
+        "gate_separation_m": 3.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 8.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.040117230459208564,
+        "beacon_range_noise_std_m": 0.0056013752281648625,
+        "beacon_dropout_probability": 0.019061125891887132,
+        "visibility_scale": 0.9084222425135462,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    },
+    {
+      "episode_id": 129,
+      "seed": 26129,
+      "split": "train",
+      "geometry_group": "right:a15:d4:z+0",
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 4.5,
+        "lateral_displacement_m": -0.8,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 15.0,
+        "initial_lateral_offset_m": 1.0,
+        "beacon_bearing_noise_std_deg": 0.3200202591536534,
+        "beacon_range_noise_std_m": 0.04695293116514689,
+        "beacon_dropout_probability": 0.0025913334808604295,
+        "visibility_scale": 0.9228309352081697,
+        "source": "balanced_expert",
+        "stage": "C3"
+      }
+    }
+  ]
+}

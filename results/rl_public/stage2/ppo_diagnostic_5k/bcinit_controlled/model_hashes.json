@@ -1,0 +1,13 @@
+{
+  "note": "SB3 model ZIPs stay under results/rl/ (git-ignored); hashes + reproduce.txt published.",
+  "best_model.zip": {
+    "path": "results\\rl\\stage2\\stage2_randomized_bcinit_controlled\\20260725_153107\\best_model\\best_model.zip",
+    "bytes": 1853462,
+    "sha256": "5a7fba9977673167372d72a0658b9ea510f67212243ab60e64b3e2897897ad49"
+  },
+  "final_model.zip": {
+    "path": "results\\rl\\stage2\\stage2_randomized_bcinit_controlled\\20260725_153107\\final_model.zip",
+    "bytes": 1853487,
+    "sha256": "fe6ff35226be4d9477a5aeba7ba0a21b7d71a5fca1d9983891887ebeb79b8897"
+  }
+}

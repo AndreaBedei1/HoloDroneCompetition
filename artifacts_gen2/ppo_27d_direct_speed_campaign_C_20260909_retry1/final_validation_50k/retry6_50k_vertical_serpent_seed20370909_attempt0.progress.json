@@ -1,0 +1,13 @@
+{
+  "status": "RUNNING",
+  "controller": "retry6_50k",
+  "track": "vertical_serpent",
+  "seed": 20370909,
+  "steps": 3140,
+  "time_s": 314.0,
+  "gates": 14,
+  "max_steps": 15300,
+  "wall_elapsed_s": 682.843,
+  "last_progress_wall": 1788953635.2908566,
+  "segments_completed": 14
+}

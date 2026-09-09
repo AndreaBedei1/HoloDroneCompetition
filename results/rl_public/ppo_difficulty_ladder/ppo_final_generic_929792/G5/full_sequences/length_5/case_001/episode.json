@@ -1,0 +1,75 @@
+{
+  "seed": 5035704,
+  "difficulty": "G5",
+  "episode_type": "full_sequence",
+  "geometry_group": "G5:full_sequence:5:varied",
+  "gate_count": 5,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": true,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 1,
+  "collision_events": 0,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": false,
+  "acquisition_time_s": 0.7,
+  "action_jerk": 0.118149,
+  "collision_entries": 0,
+  "collision_contact_frames": 0,
+  "action_steps": 192,
+  "nontrivial_action_steps": 192,
+  "mean_absolute_action_per_axis": [
+    0.338893,
+    0.031062,
+    0.06979,
+    0.067993
+  ],
+  "distance_travelled_m": 16.0766,
+  "universal_transition_success": false,
+  "full_sequence_completion": false,
+  "gates_completed": 3,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "3": {
+      "gate_crossed": true,
+      "target_switched": false,
+      "aligned": false,
+      "range_decreased": false
+    }
+  },
+  "tracker_final_phase": "VERIFY_EXIT",
+  "tracker_local_completed": 2,
+  "tracker_commit_entry_reason": "proximity_passage_rescue",
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 13.8,
+    "beacon_id": "B02",
+    "filtered_range_m": 0.2911535424889411,
+    "min_range_m": 0.0,
+    "range_rise_m": 0.2911535424889411,
+    "close_range_streak": 3,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 3,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 2,
+    "rear_exit_range_rise_confirmed": true,
+    "last_bearing_deg": 156.23747704580404,
+    "commit_displacement_m": 0.736,
+    "disappear_streak": 5,
+    "last_commit_center_x": 0.046875
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

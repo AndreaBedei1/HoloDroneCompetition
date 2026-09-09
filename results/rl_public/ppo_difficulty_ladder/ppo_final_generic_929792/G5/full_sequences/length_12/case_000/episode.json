@@ -1,0 +1,75 @@
+{
+  "seed": 5048646,
+  "difficulty": "G5",
+  "episode_type": "full_sequence",
+  "geometry_group": "G5:full_sequence:12:combined",
+  "gate_count": 12,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": true,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 0,
+  "collision_events": 3,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 24,
+  "acquisition_timeout": true,
+  "acquisition_time_s": 2.6,
+  "action_jerk": 0.117417,
+  "collision_entries": 3,
+  "collision_contact_frames": 5,
+  "action_steps": 3600,
+  "nontrivial_action_steps": 3590,
+  "mean_absolute_action_per_axis": [
+    0.233425,
+    0.059326,
+    0.064111,
+    0.06912
+  ],
+  "distance_travelled_m": 221.1481,
+  "universal_transition_success": false,
+  "full_sequence_completion": false,
+  "gates_completed": 3,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "3": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": false,
+      "range_decreased": true
+    }
+  },
+  "tracker_final_phase": "APPROACH",
+  "tracker_local_completed": 3,
+  "tracker_commit_entry_reason": null,
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 21.8,
+    "beacon_id": "B03",
+    "filtered_range_m": 0.4851306009644853,
+    "min_range_m": 0.0,
+    "range_rise_m": 0.4851306009644853,
+    "close_range_streak": 9,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 6,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 2,
+    "rear_exit_range_rise_confirmed": true,
+    "last_bearing_deg": -162.32660257169758,
+    "commit_displacement_m": 0.15,
+    "disappear_streak": 6,
+    "last_commit_center_x": -0.6296875
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

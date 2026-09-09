@@ -1,0 +1,33 @@
+{
+  "schema_version": "frozen_r1_checkpoint_manifest_v1",
+  "status": "FROZEN_VALID_R1_RESULT",
+  "original_model_path": "results/rl/multigate_v3/r1/ppo_multigate_v3/20260727_133031/best_model/best_model.zip",
+  "sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+  "bytes": 1995567,
+  "training_code_sha": "fdb0ef00052adf732c93f513a503b990229d8888",
+  "observation_version": "onboard_multigate_rl_v3",
+  "observation_dim": 59,
+  "action_version": "surge_sway_heave_yaw_pm1_v1",
+  "training_configuration": {
+    "algorithm": "PPO",
+    "policy": "MLP [256, 256]",
+    "total_environment_timesteps": 5000,
+    "learning_rate": 0.00001,
+    "n_steps": 500,
+    "batch_size": 100,
+    "n_epochs": 1,
+    "clip_range": 0.05,
+    "target_kl": 0.01,
+    "initial_action_std": 0.1
+  },
+  "r1_final_result": {
+    "development_selected": "10/10 straight two-gate",
+    "reserved_final": "9/10 straight two-gate",
+    "single_gate_retention": "10/10",
+    "deterministic_runtime_interventions": 0,
+    "turning_transition_status": "unreliable"
+  },
+  "optimizer_state_policy": "The original ZIP is never overwritten. A long-run initialization copies weights into a newly configured PPO optimizer; crash resume uses only new long-run checkpoints.",
+  "exact_reproduction_command": "scripts\\eval_rl_multigate_two_gate.bat",
+  "immutable": true
+}

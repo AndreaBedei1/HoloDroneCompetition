@@ -1,0 +1,81 @@
+{
+  "seed": 5025262,
+  "difficulty": "G1",
+  "episode_type": "full_sequence",
+  "geometry_group": "G1:full_sequence:8:yaw",
+  "gate_count": 8,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": true,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 1,
+  "collision_events": 0,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": true,
+  "acquisition_time_s": 0.1,
+  "action_jerk": 0.119619,
+  "collision_entries": 0,
+  "collision_contact_frames": 0,
+  "action_steps": 342,
+  "nontrivial_action_steps": 341,
+  "mean_absolute_action_per_axis": [
+    0.354606,
+    0.037431,
+    0.037903,
+    0.052684
+  ],
+  "distance_travelled_m": 29.707,
+  "universal_transition_success": false,
+  "full_sequence_completion": false,
+  "gates_completed": 4,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "2": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "3": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    },
+    "4": {
+      "gate_crossed": true,
+      "target_switched": false,
+      "aligned": false,
+      "range_decreased": false
+    }
+  },
+  "tracker_final_phase": "VERIFY_EXIT",
+  "tracker_local_completed": 3,
+  "tracker_commit_entry_reason": "close_range_rescue",
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 18.2,
+    "beacon_id": "B03",
+    "filtered_range_m": 0.5820900784903896,
+    "min_range_m": 0.14403511945808561,
+    "range_rise_m": 0.438054959032304,
+    "close_range_streak": 4,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 2,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 1,
+    "rear_exit_range_rise_confirmed": false,
+    "last_bearing_deg": -171.73434192398489,
+    "commit_displacement_m": 1.349,
+    "disappear_streak": 3,
+    "last_commit_center_x": 0.116640625
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

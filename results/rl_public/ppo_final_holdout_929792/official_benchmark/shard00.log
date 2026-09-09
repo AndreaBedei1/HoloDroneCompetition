@@ -1,0 +1,12 @@
+[bench:0] 8 episodes to run (0 already complete)
+[bench:0] attempt 1/5 failed for ppo_final_generic_929792|official_horseshoe_bay|horseshoe_bay|1800: AdapterSelectionError: HoloOcean adapter is unavailable and fallback is not allowed. Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly.
+[bench:0] attempt 2/5 failed for ppo_final_generic_929792|official_horseshoe_bay|horseshoe_bay|1800: AdapterSelectionError: HoloOcean adapter is unavailable and fallback is not allowed. Use --adapter fallback for the kinematic runner or pass --allow-fallback explicitly.
+[bench:0] 8 episodes to run (0 already complete)
+[bench:0] ppo_final_generic_929792     official_horseshoe_bay     horseshoe_bay          seed=1800   DNF       gates=1/12 t=None wall=94.322s
+[bench:0] ppo_final_generic_929792     official_horseshoe_bay     horseshoe_bay          seed=1804   DNF       gates=4/12 t=None wall=131.371s
+[bench:0] ppo_final_generic_929792     official_horseshoe_bay     horseshoe_bay          seed=1808   DNF       gates=2/12 t=None wall=92.31s
+[bench:0] ppo_final_generic_929792     official_mixed_endurance   mixed_endurance        seed=1802   DNF       gates=3/22 t=None wall=112.484s
+[bench:0] ppo_final_generic_929792     official_mixed_endurance   mixed_endurance        seed=1806   DNF       gates=2/22 t=None wall=88.657s
+[bench:0] ppo_final_generic_929792     official_vertical_serpent  vertical_serpent       seed=1800   DNF       gates=4/17 t=None wall=164.694s
+[bench:0] ppo_final_generic_929792     official_vertical_serpent  vertical_serpent       seed=1804   DNF       gates=2/17 t=None wall=151.554s
+[bench:0] ppo_final_generic_929792     official_vertical_serpent  vertical_serpent       seed=1808   DNF       gates=2/17 t=None wall=81.741s

@@ -1,0 +1,49 @@
+{
+  "timesteps": 0,
+  "phase": "timestep_zero",
+  "deterministic": true,
+  "bc_initialized": true,
+  "model_initialization_source": "bc_transfer+bc_validation_residual",
+  "eval_seeds": [
+    1200,
+    1201,
+    1202,
+    1203,
+    1204
+  ],
+  "action_std": {
+    "mode": "from_validation",
+    "source": "bc_validation_residual",
+    "std_min": 0.05,
+    "std_max": 0.15,
+    "log_std_fallback": -2.5,
+    "std_per_axis": {
+      "surge": 0.05000000074505806,
+      "sway": 0.05000000074505806,
+      "heave": 0.05000000074505806,
+      "yaw": 0.05000000074505806
+    },
+    "log_std_per_axis": {
+      "surge": -2.995732307434082,
+      "sway": -2.995732307434082,
+      "heave": -2.995732307434082,
+      "yaw": -2.995732307434082
+    },
+    "per_axis_source": {
+      "surge": "validation_residual",
+      "sway": "validation_residual",
+      "heave": "validation_residual",
+      "yaw": "validation_residual"
+    },
+    "bc_report_path": "results\\rl_public\\stage1\\bc\\bc_report.json",
+    "bc_report_sha256": "976224dd5f735cb8217c6b7e43315d83138110cffdecc7e60aafe67f41d5c798",
+    "bc_model_path": "results/rl_public/stage1/bc/model/best_model.pt",
+    "bc_model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3"
+  },
+  "completion_rate": 1.0,
+  "mean_gates": 1.0,
+  "mean_collisions": 0.0,
+  "mean_out_of_bounds": 0.0,
+  "mean_wrong_direction": 0.0,
+  "mean_time_finished": 9.8
+}

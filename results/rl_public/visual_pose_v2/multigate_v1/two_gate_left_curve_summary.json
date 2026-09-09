@@ -1,0 +1,64 @@
+{
+  "generated_utc": "2026-07-26T17:53:27Z",
+  "git_sha": "6b90399d4684c36dc0c0f47820f52849874dd64e",
+  "track": "marine_race_arena/tracks/tests/two_gate_left_curve.json",
+  "track_sha256": "23edf0f7e9dced0e428100fc2377d525cfbadec00a31bcd38b3ca6517cf57810",
+  "controller": "rl_gate_controller",
+  "model": "results/rl_public/stage1/bc/model/best_model.pt",
+  "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+  "adapter_requested": "holoocean",
+  "adapter_actual": "holoocean",
+  "fallback_used": false,
+  "current_profile": "none",
+  "benchmark_task_override": null,
+  "currents": {
+    "current_profile_requested": "none",
+    "selected_current_profile": "none",
+    "currents_actual": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "n_currents": 0,
+    "current_descriptors": [],
+    "currents_are_zero": true
+  },
+  "n_seeds": 2,
+  "seeds": [
+    1763,
+    1764
+  ],
+  "expected_gates": 2,
+  "max_gates_reached": 0,
+  "completions": 0,
+  "mean_gates": 0.0,
+  "first_failure_counts": {
+    "COLLISION": 2
+  },
+  "per_seed": [
+    {
+      "seed": 1763,
+      "completed_gates": 0,
+      "tracker_local_completed": 0,
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "MAX_STEPS",
+      "out_of_bounds_events": 0,
+      "wrong_direction_crossings": 0,
+      "collision_events": 138,
+      "wall_s": 168.9,
+      "failure": "COLLISION"
+    },
+    {
+      "seed": 1764,
+      "completed_gates": 0,
+      "tracker_local_completed": 0,
+      "referee_status": "RUNNING",
+      "evaluation_end_reason": "MAX_STEPS",
+      "out_of_bounds_events": 0,
+      "wrong_direction_crossings": 0,
+      "collision_events": 139,
+      "wall_s": 172.1,
+      "failure": "COLLISION"
+    }
+  ]
+}

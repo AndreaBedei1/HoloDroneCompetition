@@ -1,0 +1,32 @@
+{
+    "status":  "interrupted_worker_stall",
+    "timesteps":  46848,
+    "last_record":  {
+                        "timestep":  48384,
+                        "episodes":  6,
+                        "completion_rate":  1.0,
+                        "mean_gates":  17.0,
+                        "safety_events":  1,
+                        "mean_reward_last500":  0.2245055458118414,
+                        "action_mean":  [
+                                            0.19165765296331502,
+                                            -0.0005155513378970985,
+                                            0.0002937714486683439,
+                                            -0.000392773087398584
+                                        ],
+                        "action_std":  [
+                                           0.09637549910302418,
+                                           0.029829605620317265,
+                                           0.07327573297259228,
+                                           0.035521900796085366
+                                       ],
+                        "action_saturation":  0.0,
+                        "approx_kl":  0.0053686825558543205,
+                        "policy_loss":  0.0008637857708063992,
+                        "value_loss":  259.97350851344794,
+                        "entropy_loss":  14.530739350752397,
+                        "clip_fraction":  0.22052556818181818
+                    },
+    "reason":  "No metric advancement \u003e2 minutes; one HoloOcean worker disappeared/restarted and rollout remained blocked",
+    "timestamp":  "2026-09-08T18:06:42.0863176+02:00"
+}

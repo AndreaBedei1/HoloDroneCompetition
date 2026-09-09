@@ -1,0 +1,18 @@
+{
+  "model_path": "results\\rl\\stage1\\bc_rand_combined\\best_model.pt",
+  "epochs_run": 264,
+  "best_epoch": 223,
+  "best_val_mse": 6.5e-05,
+  "final_train_mse": 4.2e-05,
+  "best_val_mse_per_axis": {
+    "surge": 0.00021,
+    "sway": 1.8e-05,
+    "heave": 2.3e-05,
+    "yaw": 1.1e-05
+  },
+  "hidden_sizes": [
+    256,
+    256
+  ],
+  "val_fraction": 0.25
+}

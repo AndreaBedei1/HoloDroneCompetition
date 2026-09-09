@@ -1,0 +1,735 @@
+{
+  "schema_version": "final_benchmark_suite_v1",
+  "created_utc": "2026-07-31T16:24:54Z",
+  "git_sha": "67e3975f82a1140e1ec69d60fc6cc443c29a4b9a",
+  "run_root": "results/rl/multigate_reliability_first/r2_reliability_first_seed23001_c3_recovery_476525",
+  "adapter": "holoocean",
+  "allow_fallback": false,
+  "current_profile": "none",
+  "dt": 0.1,
+  "action_contract_version": "surge_sway_heave_yaw_pm1_v1",
+  "episodes_per_case": 8,
+  "official_episodes": 5,
+  "group_descriptions": {
+    "single_gate_retention": "Single-gate retention: the competence every later stage must not lose.",
+    "two_gate_straight": "Two aligned gates: cross, clear and reacquire without turning.",
+    "two_gate_left": "Two-gate left transitions at two turn magnitudes.",
+    "two_gate_right": "Two-gate right transitions at two turn magnitudes.",
+    "vertical_low_to_high": "Ascending gate transition (second gate shallower than the first).",
+    "vertical_high_to_low": "Descending gate transition (second gate deeper than the first).",
+    "three_gate_sequence": "Three-gate sequence with two consecutive reacquisitions.",
+    "three_gate_s_shape": "S-shaped three-gate sequence: a left transition immediately followed by a right one.",
+    "official_horseshoe_bay": "Official Horseshoe Bay circuit, current-free (12 gates).",
+    "official_vertical_serpent": "Official Vertical Serpent circuit, current-free (17 gates).",
+    "official_mixed_endurance": "Official Mixed Endurance circuit, current-free (22 gates, clean_gate override)."
+  },
+  "controllers": [
+    {
+      "key": "ppo_525678",
+      "label": "PPO 525,678 steps (training best_reliable / best_fast_reliable)",
+      "controller": "rl_multigate_controller",
+      "model": "results\\rl\\multigate_reliability_first\\r2_reliability_first_seed23001_c3_recovery_476525\\checkpoints\\ppo_525678_steps.zip",
+      "kind": "ppo",
+      "policy_only": true,
+      "separate_reporting": false,
+      "note": "training-metadata best_reliable and best_fast_reliable alias",
+      "model_sha256": "6ff204c028b313a4b9eb868c65c0abfc0e10fc51eabffe622f74ac6961321e0b",
+      "model_exists": true
+    },
+    {
+      "key": "ppo_900462",
+      "label": "PPO 900,462 steps (latest known safe checkpoint during C4)",
+      "controller": "rl_multigate_controller",
+      "model": "results\\rl\\multigate_reliability_first\\r2_reliability_first_seed23001_c3_recovery_476525\\checkpoints\\ppo_900462_steps.zip",
+      "kind": "ppo",
+      "policy_only": true,
+      "separate_reporting": false,
+      "note": "latest safe checkpoint recorded while the run was in stage C4",
+      "model_sha256": "a1227836242487bab37eedd33162273ef3c5109f7ef90714cbb1afdd8432a490",
+      "model_exists": true
+    },
+    {
+      "key": "ppo_1000814",
+      "label": "PPO 1,000,814 steps (final safe checkpoint after rollback to C3)",
+      "controller": "rl_multigate_controller",
+      "model": "results\\rl\\multigate_reliability_first\\r2_reliability_first_seed23001_c3_recovery_476525\\checkpoints\\ppo_1000814_steps.zip",
+      "kind": "ppo",
+      "policy_only": true,
+      "separate_reporting": false,
+      "note": "final checkpoint of the completed reliability-first run",
+      "model_sha256": "311c75a743b9aceb7324282fd8f39f7e4c2ae1d457cb59a8bc281475a2d4d91e",
+      "model_exists": true
+    },
+    {
+      "key": "bc_v3",
+      "label": "BC-v3 balanced warm start (learned baseline)",
+      "controller": "rl_multigate_controller",
+      "model": "results/rl/multigate_longrun/bc_v3_balanced_v2_20260728/bc_v3.pt",
+      "kind": "bc",
+      "policy_only": true,
+      "separate_reporting": false,
+      "note": "behaviour-cloning reference the PPO retention term regularises towards",
+      "model_sha256": "c9a889125278122b57307e21b7c2390baa61429f8952093bcc2760d9b3a49bf2",
+      "model_exists": true
+    },
+    {
+      "key": "rule_gate_center_then_commit",
+      "label": "Deterministic rule baseline (gate-center then commit)",
+      "controller": "rule_gate_center_then_commit",
+      "model": null,
+      "kind": "rule",
+      "policy_only": false,
+      "separate_reporting": false,
+      "note": "no learned component",
+      "model_sha256": null,
+      "model_exists": false
+    },
+    {
+      "key": "hybrid",
+      "label": "Hybrid rule backbone + BC-v1 visual servo (NOT fully policy-based)",
+      "controller": "hybrid_gate_controller",
+      "model": "results/rl_public/stage1/bc/model/best_model.pt",
+      "kind": "hybrid",
+      "policy_only": false,
+      "separate_reporting": true,
+      "note": "reported separately: deterministic backbone blended with a learned servo",
+      "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+      "model_exists": true
+    }
+  ],
+  "cases": [
+    {
+      "group": "single_gate_retention",
+      "case_id": "single_gate",
+      "track": "marine_race_arena/tracks/training/stage1_single_gate.json",
+      "seeds": [
+        21200,
+        21201,
+        21202,
+        21203,
+        27000,
+        27001,
+        27002,
+        27003
+      ],
+      "reused_seeds": [
+        21200,
+        21201,
+        21202,
+        21203
+      ],
+      "holdout_seeds": [
+        27000,
+        27001,
+        27002,
+        27003
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 1,
+      "max_duration_s": 120.0
+    },
+    {
+      "group": "two_gate_straight",
+      "case_id": "straight",
+      "track": "marine_race_arena/tracks/tests/two_gate_straight.json",
+      "seeds": [
+        21204,
+        21205,
+        21206,
+        21207,
+        27004,
+        27005,
+        27006,
+        27007
+      ],
+      "reused_seeds": [
+        21204,
+        21205,
+        21206,
+        21207
+      ],
+      "holdout_seeds": [
+        27004,
+        27005,
+        27006,
+        27007
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 2,
+      "max_duration_s": 150.0
+    },
+    {
+      "group": "two_gate_left",
+      "case_id": "left_37deg_fixed",
+      "track": "marine_race_arena/tracks/tests/two_gate_left_curve.json",
+      "seeds": [
+        21208,
+        21209,
+        27008,
+        27009
+      ],
+      "reused_seeds": [
+        21208,
+        21209
+      ],
+      "holdout_seeds": [
+        27008,
+        27009
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 2,
+      "max_duration_s": 150.0
+    },
+    {
+      "group": "two_gate_left",
+      "case_id": "left_20deg_generated",
+      "track": "results/rl/final_benchmark/reliability_first_20260731/generated_tracks/two_gate_left__left_20deg_generated.json",
+      "seeds": [
+        21210,
+        21211,
+        27010,
+        27011
+      ],
+      "reused_seeds": [
+        21210,
+        21211
+      ],
+      "holdout_seeds": [
+        27010,
+        27011
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": {
+        "signed_turn_deg": 20.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.0,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.0,
+        "beacon_range_noise_std_m": 0.0,
+        "beacon_dropout_probability": 0.0,
+        "visibility_scale": 1.0,
+        "source": "final_benchmark",
+        "stage": "C3"
+      },
+      "expected_gates": 2,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "two_gate_right",
+      "case_id": "right_37deg_fixed",
+      "track": "marine_race_arena/tracks/tests/two_gate_right_curve.json",
+      "seeds": [
+        21212,
+        21213,
+        27012,
+        27013
+      ],
+      "reused_seeds": [
+        21212,
+        21213
+      ],
+      "holdout_seeds": [
+        27012,
+        27013
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 2,
+      "max_duration_s": 150.0
+    },
+    {
+      "group": "two_gate_right",
+      "case_id": "right_20deg_generated",
+      "track": "results/rl/final_benchmark/reliability_first_20260731/generated_tracks/two_gate_right__right_20deg_generated.json",
+      "seeds": [
+        21214,
+        21215,
+        27014,
+        27015
+      ],
+      "reused_seeds": [
+        21214,
+        21215
+      ],
+      "holdout_seeds": [
+        27014,
+        27015
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": {
+        "signed_turn_deg": -20.0,
+        "gate_separation_m": 6.0,
+        "lateral_displacement_m": 0.0,
+        "vertical_displacement_m": 0.0,
+        "starting_yaw_error_deg": 4.0,
+        "initial_lateral_offset_m": 0.3,
+        "beacon_bearing_noise_std_deg": 0.0,
+        "beacon_range_noise_std_m": 0.0,
+        "beacon_dropout_probability": 0.0,
+        "visibility_scale": 1.0,
+        "source": "final_benchmark",
+        "stage": "C3"
+      },
+      "expected_gates": 2,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "vertical_low_to_high",
+      "case_id": "up_0p7m_straight",
+      "track": "results/rl/final_benchmark/reliability_first_20260731/generated_tracks/vertical_low_to_high__up_0p7m_straight.json",
+      "seeds": [
+        21216,
+        21217,
+        27016,
+        27017
+      ],
+      "reused_seeds": [
+        21216,
+        21217
+      ],
+      "holdout_seeds": [
+        27016,
+        27017
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 5.0,
+        "lateral_displacement_m": 0.0,
+        "vertical_displacement_m": 0.7,
+        "starting_yaw_error_deg": -4.0,
+        "initial_lateral_offset_m": -0.3,
+        "beacon_bearing_noise_std_deg": 0.0,
+        "beacon_range_noise_std_m": 0.0,
+        "beacon_dropout_probability": 0.0,
+        "visibility_scale": 1.0,
+        "source": "final_benchmark",
+        "stage": "C3"
+      },
+      "expected_gates": 2,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "vertical_low_to_high",
+      "case_id": "up_1p2m_left15",
+      "track": "results/rl/final_benchmark/reliability_first_20260731/generated_tracks/vertical_low_to_high__up_1p2m_left15.json",
+      "seeds": [
+        21218,
+        21219,
+        27018,
+        27019
+      ],
+      "reused_seeds": [
+        21218,
+        21219
+      ],
+      "holdout_seeds": [
+        27018,
+        27019
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": {
+        "signed_turn_deg": 15.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.0,
+        "vertical_displacement_m": 1.2,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.0,
+        "beacon_range_noise_std_m": 0.0,
+        "beacon_dropout_probability": 0.0,
+        "visibility_scale": 1.0,
+        "source": "final_benchmark",
+        "stage": "C4"
+      },
+      "expected_gates": 2,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "vertical_high_to_low",
+      "case_id": "down_0p7m_straight",
+      "track": "results/rl/final_benchmark/reliability_first_20260731/generated_tracks/vertical_high_to_low__down_0p7m_straight.json",
+      "seeds": [
+        21220,
+        21221,
+        27020,
+        27021
+      ],
+      "reused_seeds": [
+        21220,
+        21221
+      ],
+      "holdout_seeds": [
+        27020,
+        27021
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": {
+        "signed_turn_deg": 0.0,
+        "gate_separation_m": 5.0,
+        "lateral_displacement_m": 0.0,
+        "vertical_displacement_m": -0.7,
+        "starting_yaw_error_deg": -4.0,
+        "initial_lateral_offset_m": -0.3,
+        "beacon_bearing_noise_std_deg": 0.0,
+        "beacon_range_noise_std_m": 0.0,
+        "beacon_dropout_probability": 0.0,
+        "visibility_scale": 1.0,
+        "source": "final_benchmark",
+        "stage": "C3"
+      },
+      "expected_gates": 2,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "vertical_high_to_low",
+      "case_id": "down_1p2m_right15",
+      "track": "results/rl/final_benchmark/reliability_first_20260731/generated_tracks/vertical_high_to_low__down_1p2m_right15.json",
+      "seeds": [
+        21222,
+        21223,
+        27022,
+        27023
+      ],
+      "reused_seeds": [
+        21222,
+        21223
+      ],
+      "holdout_seeds": [
+        27022,
+        27023
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": {
+        "signed_turn_deg": -15.0,
+        "gate_separation_m": 5.5,
+        "lateral_displacement_m": 0.0,
+        "vertical_displacement_m": -1.2,
+        "starting_yaw_error_deg": 0.0,
+        "initial_lateral_offset_m": 0.0,
+        "beacon_bearing_noise_std_deg": 0.0,
+        "beacon_range_noise_std_m": 0.0,
+        "beacon_dropout_probability": 0.0,
+        "visibility_scale": 1.0,
+        "source": "final_benchmark",
+        "stage": "C4"
+      },
+      "expected_gates": 2,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "three_gate_sequence",
+      "case_id": "three_gate_training",
+      "track": "marine_race_arena/tracks/training/stage3_three_gates.json",
+      "seeds": [
+        21300,
+        21301,
+        21302,
+        21303,
+        27024,
+        27025,
+        27026,
+        27027
+      ],
+      "reused_seeds": [
+        21300,
+        21301,
+        21302,
+        21303
+      ],
+      "holdout_seeds": [
+        27024,
+        27025,
+        27026,
+        27027
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 3,
+      "max_duration_s": 240.0
+    },
+    {
+      "group": "three_gate_s_shape",
+      "case_id": "three_gate_s_curve",
+      "track": "marine_race_arena/tracks/tests/three_gate_s_curve.json",
+      "seeds": [
+        21304,
+        21305,
+        21306,
+        21307,
+        27028,
+        27029,
+        27030,
+        27031
+      ],
+      "reused_seeds": [
+        21304,
+        21305,
+        21306,
+        21307
+      ],
+      "holdout_seeds": [
+        27028,
+        27029,
+        27030,
+        27031
+      ],
+      "official": false,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 3,
+      "max_duration_s": 180.0
+    },
+    {
+      "group": "official_horseshoe_bay",
+      "case_id": "horseshoe_bay",
+      "track": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
+      "seeds": [
+        1800,
+        1801,
+        27032,
+        27033,
+        27034
+      ],
+      "reused_seeds": [
+        1800,
+        1801
+      ],
+      "holdout_seeds": [
+        27032,
+        27033,
+        27034
+      ],
+      "official": true,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 12,
+      "max_duration_s": 500.0
+    },
+    {
+      "group": "official_vertical_serpent",
+      "case_id": "vertical_serpent",
+      "track": "marine_race_arena/tracks/marine_race_vertical_serpent.json",
+      "seeds": [
+        1800,
+        1801,
+        27035,
+        27036,
+        27037
+      ],
+      "reused_seeds": [
+        1800,
+        1801
+      ],
+      "holdout_seeds": [
+        27035,
+        27036,
+        27037
+      ],
+      "official": true,
+      "benchmark_task": null,
+      "geometry": null,
+      "expected_gates": 17,
+      "max_duration_s": 850.0
+    },
+    {
+      "group": "official_mixed_endurance",
+      "case_id": "mixed_endurance",
+      "track": "marine_race_arena/tracks/marine_race_mixed_endurance.json",
+      "seeds": [
+        1800,
+        1801,
+        27038,
+        27039,
+        27040
+      ],
+      "reused_seeds": [
+        1800,
+        1801
+      ],
+      "holdout_seeds": [
+        27038,
+        27039,
+        27040
+      ],
+      "official": true,
+      "benchmark_task": "clean_gate",
+      "geometry": null,
+      "expected_gates": 22,
+      "max_duration_s": 1300.0
+    }
+  ],
+  "all_seeds": [
+    1800,
+    1801,
+    21200,
+    21201,
+    21202,
+    21203,
+    21204,
+    21205,
+    21206,
+    21207,
+    21208,
+    21209,
+    21210,
+    21211,
+    21212,
+    21213,
+    21214,
+    21215,
+    21216,
+    21217,
+    21218,
+    21219,
+    21220,
+    21221,
+    21222,
+    21223,
+    21300,
+    21301,
+    21302,
+    21303,
+    21304,
+    21305,
+    21306,
+    21307,
+    27000,
+    27001,
+    27002,
+    27003,
+    27004,
+    27005,
+    27006,
+    27007,
+    27008,
+    27009,
+    27010,
+    27011,
+    27012,
+    27013,
+    27014,
+    27015,
+    27016,
+    27017,
+    27018,
+    27019,
+    27020,
+    27021,
+    27022,
+    27023,
+    27024,
+    27025,
+    27026,
+    27027,
+    27028,
+    27029,
+    27030,
+    27031,
+    27032,
+    27033,
+    27034,
+    27035,
+    27036,
+    27037,
+    27038,
+    27039,
+    27040
+  ],
+  "reused_seeds": [
+    1800,
+    1801,
+    21200,
+    21201,
+    21202,
+    21203,
+    21204,
+    21205,
+    21206,
+    21207,
+    21208,
+    21209,
+    21210,
+    21211,
+    21212,
+    21213,
+    21214,
+    21215,
+    21216,
+    21217,
+    21218,
+    21219,
+    21220,
+    21221,
+    21222,
+    21223,
+    21300,
+    21301,
+    21302,
+    21303,
+    21304,
+    21305,
+    21306,
+    21307
+  ],
+  "holdout_seeds": [
+    27000,
+    27001,
+    27002,
+    27003,
+    27004,
+    27005,
+    27006,
+    27007,
+    27008,
+    27009,
+    27010,
+    27011,
+    27012,
+    27013,
+    27014,
+    27015,
+    27016,
+    27017,
+    27018,
+    27019,
+    27020,
+    27021,
+    27022,
+    27023,
+    27024,
+    27025,
+    27026,
+    27027,
+    27028,
+    27029,
+    27030,
+    27031,
+    27032,
+    27033,
+    27034,
+    27035,
+    27036,
+    27037,
+    27038,
+    27039,
+    27040
+  ],
+  "total_episodes": 474
+}

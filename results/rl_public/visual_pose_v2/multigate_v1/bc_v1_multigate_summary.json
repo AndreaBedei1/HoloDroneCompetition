@@ -1,0 +1,55 @@
+{
+  "controller": "rl_gate_controller (frozen BC-v1)",
+  "adapter": "holoocean",
+  "current_profile": "none",
+  "conclusion": "BC-v1 does NOT complete multi-gate: 0 completions across all tracks/seeds; max 1 gate; fails by collisions, out-of-bounds and return-to-previous-gate.",
+  "tracks": {
+    "two_gate_straight": {
+      "expected_gates": 2,
+      "max_gates_reached": 1,
+      "mean_gates": 0.333,
+      "completions": 0,
+      "n_seeds": 3,
+      "first_failure_counts": {
+        "RETURN_TO_PREVIOUS_GATE": 1,
+        "COLLISION": 2
+      },
+      "git_sha": "6b90399d4684c36dc0c0f47820f52849874dd64e",
+      "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+      "adapter_actual": "holoocean",
+      "fallback_used": false,
+      "currents_zero": true
+    },
+    "two_gate_left_curve": {
+      "expected_gates": 2,
+      "max_gates_reached": 0,
+      "mean_gates": 0.0,
+      "completions": 0,
+      "n_seeds": 2,
+      "first_failure_counts": {
+        "COLLISION": 2
+      },
+      "git_sha": "6b90399d4684c36dc0c0f47820f52849874dd64e",
+      "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+      "adapter_actual": "holoocean",
+      "fallback_used": false,
+      "currents_zero": true
+    },
+    "three_gate_s_curve": {
+      "expected_gates": 3,
+      "max_gates_reached": 1,
+      "mean_gates": 1.0,
+      "completions": 0,
+      "n_seeds": 3,
+      "first_failure_counts": {
+        "COLLISION": 2,
+        "RETURN_TO_PREVIOUS_GATE": 1
+      },
+      "git_sha": "6b90399d4684c36dc0c0f47820f52849874dd64e",
+      "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+      "adapter_actual": "holoocean",
+      "fallback_used": false,
+      "currents_zero": true
+    }
+  }
+}

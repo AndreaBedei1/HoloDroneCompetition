@@ -1,0 +1,8 @@
+{
+  "adapter_actual": "holoocean",
+  "fallback_used": false,
+  "total_timesteps": 300,
+  "final_num_timesteps": 300,
+  "wall_clock_s": 129.793,
+  "note": "Plumbing smoke only (300 steps); NOT a trained PPO policy."
+}

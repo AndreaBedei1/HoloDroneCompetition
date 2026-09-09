@@ -1,0 +1,70 @@
+{
+  "schema_version": "multigate_longrun_dataset_summary_v2",
+  "r1_original": {
+    "path": "datasets/multigate_v3/r1_original/manifest.json",
+    "raw_sha256": "3043bc46a732999fbc21875f952ed6ca35ef03794d6a92890958834fe5d50f83",
+    "successful_episodes_used": 3,
+    "steps_used": 597
+  },
+  "balanced_turns": {
+    "path": "datasets/multigate_v3/r2_balanced_turns_v1/manifest.json",
+    "dataset_path": "datasets/multigate_v3/r2_balanced_turns_v1/dataset.npz",
+    "dataset_sha256": "d0c552d5fef2fcc2aa95a76379cd65d9b062e5d8cd3cc14d8d4bb8860f28e66f",
+    "adapter": "holoocean",
+    "episodes": 130,
+    "steps": 40823,
+    "split_episode_counts": {
+      "train": 83,
+      "validation": 35,
+      "test": 12
+    },
+    "directions": {
+      "straight": {"episodes": 30, "successful": 29, "steps": 7989},
+      "left": {"episodes": 50, "successful": 50, "steps": 15637},
+      "right": {"episodes": 50, "successful": 47, "steps": 17197}
+    },
+    "geometry_groups_disjoint_by_split": true
+  },
+  "successful_transition_supplement": {
+    "path": "datasets/multigate_v3/r2_balanced_turns_v1/supplement_v1/manifest.json",
+    "dataset_path": "datasets/multigate_v3/r2_balanced_turns_v1/supplement_v1/dataset.npz",
+    "dataset_sha256": "8ac2c042c42bf3a0a4bb23d3f050acad15a9ab6b94b9cd0e0f2e0162243b0408",
+    "adapter": "holoocean",
+    "episodes": 7,
+    "steps": 2403,
+    "directions": {
+      "straight": {"episodes": 2, "successful": 2},
+      "right": {"episodes": 5, "successful": 5}
+    }
+  },
+  "balanced_combined": {
+    "episodes": 137,
+    "steps": 43226,
+    "trajectories": {"straight": 32, "left": 50, "right": 55},
+    "successful": {"straight": 31, "left": 50, "right": 52},
+    "minimum_success_targets_met": true
+  },
+  "dagger_corrections": {
+    "path": "datasets/multigate_v3/r2_dagger_corrections_v1/manifest.json",
+    "dataset_path": "datasets/multigate_v3/r2_dagger_corrections_v1/dataset.npz",
+    "dataset_sha256": "78bb2119b71d795998574c05bd125e006f5156c7febb420282d5260231c1610a",
+    "adapter": "holoocean",
+    "controller": "learned R1 rollout with shadow/offline expert labels",
+    "runtime_expert_actions": 0,
+    "episodes": 50,
+    "correction_samples": 19710,
+    "split_episode_counts": {
+      "train": 28,
+      "validation": 17,
+      "test": 5
+    },
+    "directions": {
+      "straight": {"episodes": 10, "successful": 7},
+      "left": {"episodes": 20, "successful": 5},
+      "right": {"episodes": 20, "successful": 12}
+    },
+    "successful_and_failed_windows_retained": true,
+    "geometry_groups_disjoint_by_split": true
+  },
+  "large_data_git_ignored": true
+}

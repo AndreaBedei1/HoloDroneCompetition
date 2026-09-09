@@ -1,0 +1,4 @@
+circuit,track,expected_gates,n_eval,completions,completion_rate,mean_gates,total_out_of_bounds,total_collisions,total_wrong_direction_crossings,adapter_actual,fallback_allowed,current_profile,currents_actual,currents_are_zero,benchmark_task_override,controller,git_sha
+horseshoe,marine_race_horseshoe_bay.json,12,3,3,1.0,12.0,0,0,0,holoocean,False,none,"[0.0, 0.0, 0.0]",True,,rule_gate_center_then_commit,8ab0a063af2de1d1440676576bd970a2ec082ad2
+vertical,marine_race_vertical_serpent.json,17,3,3,1.0,17.0,0,0,0,holoocean,False,none,"[0.0, 0.0, 0.0]",True,,rule_gate_center_then_commit,8ab0a063af2de1d1440676576bd970a2ec082ad2
+mixed,marine_race_mixed_endurance.json,22,3,3,1.0,22.0,0,0,0,holoocean,False,none,"[0.0, 0.0, 0.0]",True,clean_gate,rule_gate_center_then_commit,8ab0a063af2de1d1440676576bd970a2ec082ad2

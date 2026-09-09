@@ -92,6 +92,7 @@ def validate_track_config(config: TrackConfig, strict: bool = True) -> Validatio
     result = ValidationResult()
     _validate_race(config, result)
     _validate_world(config, result)
+    _validate_water_fog(config, result)
     _validate_track_and_gates(config, result)
     _validate_beacons(config, result)
     _validate_currents(config, result)
@@ -158,6 +159,38 @@ def _validate_world(config: TrackConfig, result: ValidationResult) -> None:
         result.error("start.position is below z_min and unsafe.")
     if config.start.position[2] < -7.0:
         result.warn("start.position is deeper than -7.0 m; verify the map floor clearance.")
+
+
+def _validate_water_fog(config: TrackConfig, result: ValidationResult) -> None:
+    raw = config.raw.get("water_fog")
+    if raw is None or raw is False or raw is True:
+        return
+    if not isinstance(raw, Mapping):
+        result.error("water_fog must be an object, true, or false.")
+        return
+    if not bool(raw.get("enabled", True)):
+        return
+
+    for key, default in (("density", 0.8), ("start_distance_m", 5.0)):
+        try:
+            value = float(raw.get(key, default))
+        except (TypeError, ValueError):
+            result.error(f"water_fog.{key} must be a number in [0, 10].")
+            continue
+        if not math.isfinite(value) or not 0.0 <= value <= 10.0:
+            result.error(f"water_fog.{key} must be a finite value in [0, 10].")
+
+    color = raw.get("color_rgb", [0.4, 0.6, 1.0])
+    if not isinstance(color, (list, tuple)) or len(color) != 3:
+        result.error("water_fog.color_rgb must contain three values in [0, 1].")
+        return
+    try:
+        components = [float(component) for component in color]
+    except (TypeError, ValueError):
+        result.error("water_fog.color_rgb must contain three numeric values in [0, 1].")
+        return
+    if any(not math.isfinite(component) or not 0.0 <= component <= 1.0 for component in components):
+        result.error("water_fog.color_rgb values must be finite and in [0, 1].")
 
 
 def _validate_track_and_gates(config: TrackConfig, result: ValidationResult) -> None:

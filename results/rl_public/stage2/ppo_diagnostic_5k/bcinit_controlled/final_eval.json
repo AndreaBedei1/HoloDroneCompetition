@@ -1,0 +1,23 @@
+{
+  "source": "last row of evaluation/eval.csv",
+  "timesteps": "5000",
+  "n_eval": "14",
+  "completion_rate": "0.9286",
+  "mean_gates": "0.9286",
+  "total_collisions": "0",
+  "oob_episodes": "0",
+  "total_out_of_bounds": "0",
+  "total_wrong_direction": "0",
+  "total_missed_gate_attempts": "0",
+  "mean_time_finished": "10.7769",
+  "median_time_finished": "10.5",
+  "mean_penalized_time": "0.0",
+  "mean_action_saturation": "0.0",
+  "mean_action_smoothness": "0.0101",
+  "mean_inference_ms": "0.7131",
+  "interior_n": "10",
+  "interior_completion": "0.9",
+  "extreme_n": "4",
+  "extreme_completion": "1.0",
+  "all_actions_finite": "True"
+}

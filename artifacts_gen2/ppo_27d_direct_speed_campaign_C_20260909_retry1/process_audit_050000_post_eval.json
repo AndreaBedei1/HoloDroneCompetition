@@ -1,0 +1,54 @@
+{
+  "label": "after_evaluation_50000",
+  "timestamp": "2026-09-09T06:48:00Z",
+  "processes": [
+    {
+      "ProcessId": 26764,
+      "ParentProcessId": 26664,
+      "Name": "python.exe",
+      "CommandLine": "\".venv\\Scripts\\python.exe\"  -m src.cli worker --interval 60 "
+    },
+    {
+      "ProcessId": 27556,
+      "ParentProcessId": 26764,
+      "Name": "python.exe",
+      "CommandLine": "\".venv\\Scripts\\python.exe\"  -m src.cli worker --interval 60 "
+    },
+    {
+      "ProcessId": 28052,
+      "ParentProcessId": 60144,
+      "Name": "python.exe",
+      "CommandLine": "\"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe\"  \"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\zotero-mcp.exe\" "
+    },
+    {
+      "ProcessId": 58020,
+      "ParentProcessId": 28052,
+      "Name": "python.exe",
+      "CommandLine": "\"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe\"  \"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\zotero-mcp.exe\" "
+    },
+    {
+      "ProcessId": 110924,
+      "ParentProcessId": 110896,
+      "Name": "python.exe",
+      "CommandLine": "\"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe\"  \"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\zotero-mcp.exe\" "
+    },
+    {
+      "ProcessId": 69196,
+      "ParentProcessId": 110924,
+      "Name": "python.exe",
+      "CommandLine": "\"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\python.exe\"  \"C:\\Users\\andrea.bedei3\\.venvs\\zotero-mcp\\Scripts\\zotero-mcp.exe\" "
+    },
+    {
+      "ProcessId": 114716,
+      "ParentProcessId": 66320,
+      "Name": "python.exe",
+      "CommandLine": null
+    },
+    {
+      "ProcessId": 115008,
+      "ParentProcessId": 105672,
+      "Name": "python.exe",
+      "CommandLine": "\"C:\\Users\\andrea.bedei3\\.conda\\envs\\marine_race_rl\\python.exe\" -m marine_race_arena.learning.gen2.train_ppo_27d_speed --parent artifacts_gen2/ppo_27d_speed_campaign_B_20260908_retry6/start_candidate_25k.zip --out artifacts_gen2/ppo_27d_direct_speed_campaign_C_20260909_retry1 --max-timesteps 300000 --seed 20260909 "
+    }
+  ]
+}

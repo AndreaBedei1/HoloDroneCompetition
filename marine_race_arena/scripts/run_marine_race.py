@@ -217,7 +217,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Built-in controller alias: pygame, pygame_keyboard, keyboard, manual, "
             "oracle, rule_gate_baseline, rule_gate_center_then_commit, "
-            "leader_follower, student_template. Overrides track config."
+            "leader_follower, rl_gate_controller, student_template. Overrides track config."
         ),
     )
     parser.add_argument(
@@ -229,6 +229,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--controller-class",
         default=None,
         help="Controller class name when loading from a Python file or module path.",
+    )
+    parser.add_argument(
+        "--controller-model-path",
+        default=None,
+        help=(
+            "Path to a trained model for a learned controller (e.g. rl_gate_controller). "
+            "Takes precedence over the MARINE_RACE_RL_MODEL environment variable. Controllers "
+            "that do not accept a model path ignore this option."
+        ),
     )
     parser.add_argument(
         "--adapter",
@@ -523,7 +532,12 @@ def _load_participants(config: TrackConfig, args: argparse.Namespace) -> Dict[st
             or participant_config.controller
         )
         controller_class = args.controller_class or participant_config.controller_class
-        controller = loader.load(controller_reference, controller_class=controller_class)
+        constructor_kwargs = {"model_path": getattr(args, "controller_model_path", None)}
+        controller = loader.load(
+            controller_reference,
+            controller_class=controller_class,
+            constructor_kwargs=constructor_kwargs,
+        )
         spawn = participant_config.spawn or {}
         position = _vector3(spawn.get("position", config.start.position))
         rotation = _vector3(spawn.get("rotation_rpy_deg", config.start.rotation_rpy_deg))

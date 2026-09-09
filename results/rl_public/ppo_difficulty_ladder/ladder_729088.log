@@ -1,0 +1,17 @@
+ladder for ppo_729088: ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']
+  G1  success=0.7833333333333333 CI=[0.664,0.869]  first_gate=1.0  switch=0.85  coll=7  seq=0.5
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 57276 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+  G2  success=0.8 CI=[0.682,0.882]  first_gate=0.9833333333333333  switch=0.85  coll=3  seq=0.5833333333333334
+  G3  success=0.7666666666666667 CI=[0.646,0.856]  first_gate=1.0  switch=0.8666666666666667  coll=4  seq=0.3333333333333333
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 50084 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+  G4  success=0.65 CI=[0.524,0.758]  first_gate=0.9833333333333333  switch=0.75  coll=9  seq=0.4166666666666667
+  G5  success=0.5833333333333334 CI=[0.457,0.699]  first_gate=1.0  switch=0.9  coll=23  seq=0.16666666666666666
+HoloOcean engine start failed for OpenWater-Hovering (attempt 1, engine_handshake_retry): (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.')
+Closed adapter left owned Holodeck PID 8848 alive; reaping it.
+engine_handshake_retry for OpenWater-Hovering: (2, 'OpenSemaphore', 'Impossibile trovare il file specificato.'); retrying in 2.0s with a fresh UUID.
+  G6  success=0.4166666666666667 CI=[0.301,0.543]  first_gate=0.9833333333333333  switch=0.8833333333333333  coll=24  seq=0.16666666666666666
+written -> C:\Users\andrea.bedei3\Desktop\HoloDroneCompetition-sac\results\rl_public\ppo_difficulty_ladder\ppo_729088_ladder.json

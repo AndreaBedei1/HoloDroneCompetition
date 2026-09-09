@@ -1,0 +1,27 @@
+{
+  "schema_version": "multigate_v3_transfer_v1",
+  "created_utc": "2026-07-27T10:06:09Z",
+  "code_sha": "5e1b473483c0bcefb508f77b30420ea73de101bb",
+  "source_model": {
+    "path": "results\\rl_public\\stage1\\bc\\model\\best_model.pt",
+    "sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3",
+    "observation_encoding_version": "onboard_only_v1",
+    "observation_dim": 36,
+    "frozen": true
+  },
+  "destination_model": {
+    "kind": "bc",
+    "path": "results\\rl\\multigate_v3\\models\\bc_v1_transfer_v3.pt",
+    "bytes": 334553,
+    "sha256": "79c74d60a3db62e93ecf1ba21e8f6ee2a7e68a4a58a8bd8b1c438141acd3ca4a",
+    "observation_encoding_version": "onboard_multigate_rl_v3",
+    "observation_dim": 59,
+    "action_contract_version": "surge_sway_heave_yaw_pm1_v1"
+  },
+  "transfer": {
+    "copied_v1_input_columns": 36,
+    "new_input_columns_initialized_to_zero": 23,
+    "hidden_and_action_layers_copied": true,
+    "neutral_feature_output_parity": true
+  }
+}

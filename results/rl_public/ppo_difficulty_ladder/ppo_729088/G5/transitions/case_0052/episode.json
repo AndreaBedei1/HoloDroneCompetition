@@ -1,0 +1,63 @@
+{
+  "seed": 5042926,
+  "difficulty": "G5",
+  "episode_type": "transition_focus",
+  "geometry_group": "G5:transition_focus:2:combined",
+  "gate_count": 2,
+  "first_gate_crossed": true,
+  "correct_target_switch": true,
+  "new_target_acquired_and_aligned": true,
+  "new_target_range_decreasing": true,
+  "previous_gate_return": false,
+  "missed_gate_dnf": 0,
+  "collision_events": 0,
+  "out_of_bounds_events": 0,
+  "wrong_direction_events": 0,
+  "acquisition_timeout": false,
+  "acquisition_time_s": 1.9,
+  "action_jerk": 0.212162,
+  "collision_entries": 0,
+  "collision_contact_frames": 0,
+  "action_steps": 45,
+  "nontrivial_action_steps": 44,
+  "mean_absolute_action_per_axis": [
+    0.256685,
+    0.035315,
+    0.048427,
+    0.073053
+  ],
+  "distance_travelled_m": 2.7125,
+  "universal_transition_success": true,
+  "full_sequence_completion": false,
+  "gates_completed": 1,
+  "transition_positions": {
+    "1": {
+      "gate_crossed": true,
+      "target_switched": true,
+      "aligned": true,
+      "range_decreased": true
+    }
+  },
+  "tracker_final_phase": "VISUAL_ALIGN",
+  "tracker_local_completed": 1,
+  "tracker_commit_entry_reason": null,
+  "tracker_last_advancement_evidence": {
+    "local_time_s": 1.9,
+    "beacon_id": "B01",
+    "filtered_range_m": 0.8272390546203894,
+    "min_range_m": 0.3067634767884872,
+    "range_rise_m": 0.5204755778319021,
+    "close_range_streak": 2,
+    "close_range_confirmed": true,
+    "rear_bearing_streak": 5,
+    "rear_bearing_confirmed": true,
+    "rear_exit_range_rise_streak": 2,
+    "rear_exit_range_rise_confirmed": true,
+    "last_bearing_deg": 165.29173915818274,
+    "commit_displacement_m": 0.764,
+    "disappear_streak": 2,
+    "last_commit_center_x": 0.05316673704780128
+  },
+  "referee_tracker_first_crossing_mismatch": false,
+  "action_source": "ppo_policy"
+}

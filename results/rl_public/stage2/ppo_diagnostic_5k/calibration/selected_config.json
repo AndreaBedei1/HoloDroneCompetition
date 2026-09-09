@@ -1,0 +1,32 @@
+{
+  "selected": {
+    "run_dir": "results\\rl\\stage1\\bcinit_controlled\\20260724_135500",
+    "config_preset": {
+      "strategy": "fixed",
+      "value": 0.1,
+      "std_min": 0.05,
+      "std_max": 0.15,
+      "log_std_fallback": -2.5
+    },
+    "learning_rate": 1e-05,
+    "n_epochs": 1,
+    "clip_range": 0.05,
+    "action_std": {
+      "surge": 0.10000000149011612,
+      "sway": 0.10000000149011612,
+      "heave": 0.10000000149011612,
+      "yaw": 0.10000000149011612
+    },
+    "run_status": "COMPLETED",
+    "max_approx_kl": 0.001814,
+    "final_approx_kl": 0.0018138097366318107,
+    "final_clip_fraction": 0.3100000023841858,
+    "final_action_saturation": 0.0,
+    "initial_completion": 1.0,
+    "final_completion": 1.0,
+    "best_at_timestep_zero": true,
+    "passed_calibration": true
+  },
+  "criterion": "COMPLETED, max approx_kl <= 0.02, action saturation < 5%, completion 100% on the calibration set",
+  "note": "Select the SAFEST passing configuration, not the lowest training loss."
+}

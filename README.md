@@ -6,6 +6,10 @@ separate concerns. Replaceable adapters isolate simulator-specific sensing and
 actuation; the reference implementation uses HoloOcean with a BlueROV2-class
 vehicle.
 
+The independent multi-step SAC universal-transition arm, global HoloOcean
+capacity guard, equal-budget PPO comparison, and exact track visualizer are
+documented in [`docs/sac_universal_transition.md`](docs/sac_universal_transition.md).
+
 In official mode, controllers operate entirely from onboard information. The
 referee uses privileged simulator state only to validate crossings, violations,
 timing, ranking and team scores. Referee decisions are never returned to vehicle
@@ -507,6 +511,22 @@ tests/                 simulator-independent tests
 article/               paper sources
 docs/                  release notes
 ```
+
+## 11b. Final controller benchmark
+
+Every deployable controller (the PPO checkpoints, BC-v3, the deterministic rule
+baseline and the hybrid baseline) is compared on one identical suite -- single-gate
+retention, two-gate straight/left/right, vertical low-to-high and high-to-low
+transitions, three-gate sequences, S-shapes and the three official current-free
+circuits -- with the same seeds, geometries and simulator configuration:
+
+```bat
+scripts\run_final_benchmark.bat
+```
+
+It writes every episode to CSV/JSON, an aggregate table, paired per-seed
+comparisons, trajectory plots, official-circuit videos and a Markdown report.
+See `docs/rl_final_benchmark.md`.
 
 ## 12. Known limitations
 

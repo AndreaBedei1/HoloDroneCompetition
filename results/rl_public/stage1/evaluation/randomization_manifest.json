@@ -1,0 +1,13 @@
+{
+  "spec": {
+    "lateral_offset_m": 1.0,
+    "depth_offset_m": 0.5,
+    "yaw_offset_deg": 15.0,
+    "longitudinal_offset_m": 0.5,
+    "beacon_angular_noise_std_deg": 0.2,
+    "beacon_range_noise_std_m": 0.2,
+    "beacon_dropout_probability": 0.02
+  },
+  "frame": "offsets sampled in the initial body frame; applied via yaw rotation to world frame",
+  "note": "The Stage-1 track start yaw is 0, so body and world frames coincide here."
+}

@@ -1,0 +1,23 @@
+{
+  "note": "Completion split by randomization region; the frozen BC failures were extreme-corner.",
+  "arms": {
+    "bcinit_controlled": {
+      "initial_interior": 1.0,
+      "initial_extreme": 0.75,
+      "best_interior": 0.9,
+      "best_extreme": 1.0
+    },
+    "scratch_controlled": {
+      "initial_interior": 0.0,
+      "initial_extreme": 0.0,
+      "best_interior": 0.0,
+      "best_extreme": 0.0
+    },
+    "scratch_default": {
+      "initial_interior": 0.0,
+      "initial_extreme": 0.0,
+      "best_interior": 0.0,
+      "best_extreme": 0.0
+    }
+  }
+}

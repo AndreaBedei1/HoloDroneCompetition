@@ -37,8 +37,14 @@ output/
 .env.*
 !.env.example
 
-# Marine race and simulator generated outputs
-results/
+# Marine race and simulator generated outputs.
+# Ignore each entry under results/ (so results/rl/ etc. stay ignored) but allow git
+# to descend so results/rl_public/ can be re-included (see end of file).
+/results/*
+!/results/rl_public/
+/datasets/multigate_v3/**/episodes/
+/datasets/multigate_v3/**/tracks/
+/datasets/multigate_v3/**/*.npz
 logs/
 runs/
 /diagnostics/
@@ -79,3 +85,32 @@ desktop.ini
 # Local agent/tool state
 .agents/
 .codex/
+
+# --- Public, auditable RL result package -------------------------------------
+# results/rl/ (heavy datasets/models/checkpoints/logs) stays ignored above.
+# results/rl_public/ holds only compact, audit-relevant artifacts and IS tracked.
+# These re-include rules are last so they override results/ and the *_summary.json
+# / *.jsonl / *.npz patterns for this subtree only.
+!results/rl_public/
+!results/rl_public/**
+# ...but never commit heavy binaries even under rl_public (models/checkpoints/data):
+results/rl_public/**/*.zip
+results/rl_public/**/*.npz
+results/rl_public/**/*.npy
+results/rl_public/**/*.mp4
+
+# Debug tool output: frames, screenshots and clips, regenerated on demand.
+results/debug/
+
+# Gen-2 local dataset/checkpoint artifacts; commit only compact manifests,
+# provenance and validation reports.
+/artifacts_gen2/**/*.zip
+/artifacts_gen2/**/progress.json
+# Regenerable PPO debug logs, snapshots and materialized fragment configs.
+/artifacts_gen2/**/monitor/
+/artifacts_gen2/**/monitor_snapshots/
+/artifacts_gen2/**/training_tracks/
+/artifacts_gen2/**/*.monitor.csv
+/artifacts_gen2/**/*.png
+# Keep local PPO smoke attempts out of Git; compact reports may be force-added.
+/artifacts_gen2/ppo_27d_smoke_*/

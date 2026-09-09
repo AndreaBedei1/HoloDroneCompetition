@@ -1,0 +1,2903 @@
+{
+  "schema_version": "final_benchmark_report_v1",
+  "suite": {
+    "git_sha": "bd1f961c04c0a20c35d0cd60cd724c98cee1e255",
+    "created_utc": "2026-08-17T08:29:48Z",
+    "adapter": "holoocean",
+    "current_profile": "none",
+    "dt": 0.1,
+    "total_episodes_planned": 60,
+    "total_episodes_run": 60,
+    "all_seeds": [
+      1800,
+      1801,
+      1802,
+      1803,
+      1804,
+      1805,
+      1806,
+      1807,
+      1808,
+      1809
+    ],
+    "reused_seeds": [
+      1800,
+      1801,
+      1802,
+      1803,
+      1804,
+      1805,
+      1806,
+      1807,
+      1808,
+      1809
+    ],
+    "holdout_seeds": []
+  },
+  "controllers": {
+    "ppo_final_generic_929792": {
+      "key": "ppo_final_generic_929792",
+      "label": "Frozen final generic hard-case PPO (929,792 transitions)",
+      "controller": "rl_multigate_controller",
+      "model": "results/rl/universal_transition/final/ppo_final_generic_929792.zip",
+      "kind": "ppo",
+      "policy_only": true,
+      "separate_reporting": false,
+      "note": "immutable final PPO pinned by the final-circuit freeze record",
+      "model_sha256": "60ffdca1a6afc0260487d90cc7282a285cbafd46e76d32a316348c13f5fdfe32",
+      "model_exists": true
+    },
+    "rule_gate_center_then_commit": {
+      "key": "rule_gate_center_then_commit",
+      "label": "Deterministic rule baseline (gate-center then commit)",
+      "controller": "rule_gate_center_then_commit",
+      "model": null,
+      "kind": "rule",
+      "policy_only": false,
+      "separate_reporting": false,
+      "note": "no learned component",
+      "model_sha256": null,
+      "model_exists": false
+    }
+  },
+  "aggregates": {
+    "controllers": {
+      "ppo_final_generic_929792": {
+        "overall_excluding_official": {
+          "episodes": 0,
+          "successes": 0,
+          "success_rate": null,
+          "success_rate_wilson95_low": null,
+          "success_rate_wilson95_high": null,
+          "full_completions": 0,
+          "full_completion_rate": null,
+          "full_completion_wilson95_low": null,
+          "full_completion_wilson95_high": null,
+          "gates_completed_total": 0,
+          "gates_expected_total": 0,
+          "mean_gates": null,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "mean_action_saturation": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "path_length_m": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "timeouts": 0,
+          "timeout_rate": null,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "referee_status_counts": {},
+          "end_reason_counts": {},
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": []
+        },
+        "official_circuits": {
+          "episodes": 30,
+          "successes": 0,
+          "success_rate": 0.0,
+          "success_rate_wilson95_low": 0.0,
+          "success_rate_wilson95_high": 0.1135,
+          "full_completions": 0,
+          "full_completion_rate": 0.0,
+          "full_completion_wilson95_low": 0.0,
+          "full_completion_wilson95_high": 0.1135,
+          "gates_completed_total": 87,
+          "gates_expected_total": 510,
+          "mean_gates": 2.9,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 82,
+          "collision_frames": 726,
+          "collision_episodes": 4,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 2,
+          "wrong_direction_episodes": 2,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 30,
+          "stuck_events": 0,
+          "safety_event_episodes": 4,
+          "safety_events_total": 84,
+          "mean_action_jerk": {
+            "n": 30,
+            "mean": 0.0807,
+            "median": 0.0789,
+            "sd": 0.0077,
+            "ci_low": 0.0778,
+            "ci_high": 0.0836
+          },
+          "mean_action_saturation": {
+            "n": 30,
+            "mean": 0.0,
+            "median": 0.0,
+            "sd": 0.0,
+            "ci_low": 0.0,
+            "ci_high": 0.0
+          },
+          "path_length_m": {
+            "n": 30,
+            "mean": 25.957,
+            "median": 20.2229,
+            "sd": 15.4611,
+            "ci_low": 20.1843,
+            "ci_high": 31.7296
+          },
+          "timeouts": 0,
+          "timeout_rate": 0.0,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 30,
+            "mean": 56.4564,
+            "median": 56.328,
+            "sd": 1.7352,
+            "ci_low": 55.8085,
+            "ci_high": 57.1042
+          },
+          "referee_status_counts": {
+            "DNF": 30
+          },
+          "end_reason_counts": {
+            "REFEREE_TERMINAL": 30
+          },
+          "failure_breakdown": {
+            "failures": 30,
+            "modes": {
+              "missed_gate_dnf": 30
+            },
+            "stopped_after_gates": {
+              "1/12": 2,
+              "1/17": 3,
+              "1/22": 1,
+              "2/12": 2,
+              "2/17": 3,
+              "2/22": 6,
+              "3/12": 1,
+              "3/22": 2,
+              "4/12": 1,
+              "4/17": 2,
+              "4/22": 1,
+              "5/12": 2,
+              "6/12": 2,
+              "6/17": 2
+            },
+            "median_gates_at_failure": 2.0
+          },
+          "seeds": [
+            1800,
+            1801,
+            1802,
+            1803,
+            1804,
+            1805,
+            1806,
+            1807,
+            1808,
+            1809
+          ]
+        },
+        "all_episodes": {
+          "episodes": 30,
+          "successes": 0,
+          "success_rate": 0.0,
+          "success_rate_wilson95_low": 0.0,
+          "success_rate_wilson95_high": 0.1135,
+          "full_completions": 0,
+          "full_completion_rate": 0.0,
+          "full_completion_wilson95_low": 0.0,
+          "full_completion_wilson95_high": 0.1135,
+          "gates_completed_total": 87,
+          "gates_expected_total": 510,
+          "mean_gates": 2.9,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 82,
+          "collision_frames": 726,
+          "collision_episodes": 4,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 2,
+          "wrong_direction_episodes": 2,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 30,
+          "stuck_events": 0,
+          "safety_event_episodes": 4,
+          "safety_events_total": 84,
+          "mean_action_jerk": {
+            "n": 30,
+            "mean": 0.0807,
+            "median": 0.0789,
+            "sd": 0.0077,
+            "ci_low": 0.0778,
+            "ci_high": 0.0836
+          },
+          "mean_action_saturation": {
+            "n": 30,
+            "mean": 0.0,
+            "median": 0.0,
+            "sd": 0.0,
+            "ci_low": 0.0,
+            "ci_high": 0.0
+          },
+          "path_length_m": {
+            "n": 30,
+            "mean": 25.957,
+            "median": 20.2229,
+            "sd": 15.4611,
+            "ci_low": 20.1843,
+            "ci_high": 31.7296
+          },
+          "timeouts": 0,
+          "timeout_rate": 0.0,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 30,
+            "mean": 56.4564,
+            "median": 56.328,
+            "sd": 1.7352,
+            "ci_low": 55.8085,
+            "ci_high": 57.1042
+          },
+          "referee_status_counts": {
+            "DNF": 30
+          },
+          "end_reason_counts": {
+            "REFEREE_TERMINAL": 30
+          },
+          "failure_breakdown": {
+            "failures": 30,
+            "modes": {
+              "missed_gate_dnf": 30
+            },
+            "stopped_after_gates": {
+              "1/12": 2,
+              "1/17": 3,
+              "1/22": 1,
+              "2/12": 2,
+              "2/17": 3,
+              "2/22": 6,
+              "3/12": 1,
+              "3/22": 2,
+              "4/12": 1,
+              "4/17": 2,
+              "4/22": 1,
+              "5/12": 2,
+              "6/12": 2,
+              "6/17": 2
+            },
+            "median_gates_at_failure": 2.0
+          },
+          "seeds": [
+            1800,
+            1801,
+            1802,
+            1803,
+            1804,
+            1805,
+            1806,
+            1807,
+            1808,
+            1809
+          ]
+        },
+        "holdout_only": {
+          "episodes": 0,
+          "successes": 0,
+          "success_rate": null,
+          "success_rate_wilson95_low": null,
+          "success_rate_wilson95_high": null,
+          "full_completions": 0,
+          "full_completion_rate": null,
+          "full_completion_wilson95_low": null,
+          "full_completion_wilson95_high": null,
+          "gates_completed_total": 0,
+          "gates_expected_total": 0,
+          "mean_gates": null,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "mean_action_saturation": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "path_length_m": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "timeouts": 0,
+          "timeout_rate": null,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "referee_status_counts": {},
+          "end_reason_counts": {},
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": []
+        },
+        "reused_only": {
+          "episodes": 30,
+          "successes": 0,
+          "success_rate": 0.0,
+          "success_rate_wilson95_low": 0.0,
+          "success_rate_wilson95_high": 0.1135,
+          "full_completions": 0,
+          "full_completion_rate": 0.0,
+          "full_completion_wilson95_low": 0.0,
+          "full_completion_wilson95_high": 0.1135,
+          "gates_completed_total": 87,
+          "gates_expected_total": 510,
+          "mean_gates": 2.9,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 82,
+          "collision_frames": 726,
+          "collision_episodes": 4,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 2,
+          "wrong_direction_episodes": 2,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 30,
+          "stuck_events": 0,
+          "safety_event_episodes": 4,
+          "safety_events_total": 84,
+          "mean_action_jerk": {
+            "n": 30,
+            "mean": 0.0807,
+            "median": 0.0789,
+            "sd": 0.0077,
+            "ci_low": 0.0778,
+            "ci_high": 0.0836
+          },
+          "mean_action_saturation": {
+            "n": 30,
+            "mean": 0.0,
+            "median": 0.0,
+            "sd": 0.0,
+            "ci_low": 0.0,
+            "ci_high": 0.0
+          },
+          "path_length_m": {
+            "n": 30,
+            "mean": 25.957,
+            "median": 20.2229,
+            "sd": 15.4611,
+            "ci_low": 20.1843,
+            "ci_high": 31.7296
+          },
+          "timeouts": 0,
+          "timeout_rate": 0.0,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 30,
+            "mean": 56.4564,
+            "median": 56.328,
+            "sd": 1.7352,
+            "ci_low": 55.8085,
+            "ci_high": 57.1042
+          },
+          "referee_status_counts": {
+            "DNF": 30
+          },
+          "end_reason_counts": {
+            "REFEREE_TERMINAL": 30
+          },
+          "failure_breakdown": {
+            "failures": 30,
+            "modes": {
+              "missed_gate_dnf": 30
+            },
+            "stopped_after_gates": {
+              "1/12": 2,
+              "1/17": 3,
+              "1/22": 1,
+              "2/12": 2,
+              "2/17": 3,
+              "2/22": 6,
+              "3/12": 1,
+              "3/22": 2,
+              "4/12": 1,
+              "4/17": 2,
+              "4/22": 1,
+              "5/12": 2,
+              "6/12": 2,
+              "6/17": 2
+            },
+            "median_gates_at_failure": 2.0
+          },
+          "seeds": [
+            1800,
+            1801,
+            1802,
+            1803,
+            1804,
+            1805,
+            1806,
+            1807,
+            1808,
+            1809
+          ]
+        },
+        "by_group": {
+          "official_horseshoe_bay": {
+            "episodes": 10,
+            "successes": 0,
+            "success_rate": 0.0,
+            "success_rate_wilson95_low": 0.0,
+            "success_rate_wilson95_high": 0.2775,
+            "full_completions": 0,
+            "full_completion_rate": 0.0,
+            "full_completion_wilson95_low": 0.0,
+            "full_completion_wilson95_high": 0.2775,
+            "gates_completed_total": 35,
+            "gates_expected_total": 120,
+            "mean_gates": 3.5,
+            "completion_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "penalized_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "time_per_gate_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 10,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0738,
+              "median": 0.0739,
+              "sd": 0.0027,
+              "ci_low": 0.0718,
+              "ci_high": 0.0757
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 27.7723,
+              "median": 26.9574,
+              "sd": 15.2892,
+              "ci_low": 16.8357,
+              "ci_high": 38.7088
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": false,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 56.7725,
+              "median": 56.8439,
+              "sd": 0.8146,
+              "ci_low": 56.1898,
+              "ci_high": 57.3552
+            },
+            "referee_status_counts": {
+              "DNF": 10
+            },
+            "end_reason_counts": {
+              "REFEREE_TERMINAL": 10
+            },
+            "failure_breakdown": {
+              "failures": 10,
+              "modes": {
+                "missed_gate_dnf": 10
+              },
+              "stopped_after_gates": {
+                "1/12": 2,
+                "2/12": 2,
+                "3/12": 1,
+                "4/12": 1,
+                "5/12": 2,
+                "6/12": 2
+              },
+              "median_gates_at_failure": 3.5
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_vertical_serpent": {
+            "episodes": 10,
+            "successes": 0,
+            "success_rate": 0.0,
+            "success_rate_wilson95_low": 0.0,
+            "success_rate_wilson95_high": 0.2775,
+            "full_completions": 0,
+            "full_completion_rate": 0.0,
+            "full_completion_wilson95_low": 0.0,
+            "full_completion_wilson95_high": 0.2775,
+            "gates_completed_total": 29,
+            "gates_expected_total": 170,
+            "mean_gates": 2.9,
+            "completion_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "penalized_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "time_per_gate_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "collision_events": 82,
+            "collision_frames": 726,
+            "collision_episodes": 4,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 2,
+            "wrong_direction_episodes": 2,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 10,
+            "stuck_events": 0,
+            "safety_event_episodes": 4,
+            "safety_events_total": 84,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0804,
+              "median": 0.0789,
+              "sd": 0.0064,
+              "ci_low": 0.0759,
+              "ci_high": 0.085
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 30.6269,
+              "median": 29.8832,
+              "sd": 20.0906,
+              "ci_low": 16.2559,
+              "ci_high": 44.9978
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": false,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 55.9896,
+              "median": 55.0608,
+              "sd": 2.5518,
+              "ci_low": 54.1642,
+              "ci_high": 57.8149
+            },
+            "referee_status_counts": {
+              "DNF": 10
+            },
+            "end_reason_counts": {
+              "REFEREE_TERMINAL": 10
+            },
+            "failure_breakdown": {
+              "failures": 10,
+              "modes": {
+                "missed_gate_dnf": 10
+              },
+              "stopped_after_gates": {
+                "1/17": 3,
+                "2/17": 3,
+                "4/17": 2,
+                "6/17": 2
+              },
+              "median_gates_at_failure": 2.0
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_mixed_endurance": {
+            "episodes": 10,
+            "successes": 0,
+            "success_rate": 0.0,
+            "success_rate_wilson95_low": 0.0,
+            "success_rate_wilson95_high": 0.2775,
+            "full_completions": 0,
+            "full_completion_rate": 0.0,
+            "full_completion_wilson95_low": 0.0,
+            "full_completion_wilson95_high": 0.2775,
+            "gates_completed_total": 23,
+            "gates_expected_total": 220,
+            "mean_gates": 2.3,
+            "completion_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "penalized_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "time_per_gate_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 10,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0879,
+              "median": 0.088,
+              "sd": 0.0056,
+              "ci_low": 0.0839,
+              "ci_high": 0.0919
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 19.4718,
+              "median": 16.6028,
+              "sd": 7.6319,
+              "ci_low": 14.0127,
+              "ci_high": 24.931
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": false,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 56.607,
+              "median": 56.4395,
+              "sd": 1.4658,
+              "ci_low": 55.5585,
+              "ci_high": 57.6555
+            },
+            "referee_status_counts": {
+              "DNF": 10
+            },
+            "end_reason_counts": {
+              "REFEREE_TERMINAL": 10
+            },
+            "failure_breakdown": {
+              "failures": 10,
+              "modes": {
+                "missed_gate_dnf": 10
+              },
+              "stopped_after_gates": {
+                "1/22": 1,
+                "2/22": 6,
+                "3/22": 2,
+                "4/22": 1
+              },
+              "median_gates_at_failure": 2.0
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          }
+        },
+        "by_case": {
+          "official_horseshoe_bay/horseshoe_bay": {
+            "episodes": 10,
+            "successes": 0,
+            "success_rate": 0.0,
+            "success_rate_wilson95_low": 0.0,
+            "success_rate_wilson95_high": 0.2775,
+            "full_completions": 0,
+            "full_completion_rate": 0.0,
+            "full_completion_wilson95_low": 0.0,
+            "full_completion_wilson95_high": 0.2775,
+            "gates_completed_total": 35,
+            "gates_expected_total": 120,
+            "mean_gates": 3.5,
+            "completion_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "penalized_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "time_per_gate_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 10,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0738,
+              "median": 0.0739,
+              "sd": 0.0027,
+              "ci_low": 0.0718,
+              "ci_high": 0.0757
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 27.7723,
+              "median": 26.9574,
+              "sd": 15.2892,
+              "ci_low": 16.8357,
+              "ci_high": 38.7088
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": false,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 56.7725,
+              "median": 56.8439,
+              "sd": 0.8146,
+              "ci_low": 56.1898,
+              "ci_high": 57.3552
+            },
+            "referee_status_counts": {
+              "DNF": 10
+            },
+            "end_reason_counts": {
+              "REFEREE_TERMINAL": 10
+            },
+            "failure_breakdown": {
+              "failures": 10,
+              "modes": {
+                "missed_gate_dnf": 10
+              },
+              "stopped_after_gates": {
+                "1/12": 2,
+                "2/12": 2,
+                "3/12": 1,
+                "4/12": 1,
+                "5/12": 2,
+                "6/12": 2
+              },
+              "median_gates_at_failure": 3.5
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_mixed_endurance/mixed_endurance": {
+            "episodes": 10,
+            "successes": 0,
+            "success_rate": 0.0,
+            "success_rate_wilson95_low": 0.0,
+            "success_rate_wilson95_high": 0.2775,
+            "full_completions": 0,
+            "full_completion_rate": 0.0,
+            "full_completion_wilson95_low": 0.0,
+            "full_completion_wilson95_high": 0.2775,
+            "gates_completed_total": 23,
+            "gates_expected_total": 220,
+            "mean_gates": 2.3,
+            "completion_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "penalized_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "time_per_gate_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 10,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0879,
+              "median": 0.088,
+              "sd": 0.0056,
+              "ci_low": 0.0839,
+              "ci_high": 0.0919
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 19.4718,
+              "median": 16.6028,
+              "sd": 7.6319,
+              "ci_low": 14.0127,
+              "ci_high": 24.931
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": false,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 56.607,
+              "median": 56.4395,
+              "sd": 1.4658,
+              "ci_low": 55.5585,
+              "ci_high": 57.6555
+            },
+            "referee_status_counts": {
+              "DNF": 10
+            },
+            "end_reason_counts": {
+              "REFEREE_TERMINAL": 10
+            },
+            "failure_breakdown": {
+              "failures": 10,
+              "modes": {
+                "missed_gate_dnf": 10
+              },
+              "stopped_after_gates": {
+                "1/22": 1,
+                "2/22": 6,
+                "3/22": 2,
+                "4/22": 1
+              },
+              "median_gates_at_failure": 2.0
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_vertical_serpent/vertical_serpent": {
+            "episodes": 10,
+            "successes": 0,
+            "success_rate": 0.0,
+            "success_rate_wilson95_low": 0.0,
+            "success_rate_wilson95_high": 0.2775,
+            "full_completions": 0,
+            "full_completion_rate": 0.0,
+            "full_completion_wilson95_low": 0.0,
+            "full_completion_wilson95_high": 0.2775,
+            "gates_completed_total": 29,
+            "gates_expected_total": 170,
+            "mean_gates": 2.9,
+            "completion_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "penalized_time_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "time_per_gate_s": {
+              "n": 0,
+              "mean": null,
+              "median": null,
+              "ci_low": null,
+              "ci_high": null,
+              "sd": null
+            },
+            "collision_events": 82,
+            "collision_frames": 726,
+            "collision_episodes": 4,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 2,
+            "wrong_direction_episodes": 2,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 10,
+            "stuck_events": 0,
+            "safety_event_episodes": 4,
+            "safety_events_total": 84,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0804,
+              "median": 0.0789,
+              "sd": 0.0064,
+              "ci_low": 0.0759,
+              "ci_high": 0.085
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 30.6269,
+              "median": 29.8832,
+              "sd": 20.0906,
+              "ci_low": 16.2559,
+              "ci_high": 44.9978
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": false,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 55.9896,
+              "median": 55.0608,
+              "sd": 2.5518,
+              "ci_low": 54.1642,
+              "ci_high": 57.8149
+            },
+            "referee_status_counts": {
+              "DNF": 10
+            },
+            "end_reason_counts": {
+              "REFEREE_TERMINAL": 10
+            },
+            "failure_breakdown": {
+              "failures": 10,
+              "modes": {
+                "missed_gate_dnf": 10
+              },
+              "stopped_after_gates": {
+                "1/17": 3,
+                "2/17": 3,
+                "4/17": 2,
+                "6/17": 2
+              },
+              "median_gates_at_failure": 2.0
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          }
+        }
+      },
+      "rule_gate_center_then_commit": {
+        "overall_excluding_official": {
+          "episodes": 0,
+          "successes": 0,
+          "success_rate": null,
+          "success_rate_wilson95_low": null,
+          "success_rate_wilson95_high": null,
+          "full_completions": 0,
+          "full_completion_rate": null,
+          "full_completion_wilson95_low": null,
+          "full_completion_wilson95_high": null,
+          "gates_completed_total": 0,
+          "gates_expected_total": 0,
+          "mean_gates": null,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "mean_action_saturation": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "path_length_m": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "timeouts": 0,
+          "timeout_rate": null,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "referee_status_counts": {},
+          "end_reason_counts": {},
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": []
+        },
+        "official_circuits": {
+          "episodes": 30,
+          "successes": 30,
+          "success_rate": 1.0,
+          "success_rate_wilson95_low": 0.8865,
+          "success_rate_wilson95_high": 1.0,
+          "full_completions": 30,
+          "full_completion_rate": 1.0,
+          "full_completion_wilson95_low": 0.8865,
+          "full_completion_wilson95_high": 1.0,
+          "gates_completed_total": 510,
+          "gates_expected_total": 510,
+          "mean_gates": 17.0,
+          "completion_time_s": {
+            "n": 30,
+            "mean": 329.7733,
+            "median": 293.35,
+            "sd": 107.2778,
+            "ci_low": 289.7196,
+            "ci_high": 369.827
+          },
+          "penalized_time_s": {
+            "n": 30,
+            "mean": 329.7733,
+            "median": 293.35,
+            "sd": 107.2778,
+            "ci_low": 289.7196,
+            "ci_high": 369.827
+          },
+          "time_per_gate_s": {
+            "n": 30,
+            "mean": 19.1364,
+            "median": 19.0083,
+            "sd": 2.0077,
+            "ci_low": 18.3868,
+            "ci_high": 19.886
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 30,
+            "mean": 0.0333,
+            "median": 0.0339,
+            "sd": 0.0027,
+            "ci_low": 0.0323,
+            "ci_high": 0.0343
+          },
+          "mean_action_saturation": {
+            "n": 30,
+            "mean": 0.0,
+            "median": 0.0,
+            "sd": 0.0,
+            "ci_low": 0.0,
+            "ci_high": 0.0
+          },
+          "path_length_m": {
+            "n": 30,
+            "mean": 148.7211,
+            "median": 129.041,
+            "sd": 50.2443,
+            "ci_low": 129.9617,
+            "ci_high": 167.4806
+          },
+          "timeouts": 0,
+          "timeout_rate": 0.0,
+          "timing_meaningful": true,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 30,
+            "mean": 25.8612,
+            "median": 25.1921,
+            "sd": 1.3961,
+            "ci_low": 25.34,
+            "ci_high": 26.3825
+          },
+          "referee_status_counts": {
+            "FINISHED": 30
+          },
+          "end_reason_counts": {
+            "FINISHED": 30
+          },
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": [
+            1800,
+            1801,
+            1802,
+            1803,
+            1804,
+            1805,
+            1806,
+            1807,
+            1808,
+            1809
+          ]
+        },
+        "all_episodes": {
+          "episodes": 30,
+          "successes": 30,
+          "success_rate": 1.0,
+          "success_rate_wilson95_low": 0.8865,
+          "success_rate_wilson95_high": 1.0,
+          "full_completions": 30,
+          "full_completion_rate": 1.0,
+          "full_completion_wilson95_low": 0.8865,
+          "full_completion_wilson95_high": 1.0,
+          "gates_completed_total": 510,
+          "gates_expected_total": 510,
+          "mean_gates": 17.0,
+          "completion_time_s": {
+            "n": 30,
+            "mean": 329.7733,
+            "median": 293.35,
+            "sd": 107.2778,
+            "ci_low": 289.7196,
+            "ci_high": 369.827
+          },
+          "penalized_time_s": {
+            "n": 30,
+            "mean": 329.7733,
+            "median": 293.35,
+            "sd": 107.2778,
+            "ci_low": 289.7196,
+            "ci_high": 369.827
+          },
+          "time_per_gate_s": {
+            "n": 30,
+            "mean": 19.1364,
+            "median": 19.0083,
+            "sd": 2.0077,
+            "ci_low": 18.3868,
+            "ci_high": 19.886
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 30,
+            "mean": 0.0333,
+            "median": 0.0339,
+            "sd": 0.0027,
+            "ci_low": 0.0323,
+            "ci_high": 0.0343
+          },
+          "mean_action_saturation": {
+            "n": 30,
+            "mean": 0.0,
+            "median": 0.0,
+            "sd": 0.0,
+            "ci_low": 0.0,
+            "ci_high": 0.0
+          },
+          "path_length_m": {
+            "n": 30,
+            "mean": 148.7211,
+            "median": 129.041,
+            "sd": 50.2443,
+            "ci_low": 129.9617,
+            "ci_high": 167.4806
+          },
+          "timeouts": 0,
+          "timeout_rate": 0.0,
+          "timing_meaningful": true,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 30,
+            "mean": 25.8612,
+            "median": 25.1921,
+            "sd": 1.3961,
+            "ci_low": 25.34,
+            "ci_high": 26.3825
+          },
+          "referee_status_counts": {
+            "FINISHED": 30
+          },
+          "end_reason_counts": {
+            "FINISHED": 30
+          },
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": [
+            1800,
+            1801,
+            1802,
+            1803,
+            1804,
+            1805,
+            1806,
+            1807,
+            1808,
+            1809
+          ]
+        },
+        "holdout_only": {
+          "episodes": 0,
+          "successes": 0,
+          "success_rate": null,
+          "success_rate_wilson95_low": null,
+          "success_rate_wilson95_high": null,
+          "full_completions": 0,
+          "full_completion_rate": null,
+          "full_completion_wilson95_low": null,
+          "full_completion_wilson95_high": null,
+          "gates_completed_total": 0,
+          "gates_expected_total": 0,
+          "mean_gates": null,
+          "completion_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "penalized_time_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "time_per_gate_s": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "mean_action_saturation": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "path_length_m": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "timeouts": 0,
+          "timeout_rate": null,
+          "timing_meaningful": false,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 0,
+            "mean": null,
+            "median": null,
+            "ci_low": null,
+            "ci_high": null,
+            "sd": null
+          },
+          "referee_status_counts": {},
+          "end_reason_counts": {},
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": []
+        },
+        "reused_only": {
+          "episodes": 30,
+          "successes": 30,
+          "success_rate": 1.0,
+          "success_rate_wilson95_low": 0.8865,
+          "success_rate_wilson95_high": 1.0,
+          "full_completions": 30,
+          "full_completion_rate": 1.0,
+          "full_completion_wilson95_low": 0.8865,
+          "full_completion_wilson95_high": 1.0,
+          "gates_completed_total": 510,
+          "gates_expected_total": 510,
+          "mean_gates": 17.0,
+          "completion_time_s": {
+            "n": 30,
+            "mean": 329.7733,
+            "median": 293.35,
+            "sd": 107.2778,
+            "ci_low": 289.7196,
+            "ci_high": 369.827
+          },
+          "penalized_time_s": {
+            "n": 30,
+            "mean": 329.7733,
+            "median": 293.35,
+            "sd": 107.2778,
+            "ci_low": 289.7196,
+            "ci_high": 369.827
+          },
+          "time_per_gate_s": {
+            "n": 30,
+            "mean": 19.1364,
+            "median": 19.0083,
+            "sd": 2.0077,
+            "ci_low": 18.3868,
+            "ci_high": 19.886
+          },
+          "collision_events": 0,
+          "collision_frames": 0,
+          "collision_episodes": 0,
+          "out_of_bounds_events": 0,
+          "out_of_bounds_frames": 0,
+          "out_of_bounds_episodes": 0,
+          "wrong_direction_events": 0,
+          "wrong_direction_episodes": 0,
+          "previous_gate_returns": 0,
+          "missed_gate_attempts": 0,
+          "stuck_events": 0,
+          "safety_event_episodes": 0,
+          "safety_events_total": 0,
+          "mean_action_jerk": {
+            "n": 30,
+            "mean": 0.0333,
+            "median": 0.0339,
+            "sd": 0.0027,
+            "ci_low": 0.0323,
+            "ci_high": 0.0343
+          },
+          "mean_action_saturation": {
+            "n": 30,
+            "mean": 0.0,
+            "median": 0.0,
+            "sd": 0.0,
+            "ci_low": 0.0,
+            "ci_high": 0.0
+          },
+          "path_length_m": {
+            "n": 30,
+            "mean": 148.7211,
+            "median": 129.041,
+            "sd": 50.2443,
+            "ci_low": 129.9617,
+            "ci_high": 167.4806
+          },
+          "timeouts": 0,
+          "timeout_rate": 0.0,
+          "timing_meaningful": true,
+          "harness_errors": 0,
+          "mean_inference_ms": {
+            "n": 30,
+            "mean": 25.8612,
+            "median": 25.1921,
+            "sd": 1.3961,
+            "ci_low": 25.34,
+            "ci_high": 26.3825
+          },
+          "referee_status_counts": {
+            "FINISHED": 30
+          },
+          "end_reason_counts": {
+            "FINISHED": 30
+          },
+          "failure_breakdown": {
+            "failures": 0,
+            "modes": {},
+            "stopped_after_gates": {},
+            "median_gates_at_failure": null
+          },
+          "seeds": [
+            1800,
+            1801,
+            1802,
+            1803,
+            1804,
+            1805,
+            1806,
+            1807,
+            1808,
+            1809
+          ]
+        },
+        "by_group": {
+          "official_horseshoe_bay": {
+            "episodes": 10,
+            "successes": 10,
+            "success_rate": 1.0,
+            "success_rate_wilson95_low": 0.7225,
+            "success_rate_wilson95_high": 1.0,
+            "full_completions": 10,
+            "full_completion_rate": 1.0,
+            "full_completion_wilson95_low": 0.7225,
+            "full_completion_wilson95_high": 1.0,
+            "gates_completed_total": 120,
+            "gates_expected_total": 120,
+            "mean_gates": 12.0,
+            "completion_time_s": {
+              "n": 10,
+              "mean": 225.87,
+              "median": 228.1,
+              "sd": 11.2448,
+              "ci_low": 217.8265,
+              "ci_high": 233.9135
+            },
+            "penalized_time_s": {
+              "n": 10,
+              "mean": 225.87,
+              "median": 228.1,
+              "sd": 11.2448,
+              "ci_low": 217.8265,
+              "ci_high": 233.9135
+            },
+            "time_per_gate_s": {
+              "n": 10,
+              "mean": 18.8225,
+              "median": 19.0083,
+              "sd": 0.9371,
+              "ci_low": 18.1522,
+              "ci_high": 19.4928
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 0,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0303,
+              "median": 0.0305,
+              "sd": 0.0018,
+              "ci_low": 0.029,
+              "ci_high": 0.0316
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 100.3924,
+              "median": 100.2113,
+              "sd": 1.0364,
+              "ci_low": 99.651,
+              "ci_high": 101.1337
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": true,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 26.8649,
+              "median": 26.7797,
+              "sd": 1.8309,
+              "ci_low": 25.5552,
+              "ci_high": 28.1746
+            },
+            "referee_status_counts": {
+              "FINISHED": 10
+            },
+            "end_reason_counts": {
+              "FINISHED": 10
+            },
+            "failure_breakdown": {
+              "failures": 0,
+              "modes": {},
+              "stopped_after_gates": {},
+              "median_gates_at_failure": null
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_vertical_serpent": {
+            "episodes": 10,
+            "successes": 10,
+            "success_rate": 1.0,
+            "success_rate_wilson95_low": 0.7225,
+            "success_rate_wilson95_high": 1.0,
+            "full_completions": 10,
+            "full_completion_rate": 1.0,
+            "full_completion_wilson95_low": 0.7225,
+            "full_completion_wilson95_high": 1.0,
+            "gates_completed_total": 170,
+            "gates_expected_total": 170,
+            "mean_gates": 17.0,
+            "completion_time_s": {
+              "n": 10,
+              "mean": 290.55,
+              "median": 293.35,
+              "sd": 10.579,
+              "ci_low": 282.9827,
+              "ci_high": 298.1173
+            },
+            "penalized_time_s": {
+              "n": 10,
+              "mean": 290.55,
+              "median": 293.35,
+              "sd": 10.579,
+              "ci_low": 282.9827,
+              "ci_high": 298.1173
+            },
+            "time_per_gate_s": {
+              "n": 10,
+              "mean": 17.0912,
+              "median": 17.2559,
+              "sd": 0.6223,
+              "ci_low": 16.646,
+              "ci_high": 17.5363
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 0,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0342,
+              "median": 0.0342,
+              "sd": 0.0014,
+              "ci_low": 0.0332,
+              "ci_high": 0.0352
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 129.2207,
+              "median": 129.041,
+              "sd": 1.0535,
+              "ci_low": 128.4671,
+              "ci_high": 129.9742
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": true,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 25.3305,
+              "median": 25.0278,
+              "sd": 0.7999,
+              "ci_low": 24.7583,
+              "ci_high": 25.9026
+            },
+            "referee_status_counts": {
+              "FINISHED": 10
+            },
+            "end_reason_counts": {
+              "FINISHED": 10
+            },
+            "failure_breakdown": {
+              "failures": 0,
+              "modes": {},
+              "stopped_after_gates": {},
+              "median_gates_at_failure": null
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_mixed_endurance": {
+            "episodes": 10,
+            "successes": 10,
+            "success_rate": 1.0,
+            "success_rate_wilson95_low": 0.7225,
+            "success_rate_wilson95_high": 1.0,
+            "full_completions": 10,
+            "full_completion_rate": 1.0,
+            "full_completion_wilson95_low": 0.7225,
+            "full_completion_wilson95_high": 1.0,
+            "gates_completed_total": 220,
+            "gates_expected_total": 220,
+            "mean_gates": 22.0,
+            "completion_time_s": {
+              "n": 10,
+              "mean": 472.9,
+              "median": 471.35,
+              "sd": 19.4529,
+              "ci_low": 458.9852,
+              "ci_high": 486.8148
+            },
+            "penalized_time_s": {
+              "n": 10,
+              "mean": 472.9,
+              "median": 471.35,
+              "sd": 19.4529,
+              "ci_low": 458.9852,
+              "ci_high": 486.8148
+            },
+            "time_per_gate_s": {
+              "n": 10,
+              "mean": 21.4955,
+              "median": 21.425,
+              "sd": 0.8842,
+              "ci_low": 20.863,
+              "ci_high": 22.1279
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 0,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0355,
+              "median": 0.0353,
+              "sd": 0.0012,
+              "ci_low": 0.0346,
+              "ci_high": 0.0363
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 216.5504,
+              "median": 216.5262,
+              "sd": 1.6002,
+              "ci_low": 215.4057,
+              "ci_high": 217.695
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": true,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 25.3884,
+              "median": 25.1275,
+              "sd": 0.7794,
+              "ci_low": 24.8309,
+              "ci_high": 25.9459
+            },
+            "referee_status_counts": {
+              "FINISHED": 10
+            },
+            "end_reason_counts": {
+              "FINISHED": 10
+            },
+            "failure_breakdown": {
+              "failures": 0,
+              "modes": {},
+              "stopped_after_gates": {},
+              "median_gates_at_failure": null
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          }
+        },
+        "by_case": {
+          "official_horseshoe_bay/horseshoe_bay": {
+            "episodes": 10,
+            "successes": 10,
+            "success_rate": 1.0,
+            "success_rate_wilson95_low": 0.7225,
+            "success_rate_wilson95_high": 1.0,
+            "full_completions": 10,
+            "full_completion_rate": 1.0,
+            "full_completion_wilson95_low": 0.7225,
+            "full_completion_wilson95_high": 1.0,
+            "gates_completed_total": 120,
+            "gates_expected_total": 120,
+            "mean_gates": 12.0,
+            "completion_time_s": {
+              "n": 10,
+              "mean": 225.87,
+              "median": 228.1,
+              "sd": 11.2448,
+              "ci_low": 217.8265,
+              "ci_high": 233.9135
+            },
+            "penalized_time_s": {
+              "n": 10,
+              "mean": 225.87,
+              "median": 228.1,
+              "sd": 11.2448,
+              "ci_low": 217.8265,
+              "ci_high": 233.9135
+            },
+            "time_per_gate_s": {
+              "n": 10,
+              "mean": 18.8225,
+              "median": 19.0083,
+              "sd": 0.9371,
+              "ci_low": 18.1522,
+              "ci_high": 19.4928
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 0,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0303,
+              "median": 0.0305,
+              "sd": 0.0018,
+              "ci_low": 0.029,
+              "ci_high": 0.0316
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 100.3924,
+              "median": 100.2113,
+              "sd": 1.0364,
+              "ci_low": 99.651,
+              "ci_high": 101.1337
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": true,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 26.8649,
+              "median": 26.7797,
+              "sd": 1.8309,
+              "ci_low": 25.5552,
+              "ci_high": 28.1746
+            },
+            "referee_status_counts": {
+              "FINISHED": 10
+            },
+            "end_reason_counts": {
+              "FINISHED": 10
+            },
+            "failure_breakdown": {
+              "failures": 0,
+              "modes": {},
+              "stopped_after_gates": {},
+              "median_gates_at_failure": null
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_mixed_endurance/mixed_endurance": {
+            "episodes": 10,
+            "successes": 10,
+            "success_rate": 1.0,
+            "success_rate_wilson95_low": 0.7225,
+            "success_rate_wilson95_high": 1.0,
+            "full_completions": 10,
+            "full_completion_rate": 1.0,
+            "full_completion_wilson95_low": 0.7225,
+            "full_completion_wilson95_high": 1.0,
+            "gates_completed_total": 220,
+            "gates_expected_total": 220,
+            "mean_gates": 22.0,
+            "completion_time_s": {
+              "n": 10,
+              "mean": 472.9,
+              "median": 471.35,
+              "sd": 19.4529,
+              "ci_low": 458.9852,
+              "ci_high": 486.8148
+            },
+            "penalized_time_s": {
+              "n": 10,
+              "mean": 472.9,
+              "median": 471.35,
+              "sd": 19.4529,
+              "ci_low": 458.9852,
+              "ci_high": 486.8148
+            },
+            "time_per_gate_s": {
+              "n": 10,
+              "mean": 21.4955,
+              "median": 21.425,
+              "sd": 0.8842,
+              "ci_low": 20.863,
+              "ci_high": 22.1279
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 0,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0355,
+              "median": 0.0353,
+              "sd": 0.0012,
+              "ci_low": 0.0346,
+              "ci_high": 0.0363
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 216.5504,
+              "median": 216.5262,
+              "sd": 1.6002,
+              "ci_low": 215.4057,
+              "ci_high": 217.695
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": true,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 25.3884,
+              "median": 25.1275,
+              "sd": 0.7794,
+              "ci_low": 24.8309,
+              "ci_high": 25.9459
+            },
+            "referee_status_counts": {
+              "FINISHED": 10
+            },
+            "end_reason_counts": {
+              "FINISHED": 10
+            },
+            "failure_breakdown": {
+              "failures": 0,
+              "modes": {},
+              "stopped_after_gates": {},
+              "median_gates_at_failure": null
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          },
+          "official_vertical_serpent/vertical_serpent": {
+            "episodes": 10,
+            "successes": 10,
+            "success_rate": 1.0,
+            "success_rate_wilson95_low": 0.7225,
+            "success_rate_wilson95_high": 1.0,
+            "full_completions": 10,
+            "full_completion_rate": 1.0,
+            "full_completion_wilson95_low": 0.7225,
+            "full_completion_wilson95_high": 1.0,
+            "gates_completed_total": 170,
+            "gates_expected_total": 170,
+            "mean_gates": 17.0,
+            "completion_time_s": {
+              "n": 10,
+              "mean": 290.55,
+              "median": 293.35,
+              "sd": 10.579,
+              "ci_low": 282.9827,
+              "ci_high": 298.1173
+            },
+            "penalized_time_s": {
+              "n": 10,
+              "mean": 290.55,
+              "median": 293.35,
+              "sd": 10.579,
+              "ci_low": 282.9827,
+              "ci_high": 298.1173
+            },
+            "time_per_gate_s": {
+              "n": 10,
+              "mean": 17.0912,
+              "median": 17.2559,
+              "sd": 0.6223,
+              "ci_low": 16.646,
+              "ci_high": 17.5363
+            },
+            "collision_events": 0,
+            "collision_frames": 0,
+            "collision_episodes": 0,
+            "out_of_bounds_events": 0,
+            "out_of_bounds_frames": 0,
+            "out_of_bounds_episodes": 0,
+            "wrong_direction_events": 0,
+            "wrong_direction_episodes": 0,
+            "previous_gate_returns": 0,
+            "missed_gate_attempts": 0,
+            "stuck_events": 0,
+            "safety_event_episodes": 0,
+            "safety_events_total": 0,
+            "mean_action_jerk": {
+              "n": 10,
+              "mean": 0.0342,
+              "median": 0.0342,
+              "sd": 0.0014,
+              "ci_low": 0.0332,
+              "ci_high": 0.0352
+            },
+            "mean_action_saturation": {
+              "n": 10,
+              "mean": 0.0,
+              "median": 0.0,
+              "sd": 0.0,
+              "ci_low": 0.0,
+              "ci_high": 0.0
+            },
+            "path_length_m": {
+              "n": 10,
+              "mean": 129.2207,
+              "median": 129.041,
+              "sd": 1.0535,
+              "ci_low": 128.4671,
+              "ci_high": 129.9742
+            },
+            "timeouts": 0,
+            "timeout_rate": 0.0,
+            "timing_meaningful": true,
+            "harness_errors": 0,
+            "mean_inference_ms": {
+              "n": 10,
+              "mean": 25.3305,
+              "median": 25.0278,
+              "sd": 0.7999,
+              "ci_low": 24.7583,
+              "ci_high": 25.9026
+            },
+            "referee_status_counts": {
+              "FINISHED": 10
+            },
+            "end_reason_counts": {
+              "FINISHED": 10
+            },
+            "failure_breakdown": {
+              "failures": 0,
+              "modes": {},
+              "stopped_after_gates": {},
+              "median_gates_at_failure": null
+            },
+            "seeds": [
+              1800,
+              1801,
+              1802,
+              1803,
+              1804,
+              1805,
+              1806,
+              1807,
+              1808,
+              1809
+            ]
+          }
+        }
+      }
+    },
+    "groups": [
+      "official_horseshoe_bay",
+      "official_vertical_serpent",
+      "official_mixed_endurance"
+    ]
+  },
+  "paired_comparisons": [
+    {
+      "controller_a": "ppo_final_generic_929792",
+      "controller_b": "rule_gate_center_then_commit",
+      "groups": "all",
+      "paired_episodes": 30,
+      "a_successes": 0,
+      "b_successes": 30,
+      "a_full_completions": 0,
+      "b_full_completions": 30,
+      "both_finished": 0,
+      "only_a_finished": 0,
+      "only_b_finished": 30,
+      "only_a_finished_cases": [],
+      "only_b_finished_cases": [
+        "official_horseshoe_bay/horseshoe_bay@1800",
+        "official_horseshoe_bay/horseshoe_bay@1801",
+        "official_horseshoe_bay/horseshoe_bay@1802",
+        "official_horseshoe_bay/horseshoe_bay@1803",
+        "official_horseshoe_bay/horseshoe_bay@1804",
+        "official_horseshoe_bay/horseshoe_bay@1805",
+        "official_horseshoe_bay/horseshoe_bay@1806",
+        "official_horseshoe_bay/horseshoe_bay@1807",
+        "official_horseshoe_bay/horseshoe_bay@1808",
+        "official_horseshoe_bay/horseshoe_bay@1809",
+        "official_mixed_endurance/mixed_endurance@1800",
+        "official_mixed_endurance/mixed_endurance@1801",
+        "official_mixed_endurance/mixed_endurance@1802",
+        "official_mixed_endurance/mixed_endurance@1803",
+        "official_mixed_endurance/mixed_endurance@1804",
+        "official_mixed_endurance/mixed_endurance@1805",
+        "official_mixed_endurance/mixed_endurance@1806",
+        "official_mixed_endurance/mixed_endurance@1807",
+        "official_mixed_endurance/mixed_endurance@1808",
+        "official_mixed_endurance/mixed_endurance@1809",
+        "official_vertical_serpent/vertical_serpent@1800",
+        "official_vertical_serpent/vertical_serpent@1801",
+        "official_vertical_serpent/vertical_serpent@1802",
+        "official_vertical_serpent/vertical_serpent@1803",
+        "official_vertical_serpent/vertical_serpent@1804",
+        "official_vertical_serpent/vertical_serpent@1805",
+        "official_vertical_serpent/vertical_serpent@1806",
+        "official_vertical_serpent/vertical_serpent@1807",
+        "official_vertical_serpent/vertical_serpent@1808",
+        "official_vertical_serpent/vertical_serpent@1809"
+      ],
+      "reliability_sign_test_p": 0.0,
+      "time_delta_s": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_faster_episodes": 0,
+      "b_faster_episodes": 0,
+      "time_sign_test_p": null,
+      "jerk_delta": {
+        "n": 30,
+        "mean": 0.0474,
+        "median": 0.046,
+        "sd": 0.0064,
+        "ci_low": 0.045,
+        "ci_high": 0.0498
+      },
+      "path_length_delta_m": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_safety_events": 84,
+      "b_safety_events": 0
+    }
+  ],
+  "paired_comparisons_by_group": [
+    {
+      "controller_a": "ppo_final_generic_929792",
+      "controller_b": "rule_gate_center_then_commit",
+      "groups": [
+        "official_horseshoe_bay"
+      ],
+      "paired_episodes": 10,
+      "a_successes": 0,
+      "b_successes": 10,
+      "a_full_completions": 0,
+      "b_full_completions": 10,
+      "both_finished": 0,
+      "only_a_finished": 0,
+      "only_b_finished": 10,
+      "only_a_finished_cases": [],
+      "only_b_finished_cases": [
+        "official_horseshoe_bay/horseshoe_bay@1800",
+        "official_horseshoe_bay/horseshoe_bay@1801",
+        "official_horseshoe_bay/horseshoe_bay@1802",
+        "official_horseshoe_bay/horseshoe_bay@1803",
+        "official_horseshoe_bay/horseshoe_bay@1804",
+        "official_horseshoe_bay/horseshoe_bay@1805",
+        "official_horseshoe_bay/horseshoe_bay@1806",
+        "official_horseshoe_bay/horseshoe_bay@1807",
+        "official_horseshoe_bay/horseshoe_bay@1808",
+        "official_horseshoe_bay/horseshoe_bay@1809"
+      ],
+      "reliability_sign_test_p": 0.00195,
+      "time_delta_s": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_faster_episodes": 0,
+      "b_faster_episodes": 0,
+      "time_sign_test_p": null,
+      "jerk_delta": {
+        "n": 10,
+        "mean": 0.0434,
+        "median": 0.0429,
+        "sd": 0.003,
+        "ci_low": 0.0413,
+        "ci_high": 0.0456
+      },
+      "path_length_delta_m": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_safety_events": 0,
+      "b_safety_events": 0
+    },
+    {
+      "controller_a": "ppo_final_generic_929792",
+      "controller_b": "rule_gate_center_then_commit",
+      "groups": [
+        "official_vertical_serpent"
+      ],
+      "paired_episodes": 10,
+      "a_successes": 0,
+      "b_successes": 10,
+      "a_full_completions": 0,
+      "b_full_completions": 10,
+      "both_finished": 0,
+      "only_a_finished": 0,
+      "only_b_finished": 10,
+      "only_a_finished_cases": [],
+      "only_b_finished_cases": [
+        "official_vertical_serpent/vertical_serpent@1800",
+        "official_vertical_serpent/vertical_serpent@1801",
+        "official_vertical_serpent/vertical_serpent@1802",
+        "official_vertical_serpent/vertical_serpent@1803",
+        "official_vertical_serpent/vertical_serpent@1804",
+        "official_vertical_serpent/vertical_serpent@1805",
+        "official_vertical_serpent/vertical_serpent@1806",
+        "official_vertical_serpent/vertical_serpent@1807",
+        "official_vertical_serpent/vertical_serpent@1808",
+        "official_vertical_serpent/vertical_serpent@1809"
+      ],
+      "reliability_sign_test_p": 0.00195,
+      "time_delta_s": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_faster_episodes": 0,
+      "b_faster_episodes": 0,
+      "time_sign_test_p": null,
+      "jerk_delta": {
+        "n": 10,
+        "mean": 0.0463,
+        "median": 0.0448,
+        "sd": 0.0065,
+        "ci_low": 0.0416,
+        "ci_high": 0.0509
+      },
+      "path_length_delta_m": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_safety_events": 84,
+      "b_safety_events": 0
+    },
+    {
+      "controller_a": "ppo_final_generic_929792",
+      "controller_b": "rule_gate_center_then_commit",
+      "groups": [
+        "official_mixed_endurance"
+      ],
+      "paired_episodes": 10,
+      "a_successes": 0,
+      "b_successes": 10,
+      "a_full_completions": 0,
+      "b_full_completions": 10,
+      "both_finished": 0,
+      "only_a_finished": 0,
+      "only_b_finished": 10,
+      "only_a_finished_cases": [],
+      "only_b_finished_cases": [
+        "official_mixed_endurance/mixed_endurance@1800",
+        "official_mixed_endurance/mixed_endurance@1801",
+        "official_mixed_endurance/mixed_endurance@1802",
+        "official_mixed_endurance/mixed_endurance@1803",
+        "official_mixed_endurance/mixed_endurance@1804",
+        "official_mixed_endurance/mixed_endurance@1805",
+        "official_mixed_endurance/mixed_endurance@1806",
+        "official_mixed_endurance/mixed_endurance@1807",
+        "official_mixed_endurance/mixed_endurance@1808",
+        "official_mixed_endurance/mixed_endurance@1809"
+      ],
+      "reliability_sign_test_p": 0.00195,
+      "time_delta_s": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_faster_episodes": 0,
+      "b_faster_episodes": 0,
+      "time_sign_test_p": null,
+      "jerk_delta": {
+        "n": 10,
+        "mean": 0.0524,
+        "median": 0.0518,
+        "sd": 0.0058,
+        "ci_low": 0.0483,
+        "ci_high": 0.0565
+      },
+      "path_length_delta_m": {
+        "n": 0,
+        "mean": null,
+        "median": null,
+        "ci_low": null,
+        "ci_high": null,
+        "sd": null
+      },
+      "a_safety_events": 0,
+      "b_safety_events": 0
+    }
+  ],
+  "recommendation": {
+    "priority": [
+      "full-circuit reliability",
+      "zero safety events",
+      "three-gate and vertical-transition reliability",
+      "completion time",
+      "smoothness"
+    ],
+    "ranking": [
+      {
+        "rank": 1,
+        "controller": "rule_gate_center_then_commit",
+        "official_full_completion_rate": 1.0,
+        "official_episodes": 30,
+        "safety_event_episodes": 0,
+        "safety_events_total": 0,
+        "three_gate_success_rate": 0.0,
+        "vertical_transition_success_rate": 0.0,
+        "non_official_success_rate": null,
+        "mean_within_group_time_rank": null,
+        "mean_within_group_jerk_rank": 1.0
+      },
+      {
+        "rank": 2,
+        "controller": "ppo_final_generic_929792",
+        "official_full_completion_rate": 0.0,
+        "official_episodes": 30,
+        "safety_event_episodes": 4,
+        "safety_events_total": 84,
+        "three_gate_success_rate": 0.0,
+        "vertical_transition_success_rate": 0.0,
+        "non_official_success_rate": null,
+        "mean_within_group_time_rank": null,
+        "mean_within_group_jerk_rank": 2.0
+      }
+    ],
+    "best_overall_policy_controller": "rule_gate_center_then_commit",
+    "best_ppo_checkpoint": "ppo_final_generic_929792",
+    "ppo_ranking": [
+      "ppo_final_generic_929792"
+    ],
+    "excluded_from_selection": []
+  },
+  "next_stage_evidence": {
+    "ppo_final_generic_929792": {
+      "single_gate_retention": {
+        "episodes": 0,
+        "successes": 0,
+        "success_rate": null,
+        "safety_event_episodes": 0,
+        "failure_modes": {}
+      },
+      "two_gate_turns": {
+        "episodes": 0,
+        "successes": 0,
+        "success_rate": null,
+        "safety_event_episodes": 0,
+        "failure_modes": {}
+      },
+      "vertical_transitions": {
+        "episodes": 0,
+        "successes": 0,
+        "success_rate": null,
+        "safety_event_episodes": 0,
+        "failure_modes": {}
+      },
+      "three_gate_sequences": {
+        "episodes": 0,
+        "successes": 0,
+        "success_rate": null,
+        "safety_event_episodes": 0,
+        "failure_modes": {}
+      },
+      "official_circuits": {
+        "episodes": 30,
+        "successes": 0,
+        "success_rate": 0.0,
+        "safety_event_episodes": 4,
+        "failure_modes": {
+          "missed_gate_dnf": 30
+        }
+      }
+    }
+  },
+  "plots": [],
+  "videos": []
+}

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+from types import SimpleNamespace
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from marine_race_arena.adapters import AdapterSelectionError, FallbackRaceAdapter, RaceAdapterUnavailable, select_adapter
 from marine_race_arena.adapters.holoocean_adapter import HoloOceanRaceAdapter
@@ -96,6 +101,44 @@ def test_command_mapping_clamps_thrusters() -> None:
     assert all(-1.0 <= value <= 1.0 for value in thrusters)
 
 
+def test_holoocean_reset_applies_configured_water_fog_after_level_reset() -> None:
+    config, arena, _ = _config_arena_participant()
+    config = replace(
+        config,
+        raw={
+            **config.raw,
+            "water_fog": {
+                "enabled": True,
+                "density": 5.0,
+                "start_distance_m": 1.0,
+                "color_rgb": [0.4, 0.6, 1.0],
+            },
+        },
+    )
+
+    class FogEnvironment:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def reset(self):
+            self.calls.append(("reset",))
+            return None
+
+        def water_fog(self, *values):
+            self.calls.append(("water_fog", *values))
+
+    env = FogEnvironment()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = env
+
+    adapter.reset()
+
+    assert env.calls == [
+        ("reset",),
+        ("water_fog", 5.0, 1.0, 0.4, 0.6, 1.0),
+    ]
+
+
 def test_official_filter_removes_ground_truth_pose() -> None:
     config, arena, _ = _config_arena_participant()
     adapter = FallbackRaceAdapter(config, arena)
@@ -134,3 +177,216 @@ def test_holoocean_close_uses_context_manager_and_drops_environment_references()
     assert env.exit_calls == [(None, None, None)]
     assert adapter.env is None
     assert adapter.visual_spawner is None
+
+
+def test_holoocean_close_force_reaps_a_leaked_windows_world_process() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class LeakedWorldProcess:
+        pid = 43210
+
+        def __init__(self) -> None:
+            self.kill_calls = 0
+            self.stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def kill(self) -> None:
+            self.kill_calls += 1
+
+        def wait(self, timeout: int):
+            if not self.stopped:
+                raise subprocess.TimeoutExpired("Holodeck", timeout)
+            return 0
+
+    class LeakingEnvironment:
+        def __init__(self) -> None:
+            self._world_process = LeakedWorldProcess()
+            self.exit_calls = 0
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            self.exit_calls += 1
+
+    env = LeakingEnvironment()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = env
+
+    def taskkill(command, **kwargs):
+        assert command == ["taskkill", "/PID", "43210", "/T", "/F"]
+        env._world_process.stopped = True
+        return subprocess.CompletedProcess(command, 0)
+
+    with (
+        patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
+        patch(
+            "marine_race_arena.adapters.holoocean_adapter.subprocess.run",
+            side_effect=taskkill,
+        ) as run,
+    ):
+        adapter.close()
+
+    assert env.exit_calls == 1
+    assert env._world_process.kill_calls == 1
+    run.assert_called_once()
+    assert adapter.env is None
+
+
+def test_holoocean_close_reaps_same_uuid_process_after_handle_reports_exit() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class ClosedWorldProcess:
+        def poll(self):
+            return 0
+
+    class Environment:
+        _uuid = "exact-environment-uuid"
+        _world_process = ClosedWorldProcess()
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+    class Process:
+        def __init__(self, pid: int, uuid: str) -> None:
+            self.pid = pid
+            self.info = {
+                "pid": pid,
+                "name": "Holodeck.exe",
+                "cmdline": ["Holodeck", f"--HolodeckUUID={uuid}"],
+            }
+            self.killed = False
+            self.waited = False
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, timeout: int) -> None:
+            assert timeout == 5
+            self.waited = True
+
+    matching = Process(101, "exact-environment-uuid")
+    unrelated = Process(202, "other-environment-uuid")
+    fake_psutil = SimpleNamespace(
+        process_iter=lambda attrs: [matching, unrelated],
+        NoSuchProcess=type("NoSuchProcess", (Exception,), {}),
+        AccessDenied=type("AccessDenied", (Exception,), {}),
+        TimeoutExpired=type("TimeoutExpired", (Exception,), {}),
+    )
+    adapter = HoloOceanRaceAdapter(config, arena)
+    adapter.env = Environment()
+
+    with (
+        patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
+        patch.dict(sys.modules, {"psutil": fake_psutil}),
+    ):
+        adapter.close()
+
+    assert matching.killed and matching.waited
+    assert not unrelated.killed
+    assert adapter.env is None
+
+
+def test_holoocean_close_final_sweep_reaps_only_owned_engine_children() -> None:
+    config, arena, _ = _config_arena_participant()
+
+    class Process:
+        def __init__(self, pid: int, ppid: int, name: str = "Holodeck.exe") -> None:
+            self.pid = pid
+            self.info = {"pid": pid, "ppid": ppid, "name": name, "cmdline": []}
+            self.killed = False
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, timeout: int) -> None:
+            assert timeout == 5
+
+    owned = Process(301, 777)
+    other_worker = Process(302, 888)
+    unrelated = Process(303, 777, "python.exe")
+    fake_psutil = SimpleNamespace(
+        process_iter=lambda attrs: [owned, other_worker, unrelated],
+        NoSuchProcess=type("NoSuchProcess", (Exception,), {}),
+        AccessDenied=type("AccessDenied", (Exception,), {}),
+        TimeoutExpired=type("TimeoutExpired", (Exception,), {}),
+    )
+    adapter = HoloOceanRaceAdapter(config, arena)
+    taskkills: list[list[str]] = []
+
+    def taskkill(command, **kwargs):
+        taskkills.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    with (
+        patch("marine_race_arena.adapters.holoocean_adapter.os.name", "nt"),
+        patch.dict(sys.modules, {"psutil": fake_psutil}),
+        patch(
+            "marine_race_arena.adapters.holoocean_adapter.subprocess.run",
+            side_effect=taskkill,
+        ),
+    ):
+        adapter._ensure_owned_holodeck_children_stopped(owner_pid=777)
+
+    assert taskkills == [["taskkill", "/PID", "301", "/T", "/F"]]
+    assert not other_worker.killed
+    assert not unrelated.killed
+
+
+class _QualifyingEngine:
+    """A stub that behaves like a genuinely healthy engine.
+
+    A returned environment must now pass startup qualification, so the stub owns
+    a UUID and answers ticks with advancing sensor data.
+    """
+
+    def __init__(self, uuid: str = "stub-uuid") -> None:
+        self._uuid = uuid
+        self._ticks = 0
+
+    def tick(self):
+        self._ticks += 1
+        return {"PoseSensor": float(self._ticks)}
+
+
+def test_holoocean_failed_environment_candidate_is_reaped_before_retry() -> None:
+    config, arena, _ = _config_arena_participant()
+    adapter = HoloOceanRaceAdapter(config, arena)
+    expected_environment = _QualifyingEngine()
+    attempts = 0
+
+    def make(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("engine handshake failed after launch")
+        return expected_environment
+
+    adapter._holoocean = SimpleNamespace(make=make)
+    with patch.object(
+        adapter, "_ensure_owned_holodeck_children_stopped"
+    ) as cleanup:
+        actual = adapter._make_environment()
+
+    assert actual is expected_environment
+    assert attempts == 2
+    cleanup.assert_called_once_with()
+    assert adapter.last_engine_health["healthy"] is True
+
+
+def test_holoocean_environment_that_never_qualifies_is_not_returned() -> None:
+    """A live engine that cannot answer ticks must never reach a learner."""
+
+    config, arena, _ = _config_arena_participant()
+    adapter = HoloOceanRaceAdapter(config, arena)
+
+    class _DeadOnArrival:
+        _uuid = "stub-uuid"
+
+        def tick(self):
+            raise RuntimeError("engine went away")
+
+    adapter._holoocean = SimpleNamespace(make=lambda **kwargs: _DeadOnArrival())
+    with patch.object(adapter, "_ensure_owned_holodeck_children_stopped"):
+        with pytest.raises(RaceAdapterUnavailable):
+            adapter._make_environment()
+    assert adapter.last_engine_health["healthy"] is False

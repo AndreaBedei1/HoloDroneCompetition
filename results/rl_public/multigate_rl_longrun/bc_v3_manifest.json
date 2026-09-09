@@ -1,0 +1,62 @@
+{
+  "schema_version": "balanced_bc_v3_public_manifest_v1",
+  "status": "SELECTED_WARM_START",
+  "model_path": "results/rl/multigate_longrun/bc_v3_balanced_v2_20260728/bc_v3.pt",
+  "model_sha256": "c9a889125278122b57307e21b7c2390baa61429f8952093bcc2760d9b3a49bf2",
+  "model_bytes": 334065,
+  "training_code_sha": "db8c68de05d1922bea17b001cdb0e48e2bd891ae",
+  "source_r1_sha256": "de7e835132ee57fbe94ee3a2388f0f7554fd6bf41228c8e048000c61fd5b0b6b",
+  "epochs_completed": 200,
+  "early_stopping_patience": 25,
+  "mixture": {
+    "single_gate": 0.2,
+    "straight": 0.2,
+    "turns": 0.5,
+    "dagger_corrections": 0.1
+  },
+  "split_steps": {
+    "train": 46411,
+    "validation": 13989,
+    "test": 6460
+  },
+  "split_invariants": {
+    "seed_disjoint_all_pairs": true,
+    "track_disjoint_all_pairs": true,
+    "geometry_group_disjoint_all_pairs": true
+  },
+  "final_test_metrics": {
+    "mse": 0.0008990599890239537,
+    "mse_surge": 0.001865071477368474,
+    "mse_sway": 0.00025265480508096516,
+    "mse_heave": 0.0010798049625009298,
+    "mse_yaw": 0.0003987086529377848,
+    "left_turn_sign_accuracy": 0.9847715736040609,
+    "right_turn_sign_accuracy": 0.9650837988826816
+  },
+  "selection": {
+    "candidate": 0,
+    "validation_mse": 0.0011107027530670166,
+    "held_out_real_holoocean_episodes": 20,
+    "completion_rate": 1.0,
+    "single_gate_completion_rate": 1.0,
+    "straight_completion_rate": 1.0,
+    "left_completion_rate": 1.0,
+    "right_completion_rate": 1.0,
+    "safety_events": 0,
+    "previous_gate_returns": 0,
+    "mean_penalized_time_s": 26.490000000000002,
+    "mean_action_jerk": 0.02760343635454774
+  },
+  "selection_order": [
+    "single-gate completion",
+    "straight completion",
+    "left completion",
+    "right completion",
+    "safety",
+    "previous-gate returns",
+    "penalized time",
+    "action jerk"
+  ],
+  "runtime_expert_or_rules": false,
+  "full_multiday_run_started": false
+}
