@@ -12,10 +12,13 @@ sensor variety and training throughput, on which several listed systems exceed
 System & Domain & Physics and sensing & Gate & Indep. & Obs. & Multi- & Team \\
  &  &  & race & referee & contract & robot & score \\
 \midrule
-UUV Simulator~\cite{manhas2016uuvsim} & Underwater & Gazebo, hydrodynamics & no & no & no & \checkmark & no \\
-Stonefish~\cite{cieslak2019stonefish} & Underwater & Custom marine physics, sensors, ROS & no & no & no & no & no \\
-DAVE~\cite{zhang2022dave} & Underwater & Gazebo, acoustic and optical sensing & no & no & no & \checkmark & no \\
-MarineGym~\cite{chu2025marinegym} & Underwater & Isaac Sim, GPU hydrodynamics, RL tasks & no & no & \checkmark & partial & no \\
+UUV Simulator~\cite{manhas2016uuvsim} & Underwater & Gazebo, hydrodynamics & -- & -- & -- & \checkmark & -- \\
+Stonefish~\cite{cieslak2019stonefish} & Underwater & Custom marine physics, sensors, ROS & -- & -- & -- & -- & -- \\
+DAVE~\cite{zhang2022dave} & Underwater & Gazebo, acoustic and optical sensing & -- & -- & -- & \checkmark & -- \\
+HoloOcean~\cite{potokar2024holoocean} & Underwater & Unreal Engine, sonar and onboard sensors & -- & -- & -- & \checkmark & -- \\
+URoBench~\cite{huang2024urobench} & Underwater & Cross-simulator navigation benchmark & -- & -- & \checkmark & -- & -- \\
+UNav-Sim~\cite{amer2023unavsim} & Underwater & Unreal-based navigation simulation & -- & -- & -- & -- & -- \\
+MarineGym~\cite{chu2025marinegym} & Underwater & Isaac Sim, GPU hydrodynamics, RL tasks & -- & -- & \checkmark & \textit{partial} & -- \\
 F1TENTH~\cite{okelly2020f1tenth} & Ground & Scaled car, planar LiDAR, RL and control & \checkmark & partial & \checkmark & partial & no \\
 AlphaPilot, Swift~\cite{foehn2020alphapilot,kaufmann2023swift} & Aerial & Quadrotor, vision-based gate racing & \checkmark & partial & \checkmark & no & no \\
 CARLA~\cite{dosovitskiy2017carla} & Ground & Unreal Engine, urban sensing and tasks & partial & partial & \checkmark & no & no \\
@@ -30,6 +33,7 @@ participant cannot influence. \emph{Obs.\ contract}: a documented observation
 interface; \checkmark\ additionally denotes that ground-truth pose is excluded
 from control by the contract. \emph{Team score}: a defined aggregate score over a
 group of vehicles. ``Partial'' marks a supported capability that is not a primary
-design contract of that system. All listed underwater simulators supply physics
+design contract of that system. ``--'' means that the cited public description
+does not specify the criterion; it is not a negative result. All listed underwater simulators supply physics
 and sensing that \mra{} itself does not provide and depends on a backend for.
 \end{table}

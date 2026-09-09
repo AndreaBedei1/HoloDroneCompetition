@@ -200,7 +200,7 @@ and the participant state, but no referee object, so referee-derived quantities
 are not merely omitted by convention but are unreachable from the code path that
 constructs the observation. The builder computes participant-local elapsed time,
 requests only allow-listed onboard sensors from the adapter and queries the
-beacon field for physically received periodic transmissions. Numeric arrays are
+beacon field for packets delivered by simulated periodic transmissions. Numeric arrays are
 made JSON-safe while image arrays are preserved unchanged. When the optional
 inter-vehicle acoustic channel is enabled (Section~\ref{sec:fleet}), the
 observation additionally carries a \cmd{comms} inbox whose payloads are authored
@@ -217,7 +217,7 @@ Field & Meaning \\
 \midrule
 \cmd{local\_time\_s} & Elapsed time since this vehicle's release; it is not official race time. \\
 \cmd{sensors} & Filtered onboard dictionary containing only the configured camera, depth, IMU, DVL and optional collision measurements. \\
-\cmd{beacons} & List of physically received packets from independent transmitters; it may be empty or contain several identifiers, and no field marks which one is the next gate. \\
+\cmd{beacons} & List of packets delivered by the simulated acoustic channel from independent transmitters; it may be empty or contain several identifiers, and no field marks which one is the next gate. \\
 \cmd{comms} & Present only when the optional inter-vehicle acoustic channel is enabled: an \cmd{inbox} of messages received from teammates, each with the sender identifier, the controller-authored payload and a receiver-local reception timestamp (Section~\ref{sec:fleet}). \\
 \bottomrule
 \end{tabular}

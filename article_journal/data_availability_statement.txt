@@ -19,18 +19,21 @@ Specifically:
 
 Aggregated per-run summaries, event logs, experiment manifests, evaluation
 manifests, model and track SHA-256 hashes, seed registries and readiness
-verdicts are included in the repository. Every result table and figure in the
-manuscript is regenerated from these artifacts by committed scripts; the
-commands are listed in Section 13 (Reproducibility).
+verdicts are included in the repository. The 78-run matrix additionally has a
+compact machine-readable release under
+article_journal/scientific_release/matrix_78_20260715/ containing a manifest,
+CSV and JSON summaries, SHA-256 sums and a deterministic verification command.
+Every result table and figure in the manuscript is regenerated from committed
+artifacts; the commands are listed in Section 13 (Reproducibility).
 
 Two categories of file are intentionally not distributed through the
 repository, and neither is required to verify any reported number:
 
 1. Raw per-run artifact trees of the 78-run benchmark matrix, and neural-network
    weight files (*.zip, *.npz, *.npy) and rendered videos (*.mp4). These are
-   large binary artifacts. The compact audit trail for each of them - the
-   manifest, the aggregated metrics and the SHA-256 hash - IS included, so a
-   reported value can be traced and checked without the binary.
+   large binary artifacts. The compact release includes the matrix rows,
+   manifests and SHA-256 hashes; the raw tree and model/video binaries are not
+   required to verify the reported summaries.
 
 2. Nothing else. No result reported in this paper depends on data that is
    withheld.

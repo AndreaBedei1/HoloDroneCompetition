@@ -28,7 +28,8 @@ framework-enforced roles.
 benchmark. A declarative configuration defines the world, ordered gates, sensor
 profile, acoustic beacons, disturbances, participants and scoring. Each
 controller receives only participant-local time, allow-listed onboard sensing,
-physically received beacon packets and optional teammate messages, and returns a
+packets delivered through a simulated/modeled acoustic channel and optional
+teammate messages, and returns a
 bounded body-frame command. An independent referee uses privileged simulator
 state to validate ordered crossings, detect violations, terminate runs and rank
 participants. Referee progress never enters the control loop; disagreements

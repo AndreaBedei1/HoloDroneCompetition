@@ -2,177 +2,132 @@
 \label{sec:related_work}
 
 We review five lines of work that bound the contribution: underwater simulation,
-which supplies the physical substrate; autonomous racing and reproducible
-robotics benchmarks, which supply the evaluation format we adapt; underwater
-perception and sensor-based navigation, which determine what an onboard
-controller can actually observe; multi-AUV cooperation and acoustic
-communication, which constrain the fleet layer; and learning-based underwater
-control, which motivates the learning-integration path.
-This view follows broader arguments for reproducibility-by-design and
-system-level RAS validation~\cite{tani2020benchmark,araujo2023rasreview}.
-Table~\ref{tab:system_comparison} summarizes the positioning.
+autonomous racing and reproducible robotics benchmarks, underwater perception,
+multi-AUV cooperation, and learning-based marine control. This framing follows
+the reproducibility and system-level validation perspective of recent benchmark
+work~\cite{tani2020benchmark,araujo2023rasreview}. Table~\ref{tab:system_comparison}
+summarizes the positioning.
 
 \input{tables/system_comparison}
 
 \subsection{Underwater Robotics Simulation}
 \label{sec:rw_simulation}
 
-Underwater simulators differ mainly in the physics engine they build on and in
-the breadth of the sensor suite they expose. The UUV Simulator packages
-Gazebo-based hydrodynamics for underwater intervention and multi-robot
-scenarios~\cite{manhas2016uuvsim}. Stonefish replaces the general-purpose engine
-with marine-specific physics and exposes a wide range of underwater sensors
-behind a ROS interface~\cite{cieslak2019stonefish}. DAVE builds on Gazebo to
-support acoustic and optical sensing for autonomous underwater
-vehicles~\cite{zhang2022dave}. HoloOcean uses Unreal Engine to render underwater
-scenes and exposes sonar, an RGB camera, an IMU, a DVL and a depth sensor for
-one or more agents~\cite{potokar2022holoocean}; it is the simulation backend
-used in this work, reached through a replaceable adapter.
+Underwater simulators differ in physics engines, vehicle models and exposed
+sensors. UUV Simulator provides Gazebo-based hydrodynamics for intervention and
+multi-robot scenarios~\cite{manhas2016uuvsim}; Stonefish provides marine-specific
+physics and underwater sensors through ROS~\cite{cieslak2019stonefish}; and DAVE
+supports acoustic and optical sensing for autonomous underwater vehicles in a
+Gazebo ecosystem~\cite{zhang2022dave}. HoloOcean uses Unreal Engine for rendered
+underwater scenes and exposes sonar, RGB, IMU, DVL and depth sensing for one or
+more agents~\cite{potokar2022holoocean,potokar2024holoocean}. UNav-Sim targets
+underwater navigation and vision-based autonomy in a photorealistic Unreal-based
+environment~\cite{amer2023unavsim}. Recent work also adds learning-oriented
+Stonefish extensions~\cite{grimaldi2025stonefishml}, while MarineGym emphasizes
+GPU-accelerated hydrodynamics and parallel training~\cite{chu2025marinegym}.
 
-These systems are complementary to \mra{} rather than alternatives to it,
-because they answer a different question. They determine \emph{what happens} when
-a vehicle acts in water: how it is dragged, what its sensors return, how a scene
-renders. They do not determine \emph{how a result is judged}: which gates count,
-in which order, under what observation restriction, adjudicated by whom, and
-recorded in what form. A controller evaluated on any of them can be given world
-pose or exact obstacle geometry without violating anything, because no contract
-forbids it. \mra{} adds precisely that missing layer, and adds it above the
-adapter boundary so that the same race model and referee could in principle be
-driven by any of these backends.
+Benchmark surveys show that these systems make different trade-offs among
+fidelity, throughput, sensors and task abstractions~\cite{aldhaheri2025simreview}.
+URoBench makes that difference explicit by comparing underwater robotics
+simulators through reproducible navigation tasks~\cite{huang2024urobench}. These
+systems are complementary to \mra{}: they determine \emph{what happens} when a
+vehicle acts in water, whereas \mra{} specifies \emph{how a race result is
+judged}---which gates count, in which order, under what observation restriction,
+adjudicated by whom, and recorded in what form. \mra{} adds this protocol above
+the replaceable backend boundary.
 
 \subsection{Autonomous Racing and Reproducible Robotics Benchmarks}
 \label{sec:rw_racing}
 
-Racing benchmarks are valuable because they expose end-to-end behaviour under
-repeatable, adversarial constraints, as catalogued in the survey of Betz
-et~al.~\cite{betz2022autonomous}. F1TENTH is the closest in spirit to this work:
-it standardizes a scaled autonomous car, circuits and an evaluation environment
-for continuous control and reinforcement learning~\cite{okelly2020f1tenth}. It
-targets ground vehicles with planar LiDAR, however, and treats referee logic as a
-partial, in-framework concern rather than as a separated first-class contract. At
-full scale, the A2RL challenge frames racing as multi-agent interaction at the
-limits of vehicle handling~\cite{hoffmann2026a2rl}, and the same league runs a
-drone-racing format~\cite{a2rl2024league}. In aerial robotics, AlphaPilot
-established ordered gate sequences as a demanding benchmark for fast perception
-and control~\cite{foehn2020alphapilot}, and Swift subsequently demonstrated
-champion-level drone racing with a policy trained by deep reinforcement learning
-against a simulated opponent~\cite{kaufmann2023swift}. Outside racing, CARLA
-illustrates how an Unreal-based ecosystem can standardize maps, sensors and
-tasks for driving research~\cite{dosovitskiy2017carla}, and standardized
-environment interfaces such as OpenAI Gym~\cite{brockman2016openaigym} together
-with GPU-parallel robot-learning simulators such as Isaac
-Gym~\cite{makoviychuk2021isaacgym} show how a documented observation--action
-contract enables systematic comparison of learned controllers.
+Racing benchmarks expose end-to-end behaviour under repeatable and adversarial
+constraints~\cite{betz2022autonomous}. F1TENTH standardizes a scaled car,
+circuits and an evaluation environment for continuous control and reinforcement
+learning~\cite{okelly2020f1tenth,evans2024f1tenth}; its ground-vehicle and planar-LiDAR assumptions
+do not transfer directly underwater. At full scale, A2RL frames racing as
+multi-agent interaction at the limits of vehicle handling~\cite{hoffmann2026a2rl,a2rl2024league}.
+In aerial robotics, AlphaPilot established ordered gate sequences for fast
+perception and control~\cite{foehn2020alphapilot,foehn2022alphapilot}, and Swift
+demonstrated high-performance drone racing with deep reinforcement learning
+against a simulated opponent~\cite{kaufmann2023swift}. The FeelHippo gate mission
+illustrates a related perception-and-control challenge for underwater vehicles
+~\cite{franchi2020feelhippo}. CARLA~\cite{dosovitskiy2017carla}, OpenAI Gym
+~\cite{brockman2016openaigym} and Isaac Gym~\cite{makoviychuk2021isaacgym}
+further demonstrate how documented interfaces can support systematic comparison.
 
-\mra{} adopts the ordered-gate task and the documented observation contract from
-this line of work, and adapts them to a medium in which the assumptions behind
-the aerial and ground formulations do not hold. Drone-racing gates are acquired
-optically at long range in clear air and a vehicle can accelerate hard to recover
-a lost line; underwater, optical range is short, the vehicle is strongly damped,
-a persistent current biases every manoeuvre, and the most reliable long-range cue
-is a noisy, intermittent acoustic bearing rather than an image. The consequence
-for benchmark design is that gate acquisition and target association become
-first-class problems rather than preliminaries, and that a referee cannot rely on
-the controller's own notion of progress.
+\mra{} adopts ordered gates and a documented observation--action contract, but
+underwater gate acquisition is constrained by short optical range, vehicle
+damping, persistent flow and intermittent acoustic bearing. Gate association and
+sequence adjudication therefore become benchmark responsibilities rather than
+implementation details.
 
 \subsection{Underwater Perception and Sensor-Based Navigation}
 \label{sec:rw_perception}
 
 Underwater autonomy is shaped by limited optical range, the absence of satellite
 positioning and drift in inertial or Doppler estimates. These constraints motivate
-vision-based localization and control with real underwater vehicles
-~\cite{manzanilla2019uuvnavigation}, perception-aware navigation that preserves
-visual objectives~\cite{xanthidis2021aquavis}, and competition systems that
-explicitly use image processing for a Gate Pass mission~\cite{harada2022gatepass}.
-Simulators therefore model optical and acoustic sensing explicitly
-~\cite{cieslak2019stonefish,zhang2022dave,potokar2022holoocean}, while acoustic
-links remain noisy and low-rate~\cite{stojanovic2009underwater}.
+vision-based localization and control with real vehicles~\cite{manzanilla2019uuvnavigation},
+perception-aware navigation that preserves visual objectives~\cite{xanthidis2021aquavis},
+and image-processing systems for a Gate Pass mission~\cite{harada2022gatepass}.
+Tani et al. provide a recent visual--acoustic benchmark perspective for underwater
+robot navigation~\cite{tani2026visualacoustic}. Simulators consequently model
+optical and acoustic sensing explicitly~\cite{cieslak2019stonefish,zhang2022dave,potokar2024holoocean},
+while underwater acoustic links remain noisy and low-rate~\cite{stojanovic2009underwater}.
 
 \mra{} does not propose a new perception algorithm. Its narrower methodological
 point is that, when several gates are visible, association between camera
-detections and noisy acoustic cues must remain part of the participant autonomy
-stack (Section~\ref{sec:perception}), rather than being resolved by the
-benchmark. This is how the observation contract remains honest under multi-gate
-visibility.
+detections and noisy acoustic cues remains in the participant autonomy stack
+(Section~\ref{sec:perception}), rather than being resolved by the benchmark.
 
 \subsection{Multi-AUV Cooperation and Acoustic Communication}
 \label{sec:rw_fleet}
 
-Fleet operation underwater is constrained by the physics of the acoustic channel
-and by uncertain relative localization. Underwater acoustic links suffer low
-bandwidth, long propagation delay, multipath and time-varying
-attenuation~\cite{stojanovic2009underwater}, so the assumption of continuous,
-high-bandwidth, low-latency inter-vehicle communication that underpins many
-terrestrial multi-robot methods does not transfer. Surveys of AUV formation
-control document how these communication and navigation constraints shape
-achievable coordination: Yang et~al.\ analyse formation performance, control and
-communication capability jointly~\cite{yang2021survey}, and Yan et~al.\ review
-formation-control methods and their dependence on relative-state
-estimation~\cite{yan2023formation}.
+Fleet operation underwater is constrained by acoustic bandwidth, propagation
+delay, multipath, attenuation and uncertain relative localization
+~\cite{stojanovic2009underwater}. Formation-control surveys show how these
+constraints shape achievable coordination and dependence on relative-state
+estimation~\cite{yang2021survey,yan2023formation}. Recent marine coordination
+studies likewise emphasize the coupling between communication, localization and
+vehicle motion~\cite{martorell2024marinecoordination}.
 
 Consistent with this literature, \mra{} assumes neither shared ground-truth state
-nor high-rate communication. Its fleet mode runs several vehicles as one
-cooperative team with staggered or simultaneous releases, independent per-vehicle
-onboard autonomy and independent per-vehicle referee state, referee-side
-inter-vehicle proximity detection that is never exposed to controllers,
-team-level scoring, an acoustic-inspired inter-vehicle channel with
-range-dependent latency and loss, and a distributed leader--follower controller
-built on top of that channel (Section~\ref{sec:fleet}). The channel is
-deliberately presented as transport for coordination experiments and not as a
-characterized channel model: its packet loss, range, latency and freshness
-parameters are not independently swept in this work.
+nor high-rate communication. Fleet mode supports several vehicles as one team,
+independent onboard autonomy and referee state, referee-side proximity checks
+hidden from controllers, team-level scoring, and an acoustic-inspired channel
+with range-dependent latency and loss (Section~\ref{sec:fleet}). This channel is
+an experimental transport abstraction, not a complete independently calibrated
+underwater channel model.
 
 \subsection{Learning-Based Underwater Control and Simulation}
 \label{sec:rw_learning}
 
-Learning-based control for marine vehicles has been enabled by simulators that
-expose Gym-style interfaces and sufficient throughput. MarineGym is the most
-directly relevant recent system: it extends Isaac Sim with GPU-accelerated
-hydrodynamics, multiple UUV models, domain randomization and benchmark tasks for
-station keeping, trajectory tracking and docking, and reports large speedups that
-make reinforcement-learning training on underwater vehicles
-practical~\cite{chu2025marinegym}. The broader pattern it belongs to --- a
-documented observation--action interface plus parallel simulation --- is the same
-one that made ground and aerial learned control comparable across
-groups~\cite{brockman2016openaigym, makoviychuk2021isaacgym, kaufmann2023swift}.
+Learning-based marine control has been enabled by simulators with Gym-style
+interfaces and sufficient throughput. MarineGym is a direct recent reference:
+it combines Isaac Sim, GPU hydrodynamics, multiple UUV models, domain
+randomization and benchmark tasks for station keeping, tracking and docking
+~\cite{chu2025marinegym}. The broader pattern---a documented observation--action
+interface plus parallel simulation---also underlies comparable learned control
+in ground and aerial robotics~\cite{brockman2016openaigym,makoviychuk2021isaacgym,kaufmann2023swift}.
 
-MarineGym and \mra{} address different halves of the same problem and compose
-naturally. MarineGym is a \emph{training} platform: its contribution is
-throughput, hydrodynamic fidelity, randomization and a set of standardized
-underwater control tasks, and it is designed so that a policy can see many
-environment steps quickly. \mra{} is an \emph{evaluation} framework: its
-contribution is a racing protocol over ordered gates, an enforced onboard-only
-observation boundary, an independent referee that no participant can influence,
-standardized scoring with penalties and rankings, multi-vehicle and team-level
-evaluation, and reproducible race outcomes. A policy trained under a
-high-throughput regime of the kind MarineGym provides can be evaluated under the
-contract \mra{} defines without either system changing; conversely, the failure
-mode \mra{} exposes in Section~\ref{sec:eval_rq5} --- policies that cross gates
-reliably but lose the ordered sequence --- is a task-level property that a
-control-task benchmark is not designed to surface. We regard the two as
-complementary, and we use MarineGym here as the reference point for what a
-high-performance underwater RL platform provides, not as a competitor.
+MarineGym is primarily a training platform; \mra{} is an evaluation framework
+for ordered-gate racing with an enforced onboard-only boundary, independent
+referee, standardized penalties, multi-vehicle operation and team scoring. A
+policy trained in a high-throughput platform can therefore be evaluated under
+the \mra{} contract without changing either system. The learning result in
+Section~\ref{sec:eval_rq5} is consequently a supporting demonstration of this
+interface, not a claim that \mra{} replaces a training simulator.
 
 \subsection{Positioning of \mra{}}
 \label{sec:rw_positioning}
 
-Table~\ref{tab:system_comparison} compares the systems above along criteria that
-can be checked from their public descriptions: whether the system models
-underwater physics and sensing, whether it defines a gate-racing task with
-timing, whether scoring is performed by a component independent of the
-participant, whether an observation boundary excluding ground-truth pose is part
-of the contract, whether multiple vehicles are supported, whether a team-level
-score is defined, and whether a learning-oriented interface is provided. The
-table is not a ranking. Every underwater simulator listed exceeds \mra{} on
-dimensions the table does not contain, most obviously hydrodynamic fidelity,
-sensor variety and, in MarineGym's case, training throughput; \mra{} contributes
-none of those and depends on a backend for all of them.
+Table~\ref{tab:system_comparison} compares public system descriptions along
+physics and sensing, ordered-gate racing, referee independence, observation
+contract, multi-vehicle support and team scoring. The table is not a ranking;
+the listed simulators exceed \mra{} on dimensions omitted here, including
+hydrodynamic fidelity, sensor breadth and training throughput.
 
-The distinction we do claim is narrow and, to the best of our knowledge, not
-currently occupied: among these systems, \mra{} is the one that combines an
-underwater racing protocol over ordered gates with an evaluator that is
-structurally independent of the participant and an observation contract that
-excludes privileged state from control, and that extends both to team-level
-evaluation. We do not claim to be the first underwater benchmark, the first
-underwater multi-robot environment, or a better simulator than any system in the
-table.
+The claim is deliberately narrow: among the systems reviewed, \mra{} combines an
+underwater ordered-gate racing protocol with structurally independent evaluation,
+an observation contract that excludes privileged state from control, and
+team-level evaluation. We do not claim to be the first underwater benchmark, the
+first underwater multi-robot environment, or a better simulator than any system
+in the table.

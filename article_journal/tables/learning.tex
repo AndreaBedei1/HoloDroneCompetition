@@ -1,42 +1,25 @@
 \begin{table}[t]
 \centering
-\caption{Matched benchmark of six controllers over 474 episodes on identical
-seeds and identical geometries. Real HoloOcean adapter, currents disabled,
-$\Delta t=0.1$\,s. The upper block aggregates eight generated test groups of one
-to three gates (64 episodes per controller); the lower block aggregates the three
-official circuits (15 episodes per controller).}
+\caption{Final Gen-2 27-D RecurrentPPO validation at the learning control
+rate. Three valid episodes were retained per official circuit; times are
+finished-run means and are descriptive only.}
 \label{tab:learning}
 \mratablestyle
-\begin{tabular}{@{}llrrrrrr@{}}
+\begin{tabular}{@{}l r r c c r r@{}}
 \toprule
-Controller & Kind & Ep. & Completion & 95\% CI & Safety ep. & Coll.\ ev. & OOB ev. \\
+Circuit & Gates & Episodes & Finished & Mean time (s) & Collisions & OOB \\
 \midrule
-\multicolumn{8}{@{}l}{\emph{Generated geometries, 1--3 gates}}\\
-Center-then-Commit & rule    & 64 & \best{100.0\%} & [0.94, 1.00] & \best{0} & \best{0} & 0 \\
-Hybrid             & hybrid$^{\dag}$ & 64 & 100.0\% & [0.94, 1.00] & 2 & 35 & 0 \\
-PPO 525k           & learned & 64 & 100.0\% & [0.94, 1.00] & 4 & 16 & 0 \\
-PPO 1000k          & learned & 64 & 96.9\%  & [0.89, 0.99] & 13 & 156 & 0 \\
-PPO 900k           & learned & 64 & 90.6\%  & [0.81, 0.96] & 6 & 14 & 0 \\
-BC-v3              & learned & 64 & 89.1\%  & [0.79, 0.95] & 3 & 36 & 0 \\
+Horseshoe Bay & 12 & 3 & 3/3 & 192.5 & 0 & 0 \\
+Vertical Serpent & 17 & 3 & 3/3 & 239.1 & 1 & 0 \\
+Mixed Endurance & 22 & 3 & 3/3 & 365.6 & 0 & 0 \\
 \midrule
-\multicolumn{8}{@{}l}{\emph{Official circuits}}\\
-Center-then-Commit & rule    & 15 & \best{93.3\%} & [0.70, 0.99] & \best{1} & \best{3} & \best{0} \\
-Hybrid             & hybrid$^{\dag}$ & 15 & 86.7\% & [0.62, 0.96] & 2 & 31 & 0 \\
-PPO 900k           & learned & 15 & 40.0\% & [0.20, 0.64] & 8 & 345 & 0 \\
-PPO 1000k          & learned & 15 & 26.7\% & [0.11, 0.52] & 10 & 1516 & 33 \\
-PPO 525k           & learned & 15 & 20.0\% & [0.07, 0.45] & 13 & 1434 & 92 \\
-BC-v3              & learned & 15 & 0.0\%  & [0.00, 0.20] & 10 & 1200 & 468 \\
+All circuits & -- & 9 & 9/9 & -- & 1 & 0 \\
 \bottomrule
 \end{tabular}
 \mratablenote
-Confidence intervals are Wilson $95\%$ intervals on the completion rate.
-\emph{Safety ep.}: episodes recording at least one safety event.
-\emph{Coll.\ ev.}: total collision events. $^{\dag}$The hybrid controller blends a
-deterministic backbone with a learned visual servo and is therefore not
-policy-only; the benchmark reports it separately and it supports no claim about
-learned control. Every PPO checkpoint is identified in the released manifest by
-SHA-256. Because the three official circuits were opened by an earlier
-exploratory holdout whose access ledger records all sixty accesses, the lower
-block is a \emph{retrospective diagnostic} benchmark and not a held-out
-generalization result.
+The selected artifact is
+\cmd{artifacts\_gen2/ppo\_27d\_direct\_speed\_campaign\_C\_20260909\_retry1/final\_validation\_50k};
+the selected checkpoint contains 50,688 actual environment steps. The separate
+current-free rule demonstration also finishes 9/9 episodes, but its timing
+records are not pooled here because it is a different artifact and controller.
 \end{table}

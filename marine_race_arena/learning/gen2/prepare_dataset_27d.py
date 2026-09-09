@@ -63,8 +63,6 @@ def collect_expert_27d_rollout(
     track_path: str | Path,
     *,
     seed: int = 0,
-    adapter: str = "fallback",
-    allow_fallback: bool = True,
     adapter: str = "holoocean",
     allow_fallback: bool = False,
     max_steps: int = MAX_SMOKE_STEPS,

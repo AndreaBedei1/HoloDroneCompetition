@@ -80,64 +80,26 @@ def main() -> int:
         check("current-free mean time [{}]".format(name), round(computed_mean, 1), mean, 0.05)
         check("current-free sd time [{}]".format(name), round(computed_sd, 1), sd, 0.05)
 
-    # --- Readiness gate and multi-gate survival ---------------------------
-    verdict = load("results/rl_public/ppo_final_readiness_929792/readiness_verdict.json")
-    survival = verdict["unconditional_survival_from_episode_start"]
-    check("survival gate 1",
-          (survival["1"]["crossed"], survival["1"]["eligible_episodes_from_start"]), (120, 120))
-    check("survival gate 2", round(survival["2"]["probability"], 4), 0.7333, 1e-4)
-    check("survival gate 8", round(survival["8"]["probability"], 3), 0.575, 1e-3)
-    check("survival gate 22", round(survival["22"]["probability"], 3), 0.300, 1e-3)
-    check("universal transition success",
-          verdict["transition_metrics"]["universal_transition_success"]["rate"], 0.82)
-    check("transition cases", verdict["sample_contract"]["transition_cases"], 500)
-    check("no manual override", verdict["manual_override_applied"], False)
-
-    # --- RQ5: matched 474-episode benchmark -------------------------------
-    rows = list(csv.DictReader(
-        (ROOT / "results/rl_public/final_benchmark/aggregate_by_group.csv").open(encoding="utf-8")))
-    lut = {(row["controller"], row["group"]): row for row in rows}
-    expected = {
-        ("rule_gate_center_then_commit", "ALL_official"): 93.3,
-        ("hybrid", "ALL_official"): 86.7,
-        ("ppo_900462", "ALL_official"): 40.0,
-        ("ppo_1000814", "ALL_official"): 26.7,
-        ("ppo_525678", "ALL_official"): 20.0,
-        ("bc_v3", "ALL_official"): 0.0,
-        ("rule_gate_center_then_commit", "ALL_non_official"): 100.0,
-        ("hybrid", "ALL_non_official"): 100.0,
-        ("ppo_525678", "ALL_non_official"): 100.0,
-        ("ppo_1000814", "ALL_non_official"): 96.9,
-        ("ppo_900462", "ALL_non_official"): 90.6,
-        ("bc_v3", "ALL_non_official"): 89.1,
-    }
-    for key, want in expected.items():
-        check("completion {} / {}".format(*key),
-              round(float(lut[key]["success_rate"]) * 100, 1), want, 0.05)
-
-    manifest = load("results/rl_public/final_benchmark/package_manifest.json")
-    check("benchmark episodes run", manifest["episodes_run"], 474)
-    check("benchmark episodes planned", manifest["episodes_planned"], 474)
-    check("benchmark control timestep", manifest["dt"], 0.1)
-    check("benchmark adapter", manifest["adapter"], "holoocean")
-    check("benchmark current profile", manifest["current_profile"], "none")
-
-    episodes = list(csv.DictReader(
-        (ROOT / "results/rl_public/final_benchmark/episodes.csv").open(encoding="utf-8")))
-    official = {"official_horseshoe_bay", "official_vertical_serpent", "official_mixed_endurance"}
-    ppo = {"ppo_525678", "ppo_900462", "ppo_1000814"}
-    failures = [e for e in episodes
-                if e["group"] in official and e["controller"] in ppo
-                and e["finished"].lower() != "true"]
-    dnf = sum(1 for e in failures if e["referee_status"] == "DNF")
-    check("PPO official failures", len(failures), 32)
-    check("PPO failures that are missed-gate DNF", dnf, 29)
-    check("PPO missed-gate share (%)", round(100 * dnf / len(failures), 1), 90.6, 0.05)
-    fractions = sorted(int(e["completed_gates"]) / int(e["expected_gates"]) for e in failures)
-    middle = len(fractions) // 2
-    median = (fractions[middle] if len(fractions) % 2
-              else 0.5 * (fractions[middle - 1] + fractions[middle]))
-    check("PPO median failure course fraction (%)", round(100 * median, 1), 23.9, 0.05)
+    # --- RQ5: final Gen-2 27-D validation -------------------------------
+    final_dir = ROOT / "artifacts_gen2/ppo_27d_direct_speed_campaign_C_20260909_retry1/final_validation_50k"
+    valid = []
+    for result_path in final_dir.glob("retry6_50k_*_attempt*.result.json"):
+        row = json.loads(result_path.read_text(encoding="utf-8"))
+        if row.get("technical_status") == "VALID":
+            valid.append(row)
+    check("final PPO valid episodes", len(valid), 9)
+    check("final PPO finished episodes", sum(bool(row["finished"]) for row in valid), 9)
+    check("final PPO gates completed", sum(row["gates_completed"] for row in valid), 153)
+    check("final PPO collisions", sum(row["collisions"] for row in valid), 1)
+    check("final PPO out-of-bounds", sum(row["out_of_bounds_events"] for row in valid), 0)
+    check("final PPO observation contract",
+          {row["observation_contract"] for row in valid}, {"onboard_local_transition_27d_v1"})
+    check("final PPO adapter", {row["adapter"] for row in valid}, {"holoocean"})
+    check("final PPO fallback", {row["fallback_used"] for row in valid}, {False})
+    campaign = load("artifacts_gen2/ppo_27d_direct_speed_campaign_C_20260909_retry1/campaign_config.json")
+    check("final PPO observation dimension", campaign["observation_dim"], 27)
+    check("final PPO learning rate", campaign["ppo"]["learning_rate"], 0.000006, 1e-12)
+    check("final PPO clip range", campaign["ppo"]["clip_range"], 0.07, 1e-9)
 
     # --- Perception audit --------------------------------------------------
     smoke = load("artifacts_gen2/visual_collection_smoke/visual_smoke_report.json")

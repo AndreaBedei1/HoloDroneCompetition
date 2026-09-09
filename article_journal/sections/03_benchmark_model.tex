@@ -125,6 +125,11 @@ R7 & Fleet mode aggregates a team score while preserving per-vehicle diagnostics
 
 \input{figures/architecture_diagram}
 
+Figure~\ref{fig:schematic_boundary} complements the executable architecture
+with the information boundary used in the experiments: onboard observations and
+commands are separated from privileged referee state.
+\input{figures/schematic_boundary}
+
 The runtime separates scenario construction, vehicle autonomy and race
 evaluation. A declarative track configuration defines the environment, the
 ordered gates, the beacon network, the disturbances, the participants and the
@@ -134,13 +139,13 @@ so the controller and referee interfaces are reusable across simulation
 backends. An engine-free adapter supports deterministic unit testing and is
 explicitly excluded from every reported result: each experimental run records
 whether the fallback was permitted, and all results in this paper were produced
-with the fallback disabled and the real HoloOcean adapter confirmed in the
+with the fallback disabled and the native HoloOcean simulator backend confirmed in the
 manifest.
 
 During execution the race runner advances the simulator and mediates
 vehicle--environment interaction. The controller receives an observation
 containing only participant-local time, allow-listed onboard measurements,
-physically received beacon packets and optional inter-vehicle messages. It
+simulated/modeled acoustic-channel packets and optional inter-vehicle messages. It
 returns a bounded motion command and cannot access simulator state, gate
 geometry, race progress or referee decisions, so navigation and course
 progression must be inferred locally. In parallel, the referee uses privileged

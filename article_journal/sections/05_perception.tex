@@ -14,6 +14,10 @@ depends on, and reports what it achieves and where it fails.
 
 \input{figures/perception_pipeline}
 
+Figure~\ref{fig:schematic_perception} gives a compact conceptual view of the
+camera--acoustic association path and its selected gate target.
+\input{figures/schematic_perception}
+
 \subsection{Gate Detection from the Forward Camera}
 \label{sec:perception_detect}
 
@@ -141,7 +145,8 @@ proceed on acoustic and inertial evidence alone.
 \end{enumerate}
 
 \paragraph{Technical advantage} Because association is driven by the
-controller's own expected identifier and by a physically received bearing, the
+controller's own expected identifier and by a bearing delivered through the
+simulated acoustic channel, the
 front end never needs, and never receives, a ground-truth answer. Nothing in the
 pipeline consults simulator gate poses, the global vehicle pose, or the referee's
 target index. The consequence is that a wrong association is a genuine autonomy
@@ -161,7 +166,7 @@ sufficiently well conditioned. Implementation details and masks are retained in
 the repository, but the resulting estimates are not supplied to the controllers
 evaluated here.
 
-\paragraph{Measured limits} On a dedicated real-HoloOcean rig with
+\paragraph{Measured limits} On a dedicated native-HoloOcean simulator setup with
 $\pm25^\circ/\pm45^\circ$ oblique views, pose was available in only
 $11.7\%$ of frames and the median plane-yaw error was $48.2^\circ$; orientation
 and yaw-sign accuracy were both $0.00$. These metrics are insufficient for the
@@ -177,7 +182,7 @@ implemented diagnostic and an explicit limitation (Section~\ref{sec:limitations}
 The oblique rig above is an adversarial probe, not the operating regime. To
 characterize the front end where the controller actually uses it, we instrumented
 the perception stack along the reference controller's own trajectory on all three
-official circuits in real HoloOcean, recording 60 frames per circuit (seeds
+official circuits in the native HoloOcean simulator backend, recording 60 frames per circuit (seeds
 67000--67002). Ground truth was used only offline to score the detector and never
 entered the control loop. Table~\ref{tab:perception_audit} reports the result, and
 Fig.~\ref{fig:perception_panels} shows three representative states.

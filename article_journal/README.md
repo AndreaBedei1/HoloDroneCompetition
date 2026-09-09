@@ -14,10 +14,10 @@ section-by-section relationship between the two.
 | --- | --- |
 | Target journal | Robotics and Autonomous Systems (Elsevier) |
 | Document class | `elsarticle`, `preprint,3p,times` (single column) |
-| Length | 38 pages, 14 sections, 11 main figures, 11 main tables, 26 references |
+| Length | 39 pages after the final figure pass, 14 sections, 16 main figures, 11 main tables, 36 references |
 | Build | clean — 0 errors, 0 undefined references, 0 undefined citations, 0 missing files, 0 overfull/underfull boxes |
-| Claim audit | 95 checks, 95 verified, 0 mismatched |
-| Blocking work remaining | CRediT roles (authors must assign), corresponding-author details, graphical abstract, 5 schematic figures |
+| Claim audit | 78 checks, 78 verified, 0 mismatched |
+| Blocking work remaining | CRediT roles, corresponding-author details, graphical abstract, figure provenance confirmation |
 
 ## Build
 
@@ -47,14 +47,14 @@ article_journal/
     generated/                   built by the scripts below, with provenance JSON
   scripts/
     make_perception_figure.py    composes the gate-perception panel figure
-    make_learning_figures.py     survival curve and per-group completion
     verify_claims.py             executable claim audit
+    package_78_matrix.py          immutable 78-run release package/checker
     flatten_submission.py        flat directory for Editorial Manager
   SCIENTIFIC_EVIDENCE_MAP.md     what evidence exists and how it is classified
   CLAIM_AUDIT.md                 every number, its source, its status
   FIGURE_SOURCE_AUDIT.md         what was reused, what was built, what was deferred
   JOURNAL_CHANGELOG.md           conference -> journal disposition
-  figure_todo_nanobanana.md      generation prompts for the 5 schematic figures
+  ai_image_disclosure_todo.md    provenance/disclosure TODO for supplied schematics
   flatten_submission.md          how to produce the flat submission
   submission_checklist.md        pre-submission checklist
   highlights.txt                 5 highlights, each <= 85 characters
@@ -71,24 +71,27 @@ article_journal/
 
 * **Reused unchanged** — the HoloOcean course render, the track-layout and
   controller-comparison PDFs, five conference TikZ sources, two trajectory plots.
-* **Reused with post-processing** — three committed real-HoloOcean perception
+* **Reused with post-processing** — three committed native-HoloOcean simulator
   captures, cropped and relabelled in English by
   `scripts/make_perception_figure.py`.
 * **Computed from frozen artifacts** — the survival curve and the per-group
-  completion chart, by `scripts/make_learning_figures.py`; only the survival
-  curve is retained in the compressed main manuscript.
+  completion chart is retained only as historical supporting material; the
+  current main manuscript uses the final Gen-2 validation table.
 * **New HoloOcean captures — none.** A PPO training campaign held every engine
   instance while this manuscript was written; no figure script launches the
   simulator, and each writes a provenance JSON asserting so.
 
 ```bash
 python article_journal/scripts/make_perception_figure.py
-python article_journal/scripts/make_learning_figures.py
+python article_journal/scripts/package_78_matrix.py verify
 ```
 
-## Schematic figures still to produce
+## Schematic figures
 
-Five conceptual figures need graphic design rather than an auto-generated
+Five conceptual figures are now inserted in Sections 3, 5, 6, 8 and 9. Their
+provenance/disclosure status is tracked in `ai_image_disclosure_todo.md`.
+
+Five conceptual figures previously needed graphic design rather than an auto-generated
 diagram. `figure_todo_nanobanana.md` contains a complete generation prompt for
 each — layout, arrows, forbidden connections, colour groups, verbatim text,
 aspect ratio, caption and exact LaTeX insertion point:

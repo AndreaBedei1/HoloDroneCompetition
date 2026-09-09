@@ -3,7 +3,7 @@
 Architecture (the brief's shape, realized inside sb3-contrib so nothing has to
 be copied between frameworks)::
 
-    35-D onboard observation
+        27-D onboard observation
       -> frozen normalization (mean/std latched from the expert corpus)
       -> MLP encoder  [35 -> 256 -> 128]      (features_extractor)
       -> LSTM         [128 -> 128]            (lstm_actor / lstm_critic)
@@ -15,7 +15,7 @@ Why the encoder is a ``BaseFeaturesExtractor``: in
 features extractor is the only hook that runs *before* the LSTM.  Putting the
 encoder there gives exactly the requested ordering.
 
-**Why BC trains the real SB3 policy.**  Generation 1 lost time to a class of
+**Why BC trains the SB3 policy.**  The legacy Generation 1 path lost time to a class of
 BC-to-PPO transfer bugs: BC trained a standalone ``nn.Module`` and the weights
 were then folded into a PPO policy by hand, so any layout mismatch showed up as
 a silent competence loss.  Gen-2 removes the copy entirely -- behaviour cloning

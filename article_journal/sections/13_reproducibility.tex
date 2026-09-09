@@ -57,17 +57,15 @@ versions.
 recording the experiment-generation commit
 (\cmd{df098ef4\ldots}), a source-tree fingerprint over the package's Python and
 JSON files (\cmd{e7d31077\ldots}), the HoloOcean version, the Python version, the
-operating system, the fallback status and the physical current-coupling status
+operating system, the fallback status and the simulated current-coupling status
 for every run. It also asserts matrix completeness: 78 of 78 expected runs, no
 missing and no unexpected metadata.
 
 \emph{Per-artifact.} Learned-controller evaluations additionally record the model
-path and its SHA-256, the track file SHA-256 and the suite commit. The frozen
-Generation-1 policy carries a freeze record written with an exclusive create,
-containing the checkpoint SHA-256 (\cmd{60ffdca1\ldots}), the git commit at
-freeze time and the transition count, and the readiness thresholds are hashed
-inside that record so that a later edit to the defaults would be detectable.
-Holdout accesses are recorded in a hash-chained ledger of 60 entries.
+path and its SHA-256, the track file SHA-256 and the campaign commit. The final
+Gen-2 campaign records the observation contract, checkpoint selection decision,
+actual timestep, adapter status and per-episode result files; the selected
+checkpoint SHA-256 is stored beside the validation manifest.
 
 \subsection{Regenerating Tables and Figures}
 
@@ -82,9 +80,11 @@ python article/regenerate_tables.py --check
 # Track layouts and the controller-comparison plot, from track JSON and artifacts
 python article/figures/generate_figures.py
 
-# Journal figures: perception panels and learning plots, from committed artifacts
+# Journal figures: perception panels from committed artifacts
 python article_journal/scripts/make_perception_figure.py
-python article_journal/scripts/make_learning_figures.py
+
+# Verify the compact immutable 78-run release package
+python article_journal/scripts/package_78_matrix.py verify
 
 # Manuscript
 cd article_journal && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
@@ -121,18 +121,16 @@ the engine-free fallback adapter exists for deterministic unit testing and must
 be disabled for any reported result; the manifest field
 \cmd{adapter\_actual} records which adapter actually ran. Second, the control
 timestep must match the condition being reproduced: $\Delta t=0.033$\,s for the
-78-run matrix and $\Delta t=0.1$\,s for the current-free demonstration and the
-matched learned-controller benchmark.
+78-run matrix and $\Delta t=0.1$\,s for the current-free demonstration and final
+learned-controller validation. These rates define different experimental
+conditions; their timings must not be pooled.
 
 \subsection{Updating the Learning Results}
 
-The learning section is deliberately structured so that its main comparison can
-be refreshed without rewriting the manuscript. A new frozen checkpoint is added
-by recording its SHA-256 in the benchmark package manifest, running the same
-matched suite on the same registered seeds, and regenerating Table~\ref{tab:learning}
-and Fig.~\ref{fig:learning_survival} from the resulting aggregate files. The
-paired comparison and full readiness/holdout tables remain available as
-supporting artifacts. The methodology of Section~\ref{sec:learning} ---
-observation encoding, reward, curriculum, readiness gate and evaluation protocol
---- is independent of any particular checkpoint and does not change when the
-numbers do.
+The learning section is deliberately structured so that its validation can be
+refreshed without changing the benchmark protocol. A new frozen checkpoint is
+added by recording its SHA-256 and selection decision, running the same three
+seeds per official circuit, and regenerating Table~\ref{tab:learning} from the
+per-episode result files. The methodology of Section~\ref{sec:learning}---the
+27-D observation encoding, recurrent architecture, reward and evaluation
+separation---is independent of any one checkpoint.

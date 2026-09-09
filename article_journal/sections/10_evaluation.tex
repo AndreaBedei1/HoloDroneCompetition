@@ -26,7 +26,8 @@ same observation and referee contract?
 
 Three independent bodies of evidence are reported, and they are never pooled.
 
-\paragraph{The systematic benchmark matrix} 78 real-HoloOcean runs generated
+\paragraph{The systematic benchmark matrix} 78 runs generated with the native
+HoloOcean simulator backend
 under a frozen source-tree fingerprint recorded in the artifact manifest. It
 covers both reference controllers on the three clean circuits and under the
 \texttt{medium} and \texttt{strong} Horseshoe Bay currents, homogeneous
@@ -41,13 +42,12 @@ demonstration that the reference controller completes each official circuit end
 to end with currents explicitly disabled and verified zero in the manifest, at
 $\Delta t=0.1$\,s ($10$\,Hz). This answers RQ1.
 
-\paragraph{The matched controller benchmark} 474 episodes in which six
-controllers --- one rule-based, one hybrid, three PPO checkpoints and one
-behaviour-cloning policy --- ran an identical suite of test groups, generated and
-official geometries, seeds, adapter and simulator configuration, at
-$\Delta t=0.1$\,s. This answers RQ5.
+\paragraph{The final learned-controller validation} The selected Gen-2 27-D
+RecurrentPPO checkpoint was evaluated in three valid episodes on each official
+circuit at $\Delta t=0.1$\,s. This answers RQ5 as an integration and diagnostic
+question; it is not pooled with the 78-run matrix.
 
-All performance trials use the reference HoloOcean adapter, a BlueROV2-class
+All performance trials use the reference native HoloOcean simulator backend and a BlueROV2-class
 vehicle, official onboard-only observations, no current compensation and no
 obstacles, with the standard gate apertures and referee margin unchanged
 throughout (R4). Separate setup checks confirm that both named current profiles
@@ -84,8 +84,8 @@ for 51 of 51 gates in total. Across those nine runs the referee recorded zero
 gate, bar or world collisions, zero out-of-bounds events and zero
 wrong-direction crossings, and penalized time equalled official time in every
 run because no penalty was ever charged. Every run manifest independently
-confirms the conditions under which this was achieved: the real HoloOcean adapter
-was used, the engine-free fallback was disabled, the requested and measured
+confirms the conditions under which this was achieved: the native HoloOcean
+simulator backend was used, the engine-free fallback was disabled, the requested and measured
 current vector was $[0,0,0]$, and the controller received no privileged input.
 
 \input{tables/current_free}
@@ -253,45 +253,24 @@ two release gaps and three seeds.
 
 \input{tables/learning}
 
-Table~\ref{tab:learning} reports the matched benchmark. The integration question
-is answered directly: rule-based, hybrid and learned controllers ran the same
-suite through the same interface and were scored by the same referee. No runner,
-adapter or referee modification was needed for the neural policies, and the
-manifests confirm policy purity for the policy-only entries.
+Table~\ref{tab:learning} reports the final selected Gen-2 checkpoint through the
+same participant interface and independent referee used by the rule controllers.
+The policy completed all nine valid episodes: 3/3 on each circuit. There was one
+collision event in Vertical Serpent and no out-of-bounds events. These results
+are descriptive at $n=3$ per circuit and do not support a statistical ranking.
 
-On the short generated geometries, learned policies are competitive with the
-rule baseline, with completion between $90.6\%$ and $100\%$. On the three full
-circuits, completion falls to $20$--$40\%$ for the PPO checkpoints, against
-$93.3\%$ for the rule baseline. The paired analysis retained in the released
-artifacts shows the same trade-off at matched seeds: PPO is significantly faster
-on shared successful episodes, but significantly less reliable.
+The rule comparison is intentionally limited. A separate current-free 10-Hz
+reference artifact also completed 9/9 episodes with no collision,
+out-of-bounds or wrong-direction events. Its timing records are not pooled with
+the PPO timings because the campaigns have different controllers and manifests.
+The larger systematic rule matrix runs at 30 Hz and is reported separately;
+30-Hz and 10-Hz timings are not directly comparable and are never combined into
+one performance estimate.
 
-\paragraph{The failure is sequential, not physical} The dominant PPO failure mode
-is loss of the ordered sequence rather than collision. The policies commonly
-cross a gate, then fail to reacquire the next target, at which point the
-referee's ordered-sequence test terminates the run. This is the diagnostic value
-of the benchmark: it distinguishes a local transition skill from the ability to
-compose that skill over a circuit.
-
-Fig.~\ref{fig:learning_survival} gives the clearest view for the frozen
-Generation-1 policy: first-gate crossing is $1.000$, but unconditional survival
-falls to $0.733$ at the first transition and $0.300$ by gate 22. Thus a
-transition rate averaged over surviving cases would overstate circuit-level
-reliability.
-
-\input{figures/learning_survival}
-
-\paragraph{A pre-registered negative result} The frozen Generation-1 policy failed
-four of the nineteen registered readiness criteria, with no manual override, and
-was nevertheless carried into the registered final holdout. The complete
-readiness and holdout tables remain in the repository artifacts; the main result
-is the agreement between the procedural failure and the observed circuit-level
-loss of reliability.
-
-\paragraph{Scope} The official circuits were opened by an earlier exploratory
-holdout and are therefore a retrospective diagnostic, not an unseen
-generalization test. Within that scope, the result is useful: policies trained
-on procedural geometry handle short transitions but lose reliability when those
-transitions must be chained over full circuits. The fixed information boundary
-and independent referee make this failure visible instead of crediting isolated
-gate crossings as broad success.
+The learning result is therefore an integration and diagnosis result, not a claim
+that PPO outperforms the reference controller. It confirms that the Gen-2
+27-dimensional local transition contract can drive a recurrent policy through
+the full evaluation harness, while the independent ordered-sequence referee
+keeps circuit completion distinct from isolated gate crossings. The official
+circuits were available to earlier diagnostic runs, so this is retrospective
+validation rather than unseen-track generalization.

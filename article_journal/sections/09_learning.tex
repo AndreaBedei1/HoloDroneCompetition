@@ -1,75 +1,96 @@
 \section{Learning-Based Extension}
 \label{sec:learning}
 
-Learning is included to test whether the benchmark contract is reusable beyond
-hand-written controllers, not as a separate contribution. A learned policy
-enters \mra{} through the same participant interface, official observation and
-independent referee used by every other controller. The resulting evaluation
-therefore tests both integration and the benchmark's ability to expose
-long-horizon failure modes.
+Learning is included as a supporting demonstration that a learned controller
+can enter \mra{} through the same participant interface as the reference
+controllers. It does not replace the benchmark's central contribution: the
+official observation boundary, ordered-gate referee and scoring protocol remain
+unchanged.
 
-\subsection{Integration and Observation Encoding}
+Figure~\ref{fig:schematic_learning} places the recurrent policy in that
+interface and shows the curriculum progression used before the frozen
+validation.
+\input{figures/schematic_learning}
+
+\subsection{Final Gen-2 Observation Contract}
 \label{sec:learning_obs}
 
-A thin wrapper maps the official observation to the
-\cmd{onboard\_local\_transition\_v1} encoding, calls the policy and returns the
-four continuous body-frame actions of \eqref{eq:command}. Actions are clamped
-and depth-limited by the same framework path as rule-based actions. At
-evaluation time the policy receives no gate coordinates, global pose, referee
-progress or reward signal.
+The final experiment uses the committed
+\cmd{onboard\_local\_transition\_27d\_v1} contract. Its 27 bounded features
+are ordered as follows: beacon presence, bearing sine and cosine, elevation and
+range; visual centre coordinates and area; depth; DVL surge, sway and heave plus
+presence; IMU yaw rate; the previous surge, sway, heave and yaw actions; five
+short-term rates for visual centre, acoustic bearing, elevation and range; a
+recent-target-change flag; and gate-orientation presence with yaw sine and
+cosine. Missing values follow the explicit contract: missing visual centre and
+area are zero, invalid rates are zero, and an unavailable orientation contributes
+zero mask and trigonometric components. The DVL presence bit is retained.
 
-The encoding has $35$ bounded features: acoustic beacon presence, bearing,
-elevation, range, strength and age; visual target presence, centre, area and
-confidence; depth and inertial/Doppler measurements with presence flags; the
-previous four actions; and short-term visual/acoustic derivatives plus target
-change timing. It is sequence-length independent: it describes the current
-target and recent local dynamics, with no gate index, mission length or future
-geometry. Missing measurements remain explicitly absent rather than imputed.
-This makes a learned policy a local transition controller and leaves any
-sequence-management capability to be measured by the benchmark.
+The encoding contains no gate coordinates, global pose, referee progress, future
+geometry or reward. It is therefore a local transition representation, not a
+privileged course-state representation. The four continuous body-frame actions
+are the same \cmd{surge}, \cmd{sway}, \cmd{heave} and \cmd{yaw} channels in
+$[-1,1]$ used by the rule controllers; framework clamping and depth limits are
+shared.
 
-\subsection{Action Space, Reward and Curriculum}
+\subsection{Recurrent PPO and Training Configuration}
 \label{sec:learning_reward}
 
-The action space is the same four-channel vector in $[-1,1]$ used by the
-reference controllers. PPO~\cite{schulman2017ppo}, implemented with
-Stable-Baselines3~\cite{raffin2021sb3}, is trained with a bounded reliability-
-oriented objective. Dense terms reward signed improvement in acoustic alignment,
-visual centring and range, while crossing and completion provide sparse
-milestones. Collisions, out-of-bounds motion, wrong-direction or missed gates,
-stale acquisition and post-crossing orbiting are penalized. The reward is
-constructed from bounded deltas of monotone quantities, so oscillation cannot
-manufacture progress; the detailed audit and configuration remain in the
-repository.
+The final policy uses Stable-Baselines3 Contrib RecurrentPPO with the committed
+Gen-2 recurrent-LSTM architecture:
+\begin{center}\cmd{gen2\_recurrent\_lstm\_27d\_v1}\end{center}
+a frozen normalization
+buffer, a $27\!\rightarrow\!256\!\rightarrow\!128$ tanh encoder, separate
+one-layer actor and critic LSTMs with hidden size 128, 128-unit policy/value
+heads, and a four-action Gaussian head. The recorded environment is CPU-based;
+the dependency lock records Stable-Baselines3 and SB3-Contrib 2.7.1 with
+PyTorch 2.8.0.
 
-The curriculum addresses the central long-horizon question by varying sequence
-length. Training progresses from single/local transitions to mixtures of short,
-medium and progressively longer generated sequences, while retaining short
-episodes as a source of target-switch experience. Stage promotion is based on
-validation performance rather than elapsed training steps. The three official
-circuits are excluded from training; all reported learning comparisons use
-generated geometries and the registered official circuits only after the
-checkpoint and evaluation protocol were frozen.
+The final direct-speed campaign starts from the committed Gen-2 initialization
+checkpoint and uses full copies of the three official circuits, three workers,
+current-free conditions and the recorded fog configuration. It uses no track
+fragments or synthetic circuits in the reported campaign. PPO settings are
+learning rate $6\times10^{-6}$, clip range $0.07$, target KL $0.008$, two epochs,
+128 batch size, 256 rollout steps, zero entropy coefficient and gradient norm
+limit 0.5. The direct-speed reward records gate crossing ($+20$), completion
+($+50$), time ($-0.01$ per step), terminal failure ($-55$), collision ($-20$),
+directness ($+0.025$) and aligned speed ($+0.015$); energy and jerk terms are
+zero in this campaign.
 
-\subsection{Frozen Checkpoints and Evaluation Separation}
+The preceding Gen-2 data, behavioural-cloning and DAgger artifacts are retained
+as initialization and audit history. They are not pooled with the final PPO
+validation. The official circuits were available to earlier diagnostic runs, so
+the present circuit results are retrospective validation of the frozen
+integration, not an unseen-track generalization claim.
+
+\subsection{Checkpoint Selection and Matched Evaluation}
 \label{sec:learning_readiness}
 
-Checkpoint selection is separated from training. A frozen checkpoint is stored
-with its model hash, source commit and training provenance, and the readiness
-criteria are registered and hashed before evaluation. The final Generation-1
-checkpoint was carried through the registered validation and holdout procedures
-without manual override; the outcome is reported in Section~\ref{sec:eval_rq5}.
-Full readiness records, training settings and seed registries are retained as
-reproducibility artifacts rather than expanded here into a training log.
+Checkpoint selection is recorded separately from training in
+\cmd{training\_decision\_log.json}. The selected campaign is
+\cmd{ppo\_27d\_direct\_speed\_campaign\_C\_20260909\_retry1}; its first
+registered milestone produced the selected \cmd{checkpoint\_050000.zip} at
+50,688 actual environment steps. Its SHA-256 is recorded alongside the
+checkpoint and validation manifest. Later 100k diagnostics were not selected
+because they degraded or partially failed robust evaluation.
 
-\subsection{Matched Evaluation Protocol}
+The final validation contains three valid episodes per official circuit at the
+learning control rate. Horseshoe Bay finished 3/3 with no collisions or
+out-of-bounds events; Vertical Serpent finished 3/3 with one collision event;
+Mixed Endurance finished 3/3 with no collisions or out-of-bounds events. The
+results are descriptive ($n=3$ per circuit), not a statistical superiority
+claim. The current-free rule demonstration is a separate 10-Hz artifact and
+finishes all three circuits in 9/9 runs without collision, out-of-bounds or
+wrong-direction events; its completion rate is a useful interface reference,
+but its per-run times are not pooled with the PPO table.
+
+\subsection{Information-Boundary Interpretation}
 \label{sec:learning_eval_protocol}
 
-Learned, hybrid and rule-based controllers are evaluated with identical seeds,
-generated geometries, official configurations, adapter settings and referee
-logic. Manifests record the requested and actual adapter, fallback status,
-current profile, timestep, contract versions and model or source hashes. A
-policy-only result is kept separate from a hybrid result that blends learned
-actions with a deterministic backbone. The official circuits were opened by an
-earlier exploratory access ledger, so learning results on them are described as
-retrospective diagnostic comparisons, not held-out generalization claims.
+The learned policy receives the same onboard-only stream and is scored by the
+same independent referee as every other participant. Consequently, the main
+learning result is not that PPO solves underwater racing. It is that the
+benchmark exposes a meaningful distinction between local gate-transition control
+and reliable ordered-sequence completion: the selected policy completed all nine
+validation episodes, while the surrounding audit keeps the contract, checkpoint
+hash and episode-level evidence independently inspectable.

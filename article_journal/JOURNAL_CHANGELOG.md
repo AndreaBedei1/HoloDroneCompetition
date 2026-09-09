@@ -26,10 +26,11 @@ results.
 The manuscript was subsequently reorganized for journal readability. The
 abstract and Introduction now provide only headline findings; contributions were
 aggregated from seven to six; the pose-aware extension is explicitly diagnostic;
-and the learning section retains only the contract, compact 35-D encoding,
-four-action interface, PPO, high-level reward, curriculum and frozen matched
-evaluation protocol. RQ5 keeps one overall comparison table and the survival
-figure; paired, readiness and holdout tables remain supporting artifacts. The
+and the learning section now retains the final Gen-2 27-D contract, recurrent
+architecture, four-action interface, campaign reward, checkpoint selection and
+frozen validation protocol. RQ5 keeps one compact final-validation table; the
+former paired, readiness and holdout tables remain historical supporting
+artifacts. The
 main-text source prose is reduced by approximately 20.4%, from 22,609 to 17,998
 words, and the PDF by six pages.
 
@@ -72,15 +73,16 @@ words, and the PDF by six pages.
 5. **§10.2 RQ1 current-free completion.** New nine-run demonstration with a
    verified zero-current manifest, kept explicitly separate from the 78-run
    matrix.
-6. **§10.6 RQ5 matched learned-controller benchmark.** New 474-episode,
-   six-controller, paired comparison, plus the pre-registered readiness gate and
-   the 0/30 holdout.
+6. **§10.6 RQ5 final learned-controller validation.** Replaced the stale
+   Generation-1/474-episode comparison with the selected Gen-2 27-D campaign:
+   three valid episodes per official circuit, with the rate distinction and
+   separate rule reference stated explicitly.
 
 ## Results retained from the conference paper
 
 All of them, reorganized and none weakened:
 
-* 78 real-HoloOcean runs under a frozen source fingerprint → §10.1
+* 78 native-HoloOcean simulator-backend runs under a frozen source fingerprint → §10.1
 * Clean-track completion for both controllers on three circuits → Table 10
 * Medium and strong current degradation → Table 11
 * Homogeneous two-vehicle fleet → Table 12 (upper block)

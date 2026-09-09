@@ -24,7 +24,7 @@ python run.py configs/benchmark.json
 ```
 
 The paper sources live under [`article/`](article/). The final validation below
-comes from 78 real-HoloOcean runs produced by the current onboard-only
+comes from 78 runs produced by the current onboard-only
 implementation under one frozen source fingerprint.
 
 ## 1. Current scope
@@ -32,7 +32,8 @@ implementation under one frozen source fingerprint.
 The current release provides:
 
 - Three official tracks with unchanged `1.5 x 1.5 m` gate apertures.
-- A real HoloOcean/BlueROV2 adapter for physical validation.
+- A native HoloOcean simulator backend with a BlueROV2-class vehicle; physical
+  validation is not claimed.
 - An engine-free fallback adapter for unit tests and runner plumbing only.
 - Independent acoustic transmitters `B01` through `BN`, one per ordered gate.
 - A strict official controller contract based on local time, onboard sensors,
@@ -268,7 +269,7 @@ conda run -n ocean python -m marine_race_arena.scripts.run_marine_race ... --pri
 ```
 
 or set `debug.print_beacons` to `true`. The printer displays only packets that
-the controller physically received.
+the controller received through the simulated acoustic channel.
 
 ### Controller interface
 
@@ -341,8 +342,8 @@ are rejected in official mode.
 | Mixed Endurance | `marine_race_arena/tracks/marine_race_mixed_endurance.json` | 22 | 1300 s |
 
 All three tracks expose `none`, `medium` and `strong` current profiles. Current
-runs are accepted as physical evidence only when metadata records the real
-HoloOcean adapter, no fallback and active physical current coupling.
+runs are accepted as simulator evidence only when metadata records the native
+HoloOcean backend, no fallback and active simulated current coupling.
 
 All three tracks can also use fixed obstacles from the track file or deterministic
 random obstacles generated from the run seed. Random obstacle mode supports
@@ -390,7 +391,7 @@ that wrapper metadata.
 The release workflow is:
 
 1. Compile and run the simulator-independent test suite.
-2. Run focused real-HoloOcean progression smoke tests.
+2. Run focused native-HoloOcean progression smoke tests.
 3. Freeze the implementation and start a fresh result directory.
 4. Execute the complete HoloOcean matrix without fallback.
 5. Validate provenance, artifact completeness and local-versus-referee progress.

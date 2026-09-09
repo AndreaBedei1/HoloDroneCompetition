@@ -38,7 +38,7 @@ by logic it partly controls.
 evaluation framework for onboard-only autonomous underwater gate racing. Its
 organizing principle is a strict, framework-enforced separation between autonomy
 and evaluation: a controller reads only participant-local time, allow-listed
-onboard sensing, physically received acoustic beacon packets and optional
+onboard sensing, packets delivered through a simulated acoustic channel and optional
 teammate messages, while an independent referee uses privileged simulator state
 to validate ordered gate crossings, charge penalties, terminate runs and compute
 scores that never return to the control loop. On that contract we build an
@@ -53,7 +53,7 @@ real-simulator runs across three heterogeneous circuits, two graded current
 profiles, homogeneous fleets and three-vehicle coordination; a current-free
 demonstration in which the reference controller completes all three circuits in
 9 of 9 runs with no collision, out-of-bounds or wrong-direction event; and a
-474-episode matched comparison of six controllers under identical seeds and
+final Gen-2 27-D recurrent-policy validation under identical onboard-only
 geometries. Three findings recur. Clean-track success is a poor predictor of
 robustness — the same controllers fall from perfect completion to 2 and 3 of 5
 under a moderate current on the same circuit. In a heterogeneous convoy,
