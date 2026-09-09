@@ -59,6 +59,16 @@ STALL_PENALTY = -0.005         # -30.0 if it stalls the entire episode
 #: Below this body speed the vehicle is treated as not making progress.
 STALL_SPEED_M_S = 0.05
 
+# Small, bounded efficiency terms.  They are deliberately expressed per metre
+# travelled (rather than rewarding raw actions): a lateral correction can still
+# be useful, while motion that does not reduce distance to the expected gate is
+# not rewarded.  Over a normal circuit their contribution remains below a gate
+# crossing reward.
+DIRECTNESS_WEIGHT = 0.025
+ALIGNED_SPEED_WEIGHT = 0.015
+ALIGNMENT_COS_THRESHOLD = math.cos(math.radians(15.0))
+MAX_SHAPING_STEP_DISTANCE_M = 0.05
+
 
 @dataclass
 class PPOReliabilityConfig:
@@ -102,11 +112,11 @@ def verify_actor_parity(
     """
     from sb3_contrib import RecurrentPPO
 
-    from marine_race_arena.learning.config_local_transition import OBS_DIM_LOCAL_TRANSITION
+    from marine_race_arena.learning.config_local_transition_27d import OBS_DIM_LOCAL_TRANSITION_27D
     from marine_race_arena.learning.gen2.recurrent_policy import Gen2RecurrentController
 
     stream = np.random.default_rng(12345).random(
-        (int(samples), OBS_DIM_LOCAL_TRANSITION)
+        (int(samples), OBS_DIM_LOCAL_TRANSITION_27D)
     ).astype(np.float32)
 
     def rollout(m):
@@ -139,6 +149,8 @@ class RewardBreakdown:
     progress: float = 0.0
     time: float = 0.0
     stall: float = 0.0
+    directness: float = 0.0
+    aligned_speed: float = 0.0
     terminal_failure: float = 0.0
 
     @property
@@ -166,6 +178,8 @@ class ReliabilityReward:
         completion_bonus: float = COMPLETION_BONUS,
         time_penalty: float = TIME_PENALTY,
         terminal_failure_penalty: float = 0.0,
+        directness_weight: float = 0.0,
+        aligned_speed_weight: float = 0.0,
     ) -> None:
         self.gate_count = int(gate_count)
         # Keep collision accounting entry-based, but allow a campaign to make
@@ -175,11 +189,14 @@ class ReliabilityReward:
         self.completion_bonus = float(completion_bonus)
         self.time_penalty = float(time_penalty)
         self.terminal_failure_penalty = float(terminal_failure_penalty)
+        self.directness_weight = float(directness_weight)
+        self.aligned_speed_weight = float(aligned_speed_weight)
         self.breakdown = RewardBreakdown()
         self._previous_gates = 0
         self._previous_counts: Dict[str, int] = {}
         self._completion_paid = False
         self._terminal_failure_paid = False
+        self._target_gate_id = None
 
     def reset(self, env=None) -> None:
         self.breakdown = RewardBreakdown()
@@ -187,10 +204,21 @@ class ReliabilityReward:
         self._previous_counts = {}
         self._completion_paid = False
         self._terminal_failure_paid = False
+        self._target_gate_id = env.episode.expected_gate_id() if env is not None else None
 
     def __call__(self, env, step, gate_delta: int, action) -> Tuple[float, Dict[str, float]]:
         reward = 0.0
         parts: Dict[str, float] = {}
+
+        # Keep the target that was active *before* this transition.  A valid
+        # crossing changes expected_gate_id immediately, but the transition's
+        # progress still belongs to the gate that was just crossed.
+        target_gate_id = self._target_gate_id or env.episode.expected_gate_id()
+        gate = None
+        try:
+            gate = env.episode.context.referee.gate_map.get(target_gate_id)
+        except AttributeError:
+            gate = None
 
         if gate_delta > 0:
             value = GATE_REWARD * gate_delta
@@ -256,6 +284,48 @@ class ReliabilityReward:
             reward += STALL_PENALTY
             self.breakdown.stall += STALL_PENALTY
             parts["stall"] = STALL_PENALTY
+
+        if gate is not None and speed > 1e-9:
+            previous_position = np.asarray(step.previous_state.position, dtype=np.float64)
+            current_position = np.asarray(step.current_state.position, dtype=np.float64)
+            gate_center = np.asarray(gate.center, dtype=np.float64)
+            before_distance = float(np.linalg.norm(gate_center - previous_position))
+            after_distance = float(np.linalg.norm(gate_center - current_position))
+            radial_progress = (before_distance - after_distance) / speed
+            radial_progress = float(np.clip(radial_progress, -1.0, 1.0))
+            shaping_distance = min(speed, MAX_SHAPING_STEP_DISTANCE_M)
+            if self.directness_weight:
+                value = self.directness_weight * radial_progress * shaping_distance
+                reward += value
+                self.breakdown.directness += value
+                parts["directness"] = value
+
+            if self.aligned_speed_weight:
+                to_gate = gate_center - current_position
+                to_gate_norm = float(np.linalg.norm(to_gate))
+                rotation = getattr(step.current_state, "rotation_rpy_deg", (0.0, 0.0, 0.0))
+                yaw_rad = math.radians(float(rotation[2]))
+                forward = np.asarray((math.cos(yaw_rad), math.sin(yaw_rad), 0.0))
+                alignment = 0.0
+                if to_gate_norm > 1e-9:
+                    target_direction = to_gate / to_gate_norm
+                    forward_alignment = float(np.dot(forward, target_direction))
+                    alignment = float(np.clip(
+                        (forward_alignment - ALIGNMENT_COS_THRESHOLD)
+                        / max(1e-9, 1.0 - ALIGNMENT_COS_THRESHOLD),
+                        0.0,
+                        1.0,
+                    ))
+                forward_step = max(0.0, float(np.dot(current_position - previous_position, forward)))
+                value = self.aligned_speed_weight * alignment * min(
+                    forward_step, MAX_SHAPING_STEP_DISTANCE_M
+                )
+                reward += value
+                self.breakdown.aligned_speed += value
+                parts["aligned_speed"] = value
+
+        if gate_delta > 0:
+            self._target_gate_id = env.episode.expected_gate_id()
 
         reward += self.time_penalty
         self.breakdown.time += self.time_penalty

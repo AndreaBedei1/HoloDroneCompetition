@@ -1,0 +1,8 @@
+{
+  "technical_status": "TECHNICAL_INVALID",
+  "controller": "candidate25k",
+  "track": "horseshoe_bay",
+  "seed": 66001,
+  "error": "PermissionError(13, 'Accesso negato')",
+  "wall_elapsed_s": 300.859
+}

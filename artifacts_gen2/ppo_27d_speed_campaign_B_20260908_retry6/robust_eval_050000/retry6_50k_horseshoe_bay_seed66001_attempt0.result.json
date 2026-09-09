@@ -1,0 +1,8 @@
+{
+  "technical_status": "TECHNICAL_INVALID",
+  "controller": "retry6_50k",
+  "track": "horseshoe_bay",
+  "seed": 66001,
+  "error": "KeyboardInterrupt()",
+  "wall_elapsed_s": 106.75
+}

@@ -14,7 +14,7 @@ from marine_race_arena.config.benchmark_tasks import BENCHMARK_TASK_CLEAN_GATE
 from marine_race_arena.learning.config_local_transition_27d import OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D
 from marine_race_arena.learning.gen2 import track_fragments as tf
 from marine_race_arena.learning.gen2.fog_contract import verify_fog_sources
-from marine_race_arena.learning.gen2.ppo_reliability import ReliabilityReward
+from marine_race_arena.learning.gen2.ppo_reliability import ReliabilityReward, verify_actor_parity
 from marine_race_arena.learning.gen2.train_ppo_27d import TrainingSource27d
 from marine_race_arena.learning.gym_env import MarineRaceGymEnv
 
@@ -23,12 +23,14 @@ SPEED_REWARD = {
     "completion_bonus": 50.0,
     "time_penalty_per_step": -0.01,
     "terminal_failure_penalty": -55.0,
-    "collision_penalty": -35.0,
+    "collision_penalty": -20.0,
     "energy_penalty": 0.0,
     "jerk_penalty": 0.0,
+    "directness_weight": 0.025,
+    "aligned_speed_weight": 0.015,
 }
 TRACKS = tuple(tf.OFFICIAL_TRACKS)
-MILESTONES = (50_000, 100_000, 150_000, 200_000, 300_000, 400_000, 500_000)
+MILESTONES = (50_000, 100_000, 150_000, 200_000, 300_000)
 ENV_RECYCLE_INTERVAL = 10_000
 
 
@@ -74,6 +76,8 @@ def make_env(source: TrainingSource27d, seed: int):
             completion_bonus=SPEED_REWARD["completion_bonus"],
             time_penalty=SPEED_REWARD["time_penalty_per_step"],
             terminal_failure_penalty=SPEED_REWARD["terminal_failure_penalty"],
+            directness_weight=SPEED_REWARD["directness_weight"],
+            aligned_speed_weight=SPEED_REWARD["aligned_speed_weight"],
         ),
         observation_encoding_version=OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,
     )
@@ -118,20 +122,44 @@ def callback_class(run_dir: Path):
 
 
 def quick_eval(checkpoint: Path, out: Path, seed: int) -> dict:
-    from marine_race_arena.learning.gen2.evaluation import run_policy_episode
-    from marine_race_arena.learning.gen2.recurrent_policy import Gen2RecurrentController
-    rows=[]
-    for i,track in enumerate(TRACKS):
-        model=RecurrentPPO.load(str(checkpoint),device="cpu"); controller=Gen2RecurrentController(model,deterministic=True)
-        row=run_policy_episode(controller,tf.track_path(track),seed=int(seed+i),adapter="holoocean",allow_fallback=False,max_steps=max(2000,len(tf.load_track(track)["track"]["gate_sequence"])*900)).as_row(); row.update({"track":track,"checkpoint":str(checkpoint)}); rows.append(row); controller=None; model=None
-    report={"rows":rows,"actual_adapter":"holoocean","fallback_used":False,"fog":verify_fog_sources([tf.track_path(t) for t in TRACKS])}; write_json(out,report); return report
+    """Run one isolated robust-evaluator process per circuit."""
+    import sys
+    evaluator_out = out.with_name(out.stem + "_robust")
+    evaluator_out.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for i, track in enumerate(TRACKS):
+        eval_seed = int(seed) + i
+        cmd = [
+            sys.executable, "-m", "marine_race_arena.learning.gen2.evaluate_speed_robust",
+            "--controller", "retry6_50k", "--track", track,
+            "--checkpoint", str(checkpoint), "--seed", str(eval_seed),
+            "--out", str(evaluator_out), "--wall-timeout-s", "1800",
+            "--stall-timeout-s", "180", "--gate-stall-timeout-s", "120",
+        ]
+        subprocess.run(cmd, cwd=str(Path.cwd()), check=True)
+        result_files = sorted(evaluator_out.glob(f"retry6_50k_{track}_seed{eval_seed}_attempt*.result.json"))
+        if not result_files:
+            raise RuntimeError(f"robust evaluator produced no result for {track}")
+        row = json.loads(result_files[-1].read_text(encoding="utf-8"))
+        row["checkpoint"] = str(checkpoint)
+        rows.append(row)
+    report = {
+        "rows": rows,
+        "actual_adapter": "holoocean",
+        "fallback_used": False,
+        "fog": verify_fog_sources([tf.track_path(t) for t in TRACKS]),
+        "one_process_per_episode": True,
+        "evaluation_dir": str(evaluator_out),
+    }
+    write_json(out, report)
+    return report
 
 
 def run(parent: str, out_dir: str, max_timesteps: int = 500_000, seed: int = 20260908):
     from stable_baselines3.common.utils import get_schedule_fn
     from marine_race_arena.learning.train_ppo_transition import close_vec_env_safely
     run_dir=Path(out_dir); run_dir.mkdir(parents=True,exist_ok=True); parent_path=Path(parent); immutable=parent_path.read_bytes()
-    sources_list=sources(); fog=verify_fog_sources([Path(s.path) for s in sources_list]); write_json(run_dir/"campaign_config.json",{"start_checkpoint":str(parent_path),"observation_contract":OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,"observation_dim":27,"sources":[asdict(s) for s in sources_list],"source_balance":"two alternating full-circuit copies per track; no fragments/synthetic","worker_count":3,"copy_schedule":"copy 0/1 alternated at each environment recycle","fog":fog,"reward":SPEED_REWARD,"ppo":{"learning_rate":1e-5,"clip_range":0.08,"target_kl":0.01,"n_epochs":2,"batch_size":128,"n_steps":256,"max_grad_norm":0.5,"ent_coef":0.0},"milestones":MILESTONES,"environment_recycle_interval":ENV_RECYCLE_INTERVAL})
+    sources_list=sources(); fog=verify_fog_sources([Path(s.path) for s in sources_list]); write_json(run_dir/"campaign_config.json",{"start_checkpoint":str(parent_path),"observation_contract":OBS_ENCODING_VERSION_LOCAL_TRANSITION_27D,"observation_dim":27,"sources":[asdict(s) for s in sources_list],"source_balance":"two alternating full-circuit copies per track; no fragments/synthetic","worker_count":3,"copy_schedule":"copy 0/1 alternated at each environment recycle","fog":fog,"reward":SPEED_REWARD,"ppo":{"learning_rate":6e-6,"clip_range":0.07,"target_kl":0.008,"n_epochs":2,"batch_size":128,"n_steps":256,"max_grad_norm":0.5,"ent_coef":0.0},"milestones":MILESTONES,"environment_recycle_interval":ENV_RECYCLE_INTERVAL})
     env=None; stages=[]
     try:
         copy_id=0
@@ -139,9 +167,9 @@ def run(parent: str, out_dir: str, max_timesteps: int = 500_000, seed: int = 202
         # Loading with env is required when the source checkpoint was trained
         # with a different worker count (the candidate used nine sources).
         model=RecurrentPPO.load(str(parent_path), env=env, device="cpu")
-        model.learning_rate=1e-5; model.lr_schedule=get_schedule_fn(1e-5); model.clip_range=get_schedule_fn(0.08); model.target_kl=0.01; model.n_epochs=2; model.max_grad_norm=0.5; model.ent_coef=0.0
+        model.learning_rate=6e-6; model.lr_schedule=get_schedule_fn(6e-6); model.clip_range=get_schedule_fn(0.07); model.target_kl=0.008; model.n_epochs=2; model.max_grad_norm=0.5; model.ent_coef=0.0
         start=int(model.num_timesteps); current=start
-        write_json(run_dir/"start_audit.json",{"parent_bytes_unchanged":parent_path.read_bytes()==immutable,"initial_num_timesteps":start,"all_parameters_trainable":all(p.requires_grad for p in model.policy.parameters()),"policy_log_std":model.policy.log_std.detach().cpu().numpy().tolist()})
+        write_json(run_dir/"start_audit.json",{"parent_bytes_unchanged":parent_path.read_bytes()==immutable,"initial_num_timesteps":start,"all_parameters_trainable":all(p.requires_grad for p in model.policy.parameters()),"policy_log_std":model.policy.log_std.detach().cpu().numpy().tolist(),"actor_parity":verify_actor_parity(parent_path, model)})
         Callback=callback_class(run_dir)
         for target in [x for x in MILESTONES if x<=max_timesteps]:
             if target<=current: continue

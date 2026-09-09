@@ -1,0 +1,13 @@
+{
+  "status": "RUNNING",
+  "controller": "candidate25k",
+  "track": "horseshoe_bay",
+  "seed": 66001,
+  "steps": 140,
+  "time_s": 14.0,
+  "gates": 1,
+  "max_steps": 10800,
+  "wall_elapsed_s": 65.078,
+  "last_progress_wall": 1788904006.4487906,
+  "segments_completed": 1
+}
