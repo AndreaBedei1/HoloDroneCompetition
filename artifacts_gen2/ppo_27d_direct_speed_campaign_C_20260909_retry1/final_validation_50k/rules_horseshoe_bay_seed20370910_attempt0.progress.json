@@ -1,0 +1,13 @@
+{
+  "status": "RUNNING",
+  "controller": "rules",
+  "track": "horseshoe_bay",
+  "seed": 20370910,
+  "steps": 790,
+  "time_s": 79.0,
+  "gates": 5,
+  "max_steps": 10800,
+  "wall_elapsed_s": 188.515,
+  "last_progress_wall": 1788962533.8500414,
+  "segments_completed": 5
+}

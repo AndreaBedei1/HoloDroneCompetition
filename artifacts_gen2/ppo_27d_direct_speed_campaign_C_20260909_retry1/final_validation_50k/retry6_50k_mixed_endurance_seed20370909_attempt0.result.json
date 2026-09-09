@@ -1,0 +1,8 @@
+{
+  "technical_status": "TECHNICAL_INVALID",
+  "controller": "retry6_50k",
+  "track": "mixed_endurance",
+  "seed": 20370909,
+  "error": "TimeoutError('Timed out or error waiting for engine!')",
+  "wall_elapsed_s": 883.266
+}

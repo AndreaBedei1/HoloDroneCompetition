@@ -1,0 +1,13 @@
+{
+  "status": "RUNNING",
+  "controller": "retry6_50k",
+  "track": "mixed_endurance",
+  "seed": 20360911,
+  "steps": 1430,
+  "time_s": 143.0,
+  "gates": 2,
+  "max_steps": 19800,
+  "wall_elapsed_s": 373.921,
+  "last_progress_wall": 1788944133.6717281,
+  "segments_completed": 2
+}
