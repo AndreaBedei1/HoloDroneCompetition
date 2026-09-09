@@ -1,0 +1,30 @@
+\begin{table}[t]
+\centering
+\caption{Paired per-seed comparison of each learned or hybrid controller against
+the Center-then-Commit rule baseline over the 79 episodes both ran on identical
+seeds and geometries. Negative $\Delta t$ means the controller was faster than
+the rule baseline.}
+\label{tab:learning_paired}
+\mratablestyle
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Controller vs.\ rule & Paired ep. & Only A fin. & Only rule fin. & Reliability $p$ & $\Delta t$ (s) [95\% CI] & Time $p$ \\
+\midrule
+BC-v3      & 79 & 0 & 21 & $<\!0.001$ & $+2.84$ \,[$+0.79$, $+4.89$] & $0.0002$ \\
+Hybrid     & 79 & 1 & 2  & $1.000$ & $+8.51$ \,[$+1.01$, $+16.02$] & $0.807$ \\
+PPO 1000k  & 79 & 0 & 12 & $0.0005$ & $\best{-6.77}$ \,[$-10.91$, $-2.63$] & $0.0001$ \\
+PPO 525k   & 79 & 0 & 11 & $0.0010$ & $\best{-7.02}$ \,[$-10.11$, $-3.92$] & $<\!0.001$ \\
+PPO 900k   & 79 & 0 & 14 & $0.0001$ & $\best{-7.05}$ \,[$-11.59$, $-2.51$] & $<\!0.001$ \\
+\bottomrule
+\end{tabular}
+\mratablenote
+\emph{Only A fin.} and \emph{Only rule fin.} count the paired episodes in which
+exactly one of the two controllers finished. Reliability $p$ is a two-sided sign
+test on those discordant pairs; time $p$ is a two-sided sign test on the paired
+completion-time differences of episodes both controllers finished. Timing
+differences are computed within a test group and never across groups, so a
+completion time on one geometry is never weighed against a completion time on
+another. The pattern is consistent across all three PPO checkpoints: each is
+\emph{significantly less reliable} and \emph{significantly faster} than the rule
+baseline.
+\end{table}

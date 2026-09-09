@@ -1,0 +1,113 @@
+\section{Limitations}
+\label{sec:limitations}
+
+We state the boundaries of this work explicitly, both because they define what
+the reported numbers may be used for and because several of them are the natural
+next steps.
+
+\paragraph{L1. No physical validation, and an unquantified simulation-to-reality
+gap} Every result in this paper was produced in simulation. No experiment was
+run on a physical BlueROV2 or in a water tank, and we make no claim that any
+reported completion rate, time or collision count would be reproduced by a real
+vehicle. The gap is unquantified rather than small: closing it would require a
+physical gate course, a calibrated acoustic positioning setup and a
+characterization of the optical conditions, none of which is attempted here.
+
+\paragraph{L2. Backend fidelity bounds the physical claims} The benchmark inherits
+the hydrodynamics, rendering and sensor models of its backend. HoloOcean provides
+a usable and widely adopted approximation, but it is not a validated
+computational-fluid-dynamics model of a BlueROV2, and the current field of
+\eqref{eq:current_sum} is an analytic superposition of primitives rather than a
+simulated flow. Conclusions about \emph{relative} controller behaviour are
+therefore better supported than conclusions about absolute achievable speeds or
+about the specific current magnitude at which a controller fails.
+
+\paragraph{L3. Optical perception assumptions} The detector of
+Section~\ref{sec:perception_detect} assumes gates that project to closed,
+near-rectangular contours of bounded aspect ratio against a background whose
+edge structure is less rectangular. It was developed for, and validated on, the
+rendering conditions of these circuits. Turbidity, marine snow, backscatter from
+an active light source, biofouling on the gate frames, strong caustics and
+low-light operation are not modelled, and the detector's geometric filters would
+require re-derivation under any of them.
+
+\paragraph{L4. Gate appearance assumptions} All gates in this study are square
+frames of identical $1.5\,\text{m}\times1.5\,\text{m}$ inner aperture, and the
+detector's size, aspect and near-field area gates are calibrated to that
+geometry. The known-aperture assumption is also what makes the pose extension's
+known-size distance estimate possible. Heterogeneous gate sizes, non-square
+apertures, partially occluded gates or gates that must be distinguished by
+appearance rather than by acoustic association are outside the current scope.
+
+\paragraph{L5. Acoustic sensing is an approximation, not a channel model} The
+beacon model of \eqref{eq:beacon} applies independent Gaussian perturbations to
+range, bearing and elevation with Bernoulli dropout and a range cut-off. It does
+not model multipath, ray bending, Doppler on the acoustic carrier,
+frequency-dependent absorption or the correlated errors these produce. The
+inter-vehicle channel of \eqref{eq:comms_latency} is likewise an
+acoustic-inspired transport with range-dependent latency and independent packet
+loss; its loss probability, range, latency and freshness window were not
+independently swept, and no claim about acoustic communication performance is
+made.
+
+\paragraph{L6. The current sweep is narrow} Quantitative current results are
+restricted to two named profiles on one circuit (Horseshoe Bay). The
+\texttt{strong} profile turned out to be a saturation condition rather than a
+graded difficulty, so the informative disturbance evidence rests effectively on a
+single profile and five seeds. A finer sweep, and the same sweep on the other two
+circuits, would be needed to characterize the degradation curve rather than two
+points on it.
+
+\paragraph{L7. Two baseline controller families} The rule-based evidence covers
+exactly two controllers that differ in one design decision. This is deliberate ---
+it makes the comparison a clean ablation --- but it means the benchmark has not
+yet been exercised against structurally different autonomy strategies, such as a
+model-predictive controller, a cascaded design with an inner DVL velocity loop,
+or a planner that reasons about several gates ahead. We therefore cannot claim
+that the difficulty ordering across the three circuits is a property of the
+circuits rather than of these two controllers.
+
+\paragraph{L8. Limited fleet scale and diversity} Fleet evidence covers two
+homogeneous vehicles at a $90$\,s gap and three heterogeneous vehicles at two
+gaps, on one clean circuit, with three or five seeds. Larger fleets, fleets under
+current or with obstacles, formation-keeping objectives, cooperative overtaking,
+dynamic role assignment and competitive multi-team racing are all unaddressed.
+The coordination result in particular rests on three seeds per condition.
+
+\paragraph{L9. The pose-aware perception extension is not validated} As reported
+in Section~\ref{sec:perception_pose}, the exploratory pose front end recovers a
+pose in only $11.7\%$ of frames on a dedicated oblique-view rig, with a median
+plane-yaw error of $48.2^{\circ}$ and orientation-class and sign accuracies of
+$0.00$. It is accurate in the near-frontal regime the controller actually
+operates in (Table~\ref{tab:perception_audit}) and unreliable outside it. It is
+implemented and released, but it supports no claim in this paper and should not
+be used as a pose estimator.
+
+\paragraph{L10. The learned-control results are a snapshot of an open problem}
+The learned policies reported here are feed-forward PPO and behaviour-cloning
+checkpoints trained on procedural geometry. The frozen policy failed a
+pre-registered readiness gate on four of nineteen criteria and completed $0$ of
+$30$ official-circuit holdout trials, and the best checkpoint of the matched
+benchmark reaches $40\%$ on those circuits. We report a diagnosis --- the deficit
+is in ordered-sequence management rather than in gate-following --- and not a
+solution. Architectures with explicit memory, imitation-based bootstrapping and
+interactive dataset aggregation are natural responses to that diagnosis and are
+not evaluated here. A separate line of work along those lines was in progress
+while this manuscript was written and is deliberately excluded: no result from it
+appears anywhere in this paper.
+
+\paragraph{L11. The official circuits are no longer unseen} An exploratory
+holdout evaluation opened Horseshoe Bay, Vertical Serpent and Mixed Endurance,
+and its access ledger records all sixty accesses. They must therefore not be
+treated as held-out circuits for any policy trained after that point, and every
+learned-controller result on them in this paper is labelled a retrospective
+diagnostic benchmark. Future generalization claims require a sealed circuit set
+that has not been opened.
+
+\paragraph{L12. Three circuits do not span underwater autonomy} The official
+track set was designed to vary length, verticality and sequencing, and it does so
+--- 12 to 22 gates, $93.8$ to $206.3$\,m, planar to serpentine. It nonetheless
+covers a narrow slice of the underwater autonomy problem. Docking, manipulation,
+inspection, long-horizon navigation with drift, adversarial or dynamic
+environments and mission-level planning are all outside the benchmark's task
+definition, and results here should not be read as evidence about them.

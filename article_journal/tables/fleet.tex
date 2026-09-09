@@ -1,0 +1,43 @@
+\begin{table}[t]
+\centering
+\caption{Multi-vehicle evaluation on clean Horseshoe Bay, from the frozen 78-run
+matrix ($\Delta t=0.033$\,s). The upper block validates team execution with a
+homogeneous two-vehicle fleet at a $90$\,s release gap (five seeds); the lower
+block studies a heterogeneous three-vehicle convoy under two release gaps
+(three seeds per condition).}
+\label{tab:fleet}
+\mratablestyle
+\begin{tabular}{@{}llrlrrr@{}}
+\toprule
+Setting & Policy & Seeds & Team finish & Team gates $\uparrow$ & Team time (s) $\downarrow$ & GW / IV / S $\downarrow$ \\
+\midrule
+\multicolumn{7}{@{}l}{\emph{Two vehicles, homogeneous, gap $90$\,s}}\\
+ & Continuous Servo   & 5 & 5/5 & 24.0/24 & $303.1\pm3.2$ & 0.0 / 0.0 / 0.0 \\
+ & Center-then-Commit & 5 & 5/5 & 24.0/24 & $308.0\pm5.8$ & 0.0 / 0.0 / 0.0 \\
+\midrule
+\multicolumn{7}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $0$\,s}}\\
+ & No coordination & 3 & 3/3 & 36.0/36 & $219.7\pm2.5$ & 9.3 / 2.3 / 0.0 \\
+ & LF(1)           & 3 & 3/3 & 36.0/36 & \best{$262.3\pm7.7$} & \best{0.0 / 0.0 / 0.0} \\
+ & LF(2)           & 3 & 3/3 & 36.0/36 & $288.3\pm1.3$ & 0.0 / 0.0 / 1.0 \\
+\midrule
+\multicolumn{7}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $8$\,s}}\\
+ & No coordination & 3 & 2/3 & 34.3/36 & $254.0\pm24.5$ & 127.3 / 2.0 / 0.0 \\
+ & LF(1)           & 3 & \best{3/3} & \best{36.0/36} & \best{$266.0\pm8.3$} & \best{0.0 / 0.0 / 0.0} \\
+ & LF(2)           & 3 & 3/3 & 36.0/36 & $285.7\pm3.8$ & 0.0 / 0.0 / 0.0 \\
+\bottomrule
+\end{tabular}
+\mratablenote
+Team times are raw team elapsed mean $\pm$ sample standard deviation over
+full-team finishes, computed by \eqref{eq:team_time}; gates and events are
+per-condition means. \emph{GW / IV / S}: gate and world collisions,
+inter-vehicle proximity events and stuck events. No run recorded an
+out-of-bounds event. LF($\Delta g$) is the leader--follower policy of
+\eqref{eq:yield} with a margin of $\Delta g$ locally estimated gates. Penalized
+team time differs from raw team time only where events were charged:
+$266.4\pm64.1$\,s and $564.0\pm463.0$\,s for the uncoordinated convoy at gaps
+$0$ and $8$\,s, and $303.3\pm1.3$\,s for LF(2) at gap $0$\,s, whose longer hold
+trips the independent stuck timer of \eqref{eq:stuck}. In the three-vehicle
+condition the leader runs Continuous Servo and both followers run
+Center-then-Commit; no controller or course parameter was retuned between
+conditions.
+\end{table}

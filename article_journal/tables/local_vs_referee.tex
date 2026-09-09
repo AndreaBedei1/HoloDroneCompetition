@@ -1,0 +1,33 @@
+\begin{table}[t]
+\centering
+\caption{Controller-local course progression against independent referee
+progression, over the frozen 78-run matrix. A positive delay means the
+controller confirmed its own passage \emph{after} the referee recorded the
+crossing. No value in this table is fed back into control.}
+\label{tab:local_vs_referee}
+\mratablestyle
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{Gate advancements} & \multicolumn{2}{c}{Mismatches} & \multicolumn{2}{c}{Local delay (s)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-6}\cmidrule(l){7-8}
+Circuit & referee & local & matched & false & missed & median & p95 \\
+\midrule
+Horseshoe Bay    & 1120 & 1120 & 1116 & 10 & 4 & 0.924 & 1.353 \\
+Vertical Serpent &  159 &  160 &  159 &  1 & 0 & 0.627 & 1.155 \\
+Mixed Endurance  &  195 &  192 &  192 &  0 & 3 & 0.462 & 1.287 \\
+\midrule
+\textbf{All}     & \best{1474} & \best{1472} & \best{1467} & \best{11} & \best{7} & \best{0.858} & \best{1.353} \\
+\bottomrule
+\end{tabular}
+\mratablenote
+A \emph{false} local advancement is a local increment that precedes its
+same-ordinal referee crossing by more than one control step, or that has no
+corresponding referee crossing; a \emph{missed} local advancement is a referee
+crossing with no same-ordinal local increment. Across all runs there were $0$
+event-consistency errors, $0$ finish-order inversions over $61$ pairwise
+comparisons, and $0$ cases of a controller declaring itself finished before the
+referee agreed; the referee recorded the finish before the local tracker in
+$103$ cases. The mean delay is $0.722$\,s with a sample standard deviation of
+$2.83$\,s; the spread is dominated by a single false advancement at $-90.8$\,s,
+which is retained rather than filtered.
+\end{table}

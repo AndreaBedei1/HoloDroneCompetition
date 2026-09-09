@@ -1,0 +1,33 @@
+\begin{table}[t]
+\centering
+\caption{Systematic clean-track evaluation of the two reference controllers over
+five seeds per case, from the frozen 78-run HoloOcean matrix
+($\Delta t=0.033$\,s, $30$\,Hz control). Times use finished runs only; gate and
+event means use all five seeds.}
+\label{tab:clean_tracks}
+\mratablestyle
+\begin{tabular}{@{}llrlrrr@{}}
+\toprule
+Track & Controller & Seeds & Finished & Gates $\uparrow$ & Official time (s) $\downarrow$ & Collisions $\downarrow$ \\
+\midrule
+\multirow{2}{*}{Horseshoe Bay}
+ & Continuous Servo    & 5 & 5/5 & 12.0/12 & $194.5\pm4.8$ & 0.0 \\
+ & Center-then-Commit  & 5 & 5/5 & 12.0/12 & $197.7\pm7.1$ & 0.0 \\
+\midrule
+\multirow{2}{*}{Vertical Serpent}
+ & Continuous Servo    & 5 & \best{5/5} & \best{17.0/17} & $236.9\pm6.4$ & 0.0 \\
+ & Center-then-Commit  & 5 & 4/5 & 14.8/17 & $241.1\pm1.8$ & 0.0 \\
+\midrule
+\multirow{2}{*}{Mixed Endurance}
+ & Continuous Servo    & 5 & 2/5 & 17.0/22 & $394.7\pm3.9$ & 0.0 \\
+ & Center-then-Commit  & 5 & \best{5/5} & \best{22.0/22} & $410.7\pm8.8$ & 0.0 \\
+\bottomrule
+\end{tabular}
+\mratablenote
+Times are mean $\pm$ sample standard deviation (ddof$=1$) over finished runs;
+gates and collisions are five-seed means, and collisions combine gate and world
+events. No clean run recorded an out-of-bounds or stuck event, and penalized time
+equals official time throughout. Bold marks the better controller where the two
+differ in completion. Regenerated from the raw per-run summaries by
+\cmd{article/regenerate\_tables.py}.
+\end{table}

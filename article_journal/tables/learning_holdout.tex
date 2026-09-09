@@ -1,0 +1,43 @@
+\begin{table}[t]
+\centering
+\caption{Pre-registered readiness gate and paired final-holdout outcome for the
+frozen Generation-1 PPO policy. The thresholds were registered, and the policy
+frozen with its SHA-256, before either evaluation was run; no manual override
+was requested or applied.}
+\label{tab:learning_holdout}
+\mratablestyle
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Criterion & Observed & Bound & Verdict \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Readiness gate, 500 validation transition cases and 20 sequences per length}}\\
+Universal transition success & 0.820 & $\ge0.900$ & \textbf{FAIL} \\
+First gate crossing          & 1.000 & $\ge0.970$ & pass \\
+Target switch                & 0.882 & $\ge0.850$ & pass \\
+New-target alignment         & 0.852 & $\ge0.850$ & pass \\
+Completion, 3 gates          & 0.800 & $\ge0.950$ & \textbf{FAIL} \\
+Completion, 5 gates          & 0.850 & $\ge0.900$ & \textbf{FAIL} \\
+Completion, 8 gates          & 0.550 & $\ge0.750$ & \textbf{FAIL} \\
+Completion, 12 gates         & 0.700 & $\ge0.500$ & pass \\
+Completion, 17 gates         & 0.350 & $\ge0.250$ & pass \\
+Completion, 22 gates         & 0.300 & $\ge0.250$ & pass \\
+Out-of-bounds rate           & 0.000 & $\le0.010$ & pass \\
+Collision-episode rate       & 0.066 & $\le0.200$ & pass \\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Overall readiness: FAIL} (4 of 19 registered criteria missed)}\\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Final holdout, 30 paired trials over the three official circuits, 10 seeds each}}\\
+PPO completion   & 0/30 & \textemdash & 87 of 510 gates crossed \\
+Rule completion  & 30/30 & \textemdash & 510 of 510 gates crossed \\
+PPO terminations & 30 & \textemdash & every episode a missed-gate DNF \\
+\bottomrule
+\end{tabular}
+\mratablenote
+The readiness gate evaluates $19$ criteria in total; the seven protocol and
+sampling criteria (validation-split match, difficulty match, ladder coverage,
+case counts) all passed and are omitted here for space. Every PPO episode of the
+final holdout crossed at least gate~1 and then ended when the referee recorded a
+missed gate at the next attempted gate; the referee evidence does not support
+relabelling this as an acquisition or target-switch failure. Holdout access was
+recorded in a hash-chained ledger of $60$ entries.
+\end{table}

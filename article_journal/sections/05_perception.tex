@@ -1,0 +1,211 @@
+\section{Onboard Gate Perception and Target Association}
+\label{sec:perception}
+
+A racing benchmark is only as strict as its weakest information leak. The
+observation contract of Section~\ref{sec:obs_contract} withholds gate geometry
+and referee progress, but it delivers a camera image that may contain several
+gates and a list of acoustic packets whose identifiers carry no ordering
+information. Deciding \emph{which} visible rectangle is the gate the vehicle must
+pass next is therefore not a preprocessing step that the framework can perform on
+the participant's behalf: doing so would silently reintroduce course knowledge
+into the control loop. This section describes the onboard front end that the
+reference controllers use to make that decision, states the assumptions it
+depends on, and reports what it achieves and where it fails.
+
+\input{figures/perception_pipeline}
+
+\subsection{Gate Detection from the Forward Camera}
+\label{sec:perception_detect}
+
+\paragraph{Motivation} The gates are rendered as square frames of light-coloured
+bars. A naive bright-pixel segmentation is unusable in this environment: HoloOcean
+tints the public \texttt{white} prop material strongly with the water column, so a
+gate bar can be \emph{darker} than the surrounding water and the seabed, and a
+generic brightness or saturation mask selects most of the scene. The detector
+therefore keys on the one property that survives the tint, namely that a gate
+projects to a near-rectangular closed contour of bounded aspect ratio, and
+validates candidates geometrically rather than photometrically.
+
+\paragraph{Forward process} Given a FrontCamera image of width $W$ and height
+$H$, the detector proceeds as follows.
+
+\begin{enumerate}
+\item \textbf{Preprocessing.} The RGB frame is normalized to 8-bit, converted to
+grayscale and filtered with a Canny edge detector with hysteresis thresholds
+$(30,80)$.
+\item \textbf{Contour extraction.} Closed contours are extracted from the edge
+map, and each contour is reduced to its axis-aligned bounding box
+$(x,y,w_{\mathrm{px}},h_{\mathrm{px}})$.
+\item \textbf{Geometric filtering.} A candidate survives only if it is large
+enough to be a gate and shaped like one:
+$w_{\mathrm{px}}\ge\max(12,0.05W)$ and $h_{\mathrm{px}}\ge\max(12,0.05H)$;
+the box occupies less than $0.92$ of either image dimension, which rejects frame-filling
+background structure; the aspect ratio $a=w_{\mathrm{px}}/h_{\mathrm{px}}$ lies in
+$[0.45,2.40]$; the bounded perimeter ratio
+$\Pi=L_{\mathrm{contour}}/\big(2(w_{\mathrm{px}}+h_{\mathrm{px}})\big)$ lies in
+$[0.50,2.20]$, which rejects filled background regions and irregular surface
+reflections whose contour length is inconsistent with their bounding box; and the
+area fraction $\alpha=w_{\mathrm{px}}h_{\mathrm{px}}/(WH)$ is at least $0.008$.
+\item \textbf{Normalized image geometry.} A surviving candidate is reported in
+image-normalized coordinates centred on the optical axis,
+\begin{equation}
+\label{eq:vision_center}
+c_x=\frac{(x+\tfrac{1}{2}w_{\mathrm{px}})-\tfrac{1}{2}W}{\tfrac{1}{2}W},\qquad
+c_y=\frac{(y+\tfrac{1}{2}h_{\mathrm{px}})-\tfrac{1}{2}H}{\tfrac{1}{2}H},
+\end{equation}
+both clamped to $[-1,1]$, together with the area fraction $\alpha$ and the width
+and height fractions $w_{\mathrm{px}}/W$ and $h_{\mathrm{px}}/H$. The pair
+$(c_x,c_y)$ is the normalized image error with respect to the camera centre, and
+is the quantity the visual servo drives to zero.
+\item \textbf{Confidence.} Each candidate carries a bounded confidence combining
+four normalized scores --- rectangularity, aspect plausibility, apparent size and
+centredness,
+\begin{equation}
+\label{eq:vision_conf}
+\gamma = 0.38\,s_\Pi + 0.24\,s_a + 0.20\,s_\alpha + 0.18\,s_c \in[0,1],
+\end{equation}
+with $s_\Pi=1-|\Pi-1|/1.20$, $s_a=1-|\log a|/\log 3$,
+$s_\alpha=\alpha/0.10$ and $s_c=1-0.45|c_x|-0.30|c_y|$, each clamped to $[0,1]$.
+Candidates with $\gamma<0.38$ are discarded.
+\item \textbf{Multiple candidates.} Surviving candidates are sorted by
+confidence, deduplicated when their normalized centres differ by less than $0.04$
+in both axes, and the strongest eight are returned. A parallel coarse-grid
+colour-blob path runs alongside the contour path and contributes additional
+candidates, which keeps the detector usable in minimal installations where
+OpenCV is unavailable.
+\end{enumerate}
+
+\paragraph{Technical advantage} Reporting a \emph{list} of candidates with
+per-candidate geometry, rather than a single best detection, is what makes the
+next stage possible. A detector that silently returns its most confident
+rectangle would resolve the association question implicitly, and would resolve it
+wrongly whenever the most confident rectangle belongs to a later gate --- which
+is common on the official circuits, where consecutive gates are frequently
+visible together.
+
+\subsection{Acoustic--Visual Target Association}
+\label{sec:perception_assoc}
+
+\paragraph{Motivation} The controller knows which beacon identifier it is
+currently pursuing, because it maintains that state itself
+(Section~\ref{sec:controller}), and it receives a noisy bearing $\beta$ and range
+$\tilde\rho$ for that identifier from \eqref{eq:beacon}. It does not know which
+image rectangle that beacon belongs to. Association is the step that binds the
+two modalities, and it is also the step where an incorrect commitment is most
+expensive: locking onto the wrong gate produces a confident, well-servoed
+approach to a gate the referee will score as a miss.
+
+\paragraph{Forward process} Let $\mathcal{T}$ be the candidate list, and let
+$\beta$ and $\tilde\rho$ be the bearing and range of the expected beacon, or
+$\varnothing$ when no packet for that identifier was received.
+
+\begin{enumerate}
+\item \textbf{Field-of-view gate.} If $|\beta|>70^\circ$ the association returns
+nothing. With a $90^\circ$ horizontal field of view, a target that far off the
+nose cannot be the centre of the expected gate. This case matters immediately
+after a passage, when the just-cleared beacon lies behind the vehicle while the
+next gate is already visible ahead; accepting the forward rectangle there would
+change target identity without the tracker ever deciding to advance.
+\item \textbf{Implied bearing.} Each candidate is assigned the body bearing
+implied by its horizontal image position,
+\begin{equation}
+\label{eq:implied_bearing}
+\hat\beta(c_x) = -\arctan(c_x),
+\end{equation}
+in degrees, with positive bearing to camera-left, and a mismatch
+$m=|\hat\beta(c_x)-\beta|$.
+\item \textbf{Near-field size gate.} When $\tilde\rho<1.6$\,m, a $1.5$\,m
+aperture must subtend a substantial part of the image, so candidates are kept
+only if $\alpha\ge0.05$ or either linear fraction is at least $0.30$. A small,
+complete rectangle at that acoustic range is a later gate, not a reappearance of
+the current one.
+\item \textbf{Conflict rejection.} If any candidate satisfies $m\le32^\circ$,
+every candidate with $m>32^\circ$ is rejected outright. The acoustic bearing is
+thus a hard identity gate whenever it is informative, not merely a soft score
+term, which prevents a large blob spanning several visible gates from outscoring
+the correct one.
+\item \textbf{Scoring.} Surviving candidates are ranked by confidence plus a
+centredness term and a size term, minus a bearing penalty $0.050\,m$. The size
+term is deliberately dominated by a \emph{relative} component,
+$s_{\mathrm{rel}}=\sqrt{\alpha/\alpha_{\max}}$ where $\alpha_{\max}$ is the
+largest area fraction in the list, because an absolute size score saturates when
+two gates are both reasonably large and then lets the more centred, farther gate
+win. When $|\beta|>25^\circ$ an additional side test is applied: the candidate
+must lie on the image side the acoustic bearing indicates, by at least $0.10$
+normalized units ($0.18$ beyond $45^\circ$).
+\item \textbf{Fallback.} With no expected-beacon bearing available, the
+association degrades to a bearing-free default that prefers large, confident,
+centred candidates. With no surviving candidate at all, the front end reports
+that no visual target is available for this frame, and the controller must
+proceed on acoustic and inertial evidence alone.
+\end{enumerate}
+
+\paragraph{Technical advantage} Because association is driven by the
+controller's own expected identifier and by a physically received bearing, the
+front end never needs, and never receives, a ground-truth answer. Nothing in the
+pipeline consults simulator gate poses, the global vehicle pose, or the referee's
+target index. The consequence is that a wrong association is a genuine autonomy
+failure that the referee will score, which is exactly the property a benchmark
+needs.
+
+\subsection{An Exploratory Pose-Aware Extension}
+\label{sec:perception_pose}
+
+The centre-only representation is geometrically ambiguous, so we also
+implemented an exploratory pose-aware front end based on the detected
+quadrilateral and the known aperture. It is reported as an extension of the
+perception stack, not as a component of the main results.
+
+The extension estimates plane orientation and distance when the geometry is
+sufficiently well conditioned. Implementation details and masks are retained in
+the repository, but the resulting estimates are not supplied to the controllers
+evaluated here.
+
+\paragraph{Measured limits} On a dedicated real-HoloOcean rig with
+$\pm25^\circ/\pm45^\circ$ oblique views, pose was available in only
+$11.7\%$ of frames and the median plane-yaw error was $48.2^\circ$; orientation
+and yaw-sign accuracy were both $0.00$. These metrics are insufficient for the
+main controller claims.
+
+All main results therefore use the centre-only detection and
+acoustic--visual association front end. The pose extension is retained as an
+implemented diagnostic and an explicit limitation (Section~\ref{sec:limitations}).
+
+\subsection{Perception Audit on the Official Circuits}
+\label{sec:perception_audit}
+
+The oblique rig above is an adversarial probe, not the operating regime. To
+characterize the front end where the controller actually uses it, we instrumented
+the perception stack along the reference controller's own trajectory on all three
+official circuits in real HoloOcean, recording 60 frames per circuit (seeds
+67000--67002). Ground truth was used only offline to score the detector and never
+entered the control loop. Table~\ref{tab:perception_audit} reports the result, and
+Fig.~\ref{fig:perception_panels} shows three representative states.
+
+\input{tables/perception_audit}
+\input{figures/perception_panels}
+
+Three observations follow. First, detection is available in $88.3$--$91.7\%$ of
+frames and a valid four-corner aperture in $78.3$--$83.3\%$, so the front end is
+usable but intermittent; the controller must tolerate gaps rather than assume a
+detection every frame. Second, metric PnP succeeds in only about half of frames
+($48.3$--$53.3\%$), which is consistent with the negative pose result above and
+is why the projective fallback matters. Third, and most relevant to the
+association design, the target chosen online agreed with an offline referee
+selection in every frame on all three circuits, the multi-candidate association
+was correct in every multi-candidate frame ($7$, $4$ and $11$ frames
+respectively), and no spurious online target switch occurred. Under the
+near-frontal viewing geometry that the centre-then-commit approach maintains, the
+plane-orientation estimate is also accurate (median error
+$0.018$--$1.129^\circ$, no error above $30^\circ$, no sign error, no frame-to-frame
+yaw jump above $20^\circ$).
+
+The contrast between this table and the oblique rig is the substantive finding.
+The pose front end is not uniformly weak; it is accurate in the near-frontal
+regime and fails under strong obliquity. Because the reference controller
+actively maintains a near-frontal approach, it operates inside the regime where
+the front end works, which explains both why the rule-based baselines complete
+circuits and why the pose features are not needed to do so. This audit is a
+characterization of the perception component and, being based on 60 frames per
+circuit from a diagnostic capture, is reported as such; no completion claim in
+Section~\ref{sec:evaluation} rests on it.

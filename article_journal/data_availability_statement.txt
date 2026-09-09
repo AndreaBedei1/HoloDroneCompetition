@@ -1,0 +1,42 @@
+DATA AVAILABILITY STATEMENT
+Marine Race Arena - Robotics and Autonomous Systems
+
+The benchmark implementation, the official track configurations, the reference
+controllers, the referee, the fleet layer, the learning pipeline and the
+aggregated result artifacts that support the findings of this study are openly
+available in the HoloDroneCompetition repository at
+https://github.com/AndreaBedei1/HoloDroneCompetition
+
+Specifically:
+
+* Benchmark and controllers   marine_race_arena/
+* Official track definitions  marine_race_arena/tracks/
+* Learning pipeline           marine_race_arena/learning/
+* Aggregated result artifacts results/rl_public/
+* Perception audit captures   artifacts_gen2/visual_collection_smoke/
+* Manuscript sources, tables,
+  figures and figure scripts  article_journal/
+
+Aggregated per-run summaries, event logs, experiment manifests, evaluation
+manifests, model and track SHA-256 hashes, seed registries and readiness
+verdicts are included in the repository. Every result table and figure in the
+manuscript is regenerated from these artifacts by committed scripts; the
+commands are listed in Section 13 (Reproducibility).
+
+Two categories of file are intentionally not distributed through the
+repository, and neither is required to verify any reported number:
+
+1. Raw per-run artifact trees of the 78-run benchmark matrix, and neural-network
+   weight files (*.zip, *.npz, *.npy) and rendered videos (*.mp4). These are
+   large binary artifacts. The compact audit trail for each of them - the
+   manifest, the aggregated metrics and the SHA-256 hash - IS included, so a
+   reported value can be traced and checked without the binary.
+
+2. Nothing else. No result reported in this paper depends on data that is
+   withheld.
+
+Raw artifacts and model weights are available from the corresponding author on
+reasonable request.
+
+TODO (administrative): if the authors deposit an archival snapshot (for example
+on Zenodo) to obtain a DOI, add the DOI here and cite it in the manuscript.

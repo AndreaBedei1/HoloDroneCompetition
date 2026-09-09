@@ -1,0 +1,75 @@
+\section{Learning-Based Extension}
+\label{sec:learning}
+
+Learning is included to test whether the benchmark contract is reusable beyond
+hand-written controllers, not as a separate contribution. A learned policy
+enters \mra{} through the same participant interface, official observation and
+independent referee used by every other controller. The resulting evaluation
+therefore tests both integration and the benchmark's ability to expose
+long-horizon failure modes.
+
+\subsection{Integration and Observation Encoding}
+\label{sec:learning_obs}
+
+A thin wrapper maps the official observation to the
+\cmd{onboard\_local\_transition\_v1} encoding, calls the policy and returns the
+four continuous body-frame actions of \eqref{eq:command}. Actions are clamped
+and depth-limited by the same framework path as rule-based actions. At
+evaluation time the policy receives no gate coordinates, global pose, referee
+progress or reward signal.
+
+The encoding has $35$ bounded features: acoustic beacon presence, bearing,
+elevation, range, strength and age; visual target presence, centre, area and
+confidence; depth and inertial/Doppler measurements with presence flags; the
+previous four actions; and short-term visual/acoustic derivatives plus target
+change timing. It is sequence-length independent: it describes the current
+target and recent local dynamics, with no gate index, mission length or future
+geometry. Missing measurements remain explicitly absent rather than imputed.
+This makes a learned policy a local transition controller and leaves any
+sequence-management capability to be measured by the benchmark.
+
+\subsection{Action Space, Reward and Curriculum}
+\label{sec:learning_reward}
+
+The action space is the same four-channel vector in $[-1,1]$ used by the
+reference controllers. PPO~\cite{schulman2017ppo}, implemented with
+Stable-Baselines3~\cite{raffin2021sb3}, is trained with a bounded reliability-
+oriented objective. Dense terms reward signed improvement in acoustic alignment,
+visual centring and range, while crossing and completion provide sparse
+milestones. Collisions, out-of-bounds motion, wrong-direction or missed gates,
+stale acquisition and post-crossing orbiting are penalized. The reward is
+constructed from bounded deltas of monotone quantities, so oscillation cannot
+manufacture progress; the detailed audit and configuration remain in the
+repository.
+
+The curriculum addresses the central long-horizon question by varying sequence
+length. Training progresses from single/local transitions to mixtures of short,
+medium and progressively longer generated sequences, while retaining short
+episodes as a source of target-switch experience. Stage promotion is based on
+validation performance rather than elapsed training steps. The three official
+circuits are excluded from training; all reported learning comparisons use
+generated geometries and the registered official circuits only after the
+checkpoint and evaluation protocol were frozen.
+
+\subsection{Frozen Checkpoints and Evaluation Separation}
+\label{sec:learning_readiness}
+
+Checkpoint selection is separated from training. A frozen checkpoint is stored
+with its model hash, source commit and training provenance, and the readiness
+criteria are registered and hashed before evaluation. The final Generation-1
+checkpoint was carried through the registered validation and holdout procedures
+without manual override; the outcome is reported in Section~\ref{sec:eval_rq5}.
+Full readiness records, training settings and seed registries are retained as
+reproducibility artifacts rather than expanded here into a training log.
+
+\subsection{Matched Evaluation Protocol}
+\label{sec:learning_eval_protocol}
+
+Learned, hybrid and rule-based controllers are evaluated with identical seeds,
+generated geometries, official configurations, adapter settings and referee
+logic. Manifests record the requested and actual adapter, fallback status,
+current profile, timestep, contract versions and model or source hashes. A
+policy-only result is kept separate from a hybrid result that blends learned
+actions with a deterministic backbone. The official circuits were opened by an
+earlier exploratory access ledger, so learning results on them are described as
+retrospective diagnostic comparisons, not held-out generalization claims.

@@ -1,0 +1,35 @@
+\begin{table}[t]
+\centering
+\caption{Positioning of \mra{} against representative underwater simulators and
+racing benchmarks. Criteria are properties of the published system description,
+not quality judgements; the table deliberately omits hydrodynamic fidelity,
+sensor variety and training throughput, on which several listed systems exceed
+\mra{}.}
+\label{tab:system_comparison}
+\mratablestyle
+\begin{tabular}{@{}l l >{\raggedright\arraybackslash}p{0.22\textwidth} c c c c c@{}}
+\toprule
+System & Domain & Physics and sensing & Gate & Indep. & Obs. & Multi- & Team \\
+ &  &  & race & referee & contract & robot & score \\
+\midrule
+UUV Simulator~\cite{manhas2016uuvsim} & Underwater & Gazebo, hydrodynamics & no & no & no & \checkmark & no \\
+Stonefish~\cite{cieslak2019stonefish} & Underwater & Custom marine physics, sensors, ROS & no & no & no & no & no \\
+DAVE~\cite{zhang2022dave} & Underwater & Gazebo, acoustic and optical sensing & no & no & no & \checkmark & no \\
+MarineGym~\cite{chu2025marinegym} & Underwater & Isaac Sim, GPU hydrodynamics, RL tasks & no & no & \checkmark & partial & no \\
+F1TENTH~\cite{okelly2020f1tenth} & Ground & Scaled car, planar LiDAR, RL and control & \checkmark & partial & \checkmark & partial & no \\
+AlphaPilot, Swift~\cite{foehn2020alphapilot,kaufmann2023swift} & Aerial & Quadrotor, vision-based gate racing & \checkmark & partial & \checkmark & no & no \\
+CARLA~\cite{dosovitskiy2017carla} & Ground & Unreal Engine, urban sensing and tasks & partial & partial & \checkmark & no & no \\
+\midrule
+\textbf{\mra{} (this work)} & Underwater & HoloOcean backend, BlueROV2, camera and acoustic sensing & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\mratablenote
+\emph{Gate race}: an ordered gate course with timing is part of the defined task.
+\emph{Indep.\ referee}: progress and violations are adjudicated by a component the
+participant cannot influence. \emph{Obs.\ contract}: a documented observation
+interface; \checkmark\ additionally denotes that ground-truth pose is excluded
+from control by the contract. \emph{Team score}: a defined aggregate score over a
+group of vehicles. ``Partial'' marks a supported capability that is not a primary
+design contract of that system. All listed underwater simulators supply physics
+and sensing that \mra{} itself does not provide and depends on a backend for.
+\end{table}

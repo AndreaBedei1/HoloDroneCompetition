@@ -1,0 +1,139 @@
+%% Marine Race Arena -- journal manuscript
+%% Target venue: Robotics and Autonomous Systems (Elsevier)
+%% Build: latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+%%
+%% Class options:
+%%   preprint,3p,times  -- single-column submission format (default here)
+%%   review,3p,times    -- double-spaced review format
+%%   final,5p,times     -- two-column published look
+\documentclass[preprint,3p,times]{elsarticle}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{tikz}
+\usepackage{listings}
+\usepackage[flushleft]{threeparttable}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc,backgrounds,decorations.pathreplacing}
+
+\journal{Robotics and Autonomous Systems}
+
+\definecolor{mralight}{rgb}{0.95,0.96,0.98}
+\definecolor{mradark}{rgb}{0.10,0.18,0.28}
+\definecolor{mrarule}{rgb}{0.18,0.43,0.69}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  framesep=4pt,
+  backgroundcolor=\color{mralight},
+  xleftmargin=0.4em,
+  xrightmargin=0.4em,
+  framextopmargin=4pt,
+  framexbottommargin=4pt,
+  aboveskip=1.2em,
+  belowskip=1.2em
+}
+% Vertical space between a top listing caption and its coloured box.
+\makeatletter
+\let\MRA@lstMakeCaption\lst@MakeCaption
+\def\lst@MakeCaption#1{\MRA@lstMakeCaption{#1}\if t#1\vskip5\p@\relax\fi}
+\makeatother
+
+\newcommand{\mra}{Marine Race Arena}
+\newcommand{\cmd}[1]{\texttt{#1}}
+\newcommand{\mratablestyle}{%
+  \footnotesize
+  \setlength{\tabcolsep}{4.5pt}%
+  \renewcommand{\arraystretch}{1.16}%
+}
+\newcommand{\mratablenote}{\par\vspace{0.8mm}\footnotesize\raggedright}
+\newcommand{\best}[1]{\textbf{#1}}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{\mra{}: A Reproducible Benchmark for Onboard-Only Autonomous\\
+Underwater Gate Racing}
+
+\author[unibo]{Andrea Bedei}
+\author[unibo]{Lorenzo Bacchiani}
+\author[unibo]{Giovanni Pau}
+\author[unibo]{Roberto Girau}
+
+\affiliation[unibo]{organization={Department of Computer Science and Engineering, University of Bologna},
+  country={Italy}}
+
+% TODO (administrative, not inferable from the repository): corresponding-author
+% email address, ORCID identifiers and postal address of the affiliation.
+
+\begin{abstract}
+Autonomous racing provides repeatable end-to-end tests for perception, planning
+and control, yet underwater robotics lacks a comparable contract for ordered
+gate navigation. We present \mra{}, a configurable benchmark and evaluation
+framework for onboard-only autonomous underwater gate racing, implemented over a
+HoloOcean backend with a BlueROV2-class vehicle. The benchmark fixes the course,
+observation boundary and scoring rules while separating autonomy from evaluation:
+controllers receive only allow-listed onboard measurements, physically received
+acoustic packets and optional teammate messages, whereas an independent referee
+uses privileged simulator state to validate crossings, apply penalties and
+produce machine-readable outcomes. The same contract supports onboard gate
+perception and acoustic--visual association, interpretable reference controllers,
+multi-vehicle scoring and a learning-integration path. In a 78-run systematic
+evaluation, the framework exposes controller differences across circuits,
+currents and fleet configurations; in a separate current-free demonstration, the
+reference controller completes all three circuits in 9/9 runs without collision,
+out-of-bounds or wrong-direction events. Currents discriminate robustness even
+when clean-track completion is identical. A matched learning evaluation further
+shows that learned policies can handle short gate transitions but currently lose
+reliability when those transitions must be chained over full circuits. These
+results position \mra{} as a reproducible evaluation instrument whose central
+contribution is the common information boundary and independent referee, rather
+than a particular control algorithm.
+\end{abstract}
+
+\begin{keyword}
+underwater robotics \sep autonomous racing \sep robotics benchmark \sep
+reproducible evaluation \sep onboard perception \sep multi-robot systems \sep
+reinforcement learning \sep HoloOcean
+\end{keyword}
+
+\end{frontmatter}
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_benchmark_model}
+\input{sections/04_environment_sensing}
+\input{sections/05_perception}
+\input{sections/06_controllers}
+\input{sections/07_referee}
+\input{sections/08_fleet}
+\input{sections/09_learning}
+\input{sections/10_evaluation}
+\input{sections/11_discussion}
+\input{sections/12_limitations}
+\input{sections/13_reproducibility}
+\input{sections/14_conclusion}
+
+\section*{Declaration of competing interest}
+The authors declare that they have no known competing financial interests or
+personal relationships that could have appeared to influence the work reported
+in this paper.
+
+\section*{Data availability}
+The benchmark implementation, the track configurations, the evaluation harness
+and the aggregated result artifacts are publicly available at
+\url{https://github.com/AndreaBedei1/HoloDroneCompetition}. Section~\ref{sec:reproducibility}
+describes the artifact layout and the regeneration commands.
+
+\bibliographystyle{elsarticle-num}
+\bibliography{refs_journal}
+
+\end{document}

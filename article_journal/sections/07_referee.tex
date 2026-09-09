@@ -1,0 +1,226 @@
+\section{Independent Referee and the Information Boundary}
+\label{sec:referee}
+
+The referee is the component that makes results comparable, and it is the
+component a participant must not be able to influence. This section formalizes
+the two-sided information boundary, the gate-crossing test, the referee state
+machine and arbitration order, the penalty model and the scoring rules, and it
+closes by treating the boundary as something to be measured rather than
+asserted.
+
+\subsection{The Two-Sided Boundary}
+\label{sec:boundary}
+
+The benchmark partitions the run state into two disjoint views. Writing $x_t$ for
+the full simulator state at step $t$, the \emph{controller view} of participant
+$i$ is
+\begin{equation}
+\label{eq:controller_view}
+o_{i,t} = \Phi_i\big(x_t\big) = \big(\,t^{\mathrm{loc}}_i,\; \mathcal{Z}_{i,t},\; \mathcal{A}_{i,t},\; \mathcal{M}_{i,t}\,\big),
+\end{equation}
+where $t^{\mathrm{loc}}_i$ is time since this participant's release,
+$\mathcal{Z}_{i,t}$ the allow-listed onboard measurements, $\mathcal{A}_{i,t}$
+the set of acoustic packets physically received at step $t$, and
+$\mathcal{M}_{i,t}$ the optional teammate inbox. The \emph{evaluator view} is
+\begin{equation}
+\label{eq:referee_view}
+e_t = \Psi\big(x_t\big) = \big(\,\{p_{i,t},\,\dot p_{i,t}\}_{i\in\mathcal{P}},\; \mathcal{G},\; \mathcal{O},\; \mathcal{B},\; \mathbf{v}_c\,\big),
+\end{equation}
+comprising exact vehicle poses and velocities, the ordered gate geometry, the
+obstacle set, the world bounds and the true current field. The benchmark enforces
+\begin{equation}
+\label{eq:boundary}
+\Phi_i \perp \sigma\!\left(\ell_t,\;G^{\mathrm{done}}_{i,t},\;\mathrm{status}_{i,t},\;P_{i,t}\right)\quad\text{for all } i,t,
+\end{equation}
+that is, the observation map is independent of the referee's expected-gate index
+$\ell_t$, of official completed-gate counts, of participant status and of accrued
+penalties. In the implementation this is a structural property rather than a
+convention: the observation builder's signature admits the track configuration,
+the arena, the adapter and the participant state, and does not admit a referee
+object, so referee-derived quantities are unreachable from the code path that
+constructs $o_{i,t}$.
+
+Information flows in one direction only. The referee reads $x_t$ and the
+controller's issued commands; the controller reads neither $e_t$ nor any function
+of it. In particular, a controller is never told that a crossing was accepted,
+never told which gate is expected next, and never told that it has been
+penalized. Where the controller's own estimate of its progress disagrees with the
+referee's, the disagreement is logged and left standing
+(Section~\ref{sec:eval_boundary}).
+
+\subsection{Gate Frame and Crossing Test}
+
+The referee reuses the right-handed gate frame $(\hat{n},\hat{r}_g,\hat{s}_g)$ of
+\eqref{eq:gate_frame}, defined from the passage direction $n_g$ with the
+vertical-normal fallback to the world $\hat{x}$ axis. For consecutive
+referee-side positions $p_{t-1},p_t$, the signed distances to the gate plane are
+\begin{equation}
+\label{eq:signed_dist}
+d_{t-1}=\hat{n}^{\!\top}(p_{t-1}-c_g),\qquad d_t=\hat{n}^{\!\top}(p_t-c_g).
+\end{equation}
+A candidate crossing requires a sign change in the \emph{correct direction},
+\begin{equation}
+\label{eq:direction}
+d_{t-1}\le 0\le d_t \;\wedge\; (p_t-p_{t-1})^{\!\top}\hat{n}>0,
+\end{equation}
+i.e.\ travel from the negative to the positive side along the normal. The
+intersection of the segment with the plane is
+\begin{equation}
+\label{eq:intersection}
+\lambda=\frac{-d_{t-1}}{d_t-d_{t-1}},\quad q=p_{t-1}+\lambda\,(p_t-p_{t-1}),\quad \lambda\in[0,1],
+\end{equation}
+and the crossing is accepted only when $q$ lies inside the aperture, shrunk by
+the configured safety margin $m_g$,
+\begin{equation}
+\label{eq:aperture}
+\big|\hat{r}_g^{\!\top}(q-c_g)\big|\le \tfrac{w_g}{2}-m_g,\qquad
+\big|\hat{s}_g^{\!\top}(q-c_g)\big|\le \tfrac{h_g}{2}-m_g.
+\end{equation}
+Gates must be passed \emph{in sequence}: the referee tests only the expected gate
+$g_{\ell}$, advancing the index $\ell\!\leftarrow\!\ell+1$ on a valid crossing and
+incrementing the lap when the sequence completes. Crossing the aperture of a
+\emph{non-target} gate is a missed-gate event; a sign change in the wrong
+direction is logged but neither penalized nor counted as progress.
+Fig.~\ref{fig:gate_geometry} illustrates the test and Fig.~\ref{fig:lifecycle}
+the principal automatic lifecycle.
+
+\input{figures/gate_geometry}
+\input{figures/participant_lifecycle}
+
+Two design choices in this test are worth naming. Testing only the expected gate,
+rather than all gates, is what turns the course into an ordered task instead of a
+collection of independent hoops, and it is the reason the dominant learned-policy
+failure mode in Section~\ref{sec:eval_rq5} is a missed-gate termination rather
+than a low gate count. Shrinking the aperture by $m_g$ before the containment
+test makes the pass criterion strictly conservative: a trajectory that clips the
+frame is not credited. The margin and the aperture dimensions were fixed before
+any experiment reported here and were never adjusted (requirement R4).
+
+\subsection{Referee State Machine and Arbitration}
+
+Each participant occupies one of the states \textsc{not\_started},
+\textsc{running}, \textsc{finished}, \textsc{dnf}, \textsc{timeout},
+\textsc{stuck}, \textsc{dsq}, \textsc{manual\_stop} or
+\textsc{controller\_error}; all but the first two are terminal. A participant is
+released to \textsc{running} when the race clock reaches its start delay
+(Section~\ref{sec:fleet}). On each tick of a running participant, events are
+evaluated in a fixed priority order that defines the arbitration: (1) a
+controller error transitions to \textsc{controller\_error} and returns;
+(2) out-of-bounds; (3) generic collision; (4) obstacle collision; (5) stuck
+accumulation; (6) duration timeout; (7) gate progression. Steps (2) to (5) accrue
+penalties without terminating; only (1), (6), a missed gate in (7) or an external
+gate-timeout produce a terminal state.
+
+The order is not arbitrary. Placing controller errors first prevents a crashed
+participant from also accruing collision or stuck charges from its final frozen
+command. Placing gate progression last ensures that a tick in which the vehicle
+both crosses a gate and touches its frame is charged for the contact and credited
+for the crossing, rather than either event masking the other. To avoid double
+counting, an obstacle-collision tick suppresses the generic collision flag.
+Repeated collision, obstacle and out-of-bounds charges use independent cooldowns;
+inter-vehicle proximity uses its own team-level cooldown; stuck is latched once
+per episode; and terminal events are not cooldown-limited.
+
+\subsection{Penalties and Termination}
+
+\input{tables/penalties}
+
+Penalties accumulate into a per-participant total $P_i$; the applied defaults are
+listed in Table~\ref{tab:penalties}. The non-trivial conditions are formalized as
+follows. The instantaneous speed is $s_t=\lVert p_t-p_{t-1}\rVert/\Delta t$, and a
+stuck accumulator integrates low-speed time,
+\begin{equation}
+\label{eq:stuck}
+T^{\mathrm{stuck}}\!\leftarrow\!\begin{cases} T^{\mathrm{stuck}}+\Delta t, & s_t<v_{\mathrm{stuck}}\\ 0, & \text{otherwise,}\end{cases}
+\end{equation}
+with a soft penalty charged once per continuous low-speed episode when
+$T^{\mathrm{stuck}}\ge T^{\mathrm{stuck}}_{\max}$ and
+$v_{\mathrm{stuck}}=0.02$\,m/s. The configured $T^{\mathrm{stuck}}_{\max}$ is
+$45$\,s on Horseshoe Bay and $65$\,s on Vertical Serpent and Mixed Endurance. An
+out-of-bounds event is $p_t\notin\mathcal{B}$. A duration timeout, disabled by
+default, fires when $t-t_{\mathrm{green}}>T_{\max}$.
+
+A missed gate sets \textsc{dnf} when \cmd{missed\_gate\_dnf} is enabled, which is
+the default, but carries no time penalty. The combination is deliberate: making a
+disqualifying error terminal but free of accumulated time ensures that losing the
+course is never cheaper than completing a slow but legal lap, which would
+otherwise be an exploitable scoring artefact.
+
+\subsection{Single-Vehicle Score and Ranking}
+
+For a finished participant the official time $T_i^{\mathrm{official}}$ is measured
+between the first and last gate (or green-to-finish, according to the timing
+mode) and the score is the penalized time
+\begin{equation}
+\label{eq:penalized}
+T_i^{\mathrm{pen}}=T_i^{\mathrm{official}}+P_i .
+\end{equation}
+Ranking places finished participants before unfinished ones and is defined by the
+ascending lexicographic key
+\begin{equation}
+\label{eq:ranking}
+\kappa_i=\begin{cases}
+(0,T_i^{\mathrm{pen}},0,0,0,\mathrm{id}_i), & f_i=1,\\
+(1,-G_i^{\mathrm{done}},n_i^{\mathrm{coll}},P_i,\mathrm{dist}_i,\mathrm{id}_i), & f_i=0,
+\end{cases}
+\end{equation}
+where $f_i=1$ denotes a finished vehicle, $G_i^{\mathrm{done}}$ the number of
+completed gates, $n_i^{\mathrm{coll}}$ the collision count and $\mathrm{dist}_i$
+the distance to the next gate; the participant identifier is the deterministic
+final tie-break. Finished vehicles are therefore ordered by penalized time, and
+unfinished vehicles by progress, then by fewer collisions, fewer penalties and
+proximity to the next gate. This ordering preserves the information in partial
+runs instead of discarding them, which matters for the learned controllers of
+Section~\ref{sec:learning}, most of whose official-circuit episodes are partial.
+
+\subsection{Event Logging}
+
+Every run emits a line-delimited event log and a machine-readable summary
+(requirement R5). Events include \cmd{gate\_passed}, \cmd{wrong\_direction},
+\cmd{collision}, \cmd{obstacle\_collision}, \cmd{out\_of\_bounds}, \cmd{stuck},
+\cmd{race\_finish} and \cmd{dnf}, each timestamped and attributed to a
+participant. For each participant, the summary records the status, the official
+and penalized times, the completed gates, the collision count, out-of-bounds
+events, missed gates and stuck events, together with the final ranking. In fleet
+mode it also carries the team summary of Section~\ref{sec:fleet}. Every table in
+Section~\ref{sec:evaluation} is an aggregation over these files.
+
+\subsection{Measuring the Boundary}
+\label{sec:eval_boundary}
+
+An information boundary that is only asserted is a design claim; one that is
+measured is evidence. Because the controller maintains its own course estimate
+(Section~\ref{sec:local_tracker}) and the referee maintains the official one, the
+two can be compared offline after every run, and the framework records that
+comparison automatically. We define a \emph{false local advancement} as a local
+increment that precedes its same-ordinal referee crossing by more than one
+control step, or that has no corresponding referee crossing at all, and a
+\emph{missed local advancement} as a referee crossing with no same-ordinal local
+increment in the run. The advancement delay is the controller-local advancement
+time minus the referee crossing time, so a positive delay means the controller
+learned of its own progress after the referee recorded it.
+
+Table~\ref{tab:local_vs_referee} reports this comparison over the frozen
+78-run matrix. Across 1474 referee advancements the controller produced 1472
+local advancements, of which 1467 matched the referee. The 11 false and 7 missed
+local advancements are $0.75\%$ and $0.47\%$ of the total. The controller
+consistently lags: the median delay is $0.858$\,s and the $95$th percentile
+$1.353$\,s, which is the price of requiring camera, acoustic and DVL evidence to
+agree before advancing. No run recorded an event-consistency error, no finish
+order was inverted across 61 pairwise comparisons, and in no case did a
+controller declare itself finished before the referee agreed.
+
+\input{tables/local_vs_referee}
+
+Two conclusions follow, and they are the reason we regard this table as central
+rather than incidental. First, the boundary is real: the controller's estimate is
+a genuinely separate quantity that is sometimes wrong, in both directions, and
+nothing in the framework repairs it. Second, the boundary is not
+\emph{prohibitive}: an onboard-only controller can track an ordered course
+closely enough that its own progress estimate is correct in more than $99\%$ of
+advancements, so requiring onboard-only operation does not make the task
+unmeasurable. The single negative delay of $-90.8$\,s in the raw distribution is
+a false local advancement in which the controller advanced its expected beacon
+long before the referee accepted the corresponding crossing; it is retained in
+the audit rather than filtered, which is why the delay standard deviation
+($2.83$\,s) far exceeds its interquartile spread.

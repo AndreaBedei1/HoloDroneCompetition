@@ -1,0 +1,72 @@
+\section{Discussion}
+\label{sec:discussion}
+
+The experiments support a view of underwater gate racing as a benchmark for
+ordered-sequence autonomy rather than speed alone. A vehicle must commit to the
+correct target, reacquire a new target after each passage and compose those
+transitions over a long course. Small per-transition defects therefore amplify
+with course length, while a single-gate task can make a weak sequence policy
+look successful.
+
+\subsection{What the Evaluation Contract Reveals}
+
+The central value of \mra{} is the conjunction of a fixed information boundary,
+an ordered referee and machine-readable scoring. The boundary makes controller
+comparisons meaningful because rule-based and learned policies receive the same
+information. The referee makes local progress auditable: controller estimates
+can be compared with privileged adjudication without allowing the latter into
+the control loop. The resulting residual disagreements are useful evidence,
+not hidden implementation details.
+
+The referee also makes failure interpretable. A missed next gate is recorded as
+a sequence failure rather than being blurred into a low aggregate gate count,
+and safety costs remain visible alongside progress. This is why the current
+sweep cannot be summarized by collision counts alone: a stronger disturbance
+can reduce collisions simply by stopping a vehicle before the contact-dense
+part of the course. Reporting progress, completion and events together is a
+benchmark requirement, not a presentation choice.
+
+\subsection{Reference Controllers, Currents and Fleets}
+
+The reference-controller comparison is a controlled ablation of visual feedback
+during passage. Neither controller dominates: continuous correction is useful
+on repeated vertical transitions, whereas suspending late visual corrections is
+more robust on the long mixed course and under the informative current profile.
+The result is evidence that the benchmark can expose a design decision that a
+single clean circuit would conceal, not evidence that either controller is
+optimal.
+
+The fleet experiments extend the same logic from individual to team autonomy.
+Vehicles that are individually competent can still converge on the same
+aperture and collide when their interaction is not scored. A distributed
+leader--follower policy removes those events within the legal observation
+boundary, while the referee charges waiting through the stuck penalty. Thus
+coordination and its cost are evaluated in the same score rather than in a
+separate engineering trace.
+
+\subsection{Learning as a Demonstration of Generality}
+
+The learning result is deliberately subordinate to the benchmark contribution.
+PPO policies integrate through the same action interface and observation
+boundary, perform well on short local transitions, and lose reliability when
+those transitions must be chained over full circuits. Their dominant failure is
+reacquisition of the next gate, rather than physical collision. The survival
+curve makes this distinction visible and shows why survivor-conditioned
+transition rates are insufficient.
+
+This is a useful diagnostic, not a claim that PPO solves underwater racing.
+The rule controller carries explicit sequence state; the feed-forward learned
+policy does not. The comparison therefore identifies a productive boundary for
+future systems: retain independently verifiable sequence management while
+learning the local control skill, or introduce memory and training procedures
+that directly target long-horizon composition. The matched evaluation shows that
+\mra{} can compare those alternatives without changing its contract.
+
+\subsection{Implications for Benchmark Design}
+
+Taken together, the results argue for benchmarks that define evaluation above
+the simulator. Solvability, disturbance robustness, team interaction and
+learning generality are different questions and require separate conditions,
+metrics and provenance. \mra{} provides one such contract for underwater
+ordered-gate racing; its limitations and the scope of the current evidence are
+given next.

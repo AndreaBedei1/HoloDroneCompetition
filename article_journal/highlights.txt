@@ -1,0 +1,5 @@
+Marine Race Arena: a reproducible benchmark for underwater gate racing
+Controllers see only onboard sensing; an independent referee scores the race
+Onboard-only control completes all three official circuits in 9 of 9 runs
+Clean-track success does not transfer: currents halve completion on the same track
+Learned policies cross gates fast but lose the ordered sequence on long courses

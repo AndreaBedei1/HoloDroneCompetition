@@ -1,0 +1,34 @@
+\begin{table}[t]
+\centering
+\caption{Current-free autonomous completion of the three official circuits by the
+Center-then-Commit reference controller. Real HoloOcean adapter, engine-free
+fallback disabled, currents verified zero in the manifest, no privileged
+controller input, $\Delta t=0.1$\,s, seeds 1800--1802.}
+\label{tab:current_free}
+\mratablestyle
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+Circuit & Gates & Runs & Completed & Mean gates & Official time (s) & Coll. & OOB / WD \\
+\midrule
+Horseshoe Bay    & 12 & 3 & 3/3 & 12.0/12 & $236.0\pm6.9$  & 0 & 0 / 0 \\
+Vertical Serpent & 17 & 3 & 3/3 & 17.0/17 & $308.6\pm6.5$  & 0 & 0 / 0 \\
+Mixed Endurance  & 22 & 3 & 3/3 & 22.0/22 & $480.4\pm15.7$ & 0 & 0 / 0 \\
+\midrule
+\textbf{Total}   & \best{51} & \best{9} & \best{9/9} & \best{51.0/51} & \textemdash & \best{0} & \best{0 / 0} \\
+\bottomrule
+\end{tabular}
+\mratablenote
+Times are mean $\pm$ sample standard deviation (ddof$=1$) over the three runs;
+penalized time equals official time in every run because no penalty was charged.
+\emph{Coll.}: gate, bar and world collision events. \emph{OOB / WD}:
+out-of-bounds events and wrong-direction crossings. Every run manifest records
+\cmd{adapter\_actual}$\,=\,$\cmd{holoocean}, \cmd{fallback\_allowed}$\,=\,$false,
+\cmd{current\_profile}$\,=\,$\cmd{none} and
+\cmd{currents\_actual}$\,=\,[0,0,0]$, together with the track SHA-256 and the
+source commit. Mixed Endurance is a \cmd{current\_gate} task whose validation
+requires a current, so a current-free run additionally overrides the validation
+mode to \cmd{clean\_gate}; the track geometry, gate order, laps and referee
+configuration are unchanged. These runs use a $10$\,Hz control rate and are
+therefore not directly comparable in time with Table~\ref{tab:clean_tracks},
+which uses $30$\,Hz.
+\end{table}
