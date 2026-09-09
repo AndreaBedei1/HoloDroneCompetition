@@ -75,29 +75,7 @@ Gate Racing and Team-Level Fleet Evaluation}
 % email address, ORCID identifiers and postal address of the affiliation.
 
 \begin{abstract}
-Autonomous racing provides repeatable end-to-end tests for perception, planning
-and control, yet underwater robotics lacks a comparable contract for ordered
-gate navigation. We present \mra{}, a configurable benchmark and evaluation
-framework for onboard-only autonomous underwater gate racing, implemented over a
-HoloOcean backend with a BlueROV2-class vehicle. The benchmark fixes the course,
-observation boundary and scoring rules while separating autonomy from evaluation:
-controllers receive only allow-listed onboard measurements, packets delivered
-through a simulated/modeled acoustic channel and optional teammate messages,
-whereas an independent referee
-uses privileged simulator state to validate crossings, apply penalties and
-produce machine-readable outcomes. The same contract supports onboard gate
-perception and acoustic--visual association, interpretable reference controllers,
-multi-vehicle scoring and a learning-integration path. In a 78-run systematic
-evaluation, the framework exposes controller differences across circuits,
-currents and fleet configurations; in a separate current-free demonstration, the
-reference controller completes all three circuits in 9/9 runs without collision,
-out-of-bounds or wrong-direction events. Currents discriminate robustness even
-when clean-track completion is identical. A matched learning evaluation further
-shows that learned policies can handle short gate transitions but currently lose
-reliability when those transitions must be chained over full circuits. These
-results position \mra{} as a reproducible evaluation instrument whose central
-contribution is the common information boundary and independent referee, rather
-than a particular control algorithm.
+We present Marine Race Arena, a configurable and reproducible framework for developing and evaluating autonomous systems in underwater gate-racing tasks. Complete race scenarios can be specified through declarative configurations, including tracks, vehicles, onboard sensors, acoustic beacons, environmental currents, obstacles, starting conditions, race rules and penalties. A central design principle is the strict separation between autonomy and evaluation: controllers operate exclusively from onboard observations, acoustic measurements and optional inter-vehicle communication, while an independent referee accesses privileged simulator state only to validate ordered gate crossings, enforce the rules and compute the official results. This common interface enables different autonomy strategies to be evaluated under the same sensing and scoring conditions and supports both single-vehicle trials and cooperative multi-vehicle scenarios. The reference implementation includes onboard visual-acoustic gate perception, two interpretable rule-based controllers, leader-follower coordination mechanisms and reinforcement-learning controllers integrated through the same observation and action interface. Three ready-to-use race circuits with different geometric characteristics are provided together with structured logging and automated validation tools for reproducible experimentation. Experiments conducted in HoloOcean with a BlueROV2-class vehicle assess course completion, gate progression, timing, collisions, robustness to environmental currents and fleet coordination. The results show that Marine Race Arena can expose meaningful differences between autonomy strategies and operating conditions while maintaining a common evaluation protocol, providing a unified testbed for studying underwater perception, navigation, control, learning and cooperation under repeatable and progressively challenging racing scenarios.
 \end{abstract}
 
 \begin{keyword}
