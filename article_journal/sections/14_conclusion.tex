@@ -1,28 +1,32 @@
 \section{Conclusion and Future Work}
 \label{sec:conclusion}
 
-This paper presented \mra{}, a reproducible benchmark and evaluation framework
-for onboard-only autonomous underwater gate racing. Its central contribution is
-an enforced separation between autonomy and evaluation: controllers use only
-allow-listed onboard sensing and messages delivered through simulated channels, while an
-independent referee uses privileged state to adjudicate ordered crossings,
-penalties and completion.
+This paper presented \mra{}, a configurable and reproducible benchmark and
+evaluation framework for onboard-only autonomous underwater gate racing. Its
+central contribution is a controller-agnostic observation--action interface
+combined with an explicit race manager and an enforced separation between
+autonomy and evaluation: controllers use only allow-listed onboard sensing and
+messages delivered through simulated channels, while an independent referee uses
+privileged state to adjudicate ordered crossings, penalties and completion.
 
-The experiments show that the contract is usable across heterogeneous circuits,
-currents, fleets and controller types. The reference controller completes the
-current-free demonstration, while the systematic matrix exposes
+The experiments show that the common contract is usable across heterogeneous
+circuits, currents, fleets and controller types. The reference controller
+completes the current-free demonstration, while the systematic matrix exposes
 condition-dependent controller robustness and coordination failures that clean
-single-vehicle scores would miss. Learned policies integrate under the same
-contract and provide a useful diagnostic: local gate transitions can be learned,
-but their reliability currently degrades when transitions must be chained over
-full circuits. This result strengthens the benchmark's purpose without making
-learning a second central contribution.
+single-vehicle scores would miss. The final Gen-2 recurrent-PPO controller also
+completes all nine valid current-free validation episodes through the same
+27-dimensional observation and four-action interface, with one collision event
+and no out-of-bounds events. This validates the integration of a learned
+controller into the benchmark and referee, without turning the result into a
+claim of superiority or unseen-circuit generalization.
 
 The evidence remains simulation-based and bounded by one backend, a narrow
-current sweep, two rule-controller families, a small fleet and an exploratory
-pose extension that is not used by the main controllers. Learned results are a
-retrospective diagnostic rather than a held-out generalization claim. Future
-work should extend the disturbance and fleet axes, add sequence-aware learned
-controllers, seal new evaluation circuits and transfer the contract to a
-physical BlueROV2. In each case, \mra{} provides the instrument for making the
-comparison reproducible and meaningful.
+current sweep, limited controller diversity in the systematic matrix, a small
+fleet and an exploratory pose extension that is not used by the main
+controllers. The learned validation is based on one selected recurrent-PPO
+checkpoint, three episodes per circuit and circuits that are not sealed against
+prior diagnostic access. Future work should extend the disturbance and fleet
+axes, compare broader sequence-aware learning strategies under matched
+protocols, seal new evaluation circuits and transfer the contract to a physical
+BlueROV2. In each case, \mra{} provides the instrument for making the comparison
+reproducible and meaningful.

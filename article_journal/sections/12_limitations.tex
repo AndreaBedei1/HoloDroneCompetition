@@ -58,14 +58,17 @@ single profile and five seeds. A finer sweep, and the same sweep on the other tw
 circuits, would be needed to characterize the degradation curve rather than two
 points on it.
 
-\paragraph{L7. Two baseline controller families} The rule-based evidence covers
-exactly two controllers that differ in one design decision. This is deliberate ---
-it makes the comparison a clean ablation --- but it means the benchmark has not
-yet been exercised against structurally different autonomy strategies, such as a
-model-predictive controller, a cascaded design with an inner DVL velocity loop,
-or a planner that reasons about several gates ahead. We therefore cannot claim
-that the difficulty ordering across the three circuits is a property of the
-circuits rather than of these two controllers.
+\paragraph{L7. Limited controller diversity in the systematic matrix} The
+rule-based evidence covers exactly two controllers that differ in one design
+decision. This is deliberate --- it makes the comparison a clean ablation ---
+but the 78-run matrix has not yet been exercised against structurally different
+autonomy strategies, such as a model-predictive controller, a cascaded design
+with an inner DVL velocity loop, or a planner that reasons about several gates
+ahead. The separate Gen-2 recurrent-PPO validation demonstrates interface
+compatibility, but it does not provide a factorial comparison across controller
+families, circuits and disturbances. We therefore cannot claim that the
+difficulty ordering across the three circuits is a property of the circuits
+rather than of the evaluated controllers.
 
 \paragraph{L8. Limited fleet scale and diversity} Fleet evidence covers two
 homogeneous vehicles at a $90$\,s gap and three heterogeneous vehicles at two
@@ -83,18 +86,18 @@ operates in (Table~\ref{tab:perception_audit}) and unreliable outside it. It is
 implemented and released, but it supports no claim in this paper and should not
 be used as a pose estimator.
 
-\paragraph{L10. The learned-control results are a snapshot of an open problem}
-The learned policies reported here are feed-forward PPO and behaviour-cloning
-checkpoints trained on procedural geometry. The frozen policy failed a
-pre-registered readiness gate on four of nineteen criteria and completed $0$ of
-$30$ official-circuit holdout trials, and the best checkpoint of the matched
-benchmark reaches $40\%$ on those circuits. We report a diagnosis --- the deficit
-is in ordered-sequence management rather than in gate-following --- and not a
-solution. Architectures with explicit memory, imitation-based bootstrapping and
-interactive dataset aggregation are natural responses to that diagnosis and are
-not evaluated here. A separate line of work along those lines was in progress
-while this manuscript was written and is deliberately excluded: no result from it
-appears anywhere in this paper.
+\paragraph{L10. The learned-control evidence is a limited validation snapshot}
+The final learned result is a single selected Gen-2 recurrent-PPO checkpoint
+using the 27-dimensional local transition contract. It was evaluated in nine
+valid current-free episodes, three on each official circuit, and completed all
+nine with one collision event. This supports the claim that a recurrent learned
+controller can be integrated and evaluated through the common interface; it does
+not establish superiority, robustness under currents, fleet-level learning,
+sample efficiency or transfer to unseen circuits. The validation sample is small,
+the checkpoint was selected from a campaign with prior diagnostic access to the
+official circuits, and the learning protocol is not factorially matched to the
+78-run rule-controller matrix. Broader comparisons of recurrent architectures,
+training procedures, disturbances and sealed circuits remain open.
 
 \paragraph{L11. The official circuits are no longer unseen} An exploratory
 holdout evaluation opened Horseshoe Bay, Vertical Serpent and Mixed Endurance,

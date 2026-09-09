@@ -11,12 +11,19 @@ look successful.
 \subsection{What the Evaluation Contract Reveals}
 
 The central value of \mra{} is the conjunction of a fixed information boundary,
-an ordered referee and machine-readable scoring. The boundary makes controller
-comparisons meaningful because rule-based and learned policies receive the same
-information. The referee makes local progress auditable: controller estimates
-can be compared with privileged adjudication without allowing the latter into
-the control loop. The resulting residual disagreements are useful evidence,
-not hidden implementation details.
+an ordered referee, configurable race management and machine-readable scoring.
+The boundary makes controller comparisons meaningful because rule-based and
+learned policies receive the same information. The referee makes local progress
+auditable: controller estimates can be compared with privileged adjudication
+without allowing the latter into the control loop. The resulting residual
+disagreements are useful evidence, not hidden implementation details.
+
+The configurable race manager makes this separation operational. Track
+geometry, participants, environmental conditions, starts, timing and penalties
+can be changed through scenario configuration while the participant interface
+and referee logic remain fixed. This permits the benchmark to vary the task and
+the operating condition independently of the autonomy implementation, which is
+important when interpreting differences between controllers.
 
 The referee also makes failure interpretable. A missed next gate is recorded as
 a sequence failure rather than being blurred into a low aggregate gate count,
@@ -46,27 +53,37 @@ separate engineering trace.
 
 \subsection{Learning as a Demonstration of Generality}
 
-The learning result is deliberately subordinate to the benchmark contribution.
-PPO policies integrate through the same action interface and observation
-boundary, perform well on short local transitions, and lose reliability when
-those transitions must be chained over full circuits. Their dominant failure is
-reacquisition of the next gate, rather than physical collision. The survival
-curve makes this distinction visible and shows why survivor-conditioned
-transition rates are insufficient.
+The final Gen-2 result supports a more precise interpretation of learning in
+this benchmark. A recurrent PPO controller using the 27-dimensional local
+transition contract completed all nine valid validation episodes, with three
+episodes on each official circuit. One collision event was recorded on Vertical
+Serpent and no out-of-bounds events were recorded. Thus, a learned controller
+can be integrated into the same observation, action and referee interfaces and
+can complete full ordered circuits under the reported current-free protocol.
 
-This is a useful diagnostic, not a claim that PPO solves underwater racing.
-The rule controller carries explicit sequence state; the feed-forward learned
-policy does not. The comparison therefore identifies a productive boundary for
-future systems: retain independently verifiable sequence management while
-learning the local control skill, or introduce memory and training procedures
-that directly target long-horizon composition. The matched evaluation shows that
-\mra{} can compare those alternatives without changing its contract.
+This result remains an integration and diagnostic result rather than a claim
+that PPO is superior to the reference controllers or that it generalizes to
+unseen circuits. The validation uses three episodes per circuit, the official
+circuits had been accessible to earlier diagnostic runs, and the learned
+campaign uses a different control rate and provenance from the systematic rule
+matrix. Its timing should therefore not be ranked directly against the rule
+controller tables. More broadly, the experiment demonstrates that the
+controller-agnostic interface accommodates recurrent learning without changing
+race execution or adjudication, but it does not isolate the effects of the
+architecture, training budget, reward design or observation encoding.
+
+The next learning experiments should extend this matched protocol to currents,
+multi-vehicle interaction and sealed circuits, while comparing memory, training
+and curriculum choices under the same independent referee. The benchmark makes
+these comparisons possible without changing the information boundary or the
+official scoring mechanism.
 
 \subsection{Implications for Benchmark Design}
 
-Taken together, the results argue for benchmarks that define evaluation above
-the simulator. Solvability, disturbance robustness, team interaction and
-learning generality are different questions and require separate conditions,
-metrics and provenance. \mra{} provides one such contract for underwater
-ordered-gate racing; its limitations and the scope of the current evidence are
-given next.
+Taken together, the results argue for benchmarks that define both race
+configuration and evaluation above the simulator. Solvability, disturbance
+robustness, team interaction and learning generality are different questions and
+require separate conditions, metrics and provenance. \mra{} provides a
+controller-agnostic interface, a configurable race manager and an independent
+referee for underwater ordered-gate racing; its limitations and the scope of the
+current evidence are given next.

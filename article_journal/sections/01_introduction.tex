@@ -5,120 +5,92 @@ Autonomous racing has emerged as an effective research format for evaluating
 perception, planning, control and real-time decision-making within a single
 quantitative task under repeatable conditions~\cite{betz2022autonomous}. In
 ground robotics, F1TENTH provides standardized vehicles, circuits, metrics and
-baselines for continuous control and reinforcement learning~\cite{okelly2020f1tenth}.
-At full scale, the Abu Dhabi Autonomous Racing League (A2RL) extends this idea
-to head-to-head racing near the limits of vehicle handling~\cite{hoffmann2026a2rl}.
-In aerial robotics, gate-based competitions have driven the development of
-high-speed perception and control pipelines~\cite{foehn2020alphapilot}. More
-recently, learning-based systems have demonstrated autonomous drone-racing
-performance at champion level~\cite{kaufmann2023swift}. Across these domains,
-the value of racing is not limited to speed: a fixed task, explicit course
-geometry, common rules and measurable outcomes provide a practical basis for
-comparing, reproducing and improving complete autonomous systems.
-
-\input{figures/task_teaser}
-
-Underwater robotics presents a natural but substantially different setting for
-this type of system-level evaluation. Autonomous underwater vehicles operate
-under sensing, communication and actuation constraints that do not arise in the
-same form in ground or aerial racing. Satellite-based global positioning is
-unavailable underwater, while inertial and Doppler-based navigation accumulates
-uncertainty over time. Vision-based navigation is further constrained by limited
-visibility, illumination variations and water conditions
+baselines for continuous control and reinforcement learning~\cite{okelly2020f1tenth},
+while full-scale competitions such as the Abu Dhabi Autonomous Racing League
+(A2RL) extend the same principle to head-to-head racing near the limits of
+vehicle handling~\cite{hoffmann2026a2rl}. In aerial robotics, gate-based
+competitions have driven the development of high-speed perception and control
+pipelines~\cite{foehn2020alphapilot}, and learning-based systems have more
+recently demonstrated autonomous drone-racing performance at champion
+level~\cite{kaufmann2023swift}. Across these domains, the value of racing is not
+limited to speed: a fixed task, explicit course geometry, common rules and
+measurable outcomes provide a practical basis for comparing, reproducing and
+improving complete autonomous systems. Underwater robotics provides a natural
+but substantially different setting for this type of evaluation. Satellite-based
+global positioning is unavailable underwater, inertial and Doppler-based
+navigation accumulates uncertainty over time, and visual navigation is affected
+by limited visibility, illumination variations and water conditions
 ~\cite{manzanilla2019uuvnavigation}. Acoustic sensing and communication can
-extend the observable range, but introduce limited bandwidth, propagation delay
-and measurement uncertainty~\cite{stojanovic2009underwater}. Persistent water
-currents and strongly damped vehicle dynamics additionally affect how a vehicle
+extend the observable range but introduce limited bandwidth, propagation delay
+and measurement uncertainty~\cite{stojanovic2009underwater}, while persistent
+currents and strongly damped vehicle dynamics further affect how a vehicle
 approaches, aligns with and crosses a gate. Underwater racing is therefore not
 simply a ground or aerial racing task transferred to a marine simulator.
+
+\input{figures/task_teaser}
 
 A growing ecosystem of underwater simulators already provides the physical and
 sensor models required to develop autonomous systems. UUV Simulator introduced
 a Gazebo-based environment for underwater vehicle dynamics and multi-robot
-experimentation~\cite{manhas2016uuvsim}. HoloOcean provides Unreal Engine
-environments together with simulated underwater sensing and multi-agent support
+experimentation~\cite{manhas2016uuvsim}, while HoloOcean provides Unreal Engine
+environments, simulated underwater sensing and multi-agent support
 ~\cite{potokar2022holoocean}. More recently, MarineGym has emphasized
 high-throughput simulation for learning-based underwater control
 ~\cite{chu2025marinegym}. These platforms provide increasingly capable
 simulation backends, but a simulator alone does not define a racing benchmark.
-In particular, it does not necessarily specify the ordered task to be completed,
-which information a controller is allowed to use, how gate crossings are
-validated, how penalties and timeouts are applied, or how different participants
-are scored under a common set of rules.
-
-This distinction is especially important in simulation because information that
-is useful for evaluating an experiment may also provide an unrealistic advantage
-to the controller. Direct access to global vehicle pose, exact gate coordinates,
-the true current field or official course progress can substantially simplify
-navigation, although such information may not be available to a deployed
-underwater vehicle. Conversely, using only the controller's internal estimate to
-determine whether a gate has been crossed can hide perception, localization or
-sequencing errors. A meaningful benchmark should therefore separate the
-information available to autonomy from the information required for evaluation.
-Controllers should operate from observations representing onboard sensing,
-whereas privileged simulator state should remain confined to an independent
-evaluation layer. This separation allows the benchmark to determine what
-actually occurred without simplifying the autonomy problem itself.
+It does not necessarily specify the ordered task to be completed, which
+information a controller is allowed to use, how gate crossings are validated,
+how penalties and timeouts are applied, or how different participants are
+evaluated under a common set of rules. This distinction is particularly
+important in simulation, where global vehicle pose, exact gate coordinates, the
+true current field or official course progress can simplify navigation
+substantially despite being unavailable to a deployed underwater vehicle. At the
+same time, relying only on the controller's internal estimate to determine task
+completion can hide perception, localization or sequencing failures. A
+meaningful benchmark should therefore separate the information available to
+autonomy from the information required for evaluation: controllers should
+operate from observations representative of onboard sensing, whereas privileged
+simulator state should remain confined to an independent evaluation mechanism.
 
 This paper presents Marine Race Arena, a configurable HoloOcean benchmark for
 autonomous underwater gate racing and team-level fleet evaluation
 (Fig.~\ref{fig:teaser}). Marine Race Arena is implemented as a benchmark and
-race-management layer above the simulator rather than as a replacement for the
-simulation backend. Complete race scenarios are described through declarative
-configurations defining the environment, ordered gates, vehicle and sensor
-configuration, acoustic beacons, environmental currents, obstacles,
-participants, starting conditions, timing rules and penalties. The reference
-implementation and the experiments reported in this work use HoloOcean with a
-BlueROV2-class vehicle~\cite{vonbenzon2022bluerov2}, while simulator-specific
-sensing and actuation are isolated behind an adapter layer.
-
-A central feature of Marine Race Arena is its controller-agnostic autonomy
-interface. The benchmark does not prescribe how a vehicle should navigate the
-course. A controller receives the observations exposed by the participant
-interface and returns bounded body-frame commands for surge, sway, heave and
-yaw. Its internal implementation can therefore be rule-based, optimization-
-based, learning-based or follow another autonomy paradigm without requiring
-changes to the race runner or evaluation logic. The reference implementation
-includes two interpretable rule-based controllers and a recurrent
-reinforcement-learning controller as examples of substantially different
-approaches operating through the same interface. New strategies can consequently
-be integrated by mapping their inputs and outputs to the benchmark contract
-rather than by modifying the benchmark itself.
-
-The autonomy interface is complemented by a configurable and independent
-race-management system. An automated referee uses privileged simulator state to
+race-management layer above the simulation backend. Complete race scenarios are
+defined through declarative configurations specifying the environment, ordered
+gates, vehicles, sensor profiles, acoustic beacons, environmental currents,
+obstacles, participants, starting conditions, timing rules and penalties. The
+reference implementation and the experiments reported in this work use
+HoloOcean with a BlueROV2-class vehicle~\cite{vonbenzon2022bluerov2}, while
+simulator-specific sensing and actuation are isolated behind an adapter layer.
+A central feature of the framework is its controller-agnostic autonomy
+interface: the benchmark does not prescribe how a vehicle should navigate the
+course, but only defines the observations available to the participant and the
+commands it must provide. A controller can therefore be rule-based,
+optimization-based, learning-based or follow another autonomy paradigm without
+requiring changes to the race runner or evaluation logic. In parallel, a
+configurable automated referee uses privileged simulator state exclusively to
 validate ordered gate crossings, detect collisions and other rule violations,
 apply penalties and timeouts, determine race termination and compute the
-official results. The controller never receives referee-side state or official
-course progress. Race rules and evaluation conditions are instead defined by the
-scenario configuration, allowing different racing tasks to be constructed
-without modifying the autonomy stack. Marine Race Arena therefore separates two
-roles that are often intertwined in simulation: the controller decides how to
-complete the task from the information available onboard, while the referee
-independently decides whether the task has been completed according to the
-configured race rules.
-
-The same structure extends naturally to multi-vehicle experiments. Multiple
-vehicles can operate simultaneously on the same course while retaining
-independent controllers, local state and official progress. The framework
-supports staggered or simultaneous starts, optional inter-vehicle communication,
-proximity monitoring, distributed leader--follower coordination and team-level
-scoring. Communication between vehicles is modeled through an acoustic-inspired
-channel with configurable delay and packet loss. The race-management and referee
-mechanisms remain unchanged, allowing single-vehicle and fleet experiments to be
-defined and evaluated within the same framework.
+official results. Referee-side state and official course progress are never
+returned to the controller. The same architecture extends to multi-vehicle
+experiments, where each vehicle retains independent autonomy and local state
+while the framework provides simultaneous or staggered starts, optional
+inter-vehicle communication, proximity monitoring, distributed
+leader--follower coordination and team-level scoring.
 
 The release includes three ready-to-use gate-racing circuits with different
-geometric characteristics together with configurable currents, obstacles,
-starting conditions and participant configurations. Structured event logs and
-machine-readable race summaries record controller execution and official
-referee outcomes. We use these capabilities to evaluate rule-based and
-reinforcement-learning controllers, disturbance conditions and multi-vehicle
-coordination in HoloOcean. The experiments are intended to demonstrate that
-different autonomy strategies and race configurations can be executed and
-evaluated through the same controller interface and the same independent scoring
-mechanism, rather than to prescribe a single optimal solution to underwater
-racing.
+geometric characteristics, together with configurable current profiles,
+obstacles and participant configurations. The common controller interface is
+demonstrated with two interpretable rule-based controllers and a recurrent
+reinforcement-learning controller, showing that substantially different autonomy
+approaches can be integrated without modifying the race-management or scoring
+logic. Structured event logs and machine-readable race summaries record both
+participant execution and official referee outcomes. The experimental
+evaluation exercises the framework across different circuits, environmental
+conditions and multi-vehicle configurations, with the purpose of assessing
+whether heterogeneous autonomy strategies and race scenarios can be executed
+and compared through the same observation interface, race definition and
+independent evaluation mechanism.
 
 The main contributions of this work are as follows:
 
@@ -135,8 +107,8 @@ provided, while the same configuration model supports custom racing scenarios.
 Controllers interact with the benchmark through a common observation--action
 contract and can implement rule-based, optimization-based, learning-based or
 other autonomy strategies without modifying the race execution or evaluation
-logic. The release provides rule-based and reinforcement-learning controllers as
-reference implementations of this interface.
+logic. The release provides rule-based and reinforcement-learning controllers
+as reference implementations of this interface.
 
 \item \textbf{A configurable race manager with an independent automated referee.}
 Race conditions and rules are defined independently from the controller, while
@@ -154,11 +126,11 @@ while maintaining independent official progress for each participant.
 
 \item \textbf{An experimental validation of the common benchmark interface.}
 The framework is exercised in HoloOcean across different race circuits, current
-conditions and multi-vehicle configurations, including both rule-based reference
-controllers and a reinforcement-learning controller integrated through the same
-observation and action interface. Structured outputs and automated validation
-procedures support repeatable evaluation and extension with new controllers and
-racing scenarios.
+conditions and multi-vehicle configurations, including both rule-based
+reference controllers and a reinforcement-learning controller integrated through
+the same observation and action interface. Structured outputs and automated
+validation procedures support repeatable evaluation and extension with new
+controllers and racing scenarios.
 
 \end{enumerate}
 
@@ -172,7 +144,7 @@ Section~\ref{sec:perception} describes onboard gate perception, followed by the
 reference controllers in Section~\ref{sec:controller} and the independent
 referee in Section~\ref{sec:referee}. Section~\ref{sec:fleet} presents
 multi-vehicle execution and coordination, while Section~\ref{sec:learning}
-describes the learning-based controller integration.
+describes the integration of learning-based control.
 Section~\ref{sec:evaluation} reports the experimental evaluation. The final
 sections discuss the results, limitations and reproducibility before concluding
 the paper.
