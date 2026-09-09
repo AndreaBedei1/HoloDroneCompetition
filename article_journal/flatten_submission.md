@@ -57,8 +57,9 @@ grep -c "LaTeX Warning: Citation"  main.log   # must be 0
 grep -c "^!"                        main.log   # must be 0
 ```
 
-At the time of writing, both builds produce 44 pages with zero undefined
-references, zero undefined citations, zero errors and zero overfull boxes.
+The compressed development build produces 38 pages with zero undefined
+references, zero undefined citations, zero errors and zero overfull/underfull
+box warnings.
 
 ## What to upload
 

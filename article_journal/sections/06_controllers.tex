@@ -71,13 +71,10 @@ Field & Interpretation \\
 
 \subsection{Dynamic Loading}
 
-A controller is selected at run time in one of three ways: a built-in alias such
-as \cmd{rule\_gate\_baseline} or \cmd{rule\_gate\_center\_then\_commit}; a dotted
-module path with an explicit class; or a file path together with
-\cmd{--controller-class}, imported dynamically. For inspection and data
-collection the runner can also be launched with the manual \cmd{keyboard} or
-\cmd{pygame} controllers. An external policy is therefore evaluated without
-modifying the package:
+A controller is selected at run time by a built-in alias, a dotted module path
+with an explicit class, or a file path and class name imported dynamically. The
+runner also provides manual controllers for inspection and data collection.
+An external policy is therefore evaluated without modifying the package:
 
 \begin{lstlisting}[language=bash]
 python -m marine_race_arena.scripts.run_marine_race \

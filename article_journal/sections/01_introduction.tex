@@ -1,186 +1,88 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Autonomous racing has become an effective research format for evaluating
-perception, planning, control and real-time decision-making within a single
-quantitative task under repeatable conditions~\cite{betz2022autonomous}. In
-ground robotics, the F1TENTH platform provides standardized vehicles, circuits,
-metrics and baselines for continuous control and reinforcement
-learning~\cite{okelly2020f1tenth}, while at full scale the Abu Dhabi Autonomous
-Racing League pushes planning and control toward the limits of vehicle handling
-in head-to-head scenarios~\cite{hoffmann2026a2rl}. In aerial robotics,
-gate-based benchmarks and competitions have driven progress from modular
-perception and control pipelines~\cite{foehn2020alphapilot} to learning-based
-policies capable of champion-level drone racing~\cite{kaufmann2023swift}. What
-these efforts share is not a vehicle or an algorithm but a contract: a
-well-defined task, fixed course geometry, explicit scoring rules and
-machine-readable outcomes. That contract, more than any individual result, is
-what has made autonomy methods in those domains comparable, reproducible and
-cumulatively improvable.
+Autonomous racing is a useful research format because it brings perception,
+planning and control into one repeatable task with explicit outcomes~\cite{betz2022autonomous}.
+F1TENTH provides this structure for ground vehicles~\cite{okelly2020f1tenth},
+while aerial gate-racing benchmarks have enabled systematic comparisons of
+fast perception and learned control~\cite{foehn2020alphapilot,kaufmann2023swift}.
+The transferable contribution of these platforms is an evaluation contract: a
+defined task, fixed geometry, a scoring rule and a reproducible record of what
+happened.
 
 \input{figures/task_teaser}
 
-Underwater robotics has no equivalent contract for speed-oriented autonomous
-navigation along a predefined gate course. Marine simulators have matured
-considerably: the UUV Simulator provides Gazebo-based intervention and
-multi-robot scenarios~\cite{manhas2016uuvsim}, Stonefish contributes
-marine-specific physics and a broad sensor suite~\cite{cieslak2019stonefish},
-DAVE adds acoustic and optical sensing for autonomous underwater
-vehicles~\cite{zhang2022dave}, HoloOcean renders underwater scenes in Unreal
-Engine with sonar, camera, inertial and Doppler
-sensing~\cite{potokar2022holoocean}, and MarineGym delivers GPU-parallel
-hydrodynamics and Gym-style control tasks for scalable reinforcement-learning
-training~\cite{chu2025marinegym}. These systems supply the physical and sensing
-substrate, and they supply it well. What none of them supplies is the
-evaluation layer that sits above a simulator: an ordered gate sequence, an
-enforced boundary on what the controller may observe, an impartial scorer that
-adjudicates progress, and a reproducible output protocol. Without that layer,
-two underwater controllers reported on the same simulator can still be
-incomparable, because nothing prevents one of them from consuming information
-that the other refused, or from being scored by logic it partly controls.
+Underwater robotics has strong simulation and sensing substrates, including
+UUV Simulator, Stonefish, DAVE, HoloOcean and MarineGym~\cite{manhas2016uuvsim,
+cieslak2019stonefish,zhang2022dave,potokar2022holoocean,chu2025marinegym}, but
+no comparable contract for onboard-only gate racing. This distinction matters
+because the underwater vehicle cannot rely on global positioning, optical range
+is limited, inertial and Doppler estimates drift, and acoustic measurements are
+intermittent. A controller given global pose or official course progress is
+solving a different problem from one restricted to deployable observations.
+Conversely, using the controller's own partial estimate to judge progress makes
+failures difficult to identify. Autonomy and evaluation therefore need separate,
+framework-enforced roles.
 
-This omission is not a formality, because underwater racing is not aerial or
-ground racing transplanted into water. Underwater vehicles are slow, strongly
-damped and pushed persistently off line by currents; global localization is
-typically unavailable; inertial and Doppler measurements drift; optical
-perception is short-ranged and degraded by turbidity; acoustic cues are noisy,
-low-bandwidth and intermittent; and contact with a gate, an obstacle or a
-teammate is hard to attribute from onboard signals alone. Each of these
-properties changes what a controller can know, and therefore changes what an
-honest evaluation must withhold from it. A benchmark that leaks global pose or
-official course progress into the control loop measures a capability no
-deployed vehicle has. Conversely, a benchmark that withholds that information
-but scores progress with the same partial estimates the controller uses cannot
-detect when the controller is wrong. The two roles must be separated, and the
-separation must be enforced by the framework rather than left to the goodwill
-of the participant.
+\mra{} makes this separation the organizing principle of an underwater racing
+benchmark. A declarative configuration defines the world, ordered gates, sensor
+profile, acoustic beacons, disturbances, participants and scoring. Each
+controller receives only participant-local time, allow-listed onboard sensing,
+physically received beacon packets and optional teammate messages, and returns a
+bounded body-frame command. An independent referee uses privileged simulator
+state to validate ordered crossings, detect violations, terminate runs and rank
+participants. Referee progress never enters the control loop; disagreements
+between local and official progress are retained as audit data. The benchmark
+model and referee are simulator-independent, while the reference adapter uses
+HoloOcean and a BlueROV2-class vehicle.
 
-\mra{} makes that separation the organizing principle of an underwater racing
-benchmark (Fig.~\ref{fig:teaser}). A declarative JSON configuration specifies
-the world, the ordered gates, the sensor profile, the acoustic beacon network,
-the disturbance field, the obstacles, the participants and the scoring rules. A
-controller receives an \emph{official observation} containing only
-participant-local time, allow-listed onboard measurements, physically received
-beacon packets and optional teammate messages, and returns a bounded body-frame
-command. An \emph{independent referee} reads privileged simulator state to test
-ordered gate crossings, detect violations, charge penalties, terminate runs and
-rank participants. Referee-derived progress never returns to the controller;
-where the controller's own estimate of its progress disagrees with the referee,
-the disagreement is logged for analysis rather than corrected. The benchmark
-model, controller contract and referee are vehicle-independent, and a
-replaceable adapter isolates simulator-specific sensing and actuation; the
-reference implementation and every experiment reported here use
-HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class
-vehicle~\cite{vonbenzon2022bluerov2}.
+This design makes different autonomy strategies comparable under one
+information boundary. It also supports experiments that are difficult to
+interpret with aggregate completion alone: robustness under currents, team-level
+coordination, and the distinction between crossing an individual gate and
+reacquiring the next gate in a long sequence. We evaluate the framework with a
+systematic 78-run matrix, a focused current-free completion demonstration, a
+three-vehicle coordination study and a matched learning evaluation. The results
+show that the task is solvable under the contract, that current-free success
+does not establish disturbance robustness, and that learned policies provide a
+useful additional test of benchmark generality while exposing a sequential
+failure mode.
 
-Building the evaluation layer first turns out to change what the experiments
-can say. Because the observation boundary is fixed, a rule-based controller, a
-hybrid controller and a neural policy can be run through the identical suite on
-identical seeds and geometries, and the resulting differences are attributable
-to the policy rather than to the information it was allowed. Because the referee
-is independent, the controller's own course estimate becomes a measurable
-quantity rather than an assumption: across the frozen benchmark matrix the
-controller-local progression matched the referee on 1467 of 1474 gate
-advancements, lagging it by a median of 0.858\,s, with 11 false and 7 missed
-local advancements and no case in which a controller believed it had finished
-before the referee agreed. Because scoring is machine-readable, the same
-framework supports single-vehicle trials, cooperative fleets and learned
-controllers without changing how any of them is judged.
-
-Three experimental observations recur across the study and motivate the
-structure of the evaluation. First, clean-track success is a weak predictor of
-robustness: both reference controllers complete every gate of the short
-Horseshoe Bay circuit in every seed, yet fall to 2 and 3 completions out of 5
-under a moderate current, and neither completes a single run under the strong
-profile. Second, in a heterogeneous convoy the binding constraint is
-coordination rather than individual speed: an uncoordinated three-vehicle team
-records a mean of 127.3 gate and world collisions per run at an 8\,s release
-gap, while a one-gate leader--follower margin using only legal onboard
-estimates and an acoustic-inspired channel removes those events entirely and is
-faster than a more conservative two-gate margin. Third, learned and rule-based
-controllers fail in qualitatively different ways: in a 474-episode matched
-comparison, learned policies complete 90.6--100\% of short generated geometries
-and are significantly faster there than the rule baseline, but reach only
-20--40\% on the full official circuits, and almost every failure is a lost gate
-sequence rather than a collision. That asymmetry is invisible to a benchmark
-that reports only aggregate completion, and it is exactly the kind of
-distinction an evaluation contract is supposed to expose.
-
-This paper extends a preliminary description of the benchmark with the
-perception front end, the referee formalization, the learning-integration path
-and the experimental programme summarized above. Its contributions are as
-follows.
+The contributions are:
 
 \begin{enumerate}
 
-\item \textbf{An underwater gate-racing benchmark defined as an evaluation
-contract rather than a simulator.} \mra{} specifies a complete race scenario ---
-world, ordered gates, sensor profile, acoustic beacons, currents, obstacles,
-participants, timing and scoring --- in a single declarative configuration, and
-enforces the resulting contract at the framework boundary. Three official
-circuits of increasing length and vertical complexity ship with the release, and
-the benchmark model is independent of the simulator behind the adapter.
+\item \textbf{A configurable underwater racing benchmark and observation
+contract.} \mra{} defines ordered gate courses, sensing, disturbances,
+participants, timing and scoring above a replaceable simulator adapter.
 
-\item \textbf{A strict, framework-enforced information boundary between autonomy
-and evaluation.} We formalize the official observation, the command interface
-and the referee state, and show that the observation builder is structurally
-independent of the referee. We then \emph{measure} the boundary rather than
-assert it, reporting the agreement between controller-local progression and
-independent referee progression over 1474 gate advancements.
+\item \textbf{A strict information boundary and independent referee.} The
+framework separates allow-listed autonomy observations from privileged scoring
+state, validates gate order and safety events independently, and emits
+machine-readable results suitable for audit.
 
-\item \textbf{An onboard gate-perception and target-association front end.} A
-deterministic detector extracts candidate gate frames from the forward camera
-and reports normalized image geometry and a confidence; an association stage
-selects, among competing candidates, the one consistent with the bearing of the
-controller's own expected acoustic beacon, and rejects the rest. We audit the
-front end on all three circuits along the controller's own trajectory, and we
-report separately, and negatively, the limits of an exploratory pose-aware
-extension under strong gate obliquity.
+\item \textbf{An onboard perception and reference-autonomy stack.} The release
+provides gate detection, acoustic--visual target association and two
+interpretable controllers that share the same participant interface.
 
-\item \textbf{An independent automated referee with formal gate validation and
-scoring.} The referee tests ordered crossings by a signed-distance and aperture
-test on privileged state, arbitrates events in a fixed priority order, applies
-penalties and terminal conditions, ranks finished and unfinished participants by
-an explicit lexicographic key, and emits structured event logs and
-machine-readable summaries.
+\item \textbf{Multi-vehicle evaluation under the same contract.} Fleet execution,
+team-level scoring and a distributed leader--follower policy test coordination
+with independent onboard state and an acoustic-inspired communication channel.
 
-\item \textbf{A cooperative fleet layer with team-level scoring and a
-distributed coordination policy.} Multiple vehicles run one circuit as a single
-team with independent onboard autonomy and independent referee state. A
-leader--follower wrapper coordinates the convoy using only its own tracker
-state, a static predecessor assignment and controller-authored messages over an
-acoustic-inspired channel with range-dependent latency and loss.
+\item \textbf{A controller-agnostic learning integration.} A compact local
+transition encoding, continuous action interface and curriculum allow PPO
+policies to enter the benchmark without relaxing its information or referee
+rules; learning is used as a demonstration of generality, not as a second
+benchmark contribution.
 
-\item \textbf{A learning-integration path that reuses the same contract, with an
-honest account of where it currently stands.} We describe the observation
-encoding, reward, curriculum, training pipeline and pre-registered readiness
-gate used to train and select policies, and we evaluate learned, hybrid and
-rule-based controllers in one matched suite. We report both the regime in which
-learned policies win and the regime in which they fail, including a
-pre-registered gate that the frozen policy did not pass.
-
-\item \textbf{A reproducible experimental programme over real HoloOcean runs.}
-The evaluation covers 78 runs of the frozen benchmark matrix, a nine-run
-current-free completion demonstration with a verified zero-current manifest, and
-a 474-episode matched controller comparison, each carrying commit identifiers,
-source-tree or model hashes, adapter and fallback status, and seed records.
+\item \textbf{A reproducible evaluation.} Frozen configurations,
+manifests, hashes and post-processing scripts support systematic comparisons of
+single vehicles, currents, fleets and learned controllers, including negative
+results and explicit limitations.
 
 \end{enumerate}
 
-The remainder of the paper is organized as follows.
-Section~\ref{sec:related_work} positions \mra{} against underwater simulation,
-racing benchmarks, underwater perception, multi-AUV cooperation and
-learning-based underwater control. Section~\ref{sec:benchmark_model} defines the
-benchmark instance, the participant interface and the runtime architecture.
-Section~\ref{sec:configuration} describes the vehicle, sensing, acoustic and
-current models and the official observation contract.
-Section~\ref{sec:perception} presents the onboard gate-perception and
-association front end. Section~\ref{sec:controller} specifies the controller
-interface and the two rule-based reference controllers.
-Section~\ref{sec:referee} formalizes the referee and the information boundary.
-Section~\ref{sec:fleet} describes fleet execution, team scoring and
-coordination. Section~\ref{sec:learning} presents the learning extension.
-Section~\ref{sec:evaluation} reports the experimental evaluation as five
-research questions. Sections~\ref{sec:discussion}, \ref{sec:limitations} and
-\ref{sec:reproducibility} discuss the findings, state the limitations and
-document reproducibility. Section~\ref{sec:conclusion} concludes.
+The remainder of the paper defines the benchmark and contract (Sections~\ref{sec:benchmark_model}--\ref{sec:referee}),
+describes perception, controllers and fleet execution (Sections~\ref{sec:perception}--\ref{sec:fleet}),
+then presents the learning extension and experimental evaluation (Sections~\ref{sec:learning}--\ref{sec:evaluation}).
+Discussion, limitations and reproducibility follow before the conclusion.

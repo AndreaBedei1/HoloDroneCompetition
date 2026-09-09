@@ -151,54 +151,25 @@ needs.
 \subsection{An Exploratory Pose-Aware Extension}
 \label{sec:perception_pose}
 
-Centre-only vision is geometrically ambiguous. A gate centred in the image but
-approached obliquely, and a gate approached head-on, produce similar centroids;
-so do lateral displacement with a frontal gate plane and yaw misalignment with a
-centred gate. We therefore implemented an exploratory pose-aware front end that
-attempts to recover the gate-plane pose from the same camera image and the
-publicly documented aperture size, and we report it here as an extension of the
-perception stack rather than as a component of the main results.
+The centre-only representation is geometrically ambiguous, so we also
+implemented an exploratory pose-aware front end based on the detected
+quadrilateral and the known aperture. It is reported as an extension of the
+perception stack, not as a component of the main results.
 
-The extension thresholds the bright bars, extracts the frame's inner hole with a
-hierarchical contour retrieval, approximates it by a quadrilateral, validates the
-four corners for convexity, area, aspect, side-length consistency and
-non-self-intersection, and orders them canonically. Camera intrinsics follow from
-the configured $640\times480$ sensor and $90^\circ$ horizontal field of view,
-giving $f_x=f_y=W/(2\tan(\mathrm{FOV}/2))=320$ and $(c_x,c_y)=(320,240)$ in
-pixels. Planar PnP on the four corners against the known square model yields up
-to two solutions; the square-planar sign ambiguity is resolved using the
-bar-height ratio, which side bar appears taller, together with the reprojection
-error. When PnP is unavailable or unstable, a projective stage still reports a
-frontal / rotated-left / rotated-right class from the bar-height ratio and skew,
-and a known-size distance estimate $z=f_y\,\cdot 1.5/h_{\mathrm{aperture,px}}$
-supplies a metric-like translation. A controller-side exponential filter with
-angular wrapping and staleness expiry stabilizes the single-frame estimate. The
-resulting twelve features --- pose availability, normalized lateral, vertical and
-forward offsets, sine and cosine of plane yaw and pitch, normalized reprojection
-error, apparent width and height fractions and quadrilateral skew --- append to
-the observation encoding without displacing any existing feature, and are masked
-when unavailable rather than filled with ground truth.
+The extension estimates plane orientation and distance when the geometry is
+sufficiently well conditioned. Implementation details and masks are retained in
+the repository, but the resulting estimates are not supplied to the controllers
+evaluated here.
 
-\paragraph{Measured limits} We evaluated this extension on a dedicated rig in
-real HoloOcean in which the gate plane was rotated by
-$0^\circ$, $\pm25^\circ$ and $\pm45^\circ$ relative to the camera, with $2.0$\,m
-apertures, over 60 frames in stationary and moving conditions. The result is
-negative and we state it plainly: a pose was available in only $11.7\%$ of
-frames, the median plane-yaw error was $48.2^\circ$ with a $90$th percentile of
-$50.3^\circ$, and both the orientation-class accuracy and the yaw-sign accuracy
-were $0.00$. The median distance error was $1.73$\,m. Under strong obliquity the
-sign disambiguation fails, and the projective fallback reports a frontal plane
-for gates rotated by $45^\circ$.
+\paragraph{Measured limits} On a dedicated real-HoloOcean rig with
+$\pm25^\circ/\pm45^\circ$ oblique views, pose was available in only
+$11.7\%$ of frames and the median plane-yaw error was $48.2^\circ$; orientation
+and yaw-sign accuracy were both $0.00$. These metrics are insufficient for the
+main controller claims.
 
-We therefore do not use pose-aware features to support any experimental claim in
-this paper. The reference controllers of Section~\ref{sec:controller} and the
-learned policies of Section~\ref{sec:learning} both operate on the centre-only
-visual features of Section~\ref{sec:perception_detect}, and the pose extension is
-reported as an implemented but unvalidated component and as an explicit
-limitation (Section~\ref{sec:limitations}). Its value in the present work is
-diagnostic: it identifies strong gate obliquity as the regime in which
-monocular geometric reasoning about this gate model breaks down, which is
-information a benchmark should surface rather than conceal.
+All main results therefore use the centre-only detection and
+acoustic--visual association front end. The pose extension is retained as an
+implemented diagnostic and an explicit limitation (Section~\ref{sec:limitations}).
 
 \subsection{Perception Audit on the Official Circuits}
 \label{sec:perception_audit}

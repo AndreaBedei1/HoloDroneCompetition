@@ -2,66 +2,27 @@
 \label{sec:conclusion}
 
 This paper presented \mra{}, a reproducible benchmark and evaluation framework
-for onboard-only autonomous underwater gate racing. Its organizing principle is a
-strict, framework-enforced separation between autonomy and evaluation: a
-controller reads only participant-local time, allow-listed onboard sensing,
-physically received acoustic packets and optional teammate messages, while an
-independent referee uses privileged simulator state to validate ordered gate
-crossings, charge penalties, terminate runs and compute scores that never return
-to the control loop. On that contract we built an onboard gate-perception and
-target-association front end, two interpretable rule-based reference controllers,
-a cooperative fleet layer with a distributed leader--follower policy over an
-acoustic-inspired channel, and a learning-integration path that exposes the same
-observation and action interface to reinforcement-learning agents.
+for onboard-only autonomous underwater gate racing. Its central contribution is
+an enforced separation between autonomy and evaluation: controllers use only
+allow-listed onboard sensing and physically received messages, while an
+independent referee uses privileged state to adjudicate ordered crossings,
+penalties and completion.
 
-The experiments support four conclusions. The task is achievable under the full
-contract: the reference controller completed all three official circuits in 9 of
-9 current-free runs, with no collision, out-of-bounds or wrong-direction event,
-and with a manifest that verifies the real adapter and zero currents. The
-benchmark discriminates: two controllers that differ in a single design decision
---- whether to keep servoing on the image during a passage --- score identically
-on a short planar circuit and diverge to $5/5$ against $2/5$ on a long mixed one.
-Clean-track success does not transfer: the same controllers fall to $3/5$ and
-$2/5$ with tens of collisions on the same circuit under a moderate current, and
-the non-monotonic collision count under the strong profile shows that a safety
-metric reported without a progress metric can invert a ranking. And learned
-controllers integrate cleanly but fail in a specific, diagnosable way: across 474
-matched episodes they complete $90.6$--$100\%$ of short generated geometries and
-are significantly faster there than the rule baseline, yet reach only $20$--$40\%$
-on full circuits, with $90.6\%$ of those failures being missed-gate terminations
-rather than collisions.
+The experiments show that the contract is usable across heterogeneous circuits,
+currents, fleets and controller types. The reference controller completes the
+current-free demonstration, while the systematic matrix exposes
+condition-dependent controller robustness and coordination failures that clean
+single-vehicle scores would miss. Learned policies integrate under the same
+contract and provide a useful diagnostic: local gate transitions can be learned,
+but their reliability currently degrades when transitions must be chained over
+full circuits. This result strengthens the benchmark's purpose without making
+learning a second central contribution.
 
-The recurring finding is that the difficulty of underwater gate racing is
-concentrated in \emph{ordered-sequence management} rather than in individual gate
-following. The unconditional survival curve makes this precise: the frozen
-learned policy crosses its first gate with probability $1.000$ and completes the
-full first transition with probability $0.733$, so more than a quarter of
-episodes are lost at the very first re-acquisition, a fact that
-survivor-conditioned rates conceal. Making that distinction visible required all
-three of the benchmark's defining properties --- a fixed observation boundary, an
-ordered-sequence termination rule and an impartial scorer --- and it is the
-clearest evidence we can offer that the evaluation layer earns its place above
-the simulator.
-
-The work has clear boundaries, stated in Section~\ref{sec:limitations}: no
-physical validation, a backend whose fidelity bounds the absolute claims, a
-narrow current sweep on one circuit, two baseline controller families, a small
-fleet, an unvalidated pose-aware perception extension, and learned-control
-results that diagnose an open problem rather than solve it.
-
-Four directions follow directly. \emph{(i)} Sequence-aware learned control: the
-measured deficit is chaining, not gate following, which points to policies with
-explicit memory, to imitation-based bootstrapping from the deterministic
-controller, and to interactive dataset aggregation that supplies corrections at
-the transition points where compounding error originates. \emph{(ii)} Disturbance
-rejection as a benchmark axis: a finer current sweep across all three circuits,
-together with controllers that explicitly reject the disturbance --- for instance
-a cascaded design servoing DVL-measured body velocity beneath outer beacon and
-vision guidance, with no access to current telemetry. \emph{(iii)} Richer
-multi-robot evaluation: larger fleets, coordination under current and obstacles,
-formation keeping, cooperative overtaking, and competitive multi-team racing with
-team-isolated scoring under the same referee. \emph{(iv)} Physical validation:
-transferring a gate course and the observation contract to a real BlueROV2 to
-quantify the simulation-to-reality gap that this work leaves open. For all four,
-the contribution offered here is not a controller but the instrument that makes
-the comparison meaningful.
+The evidence remains simulation-based and bounded by one backend, a narrow
+current sweep, two rule-controller families, a small fleet and an exploratory
+pose extension that is not used by the main controllers. Learned results are a
+retrospective diagnostic rather than a held-out generalization claim. Future
+work should extend the disturbance and fleet axes, add sequence-aware learned
+controllers, seal new evaluation circuits and transfer the contract to a
+physical BlueROV2. In each case, \mra{} provides the instrument for making the
+comparison reproducible and meaningful.

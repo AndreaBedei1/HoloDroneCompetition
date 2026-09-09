@@ -126,12 +126,13 @@ matched learned-controller benchmark.
 
 \subsection{Updating the Learning Results}
 
-The learning section is deliberately structured so that its tables can be
-refreshed without rewriting the manuscript. A new frozen checkpoint is added by
-recording its SHA-256 in the benchmark package manifest, running the same matched
-suite on the same registered seeds, and regenerating
-Tables~\ref{tab:learning}--\ref{tab:learning_paired} and
-Fig.~\ref{fig:learning_group_success} from the resulting aggregate files. The
-methodology of Section~\ref{sec:learning} --- observation encoding, reward,
-curriculum, readiness gate and evaluation protocol --- is independent of any
-particular checkpoint and does not change when the numbers do.
+The learning section is deliberately structured so that its main comparison can
+be refreshed without rewriting the manuscript. A new frozen checkpoint is added
+by recording its SHA-256 in the benchmark package manifest, running the same
+matched suite on the same registered seeds, and regenerating Table~\ref{tab:learning}
+and Fig.~\ref{fig:learning_survival} from the resulting aggregate files. The
+paired comparison and full readiness/holdout tables remain available as
+supporting artifacts. The methodology of Section~\ref{sec:learning} ---
+observation encoding, reward, curriculum, readiness gate and evaluation protocol
+--- is independent of any particular checkpoint and does not change when the
+numbers do.

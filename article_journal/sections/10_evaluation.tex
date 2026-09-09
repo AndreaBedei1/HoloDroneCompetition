@@ -63,12 +63,10 @@ deviations (ddof$\,{=}\,$1). Proportions carry Wilson $95\%$ intervals where
 sample sizes are small enough for the normal approximation to mislead. Paired
 comparisons use two-sided sign tests on matched seeds.
 
-Every run records the experiment-generation commit, the source-tree fingerprint
-or model SHA-256, the HoloOcean version, the track file and its SHA-256, the
-requested and actual adapter, the fallback-disabled status, the current profile
-and measured current vector, the control timestep and the seed. A run whose
-actual adapter was not HoloOcean, or which permitted the engine-free fallback,
-does not appear in any table in this paper.
+Every run records the experiment-generation commit, source or model hash,
+HoloOcean version, track hash, requested and actual adapter, fallback status,
+current profile, timestep and seed. Runs that used a non-HoloOcean adapter or
+permitted the engine-free fallback do not appear in the tables.
 
 \subsection{RQ1: Onboard-Only Completion Across Heterogeneous Circuits}
 \label{sec:eval_rq1}
@@ -254,81 +252,46 @@ two release gaps and three seeds.
 \label{sec:eval_rq5}
 
 \input{tables/learning}
-\input{figures/learning_group_success}
 
-Table~\ref{tab:learning} and Fig.~\ref{fig:learning_group_success} report the
-474-episode matched benchmark. The integration question is answered first and
-plainly: five controllers of three different kinds --- rule-based, hybrid and
-learned --- ran the identical suite through the identical interface, were scored
-by the same referee, and produced directly comparable, paired results. No part of
-the runner, adapter or referee was modified to accommodate a neural policy, and
-the evaluation manifests confirm that every action of the policy-only controllers
-was policy-generated.
+Table~\ref{tab:learning} reports the matched benchmark. The integration question
+is answered directly: rule-based, hybrid and learned controllers ran the same
+suite through the same interface and were scored by the same referee. No runner,
+adapter or referee modification was needed for the neural policies, and the
+manifests confirm policy purity for the policy-only entries.
 
-The performance question has a more interesting answer than a single ranking
-would suggest. On the eight generated test groups of one to three gates, learned
-policies are competitive with the rule baseline: PPO~525k matches it at $100\%$,
-PPO~1000k reaches $96.9\%$ and PPO~900k $90.6\%$, against the baseline's $100\%$.
-On the three full official circuits the picture inverts: the rule baseline
-completes $93.3\%$ while the best PPO checkpoint reaches $40.0\%$, the others
-$26.7\%$ and $20.0\%$, and the behaviour-cloning policy $0\%$.
+On the short generated geometries, learned policies are competitive with the
+rule baseline, with completion between $90.6\%$ and $100\%$. On the three full
+circuits, completion falls to $20$--$40\%$ for the PPO checkpoints, against
+$93.3\%$ for the rule baseline. The paired analysis retained in the released
+artifacts shows the same trade-off at matched seeds: PPO is significantly faster
+on shared successful episodes, but significantly less reliable.
 
-Table~\ref{tab:learning_paired} shows that "worse" is the wrong summary. Over the
-79 episodes each controller shares with the rule baseline on identical seeds and
-geometries, all three PPO checkpoints are simultaneously \emph{significantly less
-reliable} (sign-test $p\le0.001$ on discordant completion pairs) and
-\emph{significantly faster} on the episodes they do complete ($\Delta t$ between
-$-6.77$ and $-7.05$\,s, $p\le0.001$). The learned policies are not degraded
-versions of the rule controller; they occupy a different point on the
-speed--reliability trade-off, and they reach it without any of the hand-designed
-staging that the rule controller uses.
+\paragraph{The failure is sequential, not physical} The dominant PPO failure mode
+is loss of the ordered sequence rather than collision. The policies commonly
+cross a gate, then fail to reacquire the next target, at which point the
+referee's ordered-sequence test terminates the run. This is the diagnostic value
+of the benchmark: it distinguishes a local transition skill from the ability to
+compose that skill over a circuit.
 
-\input{tables/learning_paired}
-
-\paragraph{The failure is sequential, not physical} The decisive diagnostic is
-\emph{how} learned policies fail. Of the 32 PPO failures on official circuits, 29
-($90.6\%$) are referee-terminal missed-gate events and only 3 are time limits;
-none is an out-of-bounds termination. The median failure occurs after completing
-$23.9\%$ of the course. The policies are not crashing into gates or leaving the
-world; they are crossing a gate and then failing to acquire the next one, at
-which point the referee's ordered-sequence test
-(Section~\ref{sec:referee}) terminates the run.
-
-Fig.~\ref{fig:learning_survival} makes the same point quantitatively for the
-frozen Generation-1 policy, whose readiness evaluation instrumented survival
-explicitly. The probability of crossing the first gate from episode start is
-$1.000$ ($120/120$), and it falls to $0.733$ ($88/120$) for the full gate-1 to
-gate-2 transition, $0.575$ at gate 8 and $0.300$ at gate 22. Survivor-conditioned
-transition rates conceal this: measured over all 500 transition cases the
-universal transition success rate is $0.820$, which looks like a policy that
-usually chains correctly, whereas the unconditional survival curve shows that
-more than a quarter of episodes are lost at the very first transition. Reporting
-conditional rates alone would have made a policy that cannot chain look like a
-policy that chains well.
+Fig.~\ref{fig:learning_survival} gives the clearest view for the frozen
+Generation-1 policy: first-gate crossing is $1.000$, but unconditional survival
+falls to $0.733$ at the first transition and $0.300$ by gate 22. Thus a
+transition rate averaged over surviving cases would overstate circuit-level
+reliability.
 
 \input{figures/learning_survival}
 
-\paragraph{A pre-registered negative result} Table~\ref{tab:learning_holdout}
-reports the readiness gate and the paired final holdout for that policy. The gate
-returned FAIL on 4 of its 19 registered criteria --- universal transition success
-($0.820$ against a bound of $0.900$) and completion at 3, 5 and 8 gates --- with
-no override requested or applied. Carried into the holdout as registered, the
-frozen policy completed $0$ of $30$ official-circuit trials while the paired rule
-controller completed $30$ of $30$, crossing $87$ of $510$ gates; every PPO episode
-crossed at least gate~1 and then terminated on a missed gate at the next attempted
-gate. The consistency between the procedural gate and the downstream outcome is
-itself informative: a pre-registered chaining criterion measured on generated
-geometry predicted circuit-level failure, which is what such a gate is for.
+\paragraph{A pre-registered negative result} The frozen Generation-1 policy failed
+four of the nineteen registered readiness criteria, with no manual override, and
+was nevertheless carried into the registered final holdout. The complete
+readiness and holdout tables remain in the repository artifacts; the main result
+is the agreement between the procedural failure and the observed circuit-level
+loss of reliability.
 
-\input{tables/learning_holdout}
-
-\paragraph{What this says about the benchmark} These results are reported as a
-retrospective diagnostic rather than a held-out generalization claim, because the
-three official circuits were opened by the exploratory holdout whose ledger
-records all sixty accesses (Section~\ref{sec:learning_eval_protocol}). With that
-scoping stated, the finding stands: under a fixed observation contract and an
-impartial referee, current PPO policies trained on procedural geometry learn a
-competent single-gate transition and fail to chain it over a long ordered
-sequence. The benchmark's ordered-gate termination rule is what makes this
-visible; a scoring rule that credited any gate crossing would have reported the
-same policies as broadly successful.
+\paragraph{Scope} The official circuits were opened by an earlier exploratory
+holdout and are therefore a retrospective diagnostic, not an unseen
+generalization test. Within that scope, the result is useful: policies trained
+on procedural geometry handle short transitions but lose reliability when those
+transitions must be chained over full circuits. The fixed information boundary
+and independent referee make this failure visible instead of crediting isolated
+gate crossings as broad success.

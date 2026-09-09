@@ -14,7 +14,7 @@ section-by-section relationship between the two.
 | --- | --- |
 | Target journal | Robotics and Autonomous Systems (Elsevier) |
 | Document class | `elsarticle`, `preprint,3p,times` (single column) |
-| Length | 44 pages, 14 sections, 13 figures, 16 tables, 21 references |
+| Length | 38 pages, 14 sections, 11 main figures, 11 main tables, 26 references |
 | Build | clean — 0 errors, 0 undefined references, 0 undefined citations, 0 missing files, 0 overfull/underfull boxes |
 | Claim audit | 95 checks, 95 verified, 0 mismatched |
 | Blocking work remaining | CRediT roles (authors must assign), corresponding-author details, graphical abstract, 5 schematic figures |
@@ -75,7 +75,8 @@ article_journal/
   captures, cropped and relabelled in English by
   `scripts/make_perception_figure.py`.
 * **Computed from frozen artifacts** — the survival curve and the per-group
-  completion chart, by `scripts/make_learning_figures.py`.
+  completion chart, by `scripts/make_learning_figures.py`; only the survival
+  curve is retained in the compressed main manuscript.
 * **New HoloOcean captures — none.** A PPO training campaign held every engine
   instance while this manuscript was written; no figure script launches the
   simulator, and each writes a provenance JSON asserting so.
@@ -123,8 +124,8 @@ the prose. To add or replace a checkpoint:
 
 1. Record its SHA-256 in the benchmark package manifest.
 2. Run the same matched suite on the same registered seeds.
-3. Regenerate `tables/learning.tex` and `tables/learning_paired.tex` from the new
-   `aggregate_by_group.csv` and paired-comparison output.
+3. Regenerate `tables/learning.tex` and the supporting paired/readiness tables
+   from the new `aggregate_by_group.csv` and paired-comparison output.
 4. Re-run `python article_journal/scripts/make_learning_figures.py`.
 5. Re-run `python article_journal/scripts/verify_claims.py` and update the
    expected values it asserts.

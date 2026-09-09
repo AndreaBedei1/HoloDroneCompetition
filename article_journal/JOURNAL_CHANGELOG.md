@@ -9,28 +9,35 @@ in `article/` was edited, moved or deleted.
 | | Conference | Journal |
 | --- | --- | --- |
 | Class | `IEEEtran` (conference) | `elsarticle` (`preprint,3p,times`) |
-| Title | *A Configurable HoloOcean Benchmark for Underwater Gate Racing and Team-Level Fleet Evaluation* | *A Reproducible Benchmark for Onboard-Only Autonomous Underwater Gate Racing, Multi-Vehicle Evaluation and Learned Control* |
+| Title | *A Configurable HoloOcean Benchmark for Underwater Gate Racing and Team-Level Fleet Evaluation* | *A Reproducible Benchmark for Onboard-Only Autonomous Underwater Gate Racing* |
 | Framing | "we built a configurable HoloOcean environment" | "we define an evaluation contract above a simulator backend" |
 | HoloOcean's role | close to the contribution | a replaceable backend reached through an adapter |
 | Structure | 10 sections, chronological evaluation | 14 sections, evaluation organized by five research questions |
-| Contributions | 5 | 7 |
-| Pages | 8 | 44 |
+| Contributions | 5 | 6 |
+| Pages | 8 | 38 |
 
-The title change is the substantive one. The conference title names the backend;
-the journal title names the property that makes the work reusable
-(*reproducible*, *onboard-only*) and the two dimensions the conference title
-omitted (*multi-vehicle*, *learned control*). Both candidate titles proposed for
-this revision were considered; the chosen title merges them, because after the
-manuscript was written neither "benchmarking perception, control and
-multi-robot autonomy" nor "a reproducible benchmark for onboard-only gate
-racing" alone covered the learning extension, which is now a full section with
-its own experimental programme.
+The compressed journal title keeps the benchmark and information-boundary
+contribution primary. Fleet evaluation and learning remain evaluated extensions
+of the same contract and are surfaced in the abstract, contributions and
+results.
+
+## Editorial compression pass
+
+The manuscript was subsequently reorganized for journal readability. The
+abstract and Introduction now provide only headline findings; contributions were
+aggregated from seven to six; the pose-aware extension is explicitly diagnostic;
+and the learning section retains only the contract, compact 35-D encoding,
+four-action interface, PPO, high-level reward, curriculum and frozen matched
+evaluation protocol. RQ5 keeps one overall comparison table and the survival
+figure; paired, readiness and holdout tables remain supporting artifacts. The
+main-text source prose is reduced by approximately 20.4%, from 22,609 to 17,998
+words, and the PDF by six pages.
 
 ## Section-by-section disposition
 
 | Conference section | Disposition | Journal destination |
 | --- | --- | --- |
-| 1 Introduction | **EXPAND** — same opening argument; new paragraphs on why the boundary is measurable, on the three recurring findings, and 7 contributions instead of 5 | §1 |
+| 1 Introduction | **COMPRESS + REFRAME** — benchmark/evaluation contract first, qualitative preview only, and 6 aggregated contributions | §1 |
 | 2 Related Work (3 subsections) | **EXPAND** — restructured into 5 topical subsections plus a positioning subsection; MarineGym promoted from a sentence to a dedicated complementarity argument; new subsection on underwater perception | §2 |
 | 3 Benchmark Model | **KEEP** — Definitions 1 and 2, the gate frame and the requirement table preserved verbatim; added a paragraph on why the action space fixes comparability | §3 |
 | 4 Vehicle, Simulator and Sensing | **KEEP + UPDATE** — all models preserved; **new**: explicit two-control-rate discipline (0.033 s vs 0.1 s, never pooled); explicit statement of the three withheld quantities | §4 |

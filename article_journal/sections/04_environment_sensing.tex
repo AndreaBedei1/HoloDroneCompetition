@@ -136,17 +136,10 @@ and body-frame DVL velocity.
 
 \subsection{Declarative Track Configuration}
 
-A track is a self-contained JSON file. Its principal sections are \cmd{race}
-(name, timing mode, laps and duration), \cmd{benchmark\_task}, \cmd{world}
-(bounds and environment), \cmd{start} and \cmd{finish}, \cmd{track} and
-\cmd{gates} (the ordered gate sequence with centres, passage directions and
-aperture sizes), \cmd{beacon}, \cmd{currents} and \cmd{current\_profiles},
-\cmd{obstacle\_generation} and \cmd{obstacles}, \cmd{participants} (vehicle,
-spawn, sensors, controller and optional \cmd{start\_delay\_s}) and \cmd{referee}
-(gate validation, penalties and scoring). The named \cmd{benchmark\_task}
-(\cmd{clean\_gate}, \cmd{obstacle\_gate}, \cmd{current\_gate} or \cmd{multi\_rov})
-selects a validation contract. Listing~\ref{lst:trackjson} shows a representative
-excerpt.
+A track is a self-contained JSON file. Its sections define the race timing,
+benchmark task, world, ordered gates, sensors, beacons, currents, obstacles,
+participants and referee. The selected task supplies the corresponding
+validation contract; Listing~\ref{lst:trackjson} shows a representative excerpt.
 
 \begin{lstlisting}[caption={Representative excerpt of a track configuration.}, label={lst:trackjson}]
 "track": {

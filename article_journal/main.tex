@@ -61,7 +61,7 @@
 \begin{frontmatter}
 
 \title{\mra{}: A Reproducible Benchmark for Onboard-Only Autonomous\\
-Underwater Gate Racing, Multi-Vehicle Evaluation and Learned Control}
+Underwater Gate Racing}
 
 \author[unibo]{Andrea Bedei}
 \author[unibo]{Lorenzo Bacchiani}
@@ -75,41 +75,28 @@ Underwater Gate Racing, Multi-Vehicle Evaluation and Learned Control}
 % email address, ORCID identifiers and postal address of the affiliation.
 
 \begin{abstract}
-Autonomous racing has become a standard way to compare perception, planning and
-control on ground and aerial platforms, but underwater robotics still lacks an
-equivalent evaluation protocol. Marine simulators supply vehicles, hydrodynamics
-and sensors; none of them defines the surrounding contract that makes results
-comparable, namely an ordered gate course, a fixed observation boundary, an
-impartial scorer and machine-readable outcomes. We present \mra{}, a
-configurable benchmark and evaluation framework for onboard-only autonomous
-underwater gate racing, implemented over a HoloOcean backend with a
-BlueROV2-class vehicle. The benchmark separates autonomy from evaluation by
-construction: a controller reads only a forward camera, depth, inertial and
-Doppler measurements, physically received acoustic beacon packets and optional
-teammate messages, while an independent referee uses privileged simulator state
-to validate ordered gate crossings, charge penalties, terminate runs and compute
-scores that are never fed back into control. On top of this contract we
-contribute an onboard gate-perception front end that associates camera
-detections with the expected acoustic beacon, two interpretable rule-based
-reference controllers, a cooperative fleet layer with a distributed
-leader--follower policy over an acoustic-inspired channel, and a
-learning-integration path that exposes the same observation and action contract
-to reinforcement-learning agents. We report 78 real-HoloOcean runs across three
-heterogeneous circuits, two graded current profiles, homogeneous fleets and
-three-vehicle coordination; a current-free demonstration in which the reference
-controller completes all three circuits in 9 of 9 runs with no collision,
-out-of-bounds or wrong-direction event; and a 474-episode matched comparison of
-six controllers under identical seeds and geometries. Three findings recur.
-Success on a short clean circuit does not predict robustness: the same
-controllers drop to 2--3 of 5 completions under a moderate current. Coordination
-matters more than speed in a convoy: a one-gate leader--follower margin removes
-all 127.3 mean gate and world collisions of the uncoordinated three-vehicle
-case. And learned policies are not simply worse than rules but differently
-shaped: they complete 90.6--100\% of short generated geometries and are
-significantly faster there than the rule baseline, yet reach only 20--40\% on
-the full circuits, failing almost exclusively by losing the gate sequence rather
-than by colliding. \mra{} makes such distinctions measurable, and the released
-configurations, manifests and hashes make every reported number reproducible.
+Autonomous racing provides repeatable end-to-end tests for perception, planning
+and control, yet underwater robotics lacks a comparable contract for ordered
+gate navigation. We present \mra{}, a configurable benchmark and evaluation
+framework for onboard-only autonomous underwater gate racing, implemented over a
+HoloOcean backend with a BlueROV2-class vehicle. The benchmark fixes the course,
+observation boundary and scoring rules while separating autonomy from evaluation:
+controllers receive only allow-listed onboard measurements, physically received
+acoustic packets and optional teammate messages, whereas an independent referee
+uses privileged simulator state to validate crossings, apply penalties and
+produce machine-readable outcomes. The same contract supports onboard gate
+perception and acoustic--visual association, interpretable reference controllers,
+multi-vehicle scoring and a learning-integration path. In a 78-run systematic
+evaluation, the framework exposes controller differences across circuits,
+currents and fleet configurations; in a separate current-free demonstration, the
+reference controller completes all three circuits in 9/9 runs without collision,
+out-of-bounds or wrong-direction events. Currents discriminate robustness even
+when clean-track completion is identical. A matched learning evaluation further
+shows that learned policies can handle short gate transitions but currently lose
+reliability when those transitions must be chained over full circuits. These
+results position \mra{} as a reproducible evaluation instrument whose central
+contribution is the common information boundary and independent referee, rather
+than a particular control algorithm.
 \end{abstract}
 
 \begin{keyword}

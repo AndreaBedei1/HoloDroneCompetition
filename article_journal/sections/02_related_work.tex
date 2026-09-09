@@ -8,6 +8,8 @@ perception and sensor-based navigation, which determine what an onboard
 controller can actually observe; multi-AUV cooperation and acoustic
 communication, which constrain the fleet layer; and learning-based underwater
 control, which motivates the learning-integration path.
+This view follows broader arguments for reproducibility-by-design and
+system-level RAS validation~\cite{tani2020benchmark,araujo2023rasreview}.
 Table~\ref{tab:system_comparison} summarizes the positioning.
 
 \input{tables/system_comparison}
@@ -76,28 +78,22 @@ the controller's own notion of progress.
 \subsection{Underwater Perception and Sensor-Based Navigation}
 \label{sec:rw_perception}
 
-Underwater autonomy is shaped by the fact that the sensors which are cheap in air
-are expensive or unavailable in water. Satellite positioning does not penetrate
-the surface, so global pose must be inferred acoustically or dead-reckoned from
-inertial and Doppler measurements, with drift that grows over a run. Optical
-sensing is limited in range and degraded by turbidity, scattering and
-wavelength-dependent attenuation, which is why simulators aimed at marine work
-model optical and acoustic sensing explicitly~\cite{cieslak2019stonefish,
-zhang2022dave, potokar2022holoocean}. Acoustic ranging is the practical
-long-range cue, but it is noisy, low-rate, and subject to the propagation effects
-characterized in the underwater acoustic-channel
-literature~\cite{stojanovic2009underwater}.
+Underwater autonomy is shaped by limited optical range, the absence of satellite
+positioning and drift in inertial or Doppler estimates. These constraints motivate
+vision-based localization and control with real underwater vehicles
+~\cite{manzanilla2019uuvnavigation}, perception-aware navigation that preserves
+visual objectives~\cite{xanthidis2021aquavis}, and competition systems that
+explicitly use image processing for a Gate Pass mission~\cite{harada2022gatepass}.
+Simulators therefore model optical and acoustic sensing explicitly
+~\cite{cieslak2019stonefish,zhang2022dave,potokar2022holoocean}, while acoustic
+links remain noisy and low-rate~\cite{stojanovic2009underwater}.
 
-\mra{} does not propose a new underwater perception algorithm, and does not claim
-that its detector is a state-of-the-art gate detector. It makes a narrower
-methodological point that the benchmark setting requires: when several gates are
-simultaneously visible and the vehicle has only a noisy acoustic bearing to
-distinguish them, \emph{which} detection the controller commits to is a decision
-the framework must not make on the controller's behalf. The framework therefore
-delivers unlabelled camera pixels and unlabelled beacon packets, and the
-association between them is part of the participant's autonomy stack
-(Section~\ref{sec:perception}). This is the concrete mechanism by which the
-observation contract stays honest under multi-gate visibility.
+\mra{} does not propose a new perception algorithm. Its narrower methodological
+point is that, when several gates are visible, association between camera
+detections and noisy acoustic cues must remain part of the participant autonomy
+stack (Section~\ref{sec:perception}), rather than being resolved by the
+benchmark. This is how the observation contract remains honest under multi-gate
+visibility.
 
 \subsection{Multi-AUV Cooperation and Acoustic Communication}
 \label{sec:rw_fleet}

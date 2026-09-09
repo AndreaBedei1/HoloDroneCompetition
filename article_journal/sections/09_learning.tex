@@ -1,216 +1,75 @@
-\section{Learning-Based Extension and Training Pipeline}
+\section{Learning-Based Extension}
 \label{sec:learning}
 
-A benchmark whose contract only rule-based controllers can satisfy would be of
-limited use. This section describes how a learned policy is integrated into
-\mra{} without relaxing any part of the observation or referee contract, and
-documents the observation encoding, reward, curriculum, training pipeline,
-checkpoint-selection procedure and evaluation protocol that produced the policies
-evaluated in Section~\ref{sec:eval_rq5}.
+Learning is included to test whether the benchmark contract is reusable beyond
+hand-written controllers, not as a separate contribution. A learned policy
+enters \mra{} through the same participant interface, official observation and
+independent referee used by every other controller. The resulting evaluation
+therefore tests both integration and the benchmark's ability to expose
+long-horizon failure modes.
 
-We state the scope of this section precisely. Its primary contribution is
-methodological: a learning integration that is, by construction, judged by the
-same referee and restricted to the same observation as every other controller.
-The learned policies we report are frozen artifacts with recorded hashes, and one
-of them failed a readiness gate that was registered before it was evaluated. We
-report that outcome as part of the result rather than around it, because the
-purpose of the benchmark is to make such outcomes visible.
-
-\subsection{Integration Through the Existing Contract}
-
-A learned controller enters the framework through the same three-method
-interface as any other participant (Section~\ref{sec:controller}). A thin
-wrapper encodes the official observation into the policy's input vector, calls
-the policy, and returns the resulting four-channel command of
-\eqref{eq:command}, which is then clamped and depth-limited exactly as a rule
-controller's command would be. No component of the runner, the adapter or the
-referee is aware that a neural network is in the loop. In particular, the policy
-receives no gate coordinates, no global pose, no referee progress and no reward
-signal at evaluation time; the reward defined below exists only during training,
-where it may legitimately inspect privileged state because it is not part of the
-observation.
-
-\subsection{Observation Encoding}
+\subsection{Integration and Observation Encoding}
 \label{sec:learning_obs}
 
-\paragraph{Motivation} A policy trained on a fixed-length course would learn the
-course. The encoding is therefore deliberately \emph{sequence-length
-independent}: it describes the vehicle's relationship to its \emph{current}
-target and its recent local dynamics, and contains no gate index, no mission
-length, no tracker phase and no future geometry. A policy that performs well
-under this encoding has learned a local transition skill that could in principle
-be chained arbitrarily, which makes chaining failures diagnosable rather than
-confounded with memorization.
+A thin wrapper maps the official observation to the
+\cmd{onboard\_local\_transition\_v1} encoding, calls the policy and returns the
+four continuous body-frame actions of \eqref{eq:command}. Actions are clamped
+and depth-limited by the same framework path as rule-based actions. At
+evaluation time the policy receives no gate coordinates, global pose, referee
+progress or reward signal.
 
-\paragraph{Encoding} The contract \cmd{onboard\_local\_transition\_v1} maps the
-official observation to $35$ bounded features, grouped as follows:
+The encoding has $35$ bounded features: acoustic beacon presence, bearing,
+elevation, range, strength and age; visual target presence, centre, area and
+confidence; depth and inertial/Doppler measurements with presence flags; the
+previous four actions; and short-term visual/acoustic derivatives plus target
+change timing. It is sequence-length independent: it describes the current
+target and recent local dynamics, with no gate index, mission length or future
+geometry. Missing measurements remain explicitly absent rather than imputed.
+This makes a learned policy a local transition controller and leaves any
+sequence-management capability to be measured by the benchmark.
 
-\begin{itemize}
-\item \textbf{Acoustic (7):} beacon presence, bearing as a sine/cosine pair,
-normalized elevation, normalized range, signal strength and normalized packet
-age.
-\item \textbf{Visual (5):} detection presence and the normalized centre
-$(c_x,c_y)$, area fraction and confidence of the associated target from
-Section~\ref{sec:perception_assoc}.
-\item \textbf{Depth (4):} normalized depth, presence, normalized depth error and
-reference presence.
-\item \textbf{Inertial and Doppler (6):} body-frame DVL surge, sway and heave
-with a presence flag; IMU yaw rate with a presence flag.
-\item \textbf{Previous action (4):} the four channels of the command issued at
-the previous step.
-\item \textbf{Local derivatives (9):} visual centre rates with a validity flag;
-beacon bearing, elevation and range rates with a validity flag; a
-recently-changed-target flag and the normalized time since the last target
-change.
-\end{itemize}
-
-Every feature is bounded in $[0,1]$ or $[-1,1]$ and every optional quantity
-carries an explicit presence flag, so a missing measurement is represented as
-absent rather than imputed. The presence flags matter given the perception audit
-of Section~\ref{sec:perception_audit}: a detection is unavailable in roughly one
-frame in ten, and the policy must be able to represent that state rather than
-receive a stale or fabricated value.
-
-\subsection{Action Space and Reward}
+\subsection{Action Space, Reward and Curriculum}
 \label{sec:learning_reward}
 
-The action space is the contract of \eqref{eq:command}:
-four continuous channels in $[-1,1]$, identical to the rule controllers'.
+The action space is the same four-channel vector in $[-1,1]$ used by the
+reference controllers. PPO~\cite{schulman2017ppo}, implemented with
+Stable-Baselines3~\cite{raffin2021sb3}, is trained with a bounded reliability-
+oriented objective. Dense terms reward signed improvement in acoustic alignment,
+visual centring and range, while crossing and completion provide sparse
+milestones. Collisions, out-of-bounds motion, wrong-direction or missed gates,
+stale acquisition and post-crossing orbiting are penalized. The reward is
+constructed from bounded deltas of monotone quantities, so oscillation cannot
+manufacture progress; the detailed audit and configuration remain in the
+repository.
 
-The reward is shaped for reliability rather than speed and is designed so that
-oscillation cannot manufacture progress. All dense terms are \emph{bounded signed
-deltas} of a monotone quantity, so moving toward the target and then back yields
-zero net reward. The terms are: bearing, elevation and range improvement toward
-the expected beacon; visual centring and apparent-area improvement; a gate
-crossing bonus; post-crossing alignment and range improvement toward the
-\emph{next} target within a bounded window; and a completion bonus. Penalties
-cover collisions, out-of-bounds, wrong-direction crossings, missed gates, returns
-to a previously passed gate, acquisition timeouts, post-crossing orbiting and
-moving away from the target.
+The curriculum addresses the central long-horizon question by varying sequence
+length. Training progresses from single/local transitions to mixtures of short,
+medium and progressively longer generated sequences, while retaining short
+episodes as a source of target-switch experience. Stage promotion is based on
+validation performance rather than elapsed training steps. The three official
+circuits are excluded from training; all reported learning comparisons use
+generated geometries and the registered official circuits only after the
+checkpoint and evaluation protocol were frozen.
 
-Two details of the collision term are worth recording because they were necessary
-in practice. Collision cost is charged per \emph{entry} into contact rather than
-per contact frame, with a small bounded trickle for sustained contact and
-separate episode caps for entries and for contact frames. Without this
-distinction, a policy that lodges against a gate frame accumulates unbounded
-penalty from a single physical event, which destabilizes the value function. Each
-reward component and the total are additionally clipped to fixed bounds. A
-reward audit confirming these properties is included in the released artifacts.
-
-The reward exposes two regimes. In the reliability regime the time, action-change,
-jerk and energy costs are zero or near-zero, so the policy is free to be slow. An
-efficiency regime, unlocked only after reliability criteria are met, activates
-time and smoothness costs. This staging follows directly from the benchmark's
-scoring rule: since a missed gate is terminal while a slow lap merely scores
-poorly (Section~\ref{sec:referee}), optimizing speed before reliability optimizes
-the wrong objective.
-
-\subsection{Training Pipeline and Curriculum}
-\label{sec:learning_pipeline}
-
-\paragraph{Algorithm and architecture} Policies are trained with Proximal Policy
-Optimization~\cite{schulman2017ppo} as implemented in Stable-Baselines3
-2.7.1~\cite{raffin2021sb3} over a Gymnasium 1.0.0 environment that wraps the
-same arena, adapter and referee used for evaluation. The policy is a feed-forward
-Gaussian actor--critic with two hidden layers of $256$ units in both the policy
-and value heads and $\tanh$ activations, consuming the $35$-feature vector of
-Section~\ref{sec:learning_obs} with a frame stack of one. Training used a linear
-learning-rate schedule from $3\times10^{-5}$ to $5\times10^{-6}$, rollout length
-$2048$, minibatch size $256$, four epochs per update, $\gamma=0.995$,
-$\lambda_{\mathrm{GAE}}=0.95$, clip range $0.10$, entropy coefficient $10^{-3}$,
-value coefficient $0.5$, gradient-norm clipping at $0.5$ and an initial action
-standard deviation of $0.12$. A KL guard monitors each update against a target of
-$0.01$, a high threshold of $0.02$ and an absolute stop at $0.03$, and at most one
-automatic adaptation is permitted per run so that a training curve remains
-interpretable.
-
-\paragraph{Curriculum} The open problem is not crossing a gate but chaining
-crossings, so the curriculum controls the \emph{mixture of episode lengths}
-rather than the geometry difficulty alone. Episodes are drawn from four buckets
---- focus ($2$ gates), short ($3$--$5$), medium ($6$--$12$) and long ($13$--$24$)
---- and four stages shift mass from the focus bucket toward long sequences:
-$S_0$ stabilization $(0.50, 0.35, 0.15, 0.00)$, $S_1$ chaining
-$(0.30, 0.35, 0.25, 0.10)$, $S_2$ balanced $(0.20, 0.30, 0.30, 0.20)$ and $S_3$
-long-sequence $(0.10, 0.20, 0.35, 0.35)$. Short episodes are never removed,
-because they remain the highest-signal-per-second source of crossing and
-target-switch experience.
-
-Promotion between stages is driven by measured generalization on an unseen
-validation seed band rather than by elapsed transitions: a run that has merely
-survived many steps has not earned harder work. Each stage carries explicit
-promotion thresholds --- for example $S_1$ requires a universal-transition
-success rate of $0.87$ and a short-sequence completion of $0.82$, sustained over
-two consecutive qualifying evaluations --- and $S_3$ is terminal. Course geometry
-is sampled from a procedural family; the three official circuits are never used
-for training.
-
-\paragraph{Retention} Where a run is warm-started from a behaviour-cloning
-reference, an offline retention regularizer applies one bounded auxiliary update
-after each configured PPO update, computed only on recorded observation--action
-pairs and on a KL term against the initial policy, with a weight that decays to
-zero over training. The regularizer never constructs or queries an expert
-controller inside the live rollout environment, which keeps the on-policy data
-free of expert intervention.
-
-\subsection{Checkpoint Selection and the Pre-Registered Readiness Gate}
+\subsection{Frozen Checkpoints and Evaluation Separation}
 \label{sec:learning_readiness}
 
-Selecting a checkpoint by its best training-time metric invites selection on
-noise, so selection is separated from training by a pre-registered gate.
-Concretely, the training run is frozen first; the resulting checkpoint is written
-with an exclusive-create freeze record carrying its SHA-256, the git commit at
-freeze time and the total transition count, and marked read-only on disk. The
-readiness thresholds are registered before the evaluation runs, and the threshold
-object is itself hashed inside the freeze record, so a later edit to the defaults
-would be detectable.
+Checkpoint selection is separated from training. A frozen checkpoint is stored
+with its model hash, source commit and training provenance, and the readiness
+criteria are registered and hashed before evaluation. The final Generation-1
+checkpoint was carried through the registered validation and holdout procedures
+without manual override; the outcome is reported in Section~\ref{sec:eval_rq5}.
+Full readiness records, training settings and seed registries are retained as
+reproducibility artifacts rather than expanded here into a training log.
 
-The gate evaluates $19$ criteria on a validation seed band disjoint from
-training: a $500$-case universal-transition benchmark, per-length full-sequence
-completion at $3, 5, 8, 12, 17$ and $22$ gates with $20$ cases each, a
-six-rung difficulty ladder, and safety and protocol criteria. The decisive
-distinction it enforces is between \emph{survivor-conditioned} and
-\emph{unconditional} rates: reporting the success of a transition given that the
-policy reached that point flatters a policy that rarely gets there, so the gate
-also records the unconditional probability of reaching gate $k$ from episode
-start.
-
-Section~\ref{sec:eval_rq5} reports the outcome. We note here only that the gate
-returned FAIL for the frozen Generation-1 policy on four of its nineteen
-criteria, that no manual override was requested or applied, and that the policy
-was nonetheless carried into the final holdout evaluation as registered, so that
-the relationship between a failed procedural gate and downstream circuit
-performance could be observed rather than assumed.
-
-\subsection{Evaluation Protocol for Learned Controllers}
+\subsection{Matched Evaluation Protocol}
 \label{sec:learning_eval_protocol}
 
-Learned controllers are evaluated exactly like any other participant, with three
-additional protocol constraints.
-
-First, \emph{seed separation}. Seed bands are registered per role --- training,
-validation, test and final holdout --- in a seed registry committed to the
-repository, and the evaluation records both requested and completed seeds. The
-matched benchmark of Section~\ref{sec:eval_rq5} runs every controller on the
-identical seed set and the identical generated geometries, so all comparisons are
-paired.
-
-Second, \emph{policy purity}. Each evaluation records whether every action was
-produced by the policy. A controller that blends a learned output with a rule
-controller's output is marked as not policy-only and reported separately; the
-hybrid controller in Section~\ref{sec:eval_rq5} is labelled accordingly and is
-excluded from any claim about learned control.
-
-Third, \emph{artifact provenance}. Every evaluation manifest records the git
-commit, the model path and SHA-256, the track file and its SHA-256, the requested
-adapter and the adapter actually used, whether the engine-free fallback was
-permitted, the current profile and the measured current vector, the control
-timestep, and the observation and action contract versions. A run whose
-\cmd{adapter\_actual} is not \cmd{holoocean} or whose \cmd{fallback\_allowed} is
-true does not enter any table in this paper.
-
-Finally, a scoping constraint that applies to every learned-controller result on
-the three official circuits. Those circuits were opened by an exploratory
-holdout evaluation whose access ledger records all sixty accesses. They are
-therefore \emph{not} unseen holdouts for any subsequent policy, and we report
-learned-controller results on them as a retrospective diagnostic benchmark, never
-as a held-out generalization claim.
+Learned, hybrid and rule-based controllers are evaluated with identical seeds,
+generated geometries, official configurations, adapter settings and referee
+logic. Manifests record the requested and actual adapter, fallback status,
+current profile, timestep, contract versions and model or source hashes. A
+policy-only result is kept separate from a hybrid result that blends learned
+actions with a deterministic backbone. The official circuits were opened by an
+earlier exploratory access ledger, so learning results on them are described as
+retrospective diagnostic comparisons, not held-out generalization claims.

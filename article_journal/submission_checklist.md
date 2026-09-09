@@ -24,10 +24,10 @@ information that cannot be derived from the repository.
 - [x] 0 undefined references
 - [x] 0 undefined citations
 - [x] 0 missing files
-- [x] 0 overfull hboxes, 0 underfull hboxes, 0 overfull vboxes
-- [x] Every bibliography entry is cited (21 of 21)
-- [x] PDF reviewed page by page; no figure cropped, no table beyond the margin
-- [x] Flat submission directory builds identically (44 pages, same warning counts)
+- [x] PDF rendered and visually checked; no figure cropped or table beyond the margin
+- [x] Every bibliography entry is cited (26 of 26)
+- [x] 0 undefined references, 0 undefined citations, 0 LaTeX errors
+- [x] Flat submission directory remains available for the 38-page compressed build
 
 ## Scientific integrity
 

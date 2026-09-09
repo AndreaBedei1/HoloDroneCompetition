@@ -17,6 +17,15 @@ Rows below are grouped by the section that states the claim. "Verified" means th
 script recomputes the value from the artifact named in the Source column; a row
 marked *derived* is computed in the script from other verified values.
 
+## Editorial compression disposition
+
+The audit remains artifact-based after the hierarchy pass. The main manuscript
+retains the overall learning comparison and the unconditional survival figure;
+paired timing, the full readiness table and the full holdout table remain
+available as supporting artifacts. Detailed PPO hyperparameters, curriculum
+mixtures and checkpoint-freeze mechanics are verified below but are no longer
+repeated in the main prose.
+
 ---
 
 ## Section 5 — Onboard gate perception
@@ -133,10 +142,10 @@ marked *derived* is computed in the script from other verified values.
 | Paired reliability p 0.0005 / 0.0010 / 0.0001 | same | **YES** |
 | 32 PPO official failures; 29 missed-gate DNF (90.6 %); 3 time limits | `episodes.csv`, recomputed | **YES** |
 | Median PPO failure at 23.9 % of the course | same, recomputed | **YES** |
-| Readiness gate FAIL on 4 of 19 criteria, no override | `ppo_final_readiness_929792/readiness_verdict.json` | **YES** |
-| Readiness observed values 0.820 / 1.000 / 0.882 / 0.852 and per-length completions | same | **YES** |
-| Survival 1.000, 0.733, 0.717, 0.670, 0.575, 0.533, 0.375, 0.300 | same | **YES** |
-| Holdout PPO 0/30, rules 30/30, 87 of 510 gates | `ppo_final_holdout_929792/final_experiment_report.md` and `.json` | **YES** |
+| Readiness gate FAIL on 4 of 19 criteria, no override | ppo_final_readiness_929792/readiness_verdict.json (supporting artifact; summarized in Section 10.6) | **YES** |
+| Readiness observed values 0.820 / 1.000 / 0.882 / 0.852 and per-length completions | same (supporting artifact) | **YES** |
+| Survival 1.000, 0.733, 0.717, 0.670, 0.575, 0.533, 0.375, 0.300 | same; main text retains the headline points and Fig. 6 | **YES** |
+| Holdout PPO 0/30, rules 30/30, 87 of 510 gates | ppo_final_holdout_929792/final_experiment_report.md and .json (supporting artifact) | **YES** |
 | Hash-chained holdout ledger of 60 entries | `final_circuit_evaluations.jsonl` | **YES** |
 | Policy SHA-256 `60ffdca1…` | `final_experiment_report.md`, `artifact_freeze.json` | **YES** |
 
