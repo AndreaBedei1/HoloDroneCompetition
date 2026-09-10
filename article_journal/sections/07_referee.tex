@@ -94,7 +94,7 @@ failure mode in Section~\ref{sec:eval_rq5} is a missed-gate termination rather
 than a low gate count. Shrinking the aperture by $m_g$ before the containment
 test makes the pass criterion strictly conservative: a trajectory that clips the
 frame is not credited. The margin and the aperture dimensions were fixed before
-any experiment reported here and were never adjusted (requirement R4).
+any experiment reported here and were never adjusted.
 
 \subsection{Referee State Machine and Arbitration}
 
@@ -176,7 +176,7 @@ Section~\ref{sec:learning}, most of whose official-circuit episodes are partial.
 \subsection{Event Logging}
 
 Every run emits a line-delimited event log and a machine-readable summary
-(requirement R5). Events include \cmd{gate\_passed}, \cmd{wrong\_direction},
+(requirement R6). Events include \cmd{gate\_passed}, \cmd{wrong\_direction},
 \cmd{collision}, \cmd{obstacle\_collision}, \cmd{out\_of\_bounds}, \cmd{stuck},
 \cmd{race\_finish} and \cmd{dnf}, each timestamped and attributed to a
 participant. For each participant, the summary records the status, the official

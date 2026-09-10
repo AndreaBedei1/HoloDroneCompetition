@@ -3,11 +3,11 @@
 
 Fleet mode runs several vehicles as a single cooperative team through the same
 circuit, so the benchmark measures how quickly and how safely the team completes
-the course rather than pitting the vehicles against each other (requirement R7).
+the course rather than pitting the vehicles against each other.
 The benchmark models one team: all vehicles share a single simulated world, each
 controller keeps an independent local course estimate, and the referee keeps one
 scoring state per vehicle. Enabling fleet mode does not alter single-vehicle
-behaviour (R6), so a fleet result and a single-vehicle result remain comparable.
+behaviour, so a fleet result and a single-vehicle result remain comparable.
 
 \subsection{Staggered Release and Spawn Geometry}
 
@@ -50,7 +50,7 @@ and from messages they choose to send.
 
 Because the fleet is a single cooperative team, \mra{} provides an optional
 channel so that vehicles can share information while running the course. It is
-off by default and changes nothing for single-vehicle runs (R6). A controller
+off by default and changes nothing for single-vehicle runs. A controller
 transmits by returning a small \cmd{message} payload alongside its command and
 receives an \cmd{inbox} of teammates' messages in its observation; what a message
 contains and how it is used are entirely the participant's responsibility, so the

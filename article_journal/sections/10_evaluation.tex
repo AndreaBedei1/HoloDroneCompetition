@@ -50,7 +50,7 @@ question; it is not pooled with the 78-run matrix.
 All performance trials use the reference native HoloOcean simulator backend and a BlueROV2-class
 vehicle, official onboard-only observations, no current compensation and no
 obstacles, with the standard gate apertures and referee margin unchanged
-throughout (R4). Separate setup checks confirm that both named current profiles
+throughout. Separate setup checks confirm that both named current profiles
 and seeded static obstacles instantiate on every circuit; these are construction
 checks, not obstacle-avoidance trials, and no obstacle result is claimed.
 
@@ -214,8 +214,8 @@ stuck event. Mean team elapsed and penalized times coincide at $303.1\pm3.2$\,s
 for Continuous Servo and $308.0\pm5.8$\,s for Center-then-Commit. This is
 deliberately a low-contact case: it exercises multi-vehicle spawning, staggered
 release, independent per-vehicle referee state, ranking and team aggregation
-without the vehicles interacting, and it confirms requirement R6, since the
-per-vehicle behaviour matches the single-vehicle case.
+without the vehicles interacting, since the per-vehicle behaviour matches the
+single-vehicle case.
 
 The interacting case is the interesting one. A heterogeneous three-vehicle
 convoy --- a Continuous Servo leader followed by two Center-then-Commit vehicles
