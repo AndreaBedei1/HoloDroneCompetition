@@ -10,19 +10,19 @@
   birarrow/.style={{Latex[length=2mm]}-{Latex[length=2mm]}, thick}
 ]
 % top configuration pipeline
-\node[store]  (track)   at (0,5.4)   {Track JSON\\\scriptsize race, gates, currents};
-\node[block]  (loader)  at (3.3,5.4) {Config loader\\\scriptsize + validator};
-\node[block]  (builder) at (6.6,5.4) {Arena builder\\\scriptsize world objects};
+\node[store]  (track)   at (0,5.4)   {Track/race configuration};
+\node[block]  (loader)  at (3.3,5.4) {Configuration loader\\\scriptsize + validator};
+\node[block]  (builder) at (6.6,5.4) {Arena builder\\\scriptsize scenario};
 
 % runtime row
-\node[block]  (runner)  at (6.6,3.5) {Race runner\\\scriptsize control loop};
-\node[narrow] (adapter) at (2.2,3.5) {Adapter\\\scriptsize HoloOcean};
-\node[narrow] (referee) at (11.4,3.5){Referee\\\scriptsize events, score};
-\node[block]  (logs)    at (11.4,1.5){Outputs\\\scriptsize summary, events};
+\node[block]  (runner)  at (6.6,3.5) {Race runner};
+\node[narrow] (adapter) at (2.2,3.5) {Simulator adapter};
+\node[narrow] (referee) at (11.4,3.5){Referee\\\scriptsize evaluation};
+\node[block]  (logs)    at (11.4,1.5){Outputs\\\scriptsize summary, event logs};
 
 % control-loop row (official side)
-\node[block]  (obs)        at (6.6,1.5) {Official observation\\\scriptsize local time, sensors, beacons, comms};
-\node[ctrl]   (controller) at (2.7,1.5) {Controller\\\scriptsize user or baseline};
+\node[block]  (obs)        at (6.6,1.5) {Participant information};
+\node[ctrl]   (controller) at (2.7,1.5) {Participant controller};
 
 % configuration edges
 \draw[arrow] (track) -- (loader);
@@ -30,14 +30,14 @@
 \draw[arrow] (builder) -- (runner);
 
 % runtime edges
-\draw[birarrow] (runner) -- node[above, pos=0.5, align=center, font=\scriptsize]{state\\action and tick} (adapter);
-\draw[arrow]    (runner) -- node[above, font=\scriptsize]{privileged state} (referee);
+\draw[birarrow] (runner) -- node[above, pos=0.5, align=center, font=\scriptsize]{runtime data\\and tick} (adapter);
+\draw[arrow]    (runner) -- node[above, font=\scriptsize]{evaluation data} (referee);
 \draw[arrow]    (referee) -- (logs);
 
 % control loop: runner -> obs -> controller -> runner
 \draw[arrow] (runner) -- node[right, font=\scriptsize]{observation} (obs);
 \draw[arrow] (obs) -- (controller);
-\draw[arrow] (controller.north) -- node[above left=-1mm and -1mm, font=\scriptsize]{command $u\in[-1,1]^4$} (runner.south west);
+\draw[arrow] (controller.north) -- node[above left=-1mm and -1mm, font=\scriptsize]{vehicle command} (runner.south west);
 
 % official-observation trust boundary
 \begin{scope}[on background layer]
@@ -45,8 +45,8 @@
         fit=(controller)(obs), inner sep=4mm] (tb) {};
 \end{scope}
 \node[anchor=north, font=\scriptsize\itshape] at (tb.south)
-     {official-observation boundary};
+     {participant interface};
 \end{tikzpicture}
-\caption{Runtime architecture and official-observation boundary between the controller and referee.}
+\caption{Marine Race Arena runtime architecture.}
 \label{fig:runtime_architecture}
 \end{figure}

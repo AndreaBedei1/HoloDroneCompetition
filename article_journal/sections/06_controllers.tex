@@ -9,10 +9,17 @@ whose comparison anchors the evaluation.
 
 \subsection{Controller Interface}
 
-A controller implements three methods: \cmd{reset(mission\_info)}, called once
-before the run with a minimal static assignment; \cmd{step(observation)}, which
-receives the official observation of \eqref{eq:policy} at every control tick and
-returns the command of \eqref{eq:command}; and \cmd{close()}, called at teardown.
+A controller implements the participant policy
+\begin{equation}
+\label{eq:policy}
+\pi_i:o_{i,t}\mapsto u_{i,t},
+\end{equation}
+mapping the official observation $o_{i,t}$ to the vehicle command $u_{i,t}$.
+The software contract that realizes this mapping consists of three methods:
+\cmd{reset(mission\_info)}, called once before the run with a minimal static
+assignment; \cmd{step(observation)}, called at every control tick to receive the
+official observation of \eqref{eq:policy} and return the command of
+\eqref{eq:command}; and \cmd{close()}, called at teardown.
 The contract is duck-typed, so any object exposing the three callables is
 accepted and a participant need not depend on framework base classes. A manual
 controller may raise a dedicated stop exception from \cmd{step} to end a run

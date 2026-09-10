@@ -7,10 +7,8 @@ observation contract that is enforced independently of the referee.
 
 \subsection{Simulator and Vehicle}
 
-The benchmark architecture is not tied to a particular vehicle: adapters provide
-simulator state, filtered sensing and action mapping to the common race and
-referee layers. The reference adapter used in every HoloOcean experiment reported
-here drives HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class
+The reference adapter used in every HoloOcean experiment reported here drives
+HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class
 agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode. The simulator
 advances at $30$ physics ticks per second.
 
@@ -27,9 +25,20 @@ controller on the same circuit. Every table in this paper states the control rat
 of the runs it reports, and no time from one rate is compared against a time from
 the other.
 
-In the reference HoloOcean adapter, a high-level command
-$u=[u^{\mathrm{surge}},u^{\mathrm{sway}},u^{\mathrm{heave}},u^{\mathrm{yaw}}]^{\!\top}$
-is mapped to the eight BlueROV2 thrusters by a fixed mixing matrix. The four
+The portable high-level command uses four normalized body-frame channels,
+\begin{equation}
+\label{eq:command}
+u=
+\left[
+u^{\mathrm{surge}},
+u^{\mathrm{sway}},
+u^{\mathrm{heave}},
+u^{\mathrm{yaw}}
+\right]^{\top}
+\in[-1,1]^4 .
+\end{equation}
+In the reference HoloOcean adapter, this command is mapped to the eight
+BlueROV2 thrusters by a fixed mixing matrix. The four
 vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters
 receive
 \begin{equation}
@@ -55,6 +64,21 @@ cannot appear in the official controller observation
 (Section~\ref{sec:obs_contract}).
 
 \input{tables/sensors}
+
+Before specifying the beacon placement, we define the logical frame associated
+with each gate. For gate $g$ with passage direction $n_g$, let
+\begin{equation}
+\label{eq:gate_frame}
+\hat{n}=\frac{n_g}{\lVert n_g\rVert},\qquad
+\hat{r}_g=
+\frac{\hat{z}\times\hat{n}}
+{\lVert\hat{z}\times\hat{n}\rVert},\qquad
+\hat{s}_g=\hat{n}\times\hat{r}_g,
+\end{equation}
+with world-up $\hat{z}=(0,0,1)$. When the passage direction is parallel to the
+vertical axis, $\hat{r}_g$ is defined with respect to the global $\hat{x}$ axis.
+The frame therefore derives from the passage direction and is used consistently
+by the beacon model and the referee crossing test.
 
 \subsection{Acoustic Beacon Model}
 

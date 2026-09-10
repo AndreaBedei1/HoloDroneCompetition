@@ -1,13 +1,13 @@
 \section{Benchmark Model and System Architecture}
 \label{sec:benchmark_model}
 
-Marine Race Arena formalizes each experiment through three principal elements:
-a declarative race configuration, a common participant interface and an
-independent race-management and evaluation system. This structure separates
-task definition from controller implementation and from the backend used to
-execute the simulation. A circuit can therefore be modified without changing
-the controllers, while new controllers or vehicles can be integrated without
-modifying the race rules.
+Marine Race Arena combines four architectural elements: a declarative race
+configuration, a set of participants and their autonomy interfaces, a
+race-management and evaluation layer, and a simulator adapter. This separation
+defines the benchmark independently of both the controller implementation and
+the simulation backend. A race can therefore be reconfigured without changing
+the autonomy code, while a new controller or vehicle can be connected without
+changing the race definition or adjudication logic.
 
 \subsection{Benchmark Instance}
 
@@ -25,114 +25,38 @@ where:
 
 \begin{itemize}
 
-\item $\mathcal{W}$ represents the simulation world and navigable volume,
-defined by the box
-$\mathcal{B}=[x_{\min},x_{\max}]
-\times[y_{\min},y_{\max}]
-\times[z_{\min},z_{\max}]\subset\mathbb{R}^3$,
-with the $z$ axis positive upwards;
+\item $\mathcal{W}$ is the simulation world and navigable volume;
 
-\item $\mathcal{G}=(g_1,\dots,g_M)$ is the ordered gate sequence. Each gate
-$g_k=(c_k,n_k,w_k,h_k)$ is defined by its centre
-$c_k\in\mathbb{R}^3$, passage direction
-$n_k\in\mathbb{R}^3$ and inner dimensions $w_k$ and $h_k$;
+\item $\mathcal{G}=(g_1,\dots,g_M)$ is the ordered gate sequence;
 
-\item $\mathcal{S}$ defines the starting conditions, including a default spawn
-pose and an optional participant-release policy;
+\item $\mathcal{S}$ defines the starting conditions, including participant
+spawn and release settings;
 
-\item $\mathcal{F}$ defines the race completion condition;
+\item $\mathcal{F}$ defines the race finish condition;
 
-\item $\mathcal{C}$ represents the current field
-$\mathbf{v}_c:\mathbb{R}^3\times\mathbb{R}_{\ge0}\rightarrow\mathbb{R}^3$;
+\item $\mathcal{C}$ represents the environmental current field;
 
-\item $\mathcal{O}$ is the set of obstacles present in the scenario;
+\item $\mathcal{O}$ is the set of obstacles in the scenario;
 
-\item $\mathcal{P}=\{1,\dots,N\}$ is the participant set. Each participant
-is associated with a vehicle, a sensor profile and a controller, and may have
-its own starting conditions;
+\item $\mathcal{P}=\{1,\dots,N\}$ is the participant set, with each participant
+associated with a vehicle, sensor profile and controller;
 
-\item $\mathcal{R}$ contains the race configuration, including validation
-criteria, penalties, timeouts and scoring rules.
+\item $\mathcal{R}$ contains the race and referee configuration, including
+validation criteria, penalties, timeouts and scoring rules.
 
 \end{itemize}
 
-The direction $n_k$ also defines the reference frame used for gate passage.
-With $\hat{z}=(0,0,1)$ denoting the global vertical axis,
+The tuple is a conceptual description of the benchmark instance. Its concrete
+values are supplied by the declarative track and race configuration and are
+interpreted by the configuration loader, arena builder and simulator adapter at
+run time.
 
-\begin{equation}
-\label{eq:gate_frame}
-\hat{n}=\frac{n_k}{\lVert n_k\rVert},\qquad
-\hat{r}_k=
-\frac{\hat{z}\times\hat{n}}
-{\lVert\hat{z}\times\hat{n}\rVert},\qquad
-\hat{s}_k=\hat{n}\times\hat{r}_k .
-\end{equation}
+\subsection{Architectural Requirements}
 
-When the direction is parallel to the vertical axis, $\hat{r}_k$ is defined
-with respect to the global $\hat{x}$ axis. Thus, the logical orientation and
-passage direction derive from the same information and need not be configured
-separately.
-
-\subsection{Participant Interface}
-
-The element that makes the benchmark independent of the control method is the
-common participant interface. Mathematically, during execution the controller
-implements a policy
-
-\begin{equation}
-\label{eq:policy}
-\pi_i:o_{i,t}\mapsto u_{i,t},
-\end{equation}
-
-which transforms the observation available to the participant into the command
-to be applied to the vehicle. The portable interface uses four normalized
-commands in the vehicle reference frame,
-
-\begin{equation}
-\label{eq:command}
-u_{i,t}=
-\left[
-u^{\mathrm{surge}},
-u^{\mathrm{sway}},
-u^{\mathrm{heave}},
-u^{\mathrm{yaw}}
-\right]^{\top}
-\in[-1,1]^4 .
-\end{equation}
-
-The controller does not need to know the internal operation of the race manager
-or simulator. To be integrated into the framework, it only needs to implement
-three operations:
-
-\begin{itemize}
-
-\item \cmd{reset(mission\_info)}, called at the beginning of a trial to
-initialize the controller's internal state;
-
-\item \cmd{step(observation)}, called during the control loop to transform the
-current observation into a vehicle command;
-
-\item \cmd{close()}, called at the end of the trial to close any resources used
-by the controller.
-
-\end{itemize}
-
-The internal logic remains completely unconstrained. The same contract can
-therefore be implemented by a rule-based controller, an optimization method, a
-learned policy or a hybrid approach. In multi-vehicle mode, the controller may
-also produce an optional communication payload together with the physical
-command.
-
-The abstract command is translated to the vehicle by the adapter. The adapter
-isolates backend-specific operations such as sensor acquisition, command
-application and simulation stepping. Consequently, the participant interface
-does not depend directly on the vehicle model being used. The HoloOcean
-implementation used in this work employs a BlueROV2-class agent and also
-supports direct thruster commands, but that mode is specific to the adapter and
-does not modify the general benchmark contract.
-
-Table~\ref{tab:requirements} summarizes the architectural requirements that
-follow from this separation.
+The requirements in Table~\ref{tab:requirements} express the properties that
+make the benchmark configurable, controller-agnostic and independently
+evaluable. They describe architectural constraints rather than a particular
+autonomy algorithm or vehicle implementation.
 
 \begin{table}[t]
 \centering
@@ -149,24 +73,23 @@ The race is defined through a declarative configuration covering the scenario,
 gates, participants, environmental conditions and evaluation rules. \\
 
 R2 &
-The controller uses only the observations exposed by the participant interface
-and receives no information produced by the evaluation system. \\
+Autonomy uses only the information exposed through the participant interface
+and receives no information produced by the official evaluation system. \\
 
 R3 &
-Validation of progression, violations and the final result is independent of the
+Progression, violations and the final result are determined independently of the
 controller implementation. \\
 
 R4 &
-Every controller implements the same minimum interface consisting of
-\cmd{reset}, \cmd{step} and \cmd{close}. \\
+Controllers based on different paradigms can be connected through the same
+participant/controller interface. \\
 
 R5 &
-Vehicle- and simulator-specific operations are isolated behind an adapter,
-leaving the participant interface unchanged. \\
+Simulator- and vehicle-specific operations are isolated through an adapter. \\
 
 R6 &
-Every execution produces structured events and machine-readable results, both
-for the individual participant and, when applicable, for the team. \\
+Every execution produces structured events and machine-readable results,
+including per-participant and, when applicable, team-level results. \\
 
 \bottomrule
 \end{tabular}
@@ -174,33 +97,37 @@ for the individual participant and, when applicable, for the team. \\
 
 \subsection{Runtime Architecture}
 
-Figure~\ref{fig:runtime_architecture} shows how these elements are connected
-during execution. The race configuration is validated and used to construct the
-arena; the race runner then coordinates the simulation loop, adapter,
-controllers and referee.
+The runtime lifecycle begins with the track and race configuration. A
+configuration loader and validator checks the declarative input and constructs
+an arena through the arena builder. The builder creates the configured scenario
+and connects it to the selected simulator adapter. The resulting arena instance
+is then handed to the race runner, which is the central component during
+execution. This configuration pipeline and the runtime components are shown in
+Fig.~\ref{fig:runtime_architecture}.
 
 \input{figures/architecture_diagram}
 
-At every control interval, the race runner acquires through the adapter the data
-needed to construct the participant observation. The controller executes
-\cmd{step(observation)} and returns the command, which is forwarded to the
-adapter and applied to the vehicle. The same cycle is executed independently for
-each participant in the race.
+During a race, the runner advances the execution and coordinates all
+participants. For each participant, it obtains the information exposed through
+the participant interface and passes it to that participant's controller. The
+controller returns a vehicle command to the runner, which forwards it through the
+adapter so that the simulator and vehicle can apply it. The same participant
+cycle is executed independently for every vehicle in the race.
 
-In parallel, the referee uses the complete state required to verify actual
-course progression, detect collisions and violations, apply penalties and
-determine trial termination. This information is used exclusively for
-evaluation and is not used to correct or guide the controller. Any differences
-between participant-estimated progression and referee-determined progression
-are simply recorded in the results.
+In parallel, the referee receives the evaluation data required to adjudicate the
+configured race. It determines official progression and rule outcomes, records
+events and penalties, and produces participant results. These evaluation results
+are not sent back to the controller and do not form a feedback path into
+autonomy. At the end of the run, the race manager emits machine-readable
+summaries and structured event logs. In a multi-vehicle race, the same scheme is
+applied separately to each participant, while the race manager can additionally
+compute the configured team-level result.
 
-Figure~\ref{fig:schematic_boundary} highlights the two information flows:
-observations and commands belong to the autonomy loop, whereas race validation
-and scoring belong to the evaluation loop.
+Fig.~\ref{fig:schematic_boundary} presents the complementary conceptual view.
+The participant/autonomy flow carries the information available to the
+controller and the resulting vehicle command, whereas the race-evaluation flow
+uses referee-side data to determine official outcomes. The two flows meet in the
+race manager for execution and reporting, but evaluation does not close a
+feedback loop toward the controller.
 
 \input{figures/schematic_boundary}
-
-At the end of the trial, the race manager produces a result summary and a
-structured event log. In multi-vehicle configurations it maintains separate
-results for each participant and, when specified by the configuration, also
-computes the aggregate team result.
