@@ -2,120 +2,99 @@
 \label{sec:related_work}
 
 Underwater robotics has benefited from increasingly capable simulation
-environments, but these platforms differ substantially in scope and intended
-use. UUV Simulator extends Gazebo with underwater vehicle dynamics, thruster
-models, sensors and support for multi-robot scenarios
-~\cite{manhas2016uuvsim}. Stonefish provides a marine-oriented simulator with
-geometry-based hydrodynamics, underwater rendering, sensors and ROS integration
-~\cite{cieslak2019stonefish}. DAVE similarly builds on Gazebo to support
-autonomous underwater missions with optical and acoustic sensing
-~\cite{zhang2022dave}. HoloOcean instead combines underwater vehicle simulation
-with Unreal Engine environments and a broad range of simulated onboard sensors
-~\cite{potokar2022holoocean}; its more recent development also supports
-multi-agent execution and extended sensing capabilities
-~\cite{potokar2024holoocean}. UNav-Sim focuses on visually realistic underwater
-navigation and synthetic-data generation in Unreal-based environments
-~\cite{amer2023unavsim}, while MarineGym targets high-throughput
+environments. UUV Simulator extends Gazebo with underwater vehicle dynamics,
+sensors and multi-robot support~\cite{manhas2016uuvsim}. Stonefish provides a
+marine-oriented simulator with hydrodynamics, underwater rendering and ROS
+integration~\cite{cieslak2019stonefish}, while DAVE combines underwater vehicle
+simulation with optical and acoustic sensing~\cite{zhang2022dave}. HoloOcean
+uses Unreal Engine to provide visually rich environments, onboard sensor models
+and multi-agent execution~\cite{potokar2024holoocean}. UNav-Sim focuses on
+vision-based underwater navigation in photorealistic environments
+~\cite{amer2023unavsim}, whereas MarineGym targets high-throughput
 reinforcement-learning experiments using GPU-accelerated underwater simulation
-~\cite{chu2025marinegym}. These systems provide the physical, visual and sensing
-substrates needed to develop underwater autonomy, but they do not by themselves
-define how a racing experiment should be configured, executed and evaluated.
+~\cite{chu2025marinegym}. These platforms differ in physical fidelity, sensing,
+throughput and intended tasks, but primarily provide the simulation substrate on
+which autonomy is developed. URoBench addresses reproducible comparison at a
+different level by evaluating underwater simulators through common navigation
+and learning tasks~\cite{huang2024urobench}. Marine Race Arena is complementary
+to both directions: the underlying simulator determines how vehicles, sensors
+and the environment evolve, while the benchmark defines the race, the
+participant interface and how the result is officially evaluated.
 
-This distinction has become increasingly relevant as robotics benchmarks move
-from isolated algorithm evaluation toward reproducible system-level testing.
-URoBench, for example, compares underwater simulators through common navigation
-and reinforcement-learning tasks~\cite{huang2024urobench}. More generally,
-robotics benchmarking literature has emphasized explicit task definitions,
-repeatable experimental conditions and measurable outcomes as necessary
-elements for meaningful comparison~\cite{tani2020benchmark}. Marine Race Arena
-builds on the same principle, but shifts the focus from simulator comparison to
-race definition and execution. The simulator determines how vehicles and
-sensors evolve, while the benchmark determines the ordered task, participant
-interface, race conditions, penalties and official scoring.
+Autonomous racing provides the closest methodological reference. F1TENTH
+combines a standardized scaled vehicle with racing environments, interchangeable
+controllers and support for both conventional and learning-based methods
+~\cite{okelly2020f1tenth}. Its simulator can also execute multiple vehicles in
+the same environment. At full scale, A2RL extends autonomous racing to
+head-to-head operation near the handling limits of the vehicle
+~\cite{hoffmann2026a2rl}. In aerial robotics, AlphaPilot established ordered
+gate racing as a system-level task for perception, planning and control
+~\cite{foehn2020alphapilot}, while Swift demonstrated the potential of deep
+reinforcement learning in high-performance drone racing
+~\cite{kaufmann2023swift}. CARLA offers a related example from autonomous
+driving: the simulator supports multiple simultaneously active vehicles
+~\cite{dosovitskiy2017carla}, and its Autonomous Driving Leaderboard defines a
+participant interface, restricts access to privileged simulator information and
+evaluates route completion and infractions outside the submitted agent
+~\cite{carlaLeaderboard2026}. Although these systems address different domains
+and tasks, they show the value of separating the autonomy method from a common
+task definition and evaluation procedure.
 
-Autonomous racing provides a useful reference for this type of separation.
-F1TENTH combines a standardized scaled vehicle with racing environments and
-interfaces suitable for both conventional control and reinforcement learning
-~\cite{okelly2020f1tenth}. Its simulation ecosystem also supports multiple
-vehicles interacting in the same racing environment. At full scale, A2RL
-extends autonomous racing to head-to-head operation close to the dynamic limits
-of the vehicle~\cite{hoffmann2026a2rl}. A similar evolution occurred in aerial
-robotics, where AlphaPilot used ordered gates as a system-level task for
-high-speed perception, planning and control~\cite{foehn2020alphapilot}.
-Subsequent work reinforced the use of gate racing as a complete autonomy
-benchmark~\cite{foehn2022alphapilot}, while Swift demonstrated that learned
-policies can reach very high levels of performance in autonomous drone racing
-~\cite{kaufmann2023swift}. In all these cases, the value of racing lies not only
-in speed, but in the presence of a defined course, explicit task progression and
-clear evaluation criteria.
-
-CARLA provides another relevant example from autonomous driving. Its simulator
-can represent many simultaneously active vehicles
-~\cite{dosovitskiy2017carla}, while the CARLA Autonomous Driving Leaderboard
-adds a participant interface and external evaluation procedure in which route
-completion and infractions are determined independently from the submitted
-agent. This separation between the information available to the autonomy system
-and the information used for evaluation is closely related to the design adopted
-in Marine Race Arena, although the task itself is different. CARLA targets
-road-driving scenarios rather than underwater racing and does not define a
-team-level fleet score. The comparison is therefore methodological rather than
-task-specific.
-
-Gate traversal has also appeared in underwater robotics, although typically as
-part of a larger mission rather than as a reusable racing protocol. The
-FeelHippo platform demonstrates perception and control for underwater gate
-navigation~\cite{franchi2020feelhippo}. Harada et al. investigate vision-based
-navigation for an underwater Gate Pass task~\cite{harada2022gatepass}.
-Underwater gate racing adds further requirements because the vehicle must not
-only detect and cross a structure, but also identify the correct gate in an
-ordered sequence and continue the course without access to privileged race
-state. This is closely connected to the broader sensing limitations of
-underwater autonomy. Vision-based localization and control have been studied in
-real underwater environments where global positioning is unavailable
-~\cite{manzanilla2019uuvnavigation}, while perception-aware navigation considers
-how vehicle motion should preserve useful visual information
-~\cite{xanthidis2021aquavis}. Acoustic sensing provides complementary range and
-direction information, but underwater acoustic channels are affected by limited
-bandwidth, propagation delay, multipath and time-varying attenuation
-~\cite{stojanovic2009underwater}. Marine Race Arena therefore keeps visual and
-acoustic interpretation inside the participant autonomy stack rather than using
-ground-truth gate geometry to resolve the target.
+Underwater gate traversal has also been investigated directly, although mainly
+as part of specific missions rather than as a reusable racing protocol.
+FeelHippo demonstrates underwater gate navigation through integrated perception
+and control~\cite{franchi2020feelhippo}, while Harada et al. consider
+vision-based navigation for an underwater Gate Pass task
+~\cite{harada2022gatepass}. The broader underwater perception problem is shaped
+by the absence of satellite positioning, uncertain localization and limited
+optical visibility. Vision-based localization and control have therefore been
+studied on real underwater vehicles~\cite{manzanilla2019uuvnavigation}, and
+perception-aware navigation has been used to explicitly account for the
+visibility of relevant targets during motion~\cite{xanthidis2021aquavis}.
+Acoustic sensing provides complementary range and bearing information but
+introduces limited bandwidth, latency, multipath and time-varying uncertainty
+~\cite{stojanovic2009underwater}. In Marine Race Arena these sensing problems
+remain part of the participant autonomy stack: visual detections and acoustic
+measurements may be combined by the controller, but privileged gate geometry is
+not used to resolve the target.
 
 \label{sec:rw_fleet}
-These communication constraints become even more important in multi-vehicle
-operation. Research on multi-AUV formation control has repeatedly shown that
-coordination quality depends strongly on communication availability and
-relative-state estimation~\cite{yang2021survey}. Related reviews highlight the
-coupling between localization, communication and formation control in
-underwater fleets~\cite{yan2023formation}. Marine Race Arena does not attempt to
-replace this literature with a new communication or formation-control method.
-Instead, it provides the race-level mechanisms needed to evaluate cooperative
-strategies: each vehicle maintains its own autonomy state, optional information
-is exchanged through an acoustic-inspired communication channel, and the race
-manager independently tracks progress, proximity events and team-level results.
-The included leader--follower strategy serves only as a reference controller for
-exercising this part of the framework.
+The same distinction becomes important in multi-vehicle operation. Cooperation
+between AUVs depends strongly on communication availability and relative-state
+estimation~\cite{yang2021survey}, while formation-control literature highlights
+the close coupling between localization, communication and coordinated motion
+~\cite{yan2023formation}. Marine Race Arena does not propose a new formation or
+acoustic communication method. Instead, it provides the race-level mechanisms
+needed to test such strategies under a common protocol. Each vehicle retains its
+own controller and local state, optional information is exchanged through an
+acoustic-inspired communication channel and the independent race manager tracks
+per-vehicle progress, proximity events and team-level results. The included
+leader--follower strategy is used only as a reference implementation for
+exercising these capabilities.
 
-Learning-based underwater control provides a further test of whether such a
-benchmark interface is sufficiently general. Platforms such as MarineGym expose
-observation and action spaces specifically designed for reinforcement-learning
-training~\cite{chu2025marinegym}, while common environment interfaces have long
-been used to decouple learning algorithms from the systems in which they are
-evaluated~\cite{brockman2016openaigym}. Marine Race Arena follows the same
-interface-oriented idea but has a different primary objective: it is not
-designed as a high-throughput training platform, but as a configurable racing
-and evaluation layer. A controller is required only to consume the observations
-allowed by the benchmark and return the expected vehicle commands. Its internal
-implementation can therefore be rule-based, optimization-based, learned or
-hybrid. The recurrent reinforcement-learning controller considered in this work
-is one example of this extensibility and is evaluated by the same race manager
-and referee used for the rule-based controllers.
+Learning-based control provides a further case in which a common interface is
+useful. MarineGym exposes observation and action spaces designed for underwater
+reinforcement-learning tasks~\cite{chu2025marinegym}, while general environment
+interfaces such as OpenAI Gym demonstrate the broader value of separating an
+algorithm from the environment with which it interacts
+~\cite{brockman2016openaigym}. Marine Race Arena follows the same interface
+principle but is intended primarily for race execution and evaluation rather
+than high-throughput training. A participant is required only to consume the
+allowed observations and produce the expected vehicle command. Its internal
+implementation may therefore be rule-based, optimization-based, learned or
+hybrid. The recurrent reinforcement-learning controller used in this work serves
+as one example of this extensibility and is evaluated through the same interface
+and referee as the rule-based controllers.
 
-CARLA also supports multiple simultaneously active vehicles, while its
-Autonomous Driving Leaderboard adds a standardized participant interface and an
-external evaluation procedure. The Leaderboard explicitly prohibits privileged
-simulator information and evaluates route completion and infractions
-independently from the submitted agent. Table~\ref{tab:system_comparison}
-summarizes these distinctions across the systems considered above.
+Table~\ref{tab:system_comparison} summarizes the resulting positioning. The
+comparison considers only properties relevant to the benchmark contribution:
+an explicit racing task, a participant-facing controller contract, restriction
+of privileged simulator state, evaluation independent from the participant,
+multiple controllable vehicles in the same scenario and an aggregate team
+result. These criteria do not rank simulator quality, and multi-vehicle support
+alone does not imply team-level evaluation. Marine Race Arena combines these
+elements around a configurable underwater ordered-gate task, allowing
+heterogeneous controllers to be evaluated by the same configurable race manager
+and independent referee.
 
 \input{tables/system_comparison}
