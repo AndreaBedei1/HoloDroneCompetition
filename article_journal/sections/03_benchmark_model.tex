@@ -97,37 +97,27 @@ including per-participant and, when applicable, team-level results. \\
 
 \subsection{Runtime Architecture}
 
-The runtime lifecycle begins with the track and race configuration. A
-configuration loader and validator checks the declarative input and constructs
-an arena through the arena builder. The builder creates the configured scenario
-and connects it to the selected simulator adapter. The resulting arena instance
-is then handed to the race runner, which is the central component during
-execution. This configuration pipeline and the runtime components are shown in
-Fig.~\ref{fig:runtime_architecture}.
+The complete execution flow is shown in Fig.~\ref{fig:runtime_architecture}.
+A race starts from the declarative configuration, which is checked by the
+configuration loader and used by the arena builder to instantiate the scenario
+through the selected simulator adapter. Once the arena has been created, the
+race runner becomes the central runtime component: it advances the simulation,
+coordinates the participants and mediates their interaction with the vehicle
+backend. At each control step, the runner obtains the information made available
+to each participant, passes it to the corresponding controller and forwards the
+returned vehicle command to the adapter for execution. This cycle is repeated
+throughout the race and applies independently to every participating vehicle.
+
+At the same time, the referee receives the information required to determine
+official course progression, rule violations, penalties and completion. Its
+decisions are used for adjudication and reporting but are not returned to the
+controllers, so the evaluation path does not become part of the autonomy loop.
+The framework records the resulting events and per-participant results and, in
+multi-vehicle configurations, can additionally produce the configured team-level
+result. Fig.~\ref{fig:schematic_boundary} provides the complementary conceptual
+view of this architecture, emphasizing the two information flows: one connects
+participant observations to vehicle commands, while the other supports race
+evaluation and scoring.
 
 \input{figures/architecture_diagram}
-
-During a race, the runner advances the execution and coordinates all
-participants. For each participant, it obtains the information exposed through
-the participant interface and passes it to that participant's controller. The
-controller returns a vehicle command to the runner, which forwards it through the
-adapter so that the simulator and vehicle can apply it. The same participant
-cycle is executed independently for every vehicle in the race.
-
-In parallel, the referee receives the evaluation data required to adjudicate the
-configured race. It determines official progression and rule outcomes, records
-events and penalties, and produces participant results. These evaluation results
-are not sent back to the controller and do not form a feedback path into
-autonomy. At the end of the run, the race manager emits machine-readable
-summaries and structured event logs. In a multi-vehicle race, the same scheme is
-applied separately to each participant, while the race manager can additionally
-compute the configured team-level result.
-
-Fig.~\ref{fig:schematic_boundary} presents the complementary conceptual view.
-The participant/autonomy flow carries the information available to the
-controller and the resulting vehicle command, whereas the race-evaluation flow
-uses referee-side data to determine official outcomes. The two flows meet in the
-race manager for execution and reporting, but evaluation does not close a
-feedback loop toward the controller.
-
 \input{figures/schematic_boundary}

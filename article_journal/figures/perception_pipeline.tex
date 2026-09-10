@@ -16,8 +16,8 @@
 \node[box, right=of cont] (filt) {geometric filter\ size, aspect, $\Pi$, $\alpha$};
 \node[box, below=0.75cm of filt] (cands) {candidate list\ $(c_x,c_y,\alpha,\gamma)$, top 8};
 \node[acou, left=of cands] (assoc) {association\ FOV, bearing, size gates};
-\node[acou, left=of assoc] (beacon) {expected-beacon\ packet $(\beta,\tilde\rho)$};
-\node[box, left=of beacon] (out) {visual target\ or \emph{none}};
+\node[box, left=of assoc] (out) {visual target\ or \emph{none}};
+\node[acou, below=0.70cm of assoc] (beacon) {expected-beacon\ packet $(\beta,\tilde\rho)$};
 
 \draw[arrow] (cam) -- (edge);
 \draw[arrow] (edge) -- (cont);
@@ -27,9 +27,6 @@
 \draw[arrow] (beacon) -- (assoc);
 \draw[arrow] (assoc) -- (out);
 \end{tikzpicture}
-\caption{The onboard gate-perception front end. Camera pixels produce an
-unlabelled candidate list; the controller's own expected-beacon packet supplies
-the bearing that selects among them. No simulator gate pose, global vehicle pose
-or referee target enters any stage.}
+\caption{Onboard gate-perception pipeline.}
 \label{fig:perception_pipeline}
 \end{figure}

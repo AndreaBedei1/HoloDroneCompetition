@@ -1,34 +1,22 @@
 \section{Vehicle, Simulator, Sensing and the Observation Contract}
 \label{sec:configuration}
 
-This section describes the simulation backend, the vehicle and its sensors, the
-acoustic and current models, the declarative track configuration and the official
-observation contract that is enforced independently of the referee.
-
 \subsection{Simulator and Vehicle}
 
-The reference adapter used in every HoloOcean experiment reported here drives
+The reference adapter used in the HoloOcean experiments reported here drives
 HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class
-agent~\cite{vonbenzon2022bluerov2} in direct eight-thruster mode. The simulator
-advances at $30$ physics ticks per second.
+vehicle~\cite{vonbenzon2022bluerov2}. The simulator advances at $30$ physics
+ticks per second.
 
-Two control timesteps appear in this paper and are never pooled. The frozen
-benchmark matrix of Section~\ref{sec:eval_protocol} uses $\Delta t=0.033$\,s, so
-each control step corresponds to one physics tick and the effective control rate
-is $\approx\!30$\,Hz. The current-free completion demonstration
-(Section~\ref{sec:eval_rq1}) and the matched learned-controller benchmark
-(Section~\ref{sec:eval_rq5}) use $\Delta t=0.1$\,s, i.e.\ $10$\,Hz control over
-the same $30$\,Hz physics. The slower rate reduces the number of policy
-evaluations per simulated second, which matters when a neural policy is in the
-loop, and it produces systematically longer completion times for the same
-controller on the same circuit. Every table in this paper states the control rate
-of the runs it reports, and no time from one rate is compared against a time from
-the other.
+The experiments use two control rates over this common physics rate: $\Delta
+t=0.033$\,s ($\approx\!30$\,Hz), with one control step per physics tick, and
+$\Delta t=0.1$\,s ($10$\,Hz). The evaluation protocol identifies the rate used
+by each campaign; the two rates are not pooled.
 
-The portable high-level command uses four normalized body-frame channels,
+The portable participant command uses four normalized body-frame channels,
 \begin{equation}
 \label{eq:command}
-u=
+u_{i,t}=
 \left[
 u^{\mathrm{surge}},
 u^{\mathrm{sway}},
@@ -37,36 +25,28 @@ u^{\mathrm{yaw}}
 \right]^{\top}
 \in[-1,1]^4 .
 \end{equation}
-In the reference HoloOcean adapter, this command is mapped to the eight
-BlueROV2 thrusters by a fixed mixing matrix. The four
-vertical thrusters receive $u^{\mathrm{heave}}$; the four horizontal thrusters
-receive
+The reference HoloOcean adapter maps this abstract command to the eight
+BlueROV2 thrusters by a fixed mixing matrix. The four vertical thrusters receive
+$u^{\mathrm{heave}}$; the four horizontal thrusters receive
 \begin{equation}
 \label{eq:thruster_mix}
 \tau_{1\text{-}4}= s_\tau\!\begin{bmatrix} u^{\mathrm{surge}}+u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}+u^{\mathrm{sway}}-\kappa\,u^{\mathrm{yaw}} \\[1pt] u^{\mathrm{surge}}-u^{\mathrm{sway}}+\kappa\,u^{\mathrm{yaw}} \end{bmatrix},
 \end{equation}
 where $\kappa=0.35$ is the yaw-mixing gain and $s_\tau$ the thruster scale; each
-component is clamped to the thruster limit. A controller may instead return the
-eight thruster values directly. The high-level interface is the default because
-it is simpler and vehicle-agnostic: a controller expresses intended body-frame
-motion while the framework handles mixing and depth safety. Direct thruster
-control remains available when finer actuator authority is required, but no
-result in this paper uses it.
+component is clamped to the thruster limit. A direct-thruster interface remains
+an adapter-specific capability, but all results reported here use the abstract
+four-degree-of-freedom command.
 
 \subsection{Sensor Suite}
 
-Table~\ref{tab:sensors} lists the onboard sensors. The official profile combines
-a forward RGB camera, a depth sensor, an IMU and a DVL; an onboard contact flag
-is also permitted when configured. Sensors providing world-frame velocity and
-ground-truth pose, location, rotation and dynamics exist internally for
-simulation and referee evaluation, but are rejected at the adapter boundary and
-cannot appear in the official controller observation
-(Section~\ref{sec:obs_contract}).
+Table~\ref{tab:sensors} lists the onboard sensors available to a participant.
+The official profile combines a forward RGB camera, a depth sensor, an IMU and a
+DVL; an onboard contact flag is also permitted when configured.
 
 \input{tables/sensors}
 
-Before specifying the beacon placement, we define the logical frame associated
-with each gate. For gate $g$ with passage direction $n_g$, let
+Before specifying beacon placement, we define the logical frame associated with
+each gate. For gate $g$ with passage direction $n_g$, let
 \begin{equation}
 \label{eq:gate_frame}
 \hat{n}=\frac{n_g}{\lVert n_g\rVert},\qquad
@@ -77,14 +57,13 @@ with each gate. For gate $g$ with passage direction $n_g$, let
 \end{equation}
 with world-up $\hat{z}=(0,0,1)$. When the passage direction is parallel to the
 vertical axis, $\hat{r}_g$ is defined with respect to the global $\hat{x}$ axis.
-The frame therefore derives from the passage direction and is used consistently
-by the beacon model and the referee crossing test.
+This passage direction defines a right-handed gate frame, reused by both the
+beacon model and the referee crossing test.
 
 \subsection{Acoustic Beacon Model}
 
-Let $(\hat{n},\hat{r}_g,\hat{s}_g)$ be the right-handed gate frame of
-\eqref{eq:gate_frame}, with $\hat{n}$ the passage normal and $\hat{s}_g$ the
-gate-up axis. Each gate carries one beacon, placed at
+Using the right-handed frame of \eqref{eq:gate_frame}, each gate carries one
+beacon, placed at
 $b_g=c_g+\delta_n \hat{n}+\delta_r \hat{r}_g+\delta_s \hat{s}_g$ relative to the
 gate centre $c_g$ (default offset $(0,0,0.35)$\,m along $\hat{s}_g$). For a
 receiver at position $p_r$ with heading $\psi$, let $\boldsymbol{\delta}=b_g-p_r$,
@@ -99,39 +78,35 @@ $\tilde{\rho}$, a yaw-relative bearing, an elevation and a signal strength:
 \mathrm{SS} &= \max\!\Big(0,\,1-\tfrac{\tilde{\rho}}{\rho_{\max}}\Big),\nonumber
 \end{align}
 where $\rho_{\max}$ is the beacon range and $\operatorname{wrap}(\cdot)$ maps to
-$(-180^\circ,180^\circ]$. Bearing and elevation carry independent angular
-perturbations $\eta_\beta,\eta_\varepsilon\sim\mathcal{N}(0,\sigma_\theta^2)$ with
-$\sigma_\theta$ in degrees, and the range carries a single perturbation
-$\eta_\rho$ with $\sigma_\rho$ in metres. Each is drawn once per packet, and the
-signal strength derives from the same noisy range $\tilde{\rho}$, so no cleaner
-distance leaks back as a side channel. A transmission is not received beyond
-$\rho_{\max}$ or when a Bernoulli dropout fires. The official tracks set
-$\sigma_\theta$ and $\sigma_\rho$ to a common per-track value in
-$\{0.2,0.45,0.6\}$ (degrees and metres respectively) and dropout probabilities up
-to $0.04$.
+$(-180^\circ,180^\circ]$. Bearing and elevation have independent angular
+perturbations $\eta_\beta,\eta_\varepsilon\sim\mathcal{N}(0,\sigma_\theta^2)$,
+while range has perturbation $\eta_\rho$ with standard deviation $\sigma_\rho$.
+The signal strength uses the same noisy range. Packets are absent beyond
+$\rho_{\max}$ or when a Bernoulli dropout occurs. The official tracks use a
+common per-track value in $\{0.2,0.45,0.6\}$ for the angular and range noise
+standard deviations (degrees and metres, respectively), with dropout
+probabilities up to $0.04$.
 
 Every ordered gate has one independent periodic transmitter with a unique
 contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All beacons transmit
-regardless of referee state; at each update a vehicle receives every in-range,
-non-dropped packet. The framework does not tell the controller which packet
-corresponds to its next gate, and does not suppress the others: deciding which
-received identifier to pursue is part of the participant's autonomy
+independently of referee state, and each vehicle receives every in-range,
+non-dropped packet. Since identifiers carry no ordering information, the
+controller must decide which received beacon to pursue
 (Sections~\ref{sec:perception} and~\ref{sec:controller}). Packet randomness is
-seeded by the run seed, the transmitter, the receiver and the transmission index,
-which makes reception independent of participant count and call order and
-therefore keeps a fleet run reproducible.
+seeded by the run, transmitter, receiver and transmission index, keeping fleet
+reception reproducible and independent of participant count and call order.
 
 \subsection{Current Field Model}
 
-The current field is a sum of analytic primitives evaluated at the vehicle
+The current field is the sum of analytic primitives evaluated at vehicle
 position $p$ and time $t$,
 \begin{equation}
 \label{eq:current_sum}
 \mathbf{v}_c(p,t)=\sum_{j} \mathbf{v}_j(p,t),
 \end{equation}
-where each primitive is one of the following. A \emph{constant} term contributes
-a fixed velocity $\mathbf{v}_0$. A \emph{localized jet} centred at $c_j$ with
-radius $R_j$ contributes, for $\lVert p-c_j\rVert\le R_j$,
+The available primitives are a constant flow, a localized jet, a sinusoidal
+component and a vortex. A localized jet centred at $c_j$ with radius $R_j$
+contributes, for $\lVert p-c_j\rVert\le R_j$,
 \begin{equation}
 \label{eq:jet}
 \mathbf{v}_j=\mathbf{v}_0\, \omega(d_j), \qquad
@@ -139,7 +114,8 @@ radius $R_j$ contributes, for $\lVert p-c_j\rVert\le R_j$,
 \end{equation}
 where $d_j=\lVert p-c_j\rVert$ is the jet distance and
 $\sigma_j=\max(R_j/2,10^{-6})$ the jet width; the contribution is zero outside
-$R_j$. A \emph{sinusoidal} term modulates one axis,
+$R_j$. The constant term contributes a fixed velocity $\mathbf{v}_0$, while a
+sinusoidal term modulates one axis,
 $v_{j,\mathrm{axis}}(t)=v_{0,\mathrm{axis}}+A\sin(2\pi f t+\phi)$. A
 \emph{vortex} of radius $R_j$, tangential speed $V_t$ and vertical speed $V_z$
 contributes, with $r=\sqrt{\Delta x^2+\Delta y^2}$ and tangent
@@ -148,15 +124,13 @@ $\hat{\theta}=(-\Delta y,\Delta x)/r$,
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile superposes a constant set-flow of
+The provided \texttt{strong} profile combines a constant set-flow of
 $[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the
-\texttt{medium} profile scales these magnitudes by $0.5$. Both named profiles are
-defined relative to the gate layout and are available on each official circuit.
-The HoloOcean adapter evaluates the field at every vehicle before each control
-step. Crucially, the current field is applied physically and is \emph{not}
-reported to the controller: a participant must infer the disturbance from its own
-onboard measurements, in practice from the difference between commanded motion
-and body-frame DVL velocity.
+\texttt{medium} profile scales these magnitudes by $0.5$. Both profiles are
+defined relative to the gate layout and are available on every official circuit.
+The adapter applies the field physically before each control step but does not
+report it directly to the controller, which must infer the disturbance from its
+onboard measurements, including body-frame DVL velocity.
 
 \subsection{Declarative Track Configuration}
 
@@ -208,30 +182,27 @@ size nor the referee margin was changed at any point of this study.
 The \cmd{obstacle\_gate} task accepts explicit fixed obstacles or deterministic
 random boxes generated between consecutive gates with a configured density and
 minimum clearance. The HoloOcean adapter records the requested and physically
-spawned counts, and an obstacle construction check is accepted only when they
-match. This verifies that obstacles can be instantiated on a circuit; it is
-deliberately separate from any claim that a reference controller avoids them, and
-no obstacle-avoidance result is reported in this paper.
+spawned counts. Obstacle avoidance is supported by the task configuration but is
+not evaluated in the results reported here.
 
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}
 
-The controller \cmd{step} function receives a dictionary with the fields in
-Table~\ref{tab:observation}. The builder is structurally independent of the
-referee: its signature contains the track configuration, the arena, the adapter
-and the participant state, but no referee object, so referee-derived quantities
-are not merely omitted by convention but are unreachable from the code path that
-constructs the observation. The builder computes participant-local elapsed time,
-requests only allow-listed onboard sensors from the adapter and queries the
-beacon field for packets delivered by simulated periodic transmissions. Numeric arrays are
-made JSON-safe while image arrays are preserved unchanged. When the optional
-inter-vehicle acoustic channel is enabled (Section~\ref{sec:fleet}), the
-observation additionally carries a \cmd{comms} inbox whose payloads are authored
-by another controller from its own legal information.
+At each control step, the participant receives an observation dictionary whose
+fields are listed in Table~\ref{tab:observation}. It contains participant-local
+time, the configured onboard sensors, packets delivered by the acoustic beacon
+channel and, when enabled, optional inter-vehicle communication. The observation
+builder is separated from the referee and uses only the participant state and
+allow-listed sensing interfaces; evaluation data therefore cannot enter the
+observation through this path. Communication payloads are authored by the
+corresponding controllers from their own legal information. World-frame
+velocity, pose-derived heading and depth, and environmental-current telemetry
+may exist internally for simulation or adjudication but are excluded from the
+official observation.
 
 \begin{table}[t]
 \centering
-\caption{Top-level fields of the official observation.}
+\caption{Participant observation fields.}
 \label{tab:observation}
 \mratablestyle
 \begin{tabular}{@{}p{0.16\textwidth}p{0.78\textwidth}@{}}
@@ -246,11 +217,10 @@ Field & Meaning \\
 \end{tabular}
 \end{table}
 
-Three quantities are worth naming explicitly because their absence defines the
-task. The controller never receives the global vehicle pose, so it cannot
-localize itself in the world frame. It never receives gate positions, gate
-normals or aperture dimensions from the simulator, so the geometry of the course
-must be inferred from beacons and images. And it never receives the referee's
-notion of which gate is next, whether the previous crossing was valid, or how
-many gates remain, so course progression is a controller-side estimate that can
-be, and sometimes is, wrong.
+The absence of three classes of information defines the task. The controller
+never receives the global vehicle pose and therefore cannot localize itself in
+the world frame. It receives neither gate positions, gate normals nor aperture
+dimensions, so course geometry must be inferred from beacons and images. It also
+receives neither the referee's notion of the next gate, nor whether a crossing
+was valid, nor the number of remaining gates; course progression is consequently
+a controller-side estimate that can be wrong.
