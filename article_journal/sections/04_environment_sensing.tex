@@ -90,8 +90,9 @@ probabilities up to $0.04$.
 Every ordered gate has one independent periodic transmitter with a unique
 contiguous identifier $\mathrm{B01},\ldots,\mathrm{B}M$. All beacons transmit
 independently of referee state, and each vehicle receives every in-range,
-non-dropped packet. Since identifiers carry no ordering information, the
-controller must decide which received beacon to pursue
+non-dropped packet. The received packets do not indicate which beacon is
+currently relevant; the controller maintains its expected beacon from its own
+local course state and selects the corresponding packet
 (Sections~\ref{sec:perception} and~\ref{sec:controller}). Packet randomness is
 seeded by the run, transmitter, receiver and transmission index, keeping fleet
 reception reproducible and independent of participant count and call order.
@@ -218,9 +219,11 @@ Field & Meaning \\
 \end{table}
 
 The absence of three classes of information defines the task. The controller
-never receives the global vehicle pose and therefore cannot localize itself in
-the world frame. It receives neither gate positions, gate normals nor aperture
-dimensions, so course geometry must be inferred from beacons and images. It also
-receives neither the referee's notion of the next gate, nor whether a crossing
-was valid, nor the number of remaining gates; course progression is consequently
-a controller-side estimate that can be wrong.
+never receives the global ground-truth vehicle pose; any localization estimate
+must therefore be derived from participant-accessible onboard information. It
+does not receive ground-truth gate positions or orientations from the simulator,
+so the spatial relation to the course must be inferred from onboard sensing and
+acoustic measurements. It also receives neither the referee's notion of the next
+gate, nor whether a crossing was valid, nor the number of remaining gates;
+course progression is consequently a controller-side estimate that can be
+wrong.
