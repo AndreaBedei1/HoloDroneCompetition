@@ -111,22 +111,11 @@ hybrid. The recurrent reinforcement-learning controller considered in this work
 is one example of this extensibility and is evaluated by the same race manager
 and referee used for the rule-based controllers.
 
-Table~\ref{tab:system_comparison} summarizes the resulting positioning. The
-comparison focuses only on benchmark-level properties relevant to this work:
-whether a system defines an explicit race task, exposes a participant-facing
-controller interface, restricts privileged simulator state, separates task
-evaluation from participant autonomy, supports multiple controllable vehicles in
-the same scenario and provides an explicit team-level result. These criteria are
-not measures of overall simulator quality. Several existing platforms offer
-greater physical fidelity, broader sensing or substantially higher training
-throughput than required here. Multi-vehicle simulation also does not
-automatically imply team-level evaluation: platforms such as UUV Simulator,
-DAVE, HoloOcean, F1TENTH and CARLA can represent several vehicles, but this is
-different from defining a common race protocol and an aggregate team result.
-Marine Race Arena combines these elements around a configurable underwater
-ordered-gate task, a controller-agnostic interface and an independent,
-configurable referee. Its contribution is therefore not a new underwater
-physics simulator, but a reusable racing and evaluation layer for comparing
-heterogeneous autonomy strategies under the same rules.
+CARLA also supports multiple simultaneously active vehicles, while its
+Autonomous Driving Leaderboard adds a standardized participant interface and an
+external evaluation procedure. The Leaderboard explicitly prohibits privileged
+simulator information and evaluates route completion and infractions
+independently from the submitted agent. Table~\ref{tab:system_comparison}
+summarizes these distinctions across the systems considered above.
 
 \input{tables/system_comparison}

@@ -1,39 +1,63 @@
-\begin{table}[t]
+\begin{table*}[t]
 \centering
-\caption{Positioning of \mra{} against representative underwater simulators and
-racing benchmarks. Criteria are properties of the published system description,
-not quality judgements; the table deliberately omits hydrodynamic fidelity,
-sensor variety and training throughput, on which several listed systems exceed
-\mra{}.}
+\caption{Benchmark-level capabilities of representative systems.}
 \label{tab:system_comparison}
 \mratablestyle
-\begin{tabular}{@{}l l >{\raggedright\arraybackslash}p{0.22\textwidth} c c c c c@{}}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llcccccc@{}}
 \toprule
-System & Domain & Physics and sensing & Gate & Indep. & Obs. & Multi- & Team \\
- &  &  & race & referee & contract & robot & score \\
+System & Domain &
+Race task &
+Agent contract &
+Privileged-state restriction &
+Independent evaluator &
+Multi-vehicle &
+Team score \\
 \midrule
-UUV Simulator~\cite{manhas2016uuvsim} & Underwater & Gazebo, hydrodynamics & -- & -- & -- & \checkmark & -- \\
-Stonefish~\cite{cieslak2019stonefish} & Underwater & Custom marine physics, sensors, ROS & -- & -- & -- & -- & -- \\
-DAVE~\cite{zhang2022dave} & Underwater & Gazebo, acoustic and optical sensing & -- & -- & -- & \checkmark & -- \\
-HoloOcean~\cite{potokar2024holoocean} & Underwater & Unreal Engine, sonar and onboard sensors & -- & -- & -- & \checkmark & -- \\
-URoBench~\cite{huang2024urobench} & Underwater & Cross-simulator navigation benchmark & -- & -- & \checkmark & -- & -- \\
-UNav-Sim~\cite{amer2023unavsim} & Underwater & Unreal-based navigation simulation & -- & -- & -- & -- & -- \\
-MarineGym~\cite{chu2025marinegym} & Underwater & Isaac Sim, GPU hydrodynamics, RL tasks & -- & -- & \checkmark & \textit{partial} & -- \\
-F1TENTH~\cite{okelly2020f1tenth} & Ground & Scaled car, planar LiDAR, RL and control & \checkmark & partial & \checkmark & partial & no \\
-AlphaPilot, Swift~\cite{foehn2020alphapilot,kaufmann2023swift} & Aerial & Quadrotor, vision-based gate racing & \checkmark & partial & \checkmark & no & no \\
-CARLA~\cite{dosovitskiy2017carla} & Ground & Unreal Engine, urban sensing and tasks & partial & partial & \checkmark & no & no \\
+
+UUV Simulator~\cite{manhas2016uuvsim}
+& Underwater & -- & -- & -- & -- & \checkmark & -- \\
+
+Stonefish~\cite{cieslak2019stonefish}
+& Underwater & -- & -- & -- & -- & \checkmark & -- \\
+
+DAVE~\cite{zhang2022dave}
+& Underwater & -- & -- & -- & -- & \checkmark & -- \\
+
+HoloOcean~\cite{potokar2024holoocean}
+& Underwater & -- & -- & -- & -- & \checkmark & -- \\
+
+UNav-Sim~\cite{amer2023unavsim}
+& Underwater & -- & -- & -- & -- & \checkmark & -- \\
+
+URoBench~\cite{huang2024urobench}
+& Underwater & -- & \checkmark & -- & -- & -- & -- \\
+
+MarineGym~\cite{chu2025marinegym}
+& Underwater & -- & \checkmark & -- & -- & -- & -- \\
+
+F1TENTH~\cite{okelly2020f1tenth}
+& Ground & \checkmark & \checkmark & -- & -- & \checkmark & -- \\
+
+CARLA / Leaderboard~\cite{dosovitskiy2017carla}
+& Ground & -- & \checkmark & \checkmark & \checkmark & \checkmark & -- \\
+
 \midrule
-\textbf{\mra{} (this work)} & Underwater & HoloOcean backend, BlueROV2, camera and acoustic sensing & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+
+\textbf{\mra{} (this work)}
+& Underwater &
+\checkmark &
+\checkmark &
+\checkmark &
+\checkmark &
+\checkmark &
+\checkmark \\
+
 \bottomrule
 \end{tabular}
+}%
+
 \mratablenote
-\emph{Gate race}: an ordered gate course with timing is part of the defined task.
-\emph{Indep.\ referee}: progress and violations are adjudicated by a component the
-participant cannot influence. \emph{Obs.\ contract}: a documented observation
-interface; \checkmark\ additionally denotes that ground-truth pose is excluded
-from control by the contract. \emph{Team score}: a defined aggregate score over a
-group of vehicles. ``Partial'' marks a supported capability that is not a primary
-design contract of that system. ``--'' means that the cited public description
-does not specify the criterion; it is not a negative result. All listed underwater simulators supply physics
-and sensing that \mra{} itself does not provide and depends on a backend for.
-\end{table}
+\checkmark: explicitly supported; --: not established as a benchmark-level
+property in the cited system.
+\end{table*}
