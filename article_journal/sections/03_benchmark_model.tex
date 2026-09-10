@@ -108,6 +108,8 @@ to each participant, passes it to the corresponding controller and forwards the
 returned vehicle command to the adapter for execution. This cycle is repeated
 throughout the race and applies independently to every participating vehicle.
 
+\input{figures/architecture_diagram}
+
 At the same time, the referee receives the information required to determine
 official course progression, rule violations, penalties and completion. Its
 decisions are used for adjudication and reporting but are not returned to the
@@ -119,5 +121,4 @@ view of this architecture, emphasizing the two information flows: one connects
 participant observations to vehicle commands, while the other supports race
 evaluation and scoring.
 
-\input{figures/architecture_diagram}
 \input{figures/schematic_boundary}

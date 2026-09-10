@@ -87,8 +87,9 @@ but its per-run times are not pooled with the PPO table.
 \subsection{Information-Boundary Interpretation}
 \label{sec:learning_eval_protocol}
 
-The learned policy receives the same onboard-only stream and is scored by the
-same independent referee as every other participant. Consequently, the main
+The learned policy operates within the same participant-level onboard
+information boundary and is scored by the same independent referee as every
+other participant. Consequently, the main
 learning result is not that PPO solves underwater racing. It is that the
 benchmark exposes a meaningful distinction between local gate-transition control
 and reliable ordered-sequence completion: the selected policy completed all nine

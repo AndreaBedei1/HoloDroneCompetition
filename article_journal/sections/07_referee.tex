@@ -89,12 +89,10 @@ the principal automatic lifecycle.
 
 Two design choices in this test are worth naming. Testing only the expected gate,
 rather than all gates, is what turns the course into an ordered task instead of a
-collection of independent hoops, and it is the reason the dominant learned-policy
-failure mode in Section~\ref{sec:eval_rq5} is a missed-gate termination rather
-than a low gate count. Shrinking the aperture by $m_g$ before the containment
-test makes the pass criterion strictly conservative: a trajectory that clips the
-frame is not credited. The margin and the aperture dimensions were fixed before
-any experiment reported here and were never adjusted.
+collection of independent hoops. Shrinking the aperture by $m_g$ before the
+containment test makes the pass criterion strictly conservative: a trajectory
+that clips the frame is not credited. The margin and the aperture dimensions
+were fixed before any experiment reported here and were never adjusted.
 
 \subsection{Referee State Machine and Arbitration}
 

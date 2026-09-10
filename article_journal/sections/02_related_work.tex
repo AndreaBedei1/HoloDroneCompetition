@@ -83,8 +83,9 @@ than high-throughput training. A participant is required only to consume the
 allowed observations and produce the expected vehicle command. Its internal
 implementation may therefore be rule-based, optimization-based, learned or
 hybrid. The recurrent reinforcement-learning controller used in this work serves
-as one example of this extensibility and is evaluated through the same interface
-and referee as the rule-based controllers.
+as one example of this extensibility and is evaluated within the same
+participant-level information boundary and action interface, using the same
+referee as the rule-based controllers.
 
 Table~\ref{tab:system_comparison} summarizes the resulting positioning. The
 comparison considers only properties relevant to the benchmark contribution:

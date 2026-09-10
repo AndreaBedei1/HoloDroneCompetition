@@ -7,7 +7,7 @@ the course rather than pitting the vehicles against each other.
 The benchmark models one team: all vehicles share a single simulated world, each
 controller keeps an independent local course estimate, and the referee keeps one
 scoring state per vehicle. Enabling fleet mode does not alter single-vehicle
-behaviour, so a fleet result and a single-vehicle result remain comparable.
+behaviour.
 
 \subsection{Staggered Release and Spawn Geometry}
 
@@ -78,6 +78,10 @@ coordination policy below and is exercised as part of that validation, but its
 packet loss, maximum range, latency and freshness window are not independently
 swept, and no claim about acoustic-communication performance is made in this
 paper.
+
+The resulting multi-vehicle information flow and independent team referee are
+shown in Fig.~\ref{fig:schematic_fleet}.
+\input{figures/schematic_fleet}
 
 \subsection{Distributed Leader--Follower Coordination}
 \label{sec:coordination}
@@ -165,7 +169,3 @@ that never finishes, so a coordination policy is rewarded for bringing the whole
 convoy home. Fig.~\ref{fig:fleet_scoring} illustrates the aggregation.
 
 \input{figures/fleet_scoring}
-
-Figure~\ref{fig:schematic_fleet} summarizes the multi-vehicle information flow
-and the independent team referee.
-\input{figures/schematic_fleet}

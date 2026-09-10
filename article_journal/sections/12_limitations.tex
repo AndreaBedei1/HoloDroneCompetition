@@ -88,7 +88,7 @@ be used as a pose estimator.
 
 \paragraph{L10. The learned-control evidence is a limited validation snapshot}
 The final learned result is a single selected Gen-2 recurrent-PPO checkpoint
-using the 27-dimensional local transition contract. It was evaluated in nine
+using its 27-dimensional onboard-derived observation encoding. It was evaluated in nine
 valid current-free episodes, three on each official circuit, and completed all
 nine with one collision event. This supports the claim that a recurrent learned
 controller can be integrated and evaluated through the common interface; it does

@@ -14,9 +14,10 @@ circuits, currents, fleets and controller types. The reference controller
 completes the current-free demonstration, while the systematic matrix exposes
 condition-dependent controller robustness and coordination failures that clean
 single-vehicle scores would miss. The final Gen-2 recurrent-PPO controller also
-completes all nine valid current-free validation episodes through the same
-27-dimensional observation and four-action interface, with one collision event
-and no out-of-bounds events. This validates the integration of a learned
+completes all nine valid current-free validation episodes using its
+27-dimensional onboard-derived observation encoding and the common four-action
+interface, with one collision event and no out-of-bounds events. This validates
+the integration of a learned
 controller into the benchmark and referee, without turning the result into a
 claim of superiority or unseen-circuit generalization.
 

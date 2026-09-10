@@ -17,8 +17,8 @@ control strategies?
 \item[RQ3] How do environmental currents affect benchmark performance?
 \item[RQ4] Can the same evaluation framework support multi-vehicle and
 team-level racing?
-\item[RQ5] Can learning-based controllers be integrated and evaluated under the
-same observation and referee contract?
+\item[RQ5] Can learning-based controllers be integrated and evaluated within the
+same participant-level information boundary and referee procedure?
 \end{description}
 
 \subsection{Protocol, Metrics and Provenance}
@@ -253,8 +253,9 @@ two release gaps and three seeds.
 
 \input{tables/learning}
 
-Table~\ref{tab:learning} reports the final selected Gen-2 checkpoint through the
-same participant interface and independent referee used by the rule controllers.
+Table~\ref{tab:learning} reports the final selected Gen-2 checkpoint within the
+same participant-level information boundary and independent referee used by the
+rule controllers.
 The policy completed all nine valid episodes: 3/3 on each circuit. There was one
 collision event in Vertical Serpent and no out-of-bounds events. These results
 are descriptive at $n=3$ per circuit and do not support a statistical ranking.
@@ -269,8 +270,8 @@ one performance estimate.
 
 The learning result is therefore an integration and diagnosis result, not a claim
 that PPO outperforms the reference controller. It confirms that the Gen-2
-27-dimensional local transition contract can drive a recurrent policy through
-the full evaluation harness, while the independent ordered-sequence referee
+27-dimensional onboard-derived observation encoding can drive a recurrent policy
+through the full evaluation harness, while the independent ordered-sequence referee
 keeps circuit completion distinct from isolated gate crossings. The official
 circuits were available to earlier diagnostic runs, so this is retrospective
 validation rather than unseen-track generalization.
