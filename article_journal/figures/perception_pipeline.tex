@@ -10,14 +10,14 @@
   arrow/.style={-Latex, thick},
   lbl/.style={font=\tiny}
 ]
-\node[box] (cam) {FrontCamera\ RGB image};
-\node[box, right=of cam] (edge) {grayscale\ + Canny};
-\node[box, right=of edge] (cont) {closed contours\ + bounding boxes};
-\node[box, right=of cont] (filt) {geometric filter\ size, aspect, $\Pi$, $\alpha$};
-\node[box, below=0.75cm of filt] (cands) {candidate list\ $(c_x,c_y,\alpha,\gamma)$, top 8};
-\node[acou, left=of cands] (assoc) {association\ FOV, bearing, size gates};
-\node[box, left=of assoc] (out) {visual target\ or \emph{none}};
-\node[acou, below=0.70cm of assoc] (beacon) {expected-beacon\ packet $(\beta,\tilde\rho)$};
+\node[box] (cam) {FrontCamera\\ RGB image};
+\node[box, right=of cam] (edge) {grayscale\\ + edge extraction};
+\node[box, right=of edge] (cont) {closed contours\\ + bounding boxes};
+\node[box, right=of cont] (filt) {geometric filter\\ size, aspect, contour consistency};
+\node[box, below=0.75cm of filt] (cands) {candidate list\\ centre, size, confidence};
+\node[acou, left=of cands] (assoc) {association\\ bearing and size consistency};
+\node[box, left=of assoc] (out) {visual target\\ or \emph{none}};
+\node[acou, below=0.70cm of assoc] (beacon) {expected-beacon packet\\ bearing and range};
 
 \draw[arrow] (cam) -- (edge);
 \draw[arrow] (edge) -- (cont);
