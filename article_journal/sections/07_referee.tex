@@ -27,17 +27,15 @@ $\mathcal{M}_{i,t}$ the optional teammate inbox. The \emph{evaluator view} is
 e_t = \Psi\big(x_t\big) = \big(\,\{p_{i,t},\,\dot p_{i,t}\}_{i\in\mathcal{P}},\; \mathcal{G},\; \mathcal{O},\; \mathcal{B},\; \mathbf{v}_c\,\big),
 \end{equation}
 comprising exact vehicle poses and velocities, the ordered gate geometry, the
-obstacle set, the world bounds and the true current field. The benchmark enforces
-\begin{equation}
-\label{eq:boundary}
-\Phi_i \perp \sigma\!\left(\ell_t,\;G^{\mathrm{done}}_{i,t},\;\mathrm{status}_{i,t},\;P_{i,t}\right)\quad\text{for all } i,t,
-\end{equation}
-that is, the observation map is independent of the referee's expected-gate index
-$\ell_t$, of official completed-gate counts, of participant status and of accrued
-penalties. In the implementation this is a structural property rather than a
-convention: the observation builder's signature admits the track configuration,
-the arena, the adapter and the participant state, and does not admit a referee
-object, so referee-derived quantities are unreachable from the code path that
+obstacle set, the world bounds and the true current field. The evaluator view
+therefore contains information that is deliberately excluded from the participant
+interface. In particular, the official expected-gate index, completed-gate count,
+participant status and accrued penalties are not inputs to the observation map.
+
+In the implementation this separation is structural rather than conventional:
+the observation builder's signature admits the track configuration, the arena,
+the adapter and the participant state, and does not admit a referee object.
+Referee-derived quantities are therefore unreachable from the code path that
 constructs $o_{i,t}$.
 
 Information flows in one direction only. The referee reads $x_t$ and the
