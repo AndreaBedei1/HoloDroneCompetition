@@ -1,7 +1,13 @@
 {
   "figure": "gate_perception_panels.pdf",
   "script": "article_journal/scripts/make_perception_figure.py",
-  "operation": "crop + English state badge only; detector overlays untouched",
+  "operation": "camera-panel crop only; detector overlays preserved unchanged",
+  "crop_box": [
+    0,
+    90,
+    640,
+    445
+  ],
   "sources": [
     "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002/screenshots/00000_detection_without_corners.png",
     "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000/screenshots/00001_corners_B01.png",
