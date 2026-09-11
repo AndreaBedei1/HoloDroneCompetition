@@ -183,14 +183,13 @@ hold and DVL-based passage verification through the shared local tracker of
 Fig.~\ref{fig:rule_baseline_state}. They differ only in how visual feedback is
 used during the final gate passage.
 
-\emph{Continuous Servo} steers toward the expected beacon using its bearing and
-elevation, and refines that alignment with the associated visual target as the
-gate becomes visible. Depth feedback maintains the vertical reference and DVL
-motion provides the evidence that the vehicle has crossed and cleared the gate.
-Its defining behaviour appears during \textsc{commit} and \textsc{verify\_exit}:
-the controller continues applying bounded visual corrections while moving through
-the aperture, and therefore keeps servoing toward the observed image centre
-throughout the passage.
+\emph{Continuous Servo} steers toward the locally expected beacon using its
+bearing and elevation, and refines that alignment with the associated visual
+target as the gate becomes visible. Depth feedback maintains the vertical
+reference, while DVL motion contributes to passage verification. During
+\textsc{commit} and \textsc{verify\_exit}, the controller continues applying
+bounded visual corrections while moving through the aperture, continuously
+servoing toward the observed gate centre.
 
 \subsection{Center-then-Commit}
 \label{sec:center_commit_baseline}
