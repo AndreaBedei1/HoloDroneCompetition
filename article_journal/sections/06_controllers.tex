@@ -51,9 +51,8 @@ class MyController:
 \end{lstlisting}
 
 The \cmd{mission\_info} passed to \cmd{reset} is deliberately minimal: the
-initial beacon identifier, the number of beacons and the lap count. It contains
-no gate positions, no course length in metres and no ordering beyond the starting
-identifier. The high-level command fields are listed in
+initial beacon identifier, the number of beacons and the lap count. The
+high-level command fields are listed in
 Table~\ref{tab:commands}; values are normalized to $[-1,1]$ and clamped by the
 framework before the action mapping of \eqref{eq:thruster_mix}. In fleet mode a
 controller may additionally return a small \cmd{message} payload alongside its
@@ -101,53 +100,46 @@ that the controller is neural.
 \subsection{Controller-Local Course Progression}
 \label{sec:local_tracker}
 
-\paragraph{Motivation} Because the observation carries no course progress
-(Section~\ref{sec:obs_contract}), a controller that must pass $M$ gates in order
-has to maintain that ordering itself. The framework supplies a reusable component,
-the \cmd{LocalCourseTracker}, that both reference controllers own; the runner
-supplies no progression signal of any kind.
+Because the official observation does not contain referee progress
+(Section~\ref{sec:obs_contract}), each controller maintains its own estimate of
+which gate it is currently approaching. The reference controllers use the
+reusable \cmd{LocalCourseTracker}, initialized from the mission assignment and
+updated exclusively from participant-accessible onboard information.
 
-\paragraph{Module design} The tracker initializes from the public mission
-assignment \cmd{initial\_beacon\_id} and maintains a local expected beacon
-identifier, a completed count, a lap index and a status through the sequence
+The tracker maintains the locally expected beacon and progresses through the
+states
 \begin{equation*}
-\begin{aligned}
-\textsc{search}&\rightarrow\textsc{approach}\rightarrow\textsc{visual\_align}\\
-&\rightarrow\textsc{commit}\rightarrow\textsc{verify\_exit}\rightarrow\textsc{advance},
-\end{aligned}
+\textsc{search}\rightarrow\textsc{approach}\rightarrow\textsc{visual\_align}
+\rightarrow\textsc{commit}\rightarrow\textsc{verify\_exit}\rightarrow\textsc{advance},
 \end{equation*}
-ending in \textsc{finished} after the final locally confirmed beacon. At each
-tick it filters the received packet list for its own expected identifier ---
-packets from other transmitters are neither labelled nor selected by the
-framework --- and combines that packet with the associated visual target of
-Section~\ref{sec:perception_assoc} and with body-frame DVL displacement.
+before returning to \textsc{search} for the next gate or entering
+\textsc{finished} after the final locally confirmed passage.
 
-\paragraph{Advancement conditions} The tracker enters and completes a passage
-only when persistent camera, acoustic and DVL evidence agree with the expected
-beacon. Five conditions individually block an advancement: a temporary visual
-loss, a missing acoustic packet, an isolated range jump, a range rise without a
-prior close approach, and a commit without forward DVL displacement. Incomplete
-or inconsistent evidence returns the tracker to local acquisition without
-advancing. After each non-final advancement it holds an exit-clearance phase;
-after the final advancement it enters \textsc{finished} directly and commands
-zero motion. Fig.~\ref{fig:rule_baseline_state} shows the state machine.
+At each control step, the tracker selects the packet corresponding to its
+locally expected beacon and combines acoustic bearing and range with the
+associated visual target and body-frame DVL motion. A passage is not inferred
+from a single measurement. The vehicle first establishes a stable
+visual--acoustic alignment, then commits to the aperture, and finally checks
+whether its subsequent onboard measurements are consistent with having crossed
+and moved away from the expected gate. Forward DVL displacement, the evolution
+of beacon range and bearing, and the persistence or disappearance of the visual
+target jointly provide this evidence.
 
-\paragraph{Technical advantage and its cost} Requiring agreement across three
-modalities is what keeps the local estimate close to the referee's: over the
-frozen benchmark matrix the tracker produced 1472 advancements against the
-referee's 1474, with 11 false and 7 missed (Section~\ref{sec:eval_boundary}). The
-cost is latency --- the tracker confirms a passage a median of $0.858$\,s after
-the referee records it --- and this lag is visible in the controller's behaviour
-rather than hidden, because the exit-clearance phase begins only once the
-tracker is convinced. Controller-local snapshots and independent referee
-crossings are logged separately for offline comparison and are never fed back
-into control.
+Temporary loss of a camera detection or an acoustic packet is therefore
+insufficient to advance the local course state, as is an isolated change in
+range without supporting motion evidence. When the available measurements do
+not consistently support a completed passage, the tracker remains on, or
+returns to, the current gate rather than advancing to the next one. This
+conservative progression logic keeps gate sequencing inside the participant
+while avoiding any dependence on referee feedback.
 
-The two reference controllers and their local-progression logic were designed and
-validated for the gate geometry, beacon placement, sensing configuration and
-vehicle dynamics of the three official circuits used in this study; they are
-interpretable baselines, not tuned optimal policies, and we make no claim that
-their thresholds transfer unchanged to a different course family.
+Fig.~\ref{fig:rule_baseline_state} summarizes this controller-local state
+machine. Controller-local progression and referee decisions are logged
+separately for evaluation and are never fed back into the controller.
+
+The two controllers described below use the same tracker and the same onboard
+information. They are intended as interpretable reference baselines rather than
+optimized control policies.
 
 \begin{figure}[t]
 \centering
@@ -186,12 +178,10 @@ consumes referee state.}
 
 \subsection{Continuous Servo}
 
-Both reference controllers are deterministic and interpretable rule-based
-baselines rather than optimized policies, and both use exactly the same onboard
-inputs: received acoustic packets, the forward RGB camera, depth and IMU
-measurements and body-frame DVL velocity. They combine acoustic guidance, visual
-centring, depth hold and DVL-based passage verification through the shared
-tracker of Fig.~\ref{fig:rule_baseline_state}.
+Both reference controllers combine acoustic guidance, visual centring, depth
+hold and DVL-based passage verification through the shared local tracker of
+Fig.~\ref{fig:rule_baseline_state}. They differ only in how visual feedback is
+used during the final gate passage.
 
 \emph{Continuous Servo} steers toward the expected beacon using its bearing and
 elevation, and refines that alignment with the associated visual target as the
@@ -205,31 +195,24 @@ throughout the passage.
 \subsection{Center-then-Commit}
 \label{sec:center_commit_baseline}
 
-\paragraph{Motivation} Continuous visual correction is well behaved at range and
-poorly behaved at contact distance. As the vehicle enters the aperture the gate
-frame leaves the field of view piecewise: bars clip at the image border, the
-detected contour becomes a partial rectangle, and the centroid of that partial
-rectangle moves rapidly even though the vehicle is on line. A controller that
-keeps chasing the centroid then commands large late corrections precisely when
-the aperture margin is smallest.
+Continuous visual correction is useful during approach but can become
+undesirable very close to the gate. As the vehicle enters the aperture, parts of
+the frame leave the camera field of view and the detected gate geometry may
+become partial. The resulting image centre can move even when the vehicle is
+already correctly aligned, causing unnecessary late corrections when clearance
+is smallest.
 
-\paragraph{Module design} \emph{Center-then-Commit} retains the same
-observations, the same acoustic and visual guidance, the same shared tracker and
-the same local confirmation criterion as Continuous Servo. The only difference is
-the gate-passage strategy: after establishing a stable visual--acoustic lock, it
-stops chasing subsequent image-centroid changes during \textsc{commit} and
-\textsc{verify\_exit}, and instead advances through the aperture while holding
-the locked depth and attitude from onboard depth and IMU feedback. The same
-DVL-based evidence verifies the passage.
+\emph{Center-then-Commit} uses the same observations, acoustic--visual guidance,
+local tracker and passage-verification logic as Continuous Servo. The difference
+is restricted to the final traversal. Once a stable alignment has been
+established, the controller stops reacting to subsequent image-centre changes
+during \textsc{commit} and \textsc{verify\_exit}. It instead proceeds through the
+aperture while maintaining the previously established depth and attitude from
+onboard feedback.
 
-\paragraph{Technical advantage} Because the observations, the tracker and the
-confirmation logic are unchanged, the matched comparison of
-Section~\ref{sec:eval_rq2} isolates one variable: continuous visual correction
-versus a stabilized committed passage. This is the cleanest ablation the
-benchmark supports, and Section~\ref{sec:eval_rq2} shows that its outcome is
-condition-dependent rather than uniform --- the staged passage costs a little
-speed on a short clean circuit and buys substantial reliability on a long one and
-under disturbance.
+This matched design isolates the passage strategy: continuous visual servoing
+versus a stabilized committed traversal. Their comparative behaviour is
+evaluated in Section~\ref{sec:eval_rq2}.
 
 \input{figures/center_commit_states}
 
