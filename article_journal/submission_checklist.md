@@ -73,5 +73,4 @@ information that cannot be derived from the repository.
 - [ ] Repository made public and the URL in the manuscript verified to resolve
 - [ ] Consider an archival snapshot (e.g. Zenodo) for a citable DOI, and add it to the data availability statement
 - [ ] Re-run `python article_journal/scripts/verify_claims.py` and confirm 0 mismatches
-- [ ] Re-run `python article_journal/scripts/flatten_submission.py --build` and re-check the four build counters
 - [ ] Read the final PDF once more end to end

@@ -23,11 +23,17 @@ section-by-section relationship between the two.
 
 ```bash
 cd article_journal
+latexmk -C
 latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ```
 
 Requires MiKTeX or TeX Live with `elsarticle`, `booktabs`, `tikz`, `pgfplots`,
 `listings` and `threeparttable`. Output: `main.pdf`.
+
+`article_journal/` is the only current manuscript source. `main.tex` is the
+root document and `main.pdf` is the versioned compiled PDF. All manuscript
+changes must be made to the original files under this directory; journal
+packaging requirements will be handled only at submission time.
 
 To switch layout, change the single class option in `main.tex`:
 `preprint,3p,times` (default, submission format) · `review,3p,times`
@@ -49,13 +55,11 @@ article_journal/
     make_perception_figure.py    composes the gate-perception panel figure
     verify_claims.py             executable claim audit
     package_78_matrix.py          immutable 78-run release package/checker
-    flatten_submission.py        flat directory for Editorial Manager
   SCIENTIFIC_EVIDENCE_MAP.md     what evidence exists and how it is classified
   CLAIM_AUDIT.md                 every number, its source, its status
   FIGURE_SOURCE_AUDIT.md         what was reused, what was built, what was deferred
   JOURNAL_CHANGELOG.md           conference -> journal disposition
   ai_image_disclosure_todo.md    provenance/disclosure TODO for supplied schematics
-  flatten_submission.md          how to produce the flat submission
   submission_checklist.md        pre-submission checklist
   highlights.txt                 5 highlights, each <= 85 characters
   graphical_abstract_prompt.txt  detailed brief for the graphical abstract
@@ -154,16 +158,6 @@ Recomputes the retained headline values from available artifacts and exits
 non-zero on any mismatch. It launches nothing and modifies nothing. The
 historical release package can be verified separately with
 `python article_journal/scripts/package_78_matrix.py verify`.
-
-## Preparing the submission
-
-```bash
-python article_journal/scripts/flatten_submission.py --build
-```
-
-Writes `submission_flat/` with every file at one level and test-compiles it. The
-flat directory is a build product and is git-ignored. See
-`flatten_submission.md` for what to upload and how to verify the result.
 
 ## Before submitting
 

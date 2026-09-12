@@ -117,8 +117,7 @@ results/debug/
 
 # Journal manuscript (article_journal/) build artifacts.
 # main.pdf IS tracked so the compiled manuscript travels with the sources;
-# submission_flat/ is a build product of scripts/flatten_submission.py and would
-# duplicate every figure, so it stays out of the repository.
+# all other LaTeX build products stay out of the repository.
 article_journal/*.aux
 article_journal/*.bbl
 article_journal/*.blg
@@ -128,4 +127,3 @@ article_journal/*.log
 article_journal/*.out
 article_journal/*.synctex.gz
 article_journal/*.spl
-article_journal/submission_flat/
