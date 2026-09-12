@@ -1,77 +1,75 @@
 \section{Learning-Based Controller}
 \label{sec:learning}
 
-Learning is included as a supporting demonstration that a policy learned from
-interaction can be integrated into \mra{} through the same participant-level
-information boundary and action interface used by the reference controllers.
-The benchmark itself is unchanged: observations are constructed from
-participant-accessible information, actions use the same four body-frame command
-channels and performance is assessed independently by the referee.
+A learning-based controller is included to demonstrate that policies obtained
+through reinforcement learning can be integrated into \mra{} without modifying
+the race-management or evaluation framework. The controller receives the same
+participant-side information available during normal benchmark operation and is
+evaluated by the independent referee described in Section~\ref{sec:referee}.
+Rather than treating learning as a separate benchmark mode, the policy is exposed
+through the same controller interface used by the reference approaches.
 
-Figure~\ref{fig:schematic_learning} summarizes the learning pipeline and the
-progression from local gate interaction to complete-circuit training.
+Figure~\ref{fig:schematic_learning} summarizes the resulting control loop and the
+progression adopted during training.
 \input{figures/schematic_learning}
 
-\subsection{Observation Representation}
+\subsection{Observation Representation and Recurrent Policy}
 \label{sec:learning_obs}
 
-The learned controller receives a 27-dimensional observation vector constructed
-exclusively from information available to the participant. The representation
-combines acoustic information about the locally tracked beacon, visual
-information about the associated gate target, vehicle motion and attitude
-measurements, the previous control action and short-term temporal changes in the
-observed target.
+The policy receives a 27-dimensional observation vector built exclusively from
+participant-accessible measurements. The representation combines acoustic
+information associated with the locally tracked beacon, visual information about
+the corresponding gate target, vehicle motion measurements and short-term
+temporal information. It includes beacon availability, acoustic bearing,
+elevation and range, visual target centre and apparent size, depth, body-frame
+DVL velocity, yaw rate, the previous control action, short-term variations of the
+visual and acoustic observations, an indicator of recent target transitions and,
+when available, a local estimate of gate orientation. Availability indicators
+are used to distinguish valid measurements from missing ones, while unavailable
+quantities are represented through neutral values. Global vehicle pose, exact
+gate coordinates, future course geometry and referee-derived progress are not
+included.
 
-More specifically, the observation includes beacon availability, acoustic
-bearing, elevation and range, visual target centre and apparent size, depth,
-body-frame DVL velocity, yaw-rate information, the previous surge, sway, heave
-and yaw commands, short-term variations of the visual and acoustic measurements,
-a target-transition indicator and, when available, a local estimate of gate
-orientation. Availability indicators distinguish valid measurements from missing
-ones, while unavailable quantities are represented with neutral values.
+The controller is trained with Proximal Policy Optimization
+(PPO)~\cite{schulman2017ppo} using a recurrent actor--critic policy. The recurrent
+component is implemented with LSTM memory, so the decision at the current control
+step depends not only on the present observation but also on information retained
+from the recent observation history. This is useful in gate racing because the
+problem is only partially observable from a single frame: visual detections may
+be incomplete or temporarily disappear close to the aperture, acoustic
+measurements evolve continuously during the approach and the same instantaneous
+observation may correspond to different phases of a passage depending on the
+vehicle's recent motion.
 
-No global vehicle pose, exact gate coordinates, future course geometry, referee
-progress or referee-derived event information is included.
+At each step, the current observation is first mapped to an internal feature
+representation and then processed together with the recurrent state maintained by
+the LSTM. The resulting temporal representation is shared by the actor--critic
+architecture: the actor produces the continuous control action, while the critic
+estimates the state value used during PPO optimization. The recurrent state is
+carried forward between consecutive control steps and reset at the beginning of a
+new episode. In this way, temporal context is learned directly by the policy
+instead of being supplied through an explicit handcrafted navigation state
+machine.
 
-\subsection{Recurrent PPO Controller}
-\label{sec:learning_policy}
-
-The learning-based controller uses Proximal Policy Optimization
-(PPO)~\cite{schulman2017ppo} with a recurrent actor--critic policy. Recurrence is
-used because a single observation does not fully describe the state of an
-underwater gate passage: visual detections may disappear near the aperture,
-acoustic measurements vary over time and successful passage verification depends
-on the recent evolution of the vehicle and target.
-
-The policy first encodes the current observation into a compact latent
-representation. A recurrent memory then combines this representation with
-information retained from previous control steps. Separate actor and critic
-branches use this temporal representation to produce, respectively, the
-continuous four-dimensional control command and the value estimate required
-during training.
-
-At execution time, the policy maintains only its internal recurrent state and the
-participant-level observations supplied by the benchmark.
-
-\subsection{Training Procedure}
+\subsection{Training Strategy}
 \label{sec:learning_training}
 
-Training is organized progressively rather than exposing the policy immediately
-to the complete racing task. Early stages emphasize the local behaviours required
-to approach, align with and traverse a gate, while subsequent training exposes
-the controller to longer sequences and complete circuits. The final training
-stage uses the complete official circuits under the same observation and action
-interfaces used during evaluation.
+Training is organized progressively so that the policy first acquires the local
+behaviours needed for gate traversal before being required to solve complete
+racing sequences. Initial stages emphasize approaching the target, maintaining
+useful alignment and crossing the aperture. The training task is then extended to
+longer gate sequences and finally to complete circuits, while keeping the same
+observation representation and control interface.
 
-The reward combines task progress with control objectives that encourage
-effective gate traversal. Positive feedback is associated with successful gate
-crossings, course completion, forward progress and alignment, while elapsed time,
-collisions and terminal failures are penalized. The reward is used only during
-training and is never part of the participant observation presented to the
-policy.
+The reward follows the same progression. Successful gate crossings and course
+completion provide the principal positive task signals, while additional terms
+encourage progress and useful alignment during the approach. Elapsed time,
+collisions and terminal failures are penalized. These terms are used only to
+shape the learning process and are not included in the observation seen by the
+controller.
 
-Training produces a sequence of policy checkpoints. A single checkpoint is
-selected and frozen before the final evaluation, after which no further learning
-or adaptation is performed. This separation ensures that the experiments of
-Section~\ref{sec:eval_rq5} evaluate a fixed controller rather than a policy that
-continues to change during testing.
+PPO training produces a sequence of policy checkpoints as optimization
+progresses. A single policy is selected and frozen before the final evaluation;
+the controller is then executed without additional learning or online adaptation.
+The experimental results of this fixed policy are reported together with the
+other benchmark evaluations in Section~\ref{sec:eval_rq5}.
