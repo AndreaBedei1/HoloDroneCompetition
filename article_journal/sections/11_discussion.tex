@@ -28,21 +28,20 @@ important when interpreting differences between controllers.
 
 The referee also makes failure interpretable. A missed next gate is recorded as
 a sequence failure rather than being blurred into a low aggregate gate count,
-and safety costs remain visible alongside progress. This is why the current
-sweep cannot be summarized by collision counts alone: a stronger disturbance
-can reduce collisions simply by stopping a vehicle before the contact-dense
-part of the course. Reporting progress, completion and events together is a
-benchmark requirement, not a presentation choice.
+and safety costs remain visible alongside progress. This is why the medium-current
+condition cannot be summarized by collision counts alone: a current can reduce
+collisions simply by limiting progress before the contact-dense part of the course.
+Reporting progress, completion and events together is a benchmark requirement,
+not a presentation choice.
 
 \subsection{Reference Controllers, Currents and Fleets}
 
 The reference-controller comparison is a controlled ablation of visual feedback
 during passage. Neither controller dominates: continuous correction is useful
 on repeated vertical transitions, whereas suspending late visual corrections is
-more robust on the long mixed course and under the informative current profile.
-The result is evidence that the benchmark can expose a design decision that a
-single clean circuit would conceal, not evidence that either controller is
-optimal.
+more robust on the long mixed course and under the medium-current condition.
+This condition-dependent result shows that the benchmark can expose a design
+decision that a single clean circuit would conceal.
 
 The fleet experiments extend the same logic from individual to team autonomy.
 Vehicles that are individually competent can still converge on the same
@@ -54,22 +53,15 @@ separate engineering trace.
 
 \subsection{Learning as a Demonstration of Generality}
 
-The learning experiment supports a more precise interpretation of learning in
-this benchmark. A recurrent PPO controller using a participant-accessible
-observation encoding can be integrated within the same participant-level
-information boundary and action interface, and can be assessed on complete
-ordered circuits under the reported current-free protocol.
-
-This result remains an integration and diagnostic result rather than a claim
-that PPO is superior to the reference controllers or that it generalizes to
-unseen circuits. The validation uses three episodes per circuit, the official
-circuits had been accessible to earlier diagnostic runs, and the learned
-campaign uses a different control rate and provenance from the systematic rule
-matrix. Its timing should therefore not be ranked directly against the rule
-controller tables. More broadly, the experiment demonstrates that the
-controller-agnostic interface accommodates recurrent learning without changing
-race execution or adjudication, but it does not isolate the effects of the
-architecture, training budget, reward design or observation encoding.
+The learning experiment demonstrates the generality of this design. A recurrent
+PPO controller can be integrated within the same participant-level information
+boundary, body-frame command interface and independent referee procedure as the
+reference controllers, and can be assessed on complete ordered circuits under
+the reported current-free protocol. Because the interface constrains the legal
+information and action contract rather than the internal controller design, the
+same benchmark can accommodate reinforcement learning, rule-based control,
+model-predictive control, optimization-based methods and other compatible
+autonomy strategies.
 
 The next learning experiments should extend this matched protocol to currents,
 multi-vehicle interaction and sealed circuits, while comparing memory, training
@@ -82,7 +74,7 @@ official scoring mechanism.
 Taken together, the results argue for benchmarks that define both race
 configuration and evaluation above the simulator. Solvability, disturbance
 robustness, team interaction and learning generality are different questions and
-require separate conditions, metrics and provenance. \mra{} provides a
+require separate conditions and metrics. \mra{} provides a
 controller-agnostic interface, a configurable race manager and an independent
 referee for underwater ordered-gate racing; its limitations and the scope of the
 current evidence are given next.

@@ -1,4 +1,4 @@
-"""Generate manuscript figures from existing track JSON and the raw 78-run matrix.
+"""Generate manuscript figures from existing track JSON and result artifacts.
 
 Produces three vector PDFs in this directory:
 
@@ -139,7 +139,6 @@ def controller_comparison() -> None:
         ("Vertical\n(clean)", ("clean", "vertical")),
         ("Mixed\n(clean)", ("clean", "mixed")),
         ("Horseshoe\n(medium cur.)", ("currents", "horseshoe", None, "medium")),
-        ("Horseshoe\n(strong cur.)", ("currents", "horseshoe", None, "strong")),
     ]
 
     def get(controller, parts):

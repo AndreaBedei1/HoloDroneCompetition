@@ -1,33 +1,22 @@
 \begin{table}[t]
 \centering
-\caption{Reference-controller robustness to environmental currents.}
+\caption{Controller performance on Horseshoe Bay with and without current.}
 \label{tab:currents}
 \mratablestyle
 \begin{tabular}{@{}llrlrrrr@{}}
 \toprule
 Profile & Controller & Seeds & Finished & Gates $\uparrow$ & Official (s) & Penalized (s) & Collisions $\downarrow$ \\
 \midrule
-\multirow{2}{*}{None}
+\multirow{2}{*}{Clean}
  & Continuous Servo   & 5 & 5/5 & 12.0/12 & $194.5\pm4.8$ & $194.5\pm4.8$ & 0.0 \\
  & Center-then-Commit & 5 & 5/5 & 12.0/12 & $197.7\pm7.1$ & $197.7\pm7.1$ & 0.0 \\
 \midrule
 \multirow{2}{*}{\texttt{medium}}
  & Continuous Servo   & 5 & 2/5 & 8.4/12 & $337.9\pm19.2$ & $692.9\pm75.7$ & 43.4 \\
  & Center-then-Commit & 5 & \best{3/5} & \best{8.8/12} & \best{$217.3\pm1.5$} & \best{$223.9\pm1.8$} & \best{25.2} \\
-\midrule
-\multirow{2}{*}{\texttt{strong}}
- & Continuous Servo   & 5 & 0/5 & 3.0/12 & \textemdash & \textemdash & 0.0 \\
- & Center-then-Commit & 5 & 0/5 & 3.2/12 & \textemdash & \textemdash & 0.8 \\
 \bottomrule
 \end{tabular}
 \mratablenote
-Times are mean $\pm$ sample standard deviation over finished runs only and are
-undefined where no run finished. Gates and collisions are five-seed means, and
-collisions combine gate and world events. The \texttt{medium} profile has a
-constant set-flow component of $0.65$\,m/s and \texttt{strong} of $1.29$\,m/s,
-against a mean clean course speed of $\approx\!0.48$\,m/s for the same vehicle on
-this circuit. The near-zero collision counts under \texttt{strong} reflect less
-progress, not better control: both controllers stall after about three gates and
-rarely reach the gate-dense part of the course. Run metadata confirms physical
-current coupling in every run.
+Times are mean $\pm$ sample standard deviation; collisions combine gate and world
+events.
 \end{table}

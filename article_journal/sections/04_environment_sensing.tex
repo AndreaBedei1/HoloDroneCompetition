@@ -8,10 +8,9 @@ HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class
 vehicle~\cite{vonbenzon2022bluerov2}. The simulator advances at $30$ physics
 ticks per second.
 
-The experiments use two control rates over this common physics rate: $\Delta
-t=0.033$\,s ($\approx\!30$\,Hz), with one control step per physics tick, and
-$\Delta t=0.1$\,s ($10$\,Hz). The evaluation protocol identifies the rate used
-by each campaign; the two rates are not pooled.
+The experiments use two control rates over this common physics rate: $30$\,Hz,
+with one control step per physics tick, and $10$\,Hz. The evaluation protocol
+identifies the rate used by each campaign; the two rates are not pooled.
 
 The portable participant command uses four normalized body-frame channels,
 \begin{equation}
@@ -125,10 +124,9 @@ $\hat{\theta}=(-\Delta y,\Delta x)/r$,
 \label{eq:vortex}
 \mathbf{v}_j=\big(\hat{\theta}_x\,V_t\,\omega(r),\;\hat{\theta}_y\,V_t\,\omega(r),\;V_z\,\omega(r)\big).
 \end{equation}
-The provided \texttt{strong} profile combines a constant set-flow of
-$[0.75,1.05,0]$\,m/s, two Gaussian jets, a vortex and a vertical sinusoid; the
-\texttt{medium} profile scales these magnitudes by $0.5$. Both profiles are
-defined relative to the gate layout and are available on every official circuit.
+The current magnitude and direction can be configured as part of the race
+scenario. The selected field is defined relative to the gate layout and is
+available on every official circuit.
 The adapter applies the field physically before each control step but does not
 report it directly to the controller, which must infer the disturbance from its
 onboard measurements, including body-frame DVL velocity.

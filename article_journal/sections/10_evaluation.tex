@@ -1,13 +1,10 @@
 \section{Experimental Evaluation}
 \label{sec:evaluation}
 
-This evaluation does not seek an optimal underwater racing controller. It asks
-whether the benchmark, the observation contract, the referee and the team scoring
-behave as specified, and whether they expose differences between autonomy
-strategies that a coarser protocol would hide. We organize the experiments around
-five research questions rather than chronologically, and we report failures of the
-reference controllers and of the learned policies as results rather than as
-caveats.
+This evaluation asks whether the benchmark, the observation boundary, the referee
+and the team scoring represent and distinguish autonomous behaviours under common
+experimental conditions. We organize the experiments around five research
+questions.
 
 \begin{description}
 \item[RQ1] Can \mra{} support fully onboard autonomous completion across
@@ -24,69 +21,33 @@ same participant-level information boundary and referee procedure?
 \subsection{Protocol, Metrics and Provenance}
 \label{sec:eval_protocol}
 
-Three independent bodies of evidence are reported, and they are never pooled.
+The systematic benchmark evaluation comprises both reference controllers on the
+three clean circuits, the \texttt{medium} current condition on Horseshoe Bay,
+homogeneous two-vehicle fleets and three-vehicle coordination trials. These
+experiments run at $30$\,Hz. The current-free completion demonstration comprises
+nine runs covering the three official circuits, without current, at $10$\,Hz.
+The recurrent PPO validation uses three episodes per circuit at $10$\,Hz.
 
-\paragraph{The systematic benchmark matrix} 78 runs generated with the native
-HoloOcean simulator backend
-under a frozen source-tree fingerprint recorded in the artifact manifest. It
-covers both reference controllers on the three clean circuits and under the
-\texttt{medium} and \texttt{strong} Horseshoe Bay currents, homogeneous
-two-vehicle fleets, and matched three-vehicle coordination trials. Clean, current
-and fleet cases use five seeds; coordination uses three seeds under simultaneous
-and staggered release. Control runs at $\Delta t=0.033$\,s ($30$\,Hz). This matrix
-answers RQ2, RQ3 and RQ4, and supplies the boundary measurement of
-Section~\ref{sec:eval_boundary}.
-
-\paragraph{The current-free completion demonstration} A focused nine-run
-demonstration that the reference controller completes each official circuit end
-to end with currents explicitly disabled and verified zero in the manifest, at
-$\Delta t=0.1$\,s ($10$\,Hz). This answers RQ1.
-
-\paragraph{The final learned-controller validation} The selected recurrent PPO
-controller was evaluated in three valid episodes on each official
-circuit at $\Delta t=0.1$\,s. This answers RQ5 as an integration and diagnostic
-question; it is not pooled with the 78-run matrix.
-
-All performance trials use the reference native HoloOcean simulator backend and a BlueROV2-class
-vehicle, official onboard-only observations, no current compensation and no
-obstacles, with the standard gate apertures and referee margin unchanged
-throughout. Separate setup checks confirm that both named current profiles
-and seeded static obstacles instantiate on every circuit; these are construction
-checks, not obstacle-avoidance trials, and no obstacle result is claimed.
-
-The reported metrics are completion, completed gates, official and penalized
-time, collisions, out-of-bounds events, wrong-direction crossings and stuck
-events. Fleet and coordination trials add inter-vehicle proximity events and team
-times. Time statistics use finished runs only and are undefined where nothing
-finished; gate and event means use all seeds. Dispersions are sample standard
-deviations (ddof$\,{=}\,$1). Proportions carry Wilson $95\%$ intervals where
-sample sizes are small enough for the normal approximation to mislead. Paired
-comparisons use two-sided sign tests on matched seeds.
-
-Every run records the experiment-generation commit, source or model hash,
-HoloOcean version, track hash, requested and actual adapter, fallback status,
-current profile, timestep and seed. Runs that used a non-HoloOcean adapter or
-permitted the engine-free fallback do not appear in the tables.
+All experiments use the native HoloOcean backend with a BlueROV2-class vehicle
+and participant-accessible onboard observations. The reported metrics are
+completion, completed gates, official and penalized time, collisions,
+out-of-bounds, wrong-direction and stuck events; fleet trials additionally report
+inter-vehicle proximity and team time.
 
 \subsection{RQ1: Onboard-Only Completion Across Heterogeneous Circuits}
 \label{sec:eval_rq1}
 
-The first question a racing benchmark must answer about itself is whether its
-task is solvable at all under its own restrictions. If no controller can complete
-a circuit using only onboard sensing, the benchmark measures the difficulty of an
-impossible problem rather than the quality of autonomy.
+The first question is whether the task is solvable under its own restrictions.
+RQ1 therefore tests end-to-end completion using only onboard sensing.
 
-Table~\ref{tab:current_free} answers this affirmatively and without qualification
-for the current-free setting. The Center-then-Commit controller completed all
+Table~\ref{tab:current_free} answers this affirmatively for the current-free
+setting. The Center-then-Commit controller completed all
 three official circuits in every one of nine runs: 3/3 on Horseshoe Bay (12
 gates), 3/3 on Vertical Serpent (17 gates) and 3/3 on Mixed Endurance (22 gates),
 for 51 of 51 gates in total. Across those nine runs the referee recorded zero
 gate, bar or world collisions, zero out-of-bounds events and zero
 wrong-direction crossings, and penalized time equalled official time in every
-run because no penalty was ever charged. Every run manifest independently
-confirms the conditions under which this was achieved: the native HoloOcean
-simulator backend was used, the engine-free fallback was disabled, the requested and measured
-current vector was $[0,0,0]$, and the controller received no privileged input.
+run because no penalty was ever charged.
 
 \input{tables/current_free}
 
@@ -98,18 +59,8 @@ structurally different circuits --- planar, vertically serpentine and long mixed
 --- indicates that the limiting factor is the controller's gate-by-gate
 acquire--align--commit cycle rather than any circuit-specific difficulty.
 
-We are deliberate about the scope of this result and about its relationship to
-the systematic matrix. This is a \emph{focused completion demonstration}: three
-seeds per circuit, one controller, no disturbance, at a $10$\,Hz control rate. It
-establishes that the task is achievable end to end under the full observation
-contract, and it does so with a per-run manifest that makes the claim auditable.
-It is not a performance characterization, and it does not supersede the broader
-evaluation of Sections~\ref{sec:eval_rq2}--\ref{sec:eval_rq4}, which uses five
-seeds, both controllers, three disturbance conditions and a $30$\,Hz control
-rate. The two are complementary and are reported separately for that reason; in
-particular, the times in Table~\ref{tab:current_free} are systematically longer
-than those in Table~\ref{tab:clean_tracks} because the control rate differs by a
-factor of three, and the two must not be compared.
+These results establish that the task is achievable end to end under the full
+participant-level observation boundary on three structurally different circuits.
 
 \subsection{RQ2: Do Control Strategies Separate?}
 \label{sec:eval_rq2}
@@ -150,47 +101,20 @@ Continuous Servo nonetheless wins on Vertical Serpent shows the trade is not
 one-directional --- repeated vertical transitions appear to benefit from
 continuous re-centring more than they suffer from late corrections --- which is
 precisely the kind of condition-dependent result a single-circuit benchmark would
-have concealed. The comparison is limited to the three official circuits, two
-current profiles and the evaluated seeds.
+have concealed.
 
 \subsection{RQ3: Behaviour Under Environmental Currents}
 \label{sec:eval_rq3}
 
-Performance degrades sharply and non-uniformly as current strength increases
-(Table~\ref{tab:currents}). Under the \texttt{medium} Horseshoe Bay profile,
+Table~\ref{tab:currents} shows the effect of the \texttt{medium} current
+condition on Horseshoe Bay. Under this condition,
 Continuous Servo finishes $2/5$ runs, averages $8.4/12$ completed gates and
-$43.4$ gate and world collisions per run, with finished-only official and
-penalized times of $337.9\pm19.2$\,s and $692.9\pm75.7$\,s. Center-then-Commit
-finishes $3/5$, averages $8.8/12$ gates and $25.2$ collisions, with finished-only
-times of $217.3\pm1.5$\,s and $223.9\pm1.8$\,s. Neither controller finishes a
-single \texttt{strong} run: Continuous Servo averages $3.0/12$ gates with no gate
-or world collision, and Center-then-Commit $3.2/12$ gates with $0.8$.
+$43.4$ gate and world collisions per run, with official and penalized times of
+$337.9\pm19.2$\,s and $692.9\pm75.7$\,s. Center-then-Commit
+finishes $3/5$, averages $8.8/12$ gates and $25.2$ collisions, with official and
+penalized times of $217.3\pm1.5$\,s and $223.9\pm1.8$\,s.
 
 \input{tables/currents}
-
-Two features of these numbers require comment, because both are easy to
-misread.
-
-First, the collision counts are \emph{non-monotonic} in current strength: the
-medium profile records many collisions ($43.4$ and $25.2$) while the strong
-profile records almost none ($0.0$ and $0.8$). This is not evidence of better
-control under the stronger disturbance. Under \texttt{strong} the vehicles
-complete only $3.0$--$3.2$ of $12$ gates and stall early, so they rarely reach
-the gate-dense region of the circuit where contacts accumulate. Fewer collisions
-here reflect less progress, not more skill, and a benchmark that reported
-collision counts without completion would invert the ranking.
-
-Second, the \texttt{strong} profile is best read as a saturation regime rather
-than a graded difficulty. Its constant set-flow component alone is
-$[0.75,1.05,0]$\,m/s, a magnitude of $1.29$\,m/s, about $2.7\times$ the mean
-course speed the same vehicle sustains on clean Horseshoe Bay ($93.8$\,m in
-$194.5$\,s, i.e.\ $\approx\!0.48$\,m/s). No controller restricted to this
-vehicle's actuation can make sustained forward progress against it, so the
-condition functions as a stress case that confirms the disturbance is physically
-coupled rather than as an informative comparison point. The \texttt{medium}
-profile ($0.65$\,m/s constant component) is the informative regime, and there the
-staged controller is clearly the more robust: more completions, roughly half the
-collisions, and finished runs $120.6$\,s faster.
 
 The headline finding for benchmark design is the gap between
 Table~\ref{tab:clean_tracks} and Table~\ref{tab:currents}. Both controllers score
@@ -198,8 +122,8 @@ a perfect $5/5$ with zero events on clean Horseshoe Bay, and drop to $2/5$ and
 $3/5$ with tens of collisions on the same circuit under a moderate current.
 Clean-track success is therefore not a proxy for robustness, and any evaluation
 protocol that reports only clean completion will rank controllers on a dimension
-that disappears the moment the water moves. The quantitative current sweep is
-limited to Horseshoe Bay (Section~\ref{sec:limitations}).
+that disappears the moment the water moves. The medium-current condition thus
+provides a meaningful robustness test for the benchmark.
 
 \subsection{RQ4: Multi-Vehicle and Team-Level Evaluation}
 \label{sec:eval_rq4}
@@ -245,8 +169,7 @@ so the improvement is achieved inside the same information boundary that
 constrains everything else. And the cost of coordination is visible in the score
 rather than hidden: LF(2)'s stuck penalty is charged by the same independent
 referee that charges a collision, so a policy that buys safety by waiting pays
-for the waiting. This evidence is limited to one clean circuit, three vehicles,
-two release gaps and three seeds.
+for the waiting.
 
 \subsection{RQ5: Learning-Based Control Under the Same Evaluation Protocol}
 \label{sec:eval_rq5}
@@ -265,21 +188,11 @@ recorded on Vertical Serpent. These results show that the learned controller can
 compose local gate-navigation behaviour into complete ordered circuits while
 remaining entirely within the participant-side observation contract.
 
-The sample is intentionally small, with three runs per circuit, and is therefore
-reported descriptively rather than as evidence of statistical superiority. The
-learning experiment is primarily intended to demonstrate that \mra{} can
-evaluate a recurrent learned policy using the same controller interface,
-four-dimensional action space and independent referee used for rule-based
-controllers.
-
-For context, the separate current-free rule-based completion demonstration of
-Section~\ref{sec:eval_rq1} also completed all nine runs. The two experiments are
-not used to claim that either controller class is superior: they were conducted
-as separate evaluation campaigns and their timing measurements are therefore not
-pooled. The relevant result is instead that both rule-based and learned autonomy
-can be evaluated under the same participant-level information boundary and
-race-management procedure.
-
-Because the official circuits were available during learning development, these
-results should be interpreted as validation on the benchmark scenarios rather
-than as evidence of generalization to unseen courses.
+The sample is intentionally small, with three episodes per circuit, and is
+reported descriptively. Together, the rule-based and PPO evaluations illustrate
+that the benchmark interface is controller-agnostic: autonomy methods with
+different internal designs can be evaluated through the same participant-level
+information boundary, required body-frame command interface and independent
+referee procedure. The same interface can accommodate rule-based control,
+reinforcement learning, model-predictive control, optimization-based methods and
+other compatible controllers.

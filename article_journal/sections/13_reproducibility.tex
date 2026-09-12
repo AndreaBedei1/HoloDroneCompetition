@@ -42,27 +42,12 @@ seeds. The matched benchmark of Section~\ref{sec:eval_rq5} evaluated every
 controller on the same seed set and the same generated geometries, which is what
 makes its paired statistics valid.
 
-\subsection{Manifests, Fingerprints and Hashes}
+\subsection{Recorded Artifacts}
 
-Three levels of provenance are recorded.
-
-\emph{Per-run.} Each run emits a line-delimited event log and a machine-readable
-summary (R6), plus metadata giving the track, controller, seed, command line,
-requested and actual adapter, fallback-disabled status, control timestep,
-requested and measured current vector, and the observation and action contract
-versions.
-
-\emph{Per-experiment.} The 78-run matrix carries a complete experiment manifest
-recording the experiment-generation commit
-(\cmd{df098ef4\ldots}), a source-tree fingerprint over the package's Python and
-JSON files (\cmd{e7d31077\ldots}), the HoloOcean version, the Python version, the
-operating system, the fallback status and the simulated current-coupling status
-for every run. It also asserts matrix completeness: 78 of 78 expected runs, no
-missing and no unexpected metadata.
-
-\emph{Per-artifact.} Learned-controller evaluations additionally record the model
-and track identifiers, the selected training artifact and the per-episode result
-files.
+Each run emits a line-delimited event log and a machine-readable summary, together
+with the track, controller, seed and interface contract identifiers needed to
+locate the corresponding result. Detailed provenance and artifact metadata are
+retained in the repository release rather than repeated in the manuscript.
 
 \subsection{Regenerating Tables and Figures}
 
@@ -71,7 +56,7 @@ existing artifacts: no command listed below launches the simulator or modifies a
 raw artifact.
 
 \begin{lstlisting}[language=bash]
-# Result tables from the frozen 78-run matrix (also runs the penalty-identity check)
+# Result tables and the penalty-identity check
 python article/regenerate_tables.py --check
 
 # Track layouts and the controller-comparison plot, from track JSON and artifacts
@@ -80,14 +65,11 @@ python article/figures/generate_figures.py
 # Journal figures: perception panels from committed artifacts
 python article_journal/scripts/make_perception_figure.py
 
-# Verify the compact immutable 78-run release package
-python article_journal/scripts/package_78_matrix.py verify
-
 # Manuscript
 cd article_journal && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 \end{lstlisting}
 
-Running \cmd{regenerate\_tables.py} against the frozen matrix reproduces the
+Running \cmd{regenerate\_tables.py} against the recorded result artifacts reproduces the
 clean-track, current, fleet and coordination values of
 Tables~\ref{tab:clean_tracks}, \ref{tab:currents} and \ref{tab:fleet} exactly, and
 also verifies the penalty identity $T^{\mathrm{pen}}=T^{\mathrm{official}}+P$ on
@@ -106,21 +88,16 @@ python -m marine_race_arena.scripts.run_marine_race \
   --track marine_race_arena/tracks/marine_race_horseshoe_bay.json \
   --benchmark-task clean_gate \
   --controller rule_gate_center_then_commit \
-  --adapter holoocean --seed 0 --dt 0.033 \
+  --adapter holoocean --seed 0 \
   --duration 560.0 --current-profile none --official
 \end{lstlisting}
 
 and the current-free demonstration of Section~\ref{sec:eval_rq1} is driven by
-committed scripts that pass \cmd{--current-profile none} and assert
-\cmd{currents\_actual}$\,=\,[0,0,0]$ in the manifest before any episode runs.
-Two conventions are worth restating for anyone attempting a comparison. First,
-the engine-free fallback adapter exists for deterministic unit testing and must
-be disabled for any reported result; the manifest field
-\cmd{adapter\_actual} records which adapter actually ran. Second, the control
-timestep must match the condition being reproduced: $\Delta t=0.033$\,s for the
-78-run matrix and $\Delta t=0.1$\,s for the current-free demonstration and final
-learned-controller validation. These rates define different experimental
-conditions; their timings must not be pooled.
+committed scripts that pass \cmd{--current-profile none}. The control rate must
+match the reported campaign: $30$\,Hz for the systematic benchmark evaluation
+and $10$\,Hz for the current-free demonstration and learned-controller
+validation. These rates define different experimental conditions; their timings
+are not pooled.
 
 \subsection{Updating the Learning Results}
 

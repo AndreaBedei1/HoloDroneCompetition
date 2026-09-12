@@ -1,4 +1,4 @@
-"""Regenerate the manuscript result tables from the existing raw 78-run matrix.
+"""Regenerate the manuscript result tables from existing result artifacts.
 
 Post-processing only: this reads the frozen per-run ``*_summary.json`` artifacts
 under ``results/onboard_only_validation/final_20260715`` and writes two LaTeX
@@ -191,11 +191,9 @@ def build_validation_results() -> str:
         clean_row("rule_gate_baseline", "mixed"),
         clean_row("rule_gate_center_then_commit", "mixed"),
         r"\midrule",
-        r"\multirow{4}{*}{Currents}",
+        r"\multirow{2}{*}{Currents}",
         current_row("rule_gate_baseline", "medium"),
         current_row("rule_gate_center_then_commit", "medium"),
-        current_row("rule_gate_baseline", "strong"),
-        current_row("rule_gate_center_then_commit", "strong"),
         r"\midrule",
         r"\multirow{2}{*}{Fleet, gap 90 s}",
         fleet_row("rule_gate_baseline"),

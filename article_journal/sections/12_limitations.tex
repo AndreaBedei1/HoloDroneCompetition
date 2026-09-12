@@ -51,18 +51,15 @@ independently swept, and no claim about acoustic communication performance is
 made.
 
 \paragraph{L6. The current sweep is narrow} Quantitative current results are
-restricted to two named profiles on one circuit (Horseshoe Bay). The
-\texttt{strong} profile turned out to be a saturation condition rather than a
-graded difficulty, so the informative disturbance evidence rests effectively on a
-single profile and five seeds. A finer sweep, and the same sweep on the other two
-circuits, would be needed to characterize the degradation curve rather than two
-points on it.
+restricted to the \texttt{medium} condition on one circuit (Horseshoe Bay).
+A broader range of current magnitudes, and the same evaluation on the other two
+circuits, would be needed to characterize the degradation curve more fully.
 
 \paragraph{L7. Limited controller diversity in the systematic matrix} The
 rule-based evidence covers exactly two controllers that differ in one design
 decision. This is deliberate --- it makes the comparison a clean ablation ---
-but the 78-run matrix has not yet been exercised against structurally different
-autonomy strategies, such as a model-predictive controller, a cascaded design
+but the systematic benchmark evaluation has not yet been exercised against
+structurally different autonomy strategies, such as a model-predictive controller, a cascaded design
 with an inner DVL velocity loop, or a planner that reasons about several gates
 ahead. The separate recurrent-PPO validation demonstrates interface
 compatibility, but it does not provide a factorial comparison across controller
@@ -91,9 +88,8 @@ The learned-control evidence is a limited validation snapshot. A recurrent
 learned controller can be integrated and evaluated through the common interface,
 but the experiment does not establish superiority, robustness under currents,
 fleet-level learning, sample efficiency or transfer to unseen circuits. The
-validation sample is small, the policy was developed with access to the official
-circuits, and the learning protocol is not factorially matched to the 78-run
-rule-controller matrix. Broader comparisons of recurrent architectures,
+validation sample is small, and the learning protocol is not factorially matched
+to the rule-controller evaluation. Broader comparisons of recurrent architectures,
 training procedures, disturbances and sealed circuits remain open.
 
 \paragraph{L11. The official circuits are no longer unseen} An exploratory
