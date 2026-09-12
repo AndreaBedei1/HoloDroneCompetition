@@ -28,11 +28,12 @@ important when interpreting differences between controllers.
 
 The referee also makes failure interpretable. A missed next gate is recorded as
 a sequence failure rather than being blurred into a low aggregate gate count,
-and safety costs remain visible alongside progress. This is why the medium-current
-condition cannot be summarized by collision counts alone: a current can reduce
-collisions simply by limiting progress before the contact-dense part of the course.
-Reporting progress, completion and events together is a benchmark requirement,
-not a presentation choice.
+and safety costs remain visible alongside progress. The medium-current
+condition also shows why completion, progress and safety events should be
+interpreted jointly: both controllers complete fewer runs and accumulate
+substantially more collisions than under clean conditions. Reporting these
+quantities together makes the effect of environmental disturbance visible beyond
+completion rate alone.
 
 \subsection{Reference Controllers, Currents and Fleets}
 
@@ -62,9 +63,3 @@ information and action contract rather than the internal controller design, the
 same benchmark can accommodate reinforcement learning, rule-based control,
 model-predictive control, optimization-based methods and other compatible
 autonomy strategies.
-
-The next learning experiments should extend this matched protocol to currents,
-multi-vehicle interaction and sealed circuits, while comparing memory, training
-and curriculum choices under the same independent referee. The benchmark makes
-these comparisons possible without changing the information boundary or the
-official scoring mechanism.

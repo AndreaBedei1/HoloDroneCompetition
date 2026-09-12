@@ -11,10 +11,9 @@ The implementation, the track configurations, the controllers, the evaluation
 harness and the aggregated result artifacts are available in a public
 repository~\cite{holodronecompetition2026}. The benchmark environment is
 HoloOcean 2.3.0 with its Ocean world, Python 3.9.25 and the pinned dependency set
-in \cmd{requirements.txt}; the learning extension adds a separate pinned set in
-\cmd{requirements-rl.txt} that is deliberately installed into a distinct
-environment so the benchmark environment used for the frozen matrix remains
-unchanged. Runs reported here were executed on Windows 10 build 26200.
+in \cmd{requirements.txt}; the learning extension uses a separate pinned set in
+\cmd{requirements-rl.txt} installed in a distinct environment. Runs reported
+here were executed on Windows 10 build 26200.
 
 \subsection{Configuration-Driven Experiments}
 
@@ -38,9 +37,7 @@ this reason. Inter-vehicle packet loss and procedural course generation draw fro
 seeded generators. For the learning extension, seed bands are registered by role
 --- training, validation, test and final holdout --- in a seed registry committed
 to the repository, and each evaluation records both requested and completed
-seeds. The matched benchmark of Section~\ref{sec:eval_rq5} evaluated every
-controller on the same seed set and the same generated geometries, which is what
-makes its paired statistics valid.
+seeds.
 
 \subsection{Recorded Artifacts}
 
@@ -96,8 +93,7 @@ and the current-free demonstration of Section~\ref{sec:eval_rq1} is driven by
 committed scripts that pass \cmd{--current-profile none}. The control rate must
 match the reported campaign: $30$\,Hz for the systematic benchmark evaluation
 and $10$\,Hz for the current-free demonstration and learned-controller
-validation. These rates define different experimental conditions; their timings
-are not pooled.
+validation.
 
 \subsection{Updating the Learning Results}
 

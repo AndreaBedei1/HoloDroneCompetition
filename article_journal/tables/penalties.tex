@@ -17,5 +17,7 @@ Gate-timeout stuck            & N/A & yes \\
 Inter-vehicle proximity       & $0$ or $5.0$\,s per pair & no (team-level) \\
 \bottomrule
 \end{tabular}
-\mratablenote \textsuperscript{\dag}Per-obstacle value if specified, else the collision default. Collision, obstacle, out-of-bounds and inter-vehicle proximity charges use independent configured cooldowns (default $1.0$\,s); stuck uses one latch per episode and terminal events have no cooldown.
+\mratablenote
+\textsuperscript{\dag} Per-obstacle value if specified; otherwise the default
+collision penalty is used.
 \end{table}

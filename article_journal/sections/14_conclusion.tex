@@ -2,30 +2,27 @@
 \label{sec:conclusion}
 
 This paper presented \mra{}, a configurable and reproducible benchmark and
-evaluation framework for onboard-only autonomous underwater gate racing. Its
-central contribution is a controller-agnostic observation--action interface
-combined with an explicit race manager and an enforced separation between
-autonomy and evaluation: controllers use only allow-listed onboard sensing and
-messages delivered through simulated channels, while an independent referee uses
-privileged state to adjudicate ordered crossings, penalties and completion.
+evaluation framework for onboard autonomous underwater gate racing. Its central
+contribution is a controller-agnostic participant interface, based on a common
+participant-level information boundary and body-frame action interface, combined
+with configurable race management and an independent referee. Controllers use
+participant-accessible onboard information, while privileged simulator state is
+reserved for ordered-crossing validation, penalties and official race results.
 
-The experiments show that the common contract is usable across heterogeneous
-circuits, currents, fleets and controller types. The reference controller
-completes the current-free demonstration, while the systematic matrix exposes
-condition-dependent controller robustness and coordination failures that clean
-single-vehicle scores would miss. The recurrent-PPO controller further
-demonstrates that learned autonomy can use the same participant-level information
-boundary, body-frame action interface and independent referee as the reference
-controllers. Together, these results show that the benchmark is not tied to a
-particular controller family.
+The experiments show that this interface can support heterogeneous circuits,
+environmental disturbance, multi-vehicle evaluation and different controller
+families. The reference controllers expose condition-dependent behaviour across
+the official circuits and under the medium-current condition, while the fleet
+experiments demonstrate team-level evaluation and coordination. The recurrent
+PPO controller further shows that a learned policy can be integrated through the
+same participant-level information boundary, body-frame action interface and
+independent referee. Together, these results show that the benchmark is not tied
+to a particular controller architecture.
 
-The evidence remains simulation-based and bounded by one backend, a narrow
-current sweep, limited controller diversity in the systematic matrix, a small
-fleet and an exploratory pose extension that is not used by the main
-controllers. The learned validation is based on one selected recurrent-PPO
-checkpoint, three episodes per circuit and circuits that are not sealed against
-prior diagnostic access. Future work should extend the disturbance and fleet
-axes, compare broader sequence-aware learning strategies under matched
-protocols, seal new evaluation circuits and transfer the contract to a physical
-BlueROV2. In each case, \mra{} provides the instrument for making the comparison
-reproducible and meaningful.
+The current evidence remains simulation-based and is limited by simulator
+fidelity, a single evaluated medium-current condition, simplified acoustic
+models and small fleet configurations. The PPO controller is intentionally a
+baseline learning demonstration and can be extended with more advanced learning
+algorithms and training strategies. Future work will broaden the disturbance and
+fleet evaluations, investigate stronger learning-based controllers and transfer
+the benchmark interface to physical underwater experiments.

@@ -13,9 +13,8 @@ To the Editors
 *Robotics and Autonomous Systems*
 Elsevier
 
-**Re: Submission of "Marine Race Arena: A Reproducible Benchmark for
-Onboard-Only Autonomous Underwater Gate Racing, Multi-Vehicle Evaluation and
-Learned Control"**
+**Re: Submission of "Marine Race Arena: A Configurable HoloOcean Benchmark for
+Underwater Gate Racing and Team-Level Fleet Evaluation"**
 
 Dear Editors,
 
@@ -35,7 +34,7 @@ one of them from consuming information the other refused, or from being scored
 by logic it partly controls.
 
 **Our contribution.** We present Marine Race Arena, a configurable benchmark and
-evaluation framework for onboard-only autonomous underwater gate racing. Its
+evaluation framework for onboard autonomous underwater gate racing. Its
 organizing principle is a strict, framework-enforced separation between autonomy
 and evaluation: a controller reads only participant-local time, allow-listed
 onboard sensing, packets delivered through a simulated acoustic channel and optional
@@ -45,25 +44,23 @@ scores that never return to the control loop. On that contract we build an
 onboard gate-perception and target-association front end, two interpretable
 rule-based reference controllers, a cooperative fleet layer with a distributed
 leader–follower policy over an acoustic-inspired channel, and a
-learning-integration path that exposes the same observation and action interface
-to reinforcement-learning agents.
+learning-integration path that supports reinforcement-learning agents through the
+same participant-level information boundary and action interface.
 
-**What the experiments show.** We report three separate bodies of evidence: 78
-real-simulator runs across three heterogeneous circuits, two graded current
-profiles, homogeneous fleets and three-vehicle coordination; a current-free
+**What the experiments show.** We report a systematic benchmark evaluation across
+three heterogeneous circuits, one medium-current condition on Horseshoe Bay,
+homogeneous fleets and three-vehicle coordination; a current-free
 demonstration in which the reference controller completes all three circuits in
 9 of 9 runs with no collision, out-of-bounds or wrong-direction event; and a
-final Gen-2 27-D recurrent-policy validation under identical onboard-only
-geometries. Three findings recur. Clean-track success is a poor predictor of
-robustness — the same controllers fall from perfect completion to 2 and 3 of 5
-under a moderate current on the same circuit. In a heterogeneous convoy,
-coordination rather than individual speed is the binding constraint — a one-gate
-leader–follower margin removes all 127.3 mean gate and world collisions of the
-uncoordinated case. And learned policies are not simply worse than rules but
-differently shaped — they complete 90.6–100 % of short generated geometries and
-are significantly faster there than the rule baseline, yet reach only 20–40 % on
-full circuits, with 90.6 % of those failures being lost gate sequences rather
-than collisions.
+recurrent PPO validation in which all nine episodes finish, with one collision
+on Vertical Serpent and zero out-of-bounds events. Three findings recur. Clean-track success is a poor predictor of robustness.
+The same controllers fall from perfect completion to 2 and 3 of 5 under a
+moderate current on the same circuit. In a heterogeneous convoy, coordination
+rather than individual speed is the binding constraint — a one-gate
+leader-follower margin removes all 127.3 mean gate and world collisions of the
+uncoordinated case. The learned controller result further shows that a different
+controller family can be evaluated through the benchmark without changing the
+participant-level information boundary or referee.
 
 **Fit with the journal.** The manuscript sits squarely within the scope of
 *Robotics and Autonomous Systems*: it concerns autonomous systems operating with
@@ -80,24 +77,18 @@ manuscript is explicit that the underwater simulators we build on exceed our
 work on hydrodynamic fidelity, sensor variety and training throughput. The
 distinction we do claim is narrower: among the systems we review, ours combines
 an underwater racing protocol over ordered gates with an evaluator that is
-structurally independent of the participant and an observation contract that
-excludes privileged state from control, and extends both to team-level
-evaluation. We also report negative results in full, including an exploratory
-pose-aware perception component that fails under strong gate obliquity and a
-learned policy that failed a pre-registered readiness gate on four of nineteen
-criteria and then completed 0 of 30 holdout trials. We considered these
-essential to include: a benchmark paper that reported only successes would
-undermine the very property it argues for.
+structurally independent of the participant, a participant-level information
+boundary that excludes privileged state from control and team-level evaluation.
+The paper reports both condition-dependent controller behaviour and the scope of
+the current simulation evidence.
 
 **Open source and reproducibility.** The complete implementation, the track
 configurations, the controllers, the evaluation harness, the learning pipeline
 and the aggregated result artifacts are publicly available at
-<https://github.com/AndreaBedei1/HoloDroneCompetition>. Every experiment carries
-a manifest recording the source commit or model SHA-256, the simulator version,
-the track file hash, the adapter actually used, the fallback status, the current
-profile and measured current vector, the control timestep and the seed. The
-result tables and figures are regenerated from those artifacts by committed
-scripts, and the manuscript documents the commands.
+<https://github.com/AndreaBedei1/HoloDroneCompetition>. The result tables and
+figures are regenerated from committed artifacts by scripts, and Section 13 of
+the manuscript documents the commands and environment separation used for
+reproduction.
 
 **Declarations.** This manuscript is original, has not been published elsewhere
 and is not under consideration by another journal. `TODO: confirm whether any

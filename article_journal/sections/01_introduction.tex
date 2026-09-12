@@ -104,11 +104,12 @@ conditions, timing, penalties and scoring. Three ready-to-use circuits are
 provided, while the same configuration model supports custom racing scenarios.
 
 \item \textbf{A controller-agnostic autonomy interface.}\par
-Controllers interact with the benchmark through a common observation--action
-contract and can implement rule-based, optimization-based, learning-based or
-other autonomy strategies without modifying the race execution or evaluation
-logic. The release provides rule-based and reinforcement-learning controllers
-as reference implementations of this interface.
+Controllers interact with the benchmark through a common participant-level
+information boundary and action interface and can implement rule-based,
+optimization-based, learning-based or other autonomy strategies without
+modifying the race execution or evaluation logic. The release provides
+rule-based and reinforcement-learning controllers as reference implementations
+of this interface.
 
 \item \textbf{A configurable race manager with an independent automated referee.}
 Race conditions and rules are defined independently from the controller, while

@@ -1,5 +1,5 @@
 DATA AVAILABILITY STATEMENT
-Marine Race Arena - Robotics and Autonomous Systems
+Marine Race Arena: A Configurable HoloOcean Benchmark for Underwater Gate Racing and Team-Level Fleet Evaluation
 
 The benchmark implementation, the official track configurations, the reference
 controllers, the referee, the fleet layer, the learning pipeline and the
@@ -19,21 +19,22 @@ Specifically:
 
 Aggregated per-run summaries, event logs, experiment manifests, evaluation
 manifests, model and track SHA-256 hashes, seed registries and readiness
-verdicts are included in the repository. The 78-run matrix additionally has a
-compact machine-readable release under
-article_journal/scientific_release/matrix_78_20260715/ containing a manifest,
-CSV and JSON summaries, SHA-256 sums and a deterministic verification command.
+verdicts are included in the repository. A historical 78-run release package is
+also retained under article_journal/scientific_release/matrix_78_20260715/;
+it contains a manifest, CSV and JSON summaries, SHA-256 sums and a deterministic
+verification command. This package is a provenance artifact for retained
+historical records, not the complete evaluation matrix of the current manuscript.
 Every result table and figure in the manuscript is regenerated from committed
 artifacts; the commands are listed in Section 13 (Reproducibility).
 
 Two categories of file are intentionally not distributed through the
 repository, and neither is required to verify any reported number:
 
-1. Raw per-run artifact trees of the 78-run benchmark matrix, and neural-network
-   weight files (*.zip, *.npz, *.npy) and rendered videos (*.mp4). These are
-   large binary artifacts. The compact release includes the matrix rows,
-   manifests and SHA-256 hashes; the raw tree and model/video binaries are not
-   required to verify the reported summaries.
+1. Raw per-run artifact trees from the historical 78-run benchmark matrix, and
+   neural-network weight files (*.zip, *.npz, *.npy) and rendered videos (*.mp4).
+   These are large binary artifacts. The compact release includes the historical
+   matrix rows, manifests and SHA-256 hashes; the raw tree and model/video
+   binaries are not required to verify the reported summaries.
 
 2. Nothing else. No result reported in this paper depends on data that is
    withheld.

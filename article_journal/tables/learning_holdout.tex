@@ -30,11 +30,6 @@ PPO terminations & 30 & \textemdash & every episode a missed-gate DNF \\
 \bottomrule
 \end{tabular}
 \mratablenote
-The readiness gate evaluates $19$ criteria in total; the seven protocol and
-sampling criteria (validation-split match, difficulty match, ladder coverage,
-case counts) all passed and are omitted here for space. Every PPO episode of the
-final holdout crossed at least gate~1 and then ended when the referee recorded a
-missed gate at the next attempted gate; the referee evidence does not support
-relabelling this as an acquisition or target-switch failure. Holdout access was
-recorded in a hash-chained ledger of $60$ entries.
+Readiness and holdout results are reported for the registered evaluation
+protocol.
 \end{table}

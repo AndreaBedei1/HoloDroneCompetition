@@ -142,15 +142,21 @@ def _single_condition(experiment: str, track_key: str, controller: str,
                 continue
             rows.append(row)
 
-    exp = int(rows[0]["expected_gates"]) if rows else {
-        "horseshoe": 12, "vertical": 17, "mixed": 22
-    }[track_key]
+    if not rows:
+        raise RuntimeError(
+            f"No result rows found for experiment={experiment}, "
+            f"track={track_key}, controller={controller}, "
+            f"current_profile={current_profile}"
+        )
+
+    exp = int(rows[0]["expected_gates"])
     fin = sum(row["status"] == "FINISHED" for row in rows)
     fracs = [int(row["completed_gates"]) / exp for row in rows]
     n = len(rows)
+    finish_rate = fin / n
     return {
-        "finish_rate": fin / n if n else 0.0,
-        "gate_frac": statistics.fmean(fracs) if fracs else 0.0,
+        "finish_rate": finish_rate,
+        "gate_frac": statistics.fmean(fracs),
         "fin": fin,
         "n": n,
     }
@@ -171,6 +177,22 @@ def controller_comparison() -> None:
 
     base = [get("rule_gate_baseline", p) for _, p in conditions]
     ctc = [get("rule_gate_center_then_commit", p) for _, p in conditions]
+
+    expected_base = [(5, 5), (5, 5), (2, 5), (2, 5)]
+    expected_ctc = [(5, 5), (4, 5), (5, 5), (3, 5)]
+
+    actual_base = [(d["fin"], d["n"]) for d in base]
+    actual_ctc = [(d["fin"], d["n"]) for d in ctc]
+
+    if actual_base != expected_base:
+        raise RuntimeError(
+            f"Unexpected Continuous Servo completion counts: {actual_base}"
+        )
+
+    if actual_ctc != expected_ctc:
+        raise RuntimeError(
+            f"Unexpected Center-then-Commit completion counts: {actual_ctc}"
+        )
 
     fig, ax = plt.subplots(figsize=(7.1, 2.6))
     x = range(len(conditions))

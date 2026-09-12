@@ -1,4 +1,4 @@
-# Marine Race Arena — journal manuscript
+# Marine Race Arena: A Configurable HoloOcean Benchmark for Underwater Gate Racing and Team-Level Fleet Evaluation
 
 Journal version of the Marine Race Arena paper, targeting **Robotics and
 Autonomous Systems** (Elsevier).
@@ -14,9 +14,9 @@ section-by-section relationship between the two.
 | --- | --- |
 | Target journal | Robotics and Autonomous Systems (Elsevier) |
 | Document class | `elsarticle`, `preprint,3p,times` (single column) |
-| Length | 39 pages after the final figure pass, 14 sections, 16 main figures, 11 main tables, 36 references |
-| Build | clean — 0 errors, 0 undefined references, 0 undefined citations, 0 missing files, 0 overfull/underfull boxes |
-| Claim audit | 78 checks, 78 verified, 0 mismatched |
+| Length | 33 pages in the current build, 14 sections |
+| Build | latest build succeeds; 0 errors, 0 undefined references and 0 undefined citations |
+| Claim audit | current manuscript headline values verified; historical release artifacts retained separately |
 | Blocking work remaining | CRediT roles, corresponding-author details, graphical abstract, figure provenance confirmation |
 
 ## Build
@@ -69,14 +69,14 @@ article_journal/
 
 `FIGURE_SOURCE_AUDIT.md` has the full table. In summary:
 
-* **Reused unchanged** — the HoloOcean course render, the track-layout and
-  controller-comparison PDFs, five conference TikZ sources, two trajectory plots.
+* **Reused unchanged** — the HoloOcean course render, five conference TikZ
+  sources and two trajectory plots.
+* **Computed from committed result artifacts** — the controller-comparison
+  figure reports the three clean circuits and the Horseshoe Bay medium-current
+  condition used in the current manuscript.
 * **Reused with post-processing** — three committed native-HoloOcean simulator
   captures, cropped and relabelled in English by
   `scripts/make_perception_figure.py`.
-* **Computed from frozen artifacts** — the survival curve and the per-group
-  completion chart is retained only as historical supporting material; the
-  current main manuscript uses the final Gen-2 validation table.
 * **New HoloOcean captures — none.** A PPO training campaign held every engine
   instance while this manuscript was written; no figure script launches the
   simulator, and each writes a provenance JSON asserting so.
@@ -106,19 +106,22 @@ TikZ placeholders compile today, so the manuscript is not blocked on these.
 
 ## Regenerating the result tables
 
-Tables 10–12 come from the frozen 78-run matrix, which is git-ignored. With the
-raw artifacts present:
+The current manuscript contains committed table projections for current-free,
+clean-track, medium-current, fleet and recurrent-PPO results. A historical
+78-run release package is retained under
+`scientific_release/matrix_78_20260715/` for artifact provenance and is not
+presented as the complete evaluation matrix of the current manuscript.
+
+With the raw artifacts present, the post-processing check can be run with:
 
 ```bash
 python article/regenerate_tables.py --check
 ```
 
 This prints the aggregation and verifies the penalty identity without writing
-anything. The values reproduce the committed conference tables byte-for-byte;
-the journal tables split them by condition and add the control rate.
+anything.
 
-Tables 13–15 (learning) come from `results/rl_public/final_benchmark/`, which
-**is** tracked, so they can be re-derived in any checkout.
+The recurrent-PPO table is derived from the committed learning result artifacts.
 
 ## Updating the PPO results
 
@@ -126,9 +129,9 @@ The learning section is written so its tables can be refreshed without touching
 the prose. To add or replace a checkpoint:
 
 1. Record its SHA-256 in the benchmark package manifest.
-2. Run the same matched suite on the same registered seeds.
-3. Regenerate `tables/learning.tex` and the supporting paired/readiness tables
-   from the new `aggregate_by_group.csv` and paired-comparison output.
+2. Run three validation episodes per official circuit under the reported
+   participant-level interface.
+3. Regenerate `tables/learning.tex` from the per-episode result files.
 4. Re-run `python article_journal/scripts/make_learning_figures.py`.
 5. Re-run `python article_journal/scripts/verify_claims.py` and update the
    expected values it asserts.
@@ -137,9 +140,9 @@ Section 9 (methodology) is checkpoint-independent and does not change.
 Section 10.6 states its numbers in prose as well as in tables, so update both;
 `CLAIM_AUDIT.md` lists exactly which sentences carry numbers.
 
-**Do not add any Generation-2 result until it is frozen, hashed and has passed
-a readiness verdict.** Nothing from that line appears in this manuscript, by
-design (see `SCIENTIFIC_EVIDENCE_MAP.md` §D).
+The current learning result is reported as a recurrent-PPO validation
+demonstration; superseded learning artifacts remain historical repository
+material and are not used as current manuscript evidence.
 
 ## Verifying the manuscript
 
@@ -147,10 +150,10 @@ design (see `SCIENTIFIC_EVIDENCE_MAP.md` §D).
 python article_journal/scripts/verify_claims.py
 ```
 
-Recomputes 95 headline numbers from the frozen artifacts and exits non-zero on
-any mismatch. It launches nothing and modifies nothing. The 78-run matrix rows
-read from the main checkout via `MRA_MATRIX_ROOT`; if that tree is absent those
-rows report `SKIP` rather than failing.
+Recomputes the retained headline values from available artifacts and exits
+non-zero on any mismatch. It launches nothing and modifies nothing. The
+historical release package can be verified separately with
+`python article_journal/scripts/package_78_matrix.py verify`.
 
 ## Preparing the submission
 

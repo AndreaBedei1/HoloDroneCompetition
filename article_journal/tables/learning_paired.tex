@@ -16,12 +16,6 @@ PPO 900k   & 79 & 0 & 14 & $0.0001$ & $\best{-7.05}$ \,[$-11.59$, $-2.51$] & $<\
 \end{tabular}
 \mratablenote
 \emph{Only A fin.} and \emph{Only rule fin.} count the paired episodes in which
-exactly one of the two controllers finished. Reliability $p$ is a two-sided sign
-test on those discordant pairs; time $p$ is a two-sided sign test on the paired
-completion-time differences of episodes both controllers finished. Timing
-differences are computed within a test group and never across groups, so a
-completion time on one geometry is never weighed against a completion time on
-another. The pattern is consistent across all three PPO checkpoints: each is
-\emph{significantly less reliable} and \emph{significantly faster} than the rule
-baseline.
+exactly one of the two controllers finished. Timing differences are computed
+within matched test groups.
 \end{table}
