@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import run
 from marine_race_arena.scripts import run_benchmark
-from marine_race_arena.scripts import run_staggered_multi_rover_smoke
+from marine_race_arena.scripts import run_marine_race
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,16 +27,26 @@ def test_benchmark_config_maps_only_supported_runner_flags() -> None:
     assert parsed.output_dir == "results/benchmarks/config_benchmark"
 
 
-def test_smoke_scenario_maps_only_supported_runner_flags() -> None:
+def test_default_config_maps_only_supported_runner_flags() -> None:
+    scenario, argv = run.build_argv(_load("config.json"))
+
+    assert scenario == "single"
+    parsed = run_marine_race._build_arg_parser().parse_args(argv)
+    assert parsed.controller == "rule_gate_baseline"
+    assert parsed.official is True
+    assert parsed.current_profile == "none"
+
+
+def test_fleet_config_maps_only_supported_runner_flags() -> None:
+    scenario, argv = run.build_argv(_load("configs/fleet.json"))
+
+    assert scenario == "fleet"
+    parsed = run_marine_race._build_arg_parser().parse_args(argv)
+    assert parsed.num_rovers == 2
+
+
+def test_unknown_scenario_is_rejected() -> None:
     config = _load("config.json")
     config["run"]["scenario"] = "smoke"
-    scenario, argv = run.build_argv(config)
-
-    assert scenario == "smoke"
-    assert "--headless" not in argv
-    assert "--controller" not in argv
-    assert "--log-dir" not in argv
-    parsed = run_staggered_multi_rover_smoke._build_arg_parser().parse_args(argv)
-    assert parsed.num_rovers == 2
-    assert parsed.start_gap_s == 90.0
-    assert parsed.wall_timeout_s == 900.0
+    with pytest.raises(SystemExit):
+        run.build_argv(config)

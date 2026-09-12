@@ -2,14 +2,14 @@
 
 These tests pin the new default (``min_gate_gap == 1``) in the controller and the
 CLI, confirm the conservative ``min_gate_gap == 2`` margin still works when asked
-for explicitly, and confirm the existing 78-run artifact matrix still contains
-both the LF(2) (main) and LF(1) (min_gate_gap_1) coordination artifacts for both
+for explicitly, and confirm the released
+benchmark rows still contain both the LF(2) and LF(1) coordination runs for both
 start gaps and all three seeds. No HoloOcean run is launched.
 """
 
 from __future__ import annotations
 
-import json
+import csv
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict
@@ -19,7 +19,12 @@ import pytest
 from marine_race_arena.controllers.leader_follower import LeaderFollowerController
 from marine_race_arena.scripts.run_holoocean_coordination_validation import _build_arg_parser
 
-MATRIX = Path("results/onboard_only_validation/final_20260715/coordination")
+RUNS = Path(__file__).resolve().parents[1] / "artifacts/paper/benchmark/runs.csv"
+
+
+def _coordination_rows():
+    with RUNS.open(encoding="utf-8", newline="") as stream:
+        return [row for row in csv.DictReader(stream) if row["experiment"] == "coordination"]
 
 
 class _StubBase:
@@ -89,29 +94,24 @@ def test_cli_default_is_one():
 
 
 # --------------------------------------------------------------------------- #
-# The existing artifact matrix must still contain both LF settings unchanged.
+# The released benchmark rows must still contain both LF settings unchanged.
 # --------------------------------------------------------------------------- #
-@pytest.mark.skipif(not MATRIX.exists(), reason="coordination artifacts not present")
-@pytest.mark.parametrize(
-    "variant,expected_gap",
-    [("main", 2), ("min_gate_gap_1", 1)],
-)
-@pytest.mark.parametrize("gap_label", ["gap_0", "gap_8"])
-@pytest.mark.parametrize("seed", [0, 1, 2])
-def test_existing_lf_artifacts_present_with_expected_margin(variant, expected_gap, gap_label, seed):
-    run_dir = MATRIX / variant / gap_label / "diagnostic" / f"seed_{seed}" / "leader_follower"
-    assert run_dir.is_dir(), f"missing LF artifact dir: {run_dir}"
-    metadata_path = run_dir / "experiment_metadata.json"
-    assert metadata_path.is_file(), f"missing metadata: {metadata_path}"
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    assert metadata.get("min_gate_gap") == expected_gap
-    assert metadata.get("condition") == "leader_follower"
-    assert int(metadata.get("seed")) == seed
+@pytest.mark.parametrize("expected_gap", [1, 2])
+@pytest.mark.parametrize("gap_label", ["0.0", "8.0"])
+def test_released_lf_rows_present_with_expected_margin(expected_gap, gap_label):
+    rows = [row for row in _coordination_rows()
+            if row["condition"] == "leader_follower"
+            and row["start_gap_s"] == gap_label
+            and int(row["min_gate_gap_configured"]) == expected_gap]
+    assert len(rows) == 3, "expected three seeds, got {}".format(len(rows))
+    assert {int(row["seed"]) for row in rows} == {0, 1, 2}
+    for row in rows:
+        assert int(row["min_gate_gap_effective"]) == expected_gap
 
 
-@pytest.mark.skipif(not MATRIX.exists(), reason="coordination artifacts not present")
-def test_main_variant_also_has_matched_no_coordination_runs():
-    for gap_label in ("gap_0", "gap_8"):
-        for seed in (0, 1, 2):
-            run_dir = MATRIX / "main" / gap_label / "diagnostic" / f"seed_{seed}" / "no_coordination"
-            assert run_dir.is_dir(), f"missing matched uncoordinated dir: {run_dir}"
+@pytest.mark.parametrize("gap_label", ["0.0", "8.0"])
+def test_matched_uncoordinated_rows_are_present(gap_label):
+    rows = [row for row in _coordination_rows()
+            if row["condition"] == "no_coordination" and row["start_gap_s"] == gap_label]
+    assert len(rows) == 3, "expected three seeds, got {}".format(len(rows))
+    assert {int(row["seed"]) for row in rows} == {0, 1, 2}

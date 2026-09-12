@@ -52,11 +52,11 @@
     }
   },
   "benchmark": {
-    "seeds": [0, 1, 2],
+    "seeds": [
+      0,
+      1,
+      2
+    ],
     "output_dir": "results/benchmarks/config_run"
-  },
-  "smoke": {
-    "wall_timeout_s": 900,
-    "output_dir": "results/benchmarks/staggered_multi_rover_smoke"
   }
 }

@@ -1,4 +1,0 @@
-timesteps,n_eval,completion_rate,mean_gates,total_collisions,oob_episodes,total_out_of_bounds,total_wrong_direction,total_missed_gate_attempts,mean_time_finished,median_time_finished,mean_penalized_time,mean_action_saturation,mean_action_smoothness,mean_inference_ms,interior_n,interior_completion,extreme_n,extreme_completion,all_actions_finite
-0,14.0,0.9286,0.9286,0.0,1.0,10.0,0.0,0.0,11.0923,11.2,7.1429,0.0,0.0115,0.6811,10.0,1.0,4.0,0.75,True
-2500,14,0.9286,0.9286,8,0,0,1,0,11.0692,10.8,2.8571,0.0,0.011,0.6632,10,1.0,4,0.75,True
-5000,14,0.9286,0.9286,0,0,0,0,0,10.7769,10.5,0.0,0.0,0.0101,0.7131,10,0.9,4,1.0,True

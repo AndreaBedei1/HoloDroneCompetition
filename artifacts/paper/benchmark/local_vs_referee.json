@@ -1,0 +1,118 @@
+{
+ "by_track": {
+  "Marine Race Horseshoe Bay": {
+   "advancement_delay_s": {
+    "count": 1116,
+    "max": 2.31,
+    "mean": 0.765417,
+    "median": 0.924,
+    "min": -90.849,
+    "p95": 1.353,
+    "std": 3.239801
+   },
+   "delayed_local_advancements": 1110,
+   "event_consistency_errors": 0,
+   "expected_advancements": 1248,
+   "false_local_advancements": 10,
+   "finish_order_inversions": 0,
+   "finish_order_pair_comparisons": 61,
+   "finish_order_ties": 0,
+   "finish_same_tick": 0,
+   "local_advancements": 1120,
+   "local_finish_before_referee": 0,
+   "matched_advancements": 1116,
+   "missed_local_advancements": 4,
+   "progress_reliable": false,
+   "referee_advancements": 1120,
+   "referee_finish_before_local": 87
+  },
+  "Marine Race Mixed Endurance": {
+   "advancement_delay_s": {
+    "count": 192,
+    "max": 1.749,
+    "mean": 0.553094,
+    "median": 0.462,
+    "min": 0.066,
+    "p95": 1.287,
+    "std": 0.364458
+   },
+   "delayed_local_advancements": 192,
+   "event_consistency_errors": 0,
+   "expected_advancements": 220,
+   "false_local_advancements": 0,
+   "finish_order_inversions": 0,
+   "finish_order_pair_comparisons": 0,
+   "finish_order_ties": 0,
+   "finish_same_tick": 0,
+   "local_advancements": 192,
+   "local_finish_before_referee": 0,
+   "matched_advancements": 192,
+   "missed_local_advancements": 3,
+   "progress_reliable": false,
+   "referee_advancements": 195,
+   "referee_finish_before_local": 7
+  },
+  "Marine Race Vertical Serpent": {
+   "advancement_delay_s": {
+    "count": 159,
+    "max": 1.419,
+    "mean": 0.622642,
+    "median": 0.627,
+    "min": 0.099,
+    "p95": 1.155,
+    "std": 0.309039
+   },
+   "delayed_local_advancements": 159,
+   "event_consistency_errors": 0,
+   "expected_advancements": 170,
+   "false_local_advancements": 1,
+   "finish_order_inversions": 0,
+   "finish_order_pair_comparisons": 0,
+   "finish_order_ties": 0,
+   "finish_same_tick": 0,
+   "local_advancements": 160,
+   "local_finish_before_referee": 0,
+   "matched_advancements": 159,
+   "missed_local_advancements": 0,
+   "progress_reliable": false,
+   "referee_advancements": 159,
+   "referee_finish_before_local": 9
+  }
+ },
+ "definition": {
+  "delay_s": "controller-local advancement time minus referee gate-crossing time.",
+  "false_local_advancement": "A local increment precedes its same-ordinal referee crossing by more than one configured dt, or has no corresponding referee crossing.",
+  "missed_local_advancement": "A referee crossing has no same-ordinal local increment in the run."
+ },
+ "overall": {
+  "advancement_delay_s": {
+   "count": 1467,
+   "max": 2.31,
+   "mean": 0.722153,
+   "median": 0.858,
+   "min": -90.849,
+   "p95": 1.353,
+   "std": 2.831765
+  },
+  "delayed_local_advancements": 1461,
+  "event_consistency_errors": 0,
+  "expected_advancements": 1638,
+  "false_local_advancements": 11,
+  "finish_order_inversions": 0,
+  "finish_order_pair_comparisons": 61,
+  "finish_order_ties": 0,
+  "finish_same_tick": 0,
+  "local_advancements": 1472,
+  "local_finish_before_referee": 0,
+  "matched_advancements": 1467,
+  "missed_local_advancements": 7,
+  "progress_reliable": false,
+  "referee_advancements": 1474,
+  "referee_finish_before_local": 103
+ },
+ "schema_version": "mra_local_vs_referee_v1",
+ "scope": "aggregated over all 78 executed benchmark runs of the frozen 20260715 matrix, including the strong-current runs that the current manuscript does not report as results; this is an information-boundary audit over every executed run, not a per-condition result",
+ "source_manifest_sha256": "b85c6c75e75f07a8f84f0045511db307a170bd5f5a50c8539f40cec9d2e13109",
+ "source_tree_sha256": "e7d3107784ea53056febcc3966b267ef59ee6d0f24d523c5c9b9446efca044b8",
+ "supports": "Table tab:local_vs_referee (Section 7, Measuring the Boundary)"
+}

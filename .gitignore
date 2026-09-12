@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Test, lint, type-check, and coverage outputs
+# Test, lint, type-check and coverage output
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -18,47 +18,33 @@ env/
 ENV/
 .conda/
 conda-env/
-
-# Article source and the compiled release PDF are tracked; ignore LaTeX build artifacts.
-article/*.aux
-article/*.bbl
-article/*.blg
-article/*.fdb_latexmk
-article/*.fls
-article/*.log
-article/*.synctex.gz
-article/_pdf_pages/
-
-# Local generated deliverables (do not publish).
-output/
-
-# Environment variable files
 .env
 .env.*
 !.env.example
 
-# Marine race and simulator generated outputs.
-# Ignore each entry under results/ (so results/rl/ etc. stay ignored) but allow git
-# to descend so results/rl_public/ can be re-included (see end of file).
-/results/*
-!/results/rl_public/
-/datasets/multigate_v3/**/episodes/
-/datasets/multigate_v3/**/tracks/
-/datasets/multigate_v3/**/*.npz
+# Editor, OS and local agent/tool state
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+.claude/settings.local.*
+.agents/
+.codex/
+
+# Simulator and evaluation output. Everything a run writes is regenerable;
+# the released evidence for the manuscript lives in artifacts/paper/.
+/results/
+/output/
+/tmp/
 logs/
 runs/
-/diagnostics/
 recordings/
 videos/
 HoloOceanLogs/
 Saved/
-*.jsonl
-*_summary.json
-*.log
-*.out
-*.err
 
-# Video and large generated artifacts
+# Large media and raw array dumps
 *.mp4
 *.avi
 *.mov
@@ -75,49 +61,8 @@ Saved/
 *.swo
 *~
 
-# OS and editor files
-.DS_Store
-Thumbs.db
-desktop.ini
-.vscode/
-.idea/
-
-# Local agent/tool state
-.agents/
-.codex/
-
-# --- Public, auditable RL result package -------------------------------------
-# results/rl/ (heavy datasets/models/checkpoints/logs) stays ignored above.
-# results/rl_public/ holds only compact, audit-relevant artifacts and IS tracked.
-# These re-include rules are last so they override results/ and the *_summary.json
-# / *.jsonl / *.npz patterns for this subtree only.
-!results/rl_public/
-!results/rl_public/**
-# ...but never commit heavy binaries even under rl_public (models/checkpoints/data):
-results/rl_public/**/*.zip
-results/rl_public/**/*.npz
-results/rl_public/**/*.npy
-results/rl_public/**/*.mp4
-
-# Debug tool output: frames, screenshots and clips, regenerated on demand.
-results/debug/
-
-# Gen-2 local dataset/checkpoint artifacts; commit only compact manifests,
-# provenance and validation reports.
-/artifacts_gen2/**/*.zip
-/artifacts_gen2/**/progress.json
-# Regenerable PPO debug logs, snapshots and materialized fragment configs.
-/artifacts_gen2/**/monitor/
-/artifacts_gen2/**/monitor_snapshots/
-/artifacts_gen2/**/training_tracks/
-/artifacts_gen2/**/*.monitor.csv
-/artifacts_gen2/**/*.png
-# Keep local PPO smoke attempts out of Git; compact reports may be force-added.
-/artifacts_gen2/ppo_27d_smoke_*/
-
-# Journal manuscript (article_journal/) build artifacts.
-# main.pdf IS tracked so the compiled manuscript travels with the sources;
-# all other LaTeX build products stay out of the repository.
+# LaTeX build products. article_journal/main.pdf IS tracked so the compiled
+# manuscript travels with its sources; every other build product stays out.
 article_journal/*.aux
 article_journal/*.bbl
 article_journal/*.blg
@@ -127,3 +72,4 @@ article_journal/*.log
 article_journal/*.out
 article_journal/*.synctex.gz
 article_journal/*.spl
+article_journal/tmp/

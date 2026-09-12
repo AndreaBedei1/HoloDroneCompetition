@@ -1,9 +1,0 @@
-{
-  "controller": "hybrid_gate_controller",
-  "backbone": "rule_gate_center_then_commit",
-  "learned_component": "frozen BC-v1 (results/rl_public/stage1/bc/model/best_model.pt)",
-  "bc_blend_phase": "VISUAL_ALIGN only",
-  "max_bc_align_weight": 0.55,
-  "min_visual_confidence": 0.35,
-  "model_sha256": "fd6fc7e6fba9b88ccc84fa76275d72ce3c907c75d632367995cb5257ae71d5d3"
-}

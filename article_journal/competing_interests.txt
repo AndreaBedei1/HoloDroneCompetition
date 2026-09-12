@@ -3,19 +3,3 @@ DECLARATION OF COMPETING INTEREST
 The authors declare that they have no known competing financial interests or
 personal relationships that could have appeared to influence the work reported
 in this paper.
-
----
-Note to the authors before submission:
-
-The statement above is the standard Elsevier formulation and is used here
-because nothing in the repository, the manuscript or the funding record
-indicates a competing interest. It remains the authors' responsibility to
-confirm it. Replace it with the alternative Elsevier formulation if any author
-holds a relevant financial or personal relationship - for example a patent
-application covering the benchmark, a consulting or employment relationship with
-a manufacturer of the vehicle platform or the simulation software, or an
-editorial role at this journal.
-
-TODO (administrative, cannot be derived from the repository):
-- funding sources and grant numbers, if any, for the Funding Statement;
-- confirmation from every co-author that this declaration is accurate.

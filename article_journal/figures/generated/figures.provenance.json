@@ -1,0 +1,15 @@
+{
+  "figures": [
+    "tracks_layout.pdf",
+    "controller_comparison.pdf"
+  ],
+  "script": "article_journal/scripts/generate_figures.py",
+  "track_sources": [
+    "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
+    "marine_race_arena/tracks/marine_race_vertical_serpent.json",
+    "marine_race_arena/tracks/marine_race_mixed_endurance.json"
+  ],
+  "result_source": "artifacts/paper/benchmark/runs.csv",
+  "holoocean_launched_by_this_script": false,
+  "artifacts_modified_by_this_script": false
+}

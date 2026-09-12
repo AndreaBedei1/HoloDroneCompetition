@@ -1,0 +1,42 @@
+{
+ "action_dim": 4,
+ "action_interface": "body-frame [surge, sway, heave, yaw_rate] in [-1, 1]",
+ "adapter": "holoocean",
+ "control_rate_hz": 10,
+ "controller": "recurrent PPO (sb3-contrib RecurrentPPO), 27-D onboard observation",
+ "holoocean_launched_by_release": false,
+ "identification_evidence": "the final validation run records no checkpoint path, so the checkpoint was identified from behavioural signatures: per-circuit path length, completion time and surge/sway statistics of final_validation_50k match the 50k milestone evaluation of this campaign within seed-to-seed variation, and are incompatible both with this campaign's 100k checkpoint (Horseshoe 127.9 m vs 103-109 m; Vertical 160.7 m vs 134-136 m) and with the campaign-B retry6 50k checkpoint that the evaluator uses as its hardcoded default (which does not finish Horseshoe Bay)",
+ "model_bytes": 4100072,
+ "model_file": "artifacts/paper/ppo/model/policy_recurrent_ppo_27d.zip",
+ "model_sha256": "8d6a29581d8c0004b5c45496c78c69f25bd2d837ed65e0eb886ddd88f3fff785",
+ "model_timesteps": 50688,
+ "observation_contract": "onboard_local_transition_27d_v1",
+ "observation_dim": 27,
+ "original_path": "artifacts_gen2/ppo_27d_direct_speed_campaign_C_20260909_retry1/checkpoint_050000.zip",
+ "original_path_alias": "best_overall_050000.zip (byte-identical copy of the same checkpoint)",
+ "schema_version": "mra_ppo_provenance_v1",
+ "selection_evidence": [
+  "training_decision_log.json records the 50k milestone as the only stage that passed closed-loop evaluation on all three official circuits",
+  "the 100k milestone evaluation did not complete on Mixed Endurance"
+ ],
+ "selection_rule": "closed_loop_completion_then_safety_then_time",
+ "supports": "Table tab:learning and Section 10 RQ5",
+ "validation_episodes": 9,
+ "validation_seeds": {
+  "horseshoe_bay": [
+   20370909,
+   20370910,
+   20370911
+  ],
+  "mixed_endurance": [
+   20370909,
+   20370910,
+   20370911
+  ],
+  "vertical_serpent": [
+   20370909,
+   20370910,
+   20370911
+  ]
+ }
+}

@@ -13,7 +13,6 @@ The configuration file is plain JSON and fully describes the run. The
     single     one rover on a track (the default official benchmark run)
     fleet      several staggered rovers scored as one team
     benchmark  repeated single-rover trials over several seeds
-    smoke      the staggered multi-rover release smoke test
 
 Each scenario maps only the supported subset of the configuration onto its
 underlying runner, so no command-line flags are needed. See ``config.json`` for
@@ -33,7 +32,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 DEFAULT_CONFIG = "config.json"
-SCENARIOS = ("single", "fleet", "benchmark", "smoke")
+SCENARIOS = ("single", "fleet", "benchmark")
 
 
 def _load_config(path: Path) -> dict:
@@ -160,31 +159,6 @@ def _benchmark_flags(argv: list[str], config: dict) -> None:
     _flag(argv, "--output-dir", benchmark.get("output_dir"))
 
 
-def _smoke_flags(argv: list[str], config: dict) -> None:
-    """Map only options accepted by ``run_staggered_multi_rover_smoke``."""
-    run = config.get("run", {})
-    fleet = config.get("fleet", {})
-    ivc = fleet.get("inter_vehicle_collision", {})
-    smoke = config.get("smoke", {})
-
-    track = config.get("track")
-    if not track:
-        raise SystemExit("Config is missing the required 'track' field (path to a track JSON).")
-    argv.extend(["--track", str(track)])
-    _flag(argv, "--num-rovers", fleet.get("num_rovers"))
-    _flag(argv, "--start-gap-s", fleet.get("start_gap_s"))
-    _flag(argv, "--staggered-lateral-offset-m", fleet.get("lateral_offset_m"))
-    _flag(argv, "--dt", run.get("dt"))
-    _flag(argv, "--seed", run.get("seed"))
-    _flag(argv, "--duration", run.get("duration_s"))
-    _flag(argv, "--inter-vehicle-collision-mode", ivc.get("mode"))
-    _flag(argv, "--inter-vehicle-collision-xy-threshold-m", ivc.get("xy_threshold_m"))
-    _flag(argv, "--inter-vehicle-collision-z-threshold-m", ivc.get("z_threshold_m"))
-    _flag(argv, "--inter-vehicle-collision-cooldown-s", ivc.get("cooldown_s"))
-    _flag(argv, "--wall-timeout-s", smoke.get("wall_timeout_s"))
-    _flag(argv, "--output-dir", smoke.get("output_dir"))
-
-
 def build_argv(config: dict) -> tuple[str, list[str]]:
     """Return ``(scenario, argv)`` for the runner selected by the config."""
     run = config.get("run", {})
@@ -209,24 +183,18 @@ def build_argv(config: dict) -> tuple[str, list[str]]:
             _fleet_flags(argv, config)
         return scenario, argv
 
-    if scenario == "benchmark":
-        _benchmark_flags(argv, config)
-        _flag(argv, "--print-beacons", debug.get("print_beacons"), store_true=True)
-        _flag(argv, "--log-participant-states", output.get("log_participant_states"), store_true=True)
-        return scenario, argv
-
-    # smoke
-    _smoke_flags(argv, config)
+    # benchmark
+    _benchmark_flags(argv, config)
+    _flag(argv, "--print-beacons", debug.get("print_beacons"), store_true=True)
+    _flag(argv, "--log-participant-states", output.get("log_participant_states"), store_true=True)
     return scenario, argv
 
 
 def dispatch(scenario: str, argv: list[str]) -> int:
     if scenario in ("single", "fleet"):
         from marine_race_arena.scripts import run_marine_race as runner
-    elif scenario == "benchmark":
-        from marine_race_arena.scripts import run_benchmark as runner
     else:
-        from marine_race_arena.scripts import run_staggered_multi_rover_smoke as runner
+        from marine_race_arena.scripts import run_benchmark as runner
     return runner.main(argv)
 
 
@@ -259,7 +227,6 @@ def scenario_command(scenario: str) -> str:
         "single": "run_marine_race",
         "fleet": "run_marine_race",
         "benchmark": "run_benchmark",
-        "smoke": "run_staggered_multi_rover_smoke",
     }[scenario]
 
 

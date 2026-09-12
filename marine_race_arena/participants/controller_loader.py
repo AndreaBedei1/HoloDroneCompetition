@@ -35,30 +35,6 @@ class ControllerLoader:
             "marine_race_arena.controllers.leader_follower",
             "LeaderFollowerController",
         ),
-        # Learned controller (feature/rl-controller). Imported lazily only when
-        # selected; requires the RL dependencies (requirements-rl.txt) and a
-        # trained model via model_path / $MARINE_RACE_RL_MODEL.
-        "rl_gate_controller": (
-            "marine_race_arena.learning.rl_controller",
-            "RLGateController",
-        ),
-        # Observation-v3 controller: every runtime action comes from the learned
-        # policy; deterministic logic only tracks expected-beacon progression.
-        "rl_multigate_controller": (
-            "marine_race_arena.learning.rl_multigate_controller",
-            "RLMultigateController",
-        ),
-        # Training-only DAgger collector; never a scored runtime controller.
-        "multigate_dagger_expert": (
-            "marine_race_arena.learning.multigate_dagger_expert",
-            "MultigateDAggerExpertController",
-        ),
-        # Hybrid: deterministic rule backbone + BC-v1 visual servo blended in VISUAL_ALIGN.
-        # Requires the RL dependencies and a trained model via model_path / $MARINE_RACE_RL_MODEL.
-        "hybrid_gate_controller": (
-            "marine_race_arena.controllers.hybrid_gate_controller",
-            "HybridGateController",
-        ),
         "keyboard": (
             "marine_race_arena.controllers.keyboard_manual",
             "KeyboardManualController",

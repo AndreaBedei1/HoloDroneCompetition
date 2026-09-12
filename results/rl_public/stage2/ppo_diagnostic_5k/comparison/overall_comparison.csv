@@ -1,4 +1,0 @@
-arm,run_status,initial_completion,best_completion,final_completion,initial_extreme_completion,best_extreme_completion,max_approx_kl,final_action_saturation,wall_clock_s
-bcinit_controlled,COMPLETED,0.9286,0.9286,0.9286,0.75,1.0,0.002767,0.0,2815.236
-scratch_controlled,COMPLETED,0.0,0.0,0.0,0.0,0.0,0.000185,0.0,3823.47
-scratch_default,COMPLETED,0.0,0.0,0.0,0.0,0.0,1e-06,0.343,3571.544

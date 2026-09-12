@@ -1,8 +1,0 @@
-{
-  "technical_status": "TECHNICAL_INVALID",
-  "controller": "candidate25k",
-  "track": "vertical_serpent",
-  "seed": 66001,
-  "error": "KeyboardInterrupt()",
-  "wall_elapsed_s": 458.422
-}

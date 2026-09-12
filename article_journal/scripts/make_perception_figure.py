@@ -1,13 +1,13 @@
-"""Compose the onboard gate-perception figure from committed HoloOcean captures.
+"""Compose the onboard gate-perception figure from the released captures.
 
-Post-processing only. This script does **not** launch HoloOcean and does not
-modify any artifact: it reads the three committed diagnostic screenshots under
-``artifacts_gen2/visual_collection_smoke/`` and writes one PDF into
-``article_journal/figures/generated/``.
+Post-processing only. Reads the three HoloOcean diagnostic captures under
+``artifacts/paper/perception/captures/`` and writes one PNG into
+``article_journal/figures/generated/``. It does not launch the simulator and
+does not modify any artifact.
 
-The source captures were produced by the interactive perception viewer. This
-script keeps only the camera panel crop; detector overlays are preserved
-unchanged, while viewer chrome outside the crop is omitted.
+The captures were produced by the interactive perception viewer. This script
+keeps only the camera panel crop; detector overlays are preserved unchanged,
+while viewer chrome outside the crop is omitted.
 
 Usage:
     python article_journal/scripts/make_perception_figure.py
@@ -25,21 +25,18 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-SMOKE = ROOT / "artifacts_gen2" / "visual_collection_smoke"
+CAPTURES = ROOT / "artifacts" / "paper" / "perception" / "captures"
 OUT = ROOT / "article_journal" / "figures" / "generated"
 
 # Camera panel of the three-view viewer. The upper crop boundary excludes the
 # viewer's state badge; the lower boundary is above the localized panel footer.
 PANEL = (0, 90, 640, 445)
 
-# Source screenshot order: Mixed Endurance, Horseshoe Bay, Vertical Serpent.
+# Panel order: detection without corners, four-corner lock, multi-candidate lock.
 PANELS = [
-    SMOKE / "20260907_191258_mixed_endurance_seed67002" / "screenshots"
-    / "00000_detection_without_corners.png",
-    SMOKE / "20260907_191120_horseshoe_bay_seed67000" / "screenshots"
-    / "00001_corners_B01.png",
-    SMOKE / "20260907_191216_vertical_serpent_seed67001" / "screenshots"
-    / "00035_multi_candidate_lock.png",
+    CAPTURES / "20260907_191258_mixed_endurance_seed67002__00000_detection_without_corners.png",
+    CAPTURES / "20260907_191120_horseshoe_bay_seed67000__00001_corners_B01.png",
+    CAPTURES / "20260907_191216_vertical_serpent_seed67001__00035_multi_candidate_lock.png",
 ]
 
 
@@ -49,9 +46,9 @@ def build_panel(path: Path) -> Image.Image:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    missing = [str(p) for p in PANELS if not p.exists()]
+    missing = [str(path) for path in PANELS if not path.exists()]
     if missing:
-        raise SystemExit(f"missing source capture(s): {missing}")
+        raise SystemExit("missing source capture(s): {}".format(missing))
 
     figure, axes = plt.subplots(1, 3, figsize=(7.4, 1.70))
     for axis, path in zip(axes, PANELS):
@@ -62,26 +59,27 @@ def main() -> int:
             spine.set_edgecolor("#12263a")
             spine.set_linewidth(0.6)
     figure.subplots_adjust(left=0.004, right=0.996, top=0.99, bottom=0.01, wspace=0.03)
-    target = OUT / "gate_perception_panels.pdf"
+    target = OUT / "gate_perception_panels.png"
     figure.savefig(target, dpi=400)
     plt.close(figure)
 
     provenance = {
-        "figure": "gate_perception_panels.pdf",
+        "figure": "gate_perception_panels.png",
         "script": "article_journal/scripts/make_perception_figure.py",
         "operation": "camera-panel crop only; detector overlays preserved unchanged",
         "crop_box": list(PANEL),
-        "sources": [str(p.relative_to(ROOT)).replace("\\", "/") for p in PANELS],
-        "source_capture_report": "artifacts_gen2/visual_collection_smoke/visual_smoke_report.json",
+        "sources": [path.relative_to(ROOT).as_posix() for path in PANELS],
+        "source_capture_report": "artifacts/paper/perception/visual_smoke_report.json",
         "adapter": "holoocean",
         "seeds": [67002, 67000, 67001],
-        "tracks": ["mixed_endurance", "vertical_serpent", "horseshoe_bay"],
+        "tracks": ["mixed_endurance", "horseshoe_bay", "vertical_serpent"],
         "holoocean_launched_by_this_script": False,
+        "artifacts_modified_by_this_script": False,
     }
-    (OUT / "gate_perception_panels.provenance.json").write_text(
-        json.dumps(provenance, indent=2), encoding="utf-8"
-    )
-    print(f"wrote {target}")
+    with (OUT / "gate_perception_panels.provenance.json").open(
+            "w", encoding="utf-8", newline=chr(10)) as stream:
+        stream.write(json.dumps(provenance, indent=2) + "\n")
+    print("wrote {}".format(target))
     return 0
 
 

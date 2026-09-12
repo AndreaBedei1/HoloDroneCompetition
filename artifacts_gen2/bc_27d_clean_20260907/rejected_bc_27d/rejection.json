@@ -1,9 +1,0 @@
-﻿{
-  "status": "rejected",
-  "reason": "closed_loop_holoocean_regression",
-  "source": "artifacts_gen2/bc_27d_clean_20260907/bc_policy.zip",
-  "archived_checkpoint": "artifacts_gen2/bc_27d_clean_20260907/rejected_bc_27d/bc_policy_rejected.zip",
-  "sha256": "a06e72d29b7bde2ada2aff4014bab0c216d77d3e5376219d91b30b41eeeaa957",
-  "parent_warmstart_used_for_ppo": true,
-  "ppo_must_not_use": "bc_policy.zip"
-}

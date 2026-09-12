@@ -1,0 +1,13 @@
+# Marine Race Arena - development and manuscript tooling.
+#
+# Needed to run the test suite and to regenerate the paper's tables and
+# figures. Not needed to run the benchmark itself.
+#     pip install -r requirements.txt
+#     pip install -r requirements-dev.txt
+
+pytest==8.4.2              # test suite
+
+# Figure regeneration (article_journal/scripts/). matplotlib is also pulled in
+# unpinned by the HoloOcean client; this is the version used for the figures.
+matplotlib==3.9.4
+Pillow==11.3.0

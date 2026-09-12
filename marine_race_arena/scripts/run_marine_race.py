@@ -217,7 +217,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Built-in controller alias: pygame, pygame_keyboard, keyboard, manual, "
             "oracle, rule_gate_baseline, rule_gate_center_then_commit, "
-            "leader_follower, rl_gate_controller, student_template. Overrides track config."
+            "leader_follower, student_template. Overrides track config."
         ),
     )
     parser.add_argument(
@@ -234,7 +234,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--controller-model-path",
         default=None,
         help=(
-            "Path to a trained model for a learned controller (e.g. rl_gate_controller). "
+            "Path to a trained model for a learned controller. "
             "Takes precedence over the MARINE_RACE_RL_MODEL environment variable. Controllers "
             "that do not accept a model path ignore this option."
         ),

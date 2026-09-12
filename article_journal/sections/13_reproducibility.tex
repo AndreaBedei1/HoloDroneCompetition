@@ -53,26 +53,31 @@ existing artifacts: no command listed below launches the simulator or modifies a
 raw artifact.
 
 \begin{lstlisting}[language=bash]
-# Result tables and the penalty-identity check
-python article/regenerate_tables.py --check
+# Every quantitative claim in the text and the tables
+python article_journal/scripts/verify_claims.py
 
-# Track layouts and the controller-comparison plot, from track JSON and artifacts
-python article/figures/generate_figures.py
+# Data-driven result tables and the penalty-identity check
+python article_journal/scripts/regenerate_tables.py
 
-# Journal figures: perception panels from committed artifacts
+# Track layouts and the controller-comparison plot
+python article_journal/scripts/generate_figures.py
+
+# Perception panels from the released captures
 python article_journal/scripts/make_perception_figure.py
 
 # Manuscript
 cd article_journal && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 \end{lstlisting}
 
-Running \cmd{regenerate\_tables.py} against the recorded result artifacts reproduces the
-clean-track, current, fleet and coordination values of
-Tables~\ref{tab:clean_tracks}, \ref{tab:currents} and \ref{tab:fleet} exactly, and
-also verifies the penalty identity $T^{\mathrm{pen}}=T^{\mathrm{official}}+P$ on
-every finished run. The two journal figure scripts write a provenance JSON
-alongside each output recording their input files and asserting that no simulator
-was launched.
+Every input these commands read is the released evidence package
+\cmd{artifacts/paper/}, which holds the per-run benchmark rows, the current-free
+evaluation, the frozen policy checkpoint with its validation episodes and the
+perception audit. Running \cmd{verify\_claims.py} recomputes each reported
+quantity and fails on any mismatch; running \cmd{regenerate\_tables.py} rewrites
+the seven data-driven tables byte-identically and verifies the penalty identity
+$T^{\mathrm{pen}}=T^{\mathrm{official}}+P$ on every finished run. The two figure
+scripts write a provenance JSON alongside each output recording their input
+files and asserting that no simulator was launched.
 
 \subsection{Re-Running Experiments}
 

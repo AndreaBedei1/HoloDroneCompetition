@@ -1,0 +1,14 @@
+# The released evidence package is content-addressed: artifacts/paper/manifest.json
+# records a SHA-256 per file, so a checkout must reproduce those bytes exactly on
+# every platform. Disable end-of-line conversion for the whole package.
+artifacts/paper/** -text
+
+# Binary assets: never touched by end-of-line conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.zip binary
+
+# Windows batch files need CRLF.
+*.bat text eol=crlf

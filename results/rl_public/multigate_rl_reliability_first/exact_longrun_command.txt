@@ -1,1 +1,0 @@
-scripts\start_rl_multigate_reliability_first.bat 1000000 r2_reliability_first_seed23001

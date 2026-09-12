@@ -1,5 +1,5 @@
 {
-  "figure": "gate_perception_panels.pdf",
+  "figure": "gate_perception_panels.png",
   "script": "article_journal/scripts/make_perception_figure.py",
   "operation": "camera-panel crop only; detector overlays preserved unchanged",
   "crop_box": [
@@ -9,11 +9,11 @@
     445
   ],
   "sources": [
-    "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002/screenshots/00000_detection_without_corners.png",
-    "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000/screenshots/00001_corners_B01.png",
-    "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001/screenshots/00035_multi_candidate_lock.png"
+    "artifacts/paper/perception/captures/20260907_191258_mixed_endurance_seed67002__00000_detection_without_corners.png",
+    "artifacts/paper/perception/captures/20260907_191120_horseshoe_bay_seed67000__00001_corners_B01.png",
+    "artifacts/paper/perception/captures/20260907_191216_vertical_serpent_seed67001__00035_multi_candidate_lock.png"
   ],
-  "source_capture_report": "artifacts_gen2/visual_collection_smoke/visual_smoke_report.json",
+  "source_capture_report": "artifacts/paper/perception/visual_smoke_report.json",
   "adapter": "holoocean",
   "seeds": [
     67002,
@@ -22,8 +22,9 @@
   ],
   "tracks": [
     "mixed_endurance",
-    "vertical_serpent",
-    "horseshoe_bay"
+    "horseshoe_bay",
+    "vertical_serpent"
   ],
-  "holoocean_launched_by_this_script": false
+  "holoocean_launched_by_this_script": false,
+  "artifacts_modified_by_this_script": false
 }

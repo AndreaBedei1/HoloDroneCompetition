@@ -52,9 +52,9 @@ def test_requested_config_captures_identity_and_versions():
     assert len(cfg["track_sha256"]) == 64
 
 
-def test_multigate_controller_manifest_uses_v3_contract():
-    cfg = _requested(controller="rl_multigate_controller", _model_sha256="a" * 64)
-    assert cfg["observation_encoding_version"] == "onboard_multigate_rl_v3"
+def test_manifest_records_the_onboard_contract_for_any_controller():
+    cfg = _requested(controller="rule_gate_baseline", _model_sha256="a" * 64)
+    assert cfg["observation_encoding_version"] == OBS_ENCODING_VERSION
     assert cfg["benchmark_task_override"] is None
 
 

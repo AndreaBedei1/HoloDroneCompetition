@@ -1,0 +1,40 @@
+{
+  "module": "marine_race_arena.controllers.gate_pose",
+  "gate_apertures_m": {
+    "0": [
+      2.0,
+      2.0
+    ],
+    "25": [
+      2.0,
+      2.0
+    ],
+    "45": [
+      2.0,
+      2.0
+    ],
+    "-25": [
+      2.0,
+      2.0
+    ],
+    "-45": [
+      2.0,
+      2.0
+    ]
+  },
+  "pnp": "SOLVEPNP_IPPE",
+  "yaw_convention": "canonical modulo-180 plane yaw [-90,90]",
+  "yaw_error_metric": "plane_angle_distance_deg",
+  "orientation_metric": "orientation_class",
+  "sign_disambiguation": "bar-height ratio + reprojection error",
+  "fallback": "projective + known-size distance",
+  "packages": {
+    "python": "3.9.25",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "numpy": "2.0.2",
+    "torch": "2.8.0+cpu",
+    "gymnasium": "1.0.0",
+    "stable_baselines3": "2.7.1",
+    "holoocean": "2.3.0"
+  }
+}

@@ -1,4 +1,0 @@
-seed,status,referee_status,evaluation_end_reason,finished,completed_gates,expected_gates,official_time_s,penalized_time_s,collision_events,obstacle_collision_events,out_of_bounds_events,stuck_events,missed_gate_attempts,wrong_direction_crossings,inference_time_ms,wall_s,adapter_used
-1800,FINISHED,FINISHED,FINISHED,True,12,12,243.9,243.9,0,0,0,0,0,0,20.3781,302.595,holoocean
-1801,FINISHED,FINISHED,FINISHED,True,12,12,232.4,232.4,0,0,0,0,0,0,19.9805,299.836,holoocean
-1802,FINISHED,FINISHED,FINISHED,True,12,12,231.70000000000002,231.70000000000002,0,0,0,0,0,0,19.98,291.269,holoocean

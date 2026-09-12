@@ -1,0 +1,402 @@
+{
+ "description": "Minimal evidence package for the Marine Race Arena manuscript. Every reported quantity is recomputed from these files by article_journal/scripts/verify_claims.py.",
+ "file_count": 40,
+ "files": [
+  {
+   "bytes": 3890,
+   "path": "benchmark/local_vs_referee.json",
+   "purpose": "Controller-local versus referee gate-progression audit, aggregated over every executed benchmark run",
+   "sha256": "780776f951c648401b08c15c4d7cdd059cb4bcf5bcd6a787572d4ba386ef5d0a",
+   "supports": [
+    "Table tab:local_vs_referee",
+    "Section 7 Measuring the Boundary"
+   ]
+  },
+  {
+   "bytes": 81546,
+   "path": "benchmark/runs.csv",
+   "purpose": "Per-run rows of the frozen HoloOcean benchmark matrix, restricted to the conditions the manuscript reports",
+   "sha256": "e779d6ae51c43c3852f59e7bf34a90bb419f97dd9b21e9c0d478fe1d99f654bc",
+   "supports": [
+    "Table tab:clean_tracks",
+    "Table tab:currents",
+    "Table tab:fleet",
+    "Figure fig:controller_comparison",
+    "Section 10 RQ2-RQ4"
+   ]
+  },
+  {
+   "bytes": 139332,
+   "path": "benchmark/runs.json",
+   "purpose": "The same benchmark rows in JSON, with the field list",
+   "sha256": "c93b598de992066211bc67e35cd23c0abc8d0d1dcb9655ab5d8f984788a8dba3",
+   "supports": [
+    "Table tab:clean_tracks",
+    "Table tab:currents",
+    "Table tab:fleet"
+   ]
+  },
+  {
+   "bytes": 527,
+   "path": "benchmark/source.json",
+   "purpose": "Provenance of the benchmark rows: source tree and manifest hashes, executed and released run counts",
+   "sha256": "f2ff9781404e0e0ebc64cfd50bfcdd26a1f4f56466ebb3017bc3a8176c32d822",
+   "supports": [
+    "Section 13 Reproducibility"
+   ]
+  },
+  {
+   "bytes": 591,
+   "path": "current_free/circuit_horseshoe/eval_results.csv",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "58a25260afa19225e2526c01b6e9d6c6b93eacf1941d9e6f85afcb6c44c751a4",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 1806,
+   "path": "current_free/circuit_horseshoe/eval_results.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "537f4ded6ea5c00775db0b3777c314f4c9a031a1a947789759d7f1a026404e39",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 712,
+   "path": "current_free/circuit_horseshoe/eval_summary.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "41457668ca7aad7b352c99a5c7bfaf9a464859a45a46fd92e8fb0dff476f681f",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 1266,
+   "path": "current_free/circuit_horseshoe/evaluation_manifest.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "677d0a51f81cdf7fd2ea06680f2fbc2a018fc471d15dce5f28efe72bdb690a5d",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 567,
+   "path": "current_free/circuit_mixed/eval_results.csv",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "3db2e9d5867f8e39317cbe3bf09340f566c74b0055aa9c745f6100194c41cac2",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 1782,
+   "path": "current_free/circuit_mixed/eval_results.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "e4b466f45cc63adff2884c84ee2301596157f590bb40301464213ba8b97dabaa",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 714,
+   "path": "current_free/circuit_mixed/eval_summary.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "09556e62309c8284ffea31de15cd320a309bbe7d3496ff35b9914b7e857e4efa",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 1276,
+   "path": "current_free/circuit_mixed/evaluation_manifest.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "70aa91ca7860b35828a55d5a2dcd0b2c9a98784b9118c2a9d6d2c635ef391175",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 592,
+   "path": "current_free/circuit_vertical/eval_results.csv",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "7d0ecd226479c02f783172450572fee3930f4b9ff7caebe437bf3e570aa45b08",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 1807,
+   "path": "current_free/circuit_vertical/eval_results.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "688550486dd6637abbc100e3ec0b9986186e6b539d083b6dc4d1a549feb418ff",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 715,
+   "path": "current_free/circuit_vertical/eval_summary.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "cfb8bb42cb24e634806b9d5ef40f20574ee7bd67bb5355b24f464ccbe5f7c53f",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 1269,
+   "path": "current_free/circuit_vertical/evaluation_manifest.json",
+   "purpose": "Per-episode current-free evaluation results, summary and evaluation manifest for one official circuit",
+   "sha256": "79880e0829fd1b355585026b47d3e2f8b5fb0e31dd0d82aca91c4f36e995cfd5",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 14200,
+   "path": "current_free/seed_registry_snapshot.json",
+   "purpose": "Seed bands registered by role for the learning and evaluation campaigns",
+   "sha256": "828707c33d9b24e1ed74df82e3ac60206ee049946bdcabff5d41c70e9bed7de3",
+   "supports": [
+    "Section 13 Seeds and Determinism"
+   ]
+  },
+  {
+   "bytes": 821,
+   "path": "current_free/summary.csv",
+   "purpose": "The same current-free summary in CSV",
+   "sha256": "80fd8ee55078b7a545b85d4df287a25571ec781fbf11cc5fd2ed351eeaeed1f8",
+   "supports": [
+    "Table tab:current_free"
+   ]
+  },
+  {
+   "bytes": 2851,
+   "path": "current_free/summary.json",
+   "purpose": "Per-circuit summary of the nine current-free onboard-only runs",
+   "sha256": "453da4c2227566a1e8360b70f9f4ec3970b148eff9327318f5d94343a200585f",
+   "supports": [
+    "Table tab:current_free",
+    "Section 10 RQ1"
+   ]
+  },
+  {
+   "bytes": 342262,
+   "path": "perception/captures/20260907_191120_horseshoe_bay_seed67000__00001_corners_B01.png",
+   "purpose": "HoloOcean perception-viewer capture used as a panel of the gate-perception figure",
+   "sha256": "75212827ae521d4fbbfdf2c403efb117d9a2008f50d02063b45c36237aef4514",
+   "supports": [
+    "Figure fig:perception_panels"
+   ]
+  },
+  {
+   "bytes": 370475,
+   "path": "perception/captures/20260907_191216_vertical_serpent_seed67001__00035_multi_candidate_lock.png",
+   "purpose": "HoloOcean perception-viewer capture used as a panel of the gate-perception figure",
+   "sha256": "6741fb06eb15f9ae2fc011eb985f313ef3ce6d967f7893a9aa18ec8025739f13",
+   "supports": [
+    "Figure fig:perception_panels"
+   ]
+  },
+  {
+   "bytes": 330131,
+   "path": "perception/captures/20260907_191258_mixed_endurance_seed67002__00000_detection_without_corners.png",
+   "purpose": "HoloOcean perception-viewer capture used as a panel of the gate-perception figure",
+   "sha256": "cd68bc57d3e22e26be6001e677c01765bfecd4a71bbb9e18efa0358c8eb12e73",
+   "supports": [
+    "Figure fig:perception_panels"
+   ]
+  },
+  {
+   "bytes": 122,
+   "path": "perception/pose/camera_intrinsics.json",
+   "purpose": "Camera intrinsics used by the gate-pose estimator",
+   "sha256": "45f7fa96af4bd12cc639898c125ced666cfae0c3d504d052a647cc29dfdea390",
+   "supports": [
+    "Section 5 Perception"
+   ]
+  },
+  {
+   "bytes": 848,
+   "path": "perception/pose/detector_config.json",
+   "purpose": "Gate detector configuration used for the perception audit",
+   "sha256": "db238116f73b68d2a50794dfce33d08e570f16fde56879f4cacbd9bbfd6108ce",
+   "supports": [
+    "Section 5 Perception"
+   ]
+  },
+  {
+   "bytes": 6667,
+   "path": "perception/pose/metrics_by_condition.csv",
+   "purpose": "Per-condition gate-pose estimator metrics",
+   "sha256": "acb8a740b889c1a701cc60678aa2c8b795ee88a9dd9dc12e1e6d8bbe5adb27f9",
+   "supports": [
+    "Section 5 Perception"
+   ]
+  },
+  {
+   "bytes": 2013,
+   "path": "perception/pose/pose_metrics.json",
+   "purpose": "Gate-pose estimator metrics under the dedicated oblique-view rig",
+   "sha256": "196e7d7d203816a6fd1a16bea220c81494557abf286bfba1aed3f8afa58021ce",
+   "supports": [
+    "Section 5 Perception"
+   ]
+  },
+  {
+   "bytes": 8227,
+   "path": "perception/visual_smoke_report.json",
+   "purpose": "Onboard gate-perception audit metrics on the three official circuits",
+   "sha256": "7efd3607554fb28605e390ad298bdc5289338560beb6086c83c5da1dc8429d74",
+   "supports": [
+    "Table tab:perception_audit",
+    "Section 5 Perception"
+   ]
+  },
+  {
+   "bytes": 5843,
+   "path": "ppo/campaign_config.json",
+   "purpose": "Training configuration of the campaign that produced the released checkpoint",
+   "sha256": "07a8ca7277845e8ac2696e34278e4bf84b2e4fd695525f49ec0ca89ad93dc9d4",
+   "supports": [
+    "Section 9 Learning"
+   ]
+  },
+  {
+   "bytes": 4100072,
+   "path": "ppo/model/policy_recurrent_ppo_27d.zip",
+   "purpose": "The frozen recurrent PPO checkpoint validated in the manuscript (sb3-contrib RecurrentPPO, 27-D onboard observation, 4-D body-frame action)",
+   "sha256": "8d6a29581d8c0004b5c45496c78c69f25bd2d837ed65e0eb886ddd88f3fff785",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 2047,
+   "path": "ppo/provenance.json",
+   "purpose": "Identity of the released checkpoint: hash, size, training step, observation and action contract, selection rule and identification evidence",
+   "sha256": "cc055cb18293eb0ff6cc436a4c7e3804773253962426c0711e33e5bd7287dc2b",
+   "supports": [
+    "Section 9 Learning",
+    "Section 13 Reproducibility"
+   ]
+  },
+  {
+   "bytes": 7059,
+   "path": "ppo/validation/retry6_50k_horseshoe_bay_seed20370909_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "66b8db3e80297265e64c6fea3ab4112af41700be3e5edc6b8c911d316abf8959",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 7053,
+   "path": "ppo/validation/retry6_50k_horseshoe_bay_seed20370910_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "8a0f76a7ddd19e3ba19b79030c3ded2d72f8dec2d8ff33bdbeda6eb185ffcdf7",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 7055,
+   "path": "ppo/validation/retry6_50k_horseshoe_bay_seed20370911_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "d9112d6bf8eaf8b800b79c3e779905f8a03209bceff363cb1d2754fced9018cd",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 230,
+   "path": "ppo/validation/retry6_50k_mixed_endurance_seed20370909_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "24556f2332c795b7bd89b923c0fc4820cbbf82f9e24406f93f3f84c4222446f3",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 12099,
+   "path": "ppo/validation/retry6_50k_mixed_endurance_seed20370909_attempt1.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "aba91683502ca827628a55141931ff0a3d9f5f7a3f43031795954245ec2f4f08",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 12100,
+   "path": "ppo/validation/retry6_50k_mixed_endurance_seed20370910_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "7155cbece1156e1f0293ed0a31ca18cd3bdbe135991835de062c97a7a5d29ac7",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 12108,
+   "path": "ppo/validation/retry6_50k_mixed_endurance_seed20370911_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "e6b3e8b247955d677f91f8ac5d567bdc330f22642d57fc87e7299790d6195f76",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 9564,
+   "path": "ppo/validation/retry6_50k_vertical_serpent_seed20370909_attempt1.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "23a267d59c1a5d18414b85a6619cbf4e027d6ae8ffb6b88039fbab040b98c59d",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 9561,
+   "path": "ppo/validation/retry6_50k_vertical_serpent_seed20370910_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "a72c257dbe3e0c23a789a37179567fda5ed817f724e7eb9ece141dd0987665be",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  },
+  {
+   "bytes": 9566,
+   "path": "ppo/validation/retry6_50k_vertical_serpent_seed20370911_attempt0.result.json",
+   "purpose": "One recurrent PPO validation episode on an official circuit (nine VALID episodes plus the one technically invalid attempt that was retried)",
+   "sha256": "19ef0c912cc2fbba56174326a73bbee4939ecb62fc9a1adc5d221e70227d70e1",
+   "supports": [
+    "Table tab:learning",
+    "Section 10 RQ5"
+   ]
+  }
+ ],
+ "root": "artifacts/paper",
+ "schema_version": "mra_paper_artifacts_v1",
+ "total_bytes": 5511366
+}

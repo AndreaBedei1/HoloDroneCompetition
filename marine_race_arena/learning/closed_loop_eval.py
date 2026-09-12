@@ -131,10 +131,6 @@ def currents_summary(track: str, current_profile: Optional[str],
 def build_requested_config(args, *, model_sha256, randomization_spec) -> Dict:
     """The experiment-identity + provenance fields captured in the manifest."""
     observation_version = OBS_ENCODING_VERSION
-    if args.controller == "rl_multigate_controller":
-        from marine_race_arena.learning.config_v3 import OBS_ENCODING_VERSION_V3
-
-        observation_version = OBS_ENCODING_VERSION_V3
     return {
         "controller_name": args.controller,
         "model_path": args.model,
@@ -178,7 +174,7 @@ def main(argv=None) -> int:
     parser.add_argument("--seeds", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--model", default=None, help="model path; omit for a rule controller")
-    parser.add_argument("--controller", default="rl_gate_controller")
+    parser.add_argument("--controller", default="rule_gate_center_then_commit")
     parser.add_argument("--adapter", default="holoocean")
     parser.add_argument("--allow-fallback", action="store_true")
     parser.add_argument("--current-profile", default=None,
@@ -193,13 +189,6 @@ def main(argv=None) -> int:
     parser.add_argument("--force-new", action="store_true",
                         help="Start a fresh experiment; an existing output directory is moved to a timestamped backup.")
     args = parser.parse_args(argv)
-
-    if args.controller == "rl_multigate_controller":
-        if not args.model:
-            parser.error("--controller rl_multigate_controller requires --model")
-        from marine_race_arena.learning.model_contract_v3 import validate_v3_model
-
-        validate_v3_model(args.model)
 
     start_randomization = None
     randomization_spec = None
@@ -268,17 +257,7 @@ def main(argv=None) -> int:
         "currents_actual": currents["currents_actual"],
         "adapter_actual": (existing_manifest or {}).get("adapter_actual"),
         "fallback_used": (existing_manifest or {}).get("fallback_used"),
-        "runtime_constraints": {
-            "rule_action_weight": (
-                0 if args.controller == "rl_multigate_controller" else None
-            ),
-            "hybrid_blending": (
-                False if args.controller == "rl_multigate_controller" else None
-            ),
-            "rule_controller_not_instantiated": (
-                True if args.controller == "rl_multigate_controller" else None
-            ),
-        },
+        "runtime_constraints": None,
         "requested_seeds": sorted(set(_parse_seeds(args.seeds)) | set((existing_manifest or {}).get("requested_seeds", []))),
         "completed_seeds": sorted(existing.keys()),
         "created_utc": created_utc,

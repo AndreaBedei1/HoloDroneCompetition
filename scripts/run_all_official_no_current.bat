@@ -8,7 +8,7 @@ echo [run] Repo root: %CD%
 where conda >nul 2>&1 || ( echo [run] ERROR: conda not on PATH & exit /b 1 )
 echo [run] Current-free official circuits with deterministic onboard controller.
 
-set BASE=results/rl_public/visual_pose_v2/official_no_current
+set BASE=results/current_free
 conda run -n marine_race_rl python -m marine_race_arena.learning.closed_loop_eval --track marine_race_arena/tracks/marine_race_horseshoe_bay.json --controller rule_gate_center_then_commit --seeds 1800-1804 --out %BASE%/circuit_horseshoe --adapter holoocean --current-profile none
 set RC_H=%ERRORLEVEL%
 conda run -n marine_race_rl python -m marine_race_arena.learning.closed_loop_eval --track marine_race_arena/tracks/marine_race_vertical_serpent.json --controller rule_gate_center_then_commit --seeds 1800-1804 --out %BASE%/circuit_vertical --adapter holoocean --current-profile none
