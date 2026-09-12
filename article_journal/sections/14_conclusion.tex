@@ -2,27 +2,37 @@
 \label{sec:conclusion}
 
 This paper presented \mra{}, a configurable and reproducible benchmark and
-evaluation framework for onboard autonomous underwater gate racing. Its central
-contribution is a controller-agnostic participant interface, based on a common
-participant-level information boundary and body-frame action interface, combined
-with configurable race management and an independent referee. Controllers use
-participant-accessible onboard information, while privileged simulator state is
-reserved for ordered-crossing validation, penalties and official race results.
+evaluation framework for autonomous underwater gate racing. The framework
+separates participant autonomy from race adjudication through a
+controller-agnostic participant interface, a configurable race-management layer
+and an independent referee. Controllers operate within a common
+participant-level information boundary and provide body-frame commands, while
+privileged simulator state is reserved for ordered-crossing validation,
+penalties and official race results.
 
-The experiments show that this interface can support heterogeneous circuits,
-environmental disturbance, multi-vehicle evaluation and different controller
-families. The reference controllers expose condition-dependent behaviour across
-the official circuits and under the medium-current condition, while the fleet
-experiments demonstrate team-level evaluation and coordination. The recurrent
-PPO controller further shows that a learned policy can be integrated through the
-same participant-level information boundary, body-frame action interface and
-independent referee. Together, these results show that the benchmark is not tied
-to a particular controller architecture.
+The framework was validated with two rule-based reference controllers and a
+recurrent PPO controller, demonstrating that autonomy methods with substantially
+different internal designs can be integrated through the same benchmark
+interface. Experiments across heterogeneous circuits, a medium-current
+condition and multi-vehicle configurations showed that the benchmark can expose
+differences in passage strategy, disturbance robustness and vehicle interaction.
+The fleet experiments further demonstrated that the same evaluation framework
+can represent both independent multi-vehicle operation and distributed
+cooperative behaviour while preserving separate referee state for each
+participant.
 
-The current evidence remains simulation-based and is limited by simulator
-fidelity, a single evaluated medium-current condition, simplified acoustic
-models and small fleet configurations. The PPO controller is intentionally a
-baseline learning demonstration and can be extended with more advanced learning
-algorithms and training strategies. Future work will broaden the disturbance and
-fleet evaluations, investigate stronger learning-based controllers and transfer
-the benchmark interface to physical underwater experiments.
+Future work will extend these capabilities along several complementary
+directions. Multi-vehicle evaluation can incorporate more advanced cooperation
+strategies, particularly under environmental disturbances where vehicle
+interaction, waiting policies and shared progress information become more
+challenging. Competitive multi-team scenarios and heterogeneous vehicle fleets
+with different dynamics and sensing suites can also be evaluated under the same
+race-management and referee framework. Current-aware control and explicit
+disturbance compensation provide another natural extension, together with a
+broader evaluation over different current magnitudes, directions and
+time-varying flow conditions. On the learning side, the recurrent PPO controller
+serves as a baseline demonstration and can be replaced or complemented by more
+advanced reinforcement-learning, recurrent or attention-based approaches.
+Finally, transferring the benchmark interface and race protocol to physical
+underwater vehicles will enable direct investigation of sim-to-real behaviour
+and real-world racing experiments.
