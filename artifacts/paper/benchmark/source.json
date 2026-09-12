@@ -3,7 +3,7 @@
  "control_rate_hz": 30,
  "derived_from": "results/onboard_only_validation/final_20260715 (raw tree, not released)",
  "executed_run_count": 78,
- "packaged_via": "article_journal/scripts/package_78_matrix.py (matrix_78_20260715)",
+ "packaged_via": "compact projection of the raw per-run summaries, taken once from the frozen 20260715 matrix and frozen here",
  "released_run_count": 68,
  "schema_version": "mra_benchmark_source_v1",
  "source_manifest_sha256": "b85c6c75e75f07a8f84f0045511db307a170bd5f5a50c8539f40cec9d2e13109",

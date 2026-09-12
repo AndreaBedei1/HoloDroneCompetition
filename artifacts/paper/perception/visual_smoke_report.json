@@ -47,11 +47,11 @@
         },
         "ground_truth_separate_and_offline_only": true
       },
-      "output_dir": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191120_horseshoe_bay_seed67000",
+      "output_dir": "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000",
       "screenshots": [
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191120_horseshoe_bay_seed67000\\screenshots\\00000_detection_without_corners.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191120_horseshoe_bay_seed67000\\screenshots\\00001_corners_B01.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191120_horseshoe_bay_seed67000\\screenshots\\00036_multi_candidate_lock.png"
+        "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000/screenshots/00000_detection_without_corners.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000/screenshots/00001_corners_B01.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191120_horseshoe_bay_seed67000/screenshots/00036_multi_candidate_lock.png"
       ]
     },
     {
@@ -98,12 +98,12 @@
         },
         "ground_truth_separate_and_offline_only": true
       },
-      "output_dir": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191216_vertical_serpent_seed67001",
+      "output_dir": "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001",
       "screenshots": [
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191216_vertical_serpent_seed67001\\screenshots\\00000_detection_without_corners.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191216_vertical_serpent_seed67001\\screenshots\\00001_corners_B01.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191216_vertical_serpent_seed67001\\screenshots\\00006_orientation_right.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191216_vertical_serpent_seed67001\\screenshots\\00035_multi_candidate_lock.png"
+        "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001/screenshots/00000_detection_without_corners.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001/screenshots/00001_corners_B01.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001/screenshots/00006_orientation_right.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191216_vertical_serpent_seed67001/screenshots/00035_multi_candidate_lock.png"
       ]
     },
     {
@@ -150,13 +150,14 @@
         },
         "ground_truth_separate_and_offline_only": true
       },
-      "output_dir": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191258_mixed_endurance_seed67002",
+      "output_dir": "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002",
       "screenshots": [
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191258_mixed_endurance_seed67002\\screenshots\\00000_detection_without_corners.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191258_mixed_endurance_seed67002\\screenshots\\00001_corners_B01.png",
-        "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\artifacts_gen2\\visual_collection_smoke\\20260907_191258_mixed_endurance_seed67002\\screenshots\\00031_multi_candidate_lock.png"
+        "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002/screenshots/00000_detection_without_corners.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002/screenshots/00001_corners_B01.png",
+        "artifacts_gen2/visual_collection_smoke/20260907_191258_mixed_endurance_seed67002/screenshots/00031_multi_candidate_lock.png"
       ]
     }
   ],
-  "training_started": false
+  "training_started": false,
+  "_release_note": "Released copy of a frozen artifact: output_dir and screenshot paths rewritten relative to the repository root. No measured value was modified."
 }

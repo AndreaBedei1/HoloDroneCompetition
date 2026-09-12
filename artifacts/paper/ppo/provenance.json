@@ -12,6 +12,7 @@
  "model_timesteps": 50688,
  "observation_contract": "onboard_local_transition_27d_v1",
  "observation_dim": 27,
+ "legacy_controller_label": "retry6_50k - the evaluator label in force when these episodes were produced, still visible in the released validation filenames and in their 'controller' field; the evaluator now calls the same controller 'recurrent_ppo'",
  "original_path": "artifacts_gen2/ppo_27d_direct_speed_campaign_C_20260909_retry1/checkpoint_050000.zip",
  "original_path_alias": "best_overall_050000.zip (byte-identical copy of the same checkpoint)",
  "schema_version": "mra_ppo_provenance_v1",

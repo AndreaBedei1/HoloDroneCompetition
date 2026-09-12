@@ -7,7 +7,7 @@
       "name": "speed_full_horseshoe_bay_00",
       "track": "horseshoe_bay",
       "kind": "full_circuit",
-      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+      "path": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
       "gate_count": 12,
       "max_steps": 10800,
       "initial_body_velocity": null
@@ -16,7 +16,7 @@
       "name": "speed_full_horseshoe_bay_01",
       "track": "horseshoe_bay",
       "kind": "full_circuit",
-      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+      "path": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
       "gate_count": 12,
       "max_steps": 10800,
       "initial_body_velocity": null
@@ -25,7 +25,7 @@
       "name": "speed_full_vertical_serpent_00",
       "track": "vertical_serpent",
       "kind": "full_circuit",
-      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+      "path": "marine_race_arena/tracks/marine_race_vertical_serpent.json",
       "gate_count": 17,
       "max_steps": 15300,
       "initial_body_velocity": null
@@ -34,7 +34,7 @@
       "name": "speed_full_vertical_serpent_01",
       "track": "vertical_serpent",
       "kind": "full_circuit",
-      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+      "path": "marine_race_arena/tracks/marine_race_vertical_serpent.json",
       "gate_count": 17,
       "max_steps": 15300,
       "initial_body_velocity": null
@@ -43,7 +43,7 @@
       "name": "speed_full_mixed_endurance_00",
       "track": "mixed_endurance",
       "kind": "full_circuit",
-      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+      "path": "marine_race_arena/tracks/marine_race_mixed_endurance.json",
       "gate_count": 22,
       "max_steps": 19800,
       "initial_body_velocity": null
@@ -52,7 +52,7 @@
       "name": "speed_full_mixed_endurance_01",
       "track": "mixed_endurance",
       "kind": "full_circuit",
-      "path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+      "path": "marine_race_arena/tracks/marine_race_mixed_endurance.json",
       "gate_count": 22,
       "max_steps": 19800,
       "initial_body_velocity": null
@@ -74,7 +74,7 @@
     },
     "sources": [
       {
-        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "track_path": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -88,7 +88,7 @@
         "valid": true
       },
       {
-        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_horseshoe_bay.json",
+        "track_path": "marine_race_arena/tracks/marine_race_horseshoe_bay.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -102,7 +102,7 @@
         "valid": true
       },
       {
-        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+        "track_path": "marine_race_arena/tracks/marine_race_vertical_serpent.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -116,7 +116,7 @@
         "valid": true
       },
       {
-        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_vertical_serpent.json",
+        "track_path": "marine_race_arena/tracks/marine_race_vertical_serpent.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -130,7 +130,7 @@
         "valid": true
       },
       {
-        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "track_path": "marine_race_arena/tracks/marine_race_mixed_endurance.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -144,7 +144,7 @@
         "valid": true
       },
       {
-        "track_path": "C:\\Users\\andrea.bedei3\\Desktop\\HoloDroneCompetition\\marine_race_arena\\tracks\\marine_race_mixed_endurance.json",
+        "track_path": "marine_race_arena/tracks/marine_race_mixed_endurance.json",
         "water_fog": {
           "enabled": true,
           "density": 5.0,
@@ -188,5 +188,6 @@
     200000,
     300000
   ],
-  "environment_recycle_interval": 10000
+  "environment_recycle_interval": 10000,
+  "_release_note": "Released copy of a frozen artifact: track source paths rewritten relative to the repository root. No measured value was modified."
 }

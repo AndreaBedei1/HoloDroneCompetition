@@ -389,7 +389,7 @@ def _orchestrate(args: argparse.Namespace) -> None:
     # A filtered invocation is useful for an isolated fresh retry.  Without
     # this, ``--controller/--track`` silently expanded back to the full 3x3
     # matrix, which could start additional HoloOcean processes unexpectedly.
-    controllers = [args.controller] if args.controller else ["retry6_50k", "candidate25k", "rules"]
+    controllers = [args.controller] if args.controller else ["recurrent_ppo", "rules"]
     tracks = [args.track] if args.track else ["horseshoe_bay", "vertical_serpent", "mixed_endurance"]
     for track in tracks:
         for controller in controllers:
@@ -415,13 +415,14 @@ def _orchestrate(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--child", action="store_true")
-    parser.add_argument("--controller", choices=("retry6_50k", "candidate25k", "rules"))
+    parser.add_argument("--controller", choices=("recurrent_ppo", "rules"),
+                        help="recurrent_ppo loads --checkpoint; rules runs the deterministic reference controller")
     parser.add_argument("--track", choices=tuple(tf.OFFICIAL_TRACKS))
     parser.add_argument("--seed", type=int, default=66001)
     parser.add_argument("--checkpoint")
     parser.add_argument("--progress")
     parser.add_argument("--result")
-    parser.add_argument("--out", default="artifacts_gen2/ppo_27d_speed_campaign_B_20260908_retry6/robust_eval_050000")
+    parser.add_argument("--out", default="results/ppo_eval")
     parser.add_argument("--wall-timeout-s", type=float, default=1800.0)
     parser.add_argument("--stall-timeout-s", type=float, default=180.0)
     parser.add_argument("--gate-stall-timeout-s", type=float, default=120.0)
@@ -431,7 +432,8 @@ def main() -> None:
         if args.controller != "rules" and not args.checkpoint:
             raise SystemExit("--checkpoint is required for learned child")
         raise SystemExit(_child(args))
-    args.checkpoint = args.checkpoint or "artifacts_gen2/ppo_27d_speed_campaign_B_20260908_retry6/checkpoint_050000.zip"
+    args.checkpoint = (args.checkpoint
+                       or "artifacts/paper/ppo/model/policy_recurrent_ppo_27d.zip")
     _orchestrate(args)
 
 

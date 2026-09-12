@@ -240,7 +240,7 @@ Load and evaluate it (needs `requirements-rl.txt`):
 
 ```bash
 python -m marine_race_arena.learning.gen2.evaluate_speed_robust \
-  --controller retry6_50k --track horseshoe_bay \
+  --controller recurrent_ppo --track horseshoe_bay \
   --checkpoint artifacts/paper/ppo/model/policy_recurrent_ppo_27d.zip \
   --seed 20370909 --out results/ppo_eval
 ```

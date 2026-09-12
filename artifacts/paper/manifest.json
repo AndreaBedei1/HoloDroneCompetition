@@ -37,10 +37,10 @@
    ]
   },
   {
-   "bytes": 527,
+   "bytes": 569,
    "path": "benchmark/source.json",
    "purpose": "Provenance of the benchmark rows: source tree and manifest hashes, executed and released run counts",
-   "sha256": "f2ff9781404e0e0ebc64cfd50bfcdd26a1f4f56466ebb3017bc3a8176c32d822",
+   "sha256": "4193bcd9b0d3e7b89f8cb6e80168f8bc5887a99850655fe49a0362ef0b697639",
    "supports": [
     "Section 13 Reproducibility"
    ]
@@ -257,20 +257,20 @@
    ]
   },
   {
-   "bytes": 8227,
+   "bytes": 7445,
    "path": "perception/visual_smoke_report.json",
    "purpose": "Onboard gate-perception audit metrics on the three official circuits",
-   "sha256": "7efd3607554fb28605e390ad298bdc5289338560beb6086c83c5da1dc8429d74",
+   "sha256": "81b647b049274d67c8558955bf71423ac984c452ecfa0633ef658bb4491568a2",
    "supports": [
     "Table tab:perception_audit",
     "Section 5 Perception"
    ]
   },
   {
-   "bytes": 5843,
+   "bytes": 5097,
    "path": "ppo/campaign_config.json",
    "purpose": "Training configuration of the campaign that produced the released checkpoint",
-   "sha256": "07a8ca7277845e8ac2696e34278e4bf84b2e4fd695525f49ec0ca89ad93dc9d4",
+   "sha256": "99d5c640f58d948122871cf7fd0b7096c7c8270b17762f95cdece4615caa2f03",
    "supports": [
     "Section 9 Learning"
    ]
@@ -286,10 +286,10 @@
    ]
   },
   {
-   "bytes": 2047,
+   "bytes": 2300,
    "path": "ppo/provenance.json",
    "purpose": "Identity of the released checkpoint: hash, size, training step, observation and action contract, selection rule and identification evidence",
-   "sha256": "cc055cb18293eb0ff6cc436a4c7e3804773253962426c0711e33e5bd7287dc2b",
+   "sha256": "1a7617e084ceff24d2b91841f48b2f0c8fda9878c71976e8257aa1e5921aecd5",
    "supports": [
     "Section 9 Learning",
     "Section 13 Reproducibility"
@@ -398,5 +398,5 @@
  ],
  "root": "artifacts/paper",
  "schema_version": "mra_paper_artifacts_v1",
- "total_bytes": 5511366
+ "total_bytes": 5510133
 }
