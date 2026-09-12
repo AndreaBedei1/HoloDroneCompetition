@@ -196,27 +196,23 @@ servoing toward the observed gate centre.
 \label{sec:center_commit_baseline}
 
 Continuous visual correction is useful during approach but can become
-undesirable very close to the gate. As the vehicle enters the aperture, parts of
-the frame leave the camera field of view and the detected gate geometry may
-become partial. The resulting image centre can move even when the vehicle is
-already correctly aligned, causing unnecessary late corrections when clearance
-is smallest.
+undesirable close to the gate, when parts of the frame leave the camera field of
+view and the detected geometry becomes partial. In this regime, the estimated
+image centre can shift even after the vehicle is correctly aligned, producing
+unnecessary late corrections when the available clearance is smallest.
+Center-then-Commit addresses this behaviour while retaining the same
+observations, acoustic--visual guidance, local tracker and passage-verification
+logic as Continuous Servo. The controller uses visual feedback normally during
+approach and alignment; once a stable alignment has been established, it stops
+reacting to subsequent image-centre changes during \textsc{commit} and
+\textsc{verify\_exit} and continues through the aperture while maintaining depth
+and attitude from onboard feedback. The two reference controllers therefore
+differ only in the final traversal strategy, providing a matched comparison
+between continuous visual servoing and a stabilized committed passage. The
+corresponding state transitions are shown in
+Fig.~\ref{fig:center_commit_states}, while Fig.~\ref{fig:schematic_tracker}
+highlights the behavioural difference between the two strategies; their
+experimental comparison is reported in Section~\ref{sec:eval_rq2}.
 
-\emph{Center-then-Commit} uses the same observations, acoustic--visual guidance,
-local tracker and passage-verification logic as Continuous Servo. The difference
-is restricted to the final traversal. Once a stable alignment has been
-established, the controller stops reacting to subsequent image-centre changes
-during \textsc{commit} and \textsc{verify\_exit}. It instead proceeds through the
-aperture while maintaining the previously established depth and attitude from
-onboard feedback.
-
-This matched design isolates the passage strategy: continuous visual servoing
-versus a stabilized committed traversal. Their comparative behaviour is
-evaluated in Section~\ref{sec:eval_rq2}.
-
-The corresponding controller state transitions are shown in Fig.~\ref{fig:center_commit_states}.
 \input{figures/center_commit_states}
-
-The same distinction is summarized in Fig.~\ref{fig:schematic_tracker}, which
-also contrasts continuous servoing with center-then-commit passage behaviour.
 \input{figures/schematic_tracker}
