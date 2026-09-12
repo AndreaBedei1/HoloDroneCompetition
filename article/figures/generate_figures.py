@@ -19,7 +19,7 @@ with HoloOcean installed).
 
 from __future__ import annotations
 
-import glob
+import csv
 import json
 import math
 import statistics
@@ -33,8 +33,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrow, Polygon
 
 HERE = Path(__file__).resolve().parent
-TRACKS = Path("marine_race_arena/tracks")
-MATRIX = Path("results/onboard_only_validation/final_20260715")
+ROOT = HERE.parent.parent
+TRACKS = ROOT / "marine_race_arena/tracks"
+RELEASE_CSV = (ROOT / "article_journal/scientific_release/matrix_78_20260715"
+               / "runs.csv")
 
 C_BASE = "#2f6db0"   # continuous servo
 C_CTC = "#e07b39"    # center-then-commit
@@ -118,19 +120,40 @@ def tracks_layout() -> None:
 
 
 # --------------------------------------------------------------------------- #
-def _single_condition(*parts) -> Dict[str, float]:
-    base = MATRIX.joinpath(*parts) / "runs"
-    fin, n, fracs = 0, 0, []
-    exp = {"horseshoe": 12, "vertical": 17, "mixed": 22}[parts[1]]
-    for run_dir in sorted(base.glob("run_*")):
-        files = sorted(glob.glob(str(run_dir / "*_summary.json")))
-        if not files:
-            continue
-        p = json.loads(Path(files[0]).read_text())["participants"][0]
-        n += 1
-        fin += p["status"] == "FINISHED"
-        fracs.append(p["completed_gates"] / exp)
-    return {"finish_rate": fin / n if n else 0.0, "gate_frac": statistics.fmean(fracs) if fracs else 0.0, "fin": fin, "n": n}
+def _single_condition(experiment: str, track_key: str, controller: str,
+                      current_profile: str = "none") -> Dict[str, float]:
+    track_names = {
+        "horseshoe": "Marine Race Horseshoe Bay",
+        "vertical": "Marine Race Vertical Serpent",
+        "mixed": "Marine Race Mixed Endurance",
+    }
+    rows = []
+    with RELEASE_CSV.open(newline="", encoding="utf-8") as stream:
+        for row in csv.DictReader(stream):
+            if row["kind"] != "benchmark":
+                continue
+            if row["experiment"] != experiment:
+                continue
+            if row["track"] != track_names[track_key]:
+                continue
+            if row["controller"] != controller:
+                continue
+            if row["current_profile"] != current_profile:
+                continue
+            rows.append(row)
+
+    exp = int(rows[0]["expected_gates"]) if rows else {
+        "horseshoe": 12, "vertical": 17, "mixed": 22
+    }[track_key]
+    fin = sum(row["status"] == "FINISHED" for row in rows)
+    fracs = [int(row["completed_gates"]) / exp for row in rows]
+    n = len(rows)
+    return {
+        "finish_rate": fin / n if n else 0.0,
+        "gate_frac": statistics.fmean(fracs) if fracs else 0.0,
+        "fin": fin,
+        "n": n,
+    }
 
 
 def controller_comparison() -> None:
