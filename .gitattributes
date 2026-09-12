@@ -1,9 +1,13 @@
-# The released evidence package is content-addressed: artifacts/paper/manifest.json
-# records a SHA-256 per file, so a checkout must reproduce those bytes exactly on
-# every platform. Disable end-of-line conversion for the whole package.
+# A checkout must be byte-identical on every platform: artifacts/paper/manifest.json
+# records a SHA-256 per released file, and regenerating the tables and figures must
+# leave an empty `git diff`. Normalize text to LF in the repository and in the
+# working copy, and leave binary content untouched.
+* text=auto eol=lf
+
+# The released evidence package is content-addressed; never filter it at all.
 artifacts/paper/** -text
 
-# Binary assets: never touched by end-of-line conversion.
+# Binary assets.
 *.png binary
 *.jpg binary
 *.jpeg binary

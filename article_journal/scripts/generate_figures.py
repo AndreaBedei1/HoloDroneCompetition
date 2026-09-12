@@ -53,6 +53,10 @@ plt.rcParams.update({
     "pdf.fonttype": 42,
 })
 
+# Suppress the embedded creation timestamp so a regenerated PDF is
+# byte-identical to the committed one.
+PDF_METADATA = {"CreationDate": None}
+
 OFFICIAL = [
     ("marine_race_horseshoe_bay.json", "Horseshoe Bay"),
     ("marine_race_vertical_serpent.json", "Vertical Serpent"),
@@ -111,7 +115,7 @@ def tracks_layout() -> None:
     axes[0].set_ylabel("$y$ (m)")
     axes[0].legend(loc="best", frameon=False, fontsize=6, handletextpad=0.3)
     figure.tight_layout()
-    figure.savefig(OUT / "tracks_layout.pdf")
+    figure.savefig(OUT / "tracks_layout.pdf", metadata=PDF_METADATA)
     plt.close(figure)
     print("wrote tracks_layout.pdf")
 
@@ -196,7 +200,7 @@ def controller_comparison() -> None:
         axis.spines[spine].set_visible(False)
     axis.tick_params(length=2)
     figure.tight_layout()
-    figure.savefig(OUT / "controller_comparison.pdf")
+    figure.savefig(OUT / "controller_comparison.pdf", metadata=PDF_METADATA)
     plt.close(figure)
     print("wrote controller_comparison.pdf")
 
