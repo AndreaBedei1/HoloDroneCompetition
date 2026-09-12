@@ -12,7 +12,7 @@ Figure~\ref{fig:schematic_learning} summarizes the learning pipeline and the
 progression from local gate interaction to complete-circuit training.
 \input{figures/schematic_learning}
 
-\subsection{Observation and Action Representation}
+\subsection{Observation Representation}
 \label{sec:learning_obs}
 
 The learned controller receives a 27-dimensional observation vector constructed
@@ -31,25 +31,7 @@ orientation. Availability indicators distinguish valid measurements from missing
 ones, while unavailable quantities are represented with neutral values.
 
 No global vehicle pose, exact gate coordinates, future course geometry, referee
-progress or referee-derived event information is included. The representation is
-therefore a local observation of the current vehicle--gate interaction rather
-than a privileged representation of the course state.
-
-The policy outputs the same four normalized continuous commands used by the
-reference controllers,
-\[
-u_t =
-\left[
-u_t^{\mathrm{surge}},
-u_t^{\mathrm{sway}},
-u_t^{\mathrm{heave}},
-u_t^{\mathrm{yaw}}
-\right],
-\qquad
-u_t\in[-1,1]^4,
-\]
-which are subsequently handled by the common vehicle adapter and safety
-constraints.
+progress or referee-derived event information is included.
 
 \subsection{Recurrent PPO Controller}
 \label{sec:learning_policy}
@@ -68,10 +50,8 @@ branches use this temporal representation to produce, respectively, the
 continuous four-dimensional control command and the value estimate required
 during training.
 
-This structure allows the learned controller to exploit temporal information
-without receiving explicit course progress from the referee. At execution time,
-the policy maintains only its internal recurrent state and the participant-level
-observations supplied by the benchmark.
+At execution time, the policy maintains only its internal recurrent state and the
+participant-level observations supplied by the benchmark.
 
 \subsection{Training Procedure}
 \label{sec:learning_training}
@@ -95,8 +75,3 @@ selected and frozen before the final evaluation, after which no further learning
 or adaptation is performed. This separation ensures that the experiments of
 Section~\ref{sec:eval_rq5} evaluate a fixed controller rather than a policy that
 continues to change during testing.
-
-The official circuits were available during the development and training process.
-The resulting experiments should therefore be interpreted as an evaluation of
-learning-based control and benchmark integration on the defined race scenarios,
-rather than as a claim of generalization to previously unseen courses.
