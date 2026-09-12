@@ -50,8 +50,9 @@ class MyController:
         pass
 \end{lstlisting}
 
-The \cmd{mission\_info} passed to \cmd{reset} is deliberately minimal: the
-initial beacon identifier, the number of beacons and the lap count. The
+The core \cmd{mission\_info} passed to \cmd{reset} is deliberately minimal: the
+initial beacon identifier, the number of beacons and the lap count; fleet runs
+may additionally provide static team-assignment metadata. The
 high-level command fields are listed in
 Table~\ref{tab:commands}; values are normalized to $[-1,1]$ and clamped by the
 framework before the action mapping of \eqref{eq:thruster_mix}. In fleet mode a

@@ -6,8 +6,7 @@ circuit, so the benchmark measures how quickly and how safely the team completes
 the course rather than pitting the vehicles against each other.
 The benchmark models one team: all vehicles share a single simulated world, each
 controller keeps an independent local course estimate, and the referee keeps one
-scoring state per vehicle. Enabling fleet mode does not alter single-vehicle
-behaviour.
+scoring state per vehicle.
 
 \subsection{Staggered Release and Spawn Geometry}
 
@@ -17,17 +16,9 @@ $0,\Delta\tau,2\Delta\tau,\dots$ A waiting vehicle receives a zero command, its
 controller \cmd{step} is \emph{not} called, and neither stuck nor gate-timeout
 timers accumulate. At release the referee logs a \cmd{participant\_released}
 event and resets the vehicle's progress timers, so a delayed start is never
-misclassified as stuck or timed out. Spawn poses are laterally separated about
-the base spawn to reduce launch interference: using zero-based
-$k=0,\ldots,N-1$, the $k$-th vehicle is offset by
-\begin{equation}
-\label{eq:spawn_offset}
-o_k = (-1)^{k}\Big\lceil \tfrac{k}{2}\Big\rceil\, s
-\end{equation}
-along the right axis $(-\sin\psi_0,\cos\psi_0)$ of the base yaw $\psi_0$, giving
-the alternating pattern $0,-s,+s,-2s,+2s,\dots$ for spacing $s$; a candidate that
-would fall outside the world bounds $\mathcal{B}$ is scaled inward until
-admissible.
+misclassified as stuck or timed out. Spawn poses are distributed laterally around
+the base spawn to reduce launch interference while remaining inside the configured
+world bounds.
 
 \subsection{Inter-Vehicle Proximity Diagnostics}
 
@@ -49,16 +40,16 @@ and from messages they choose to send.
 \subsection{Inter-Vehicle Acoustic Communication}
 
 Because the fleet is a single cooperative team, \mra{} provides an optional
-channel so that vehicles can share information while running the course. It is
-off by default and changes nothing for single-vehicle runs. A controller
-transmits by returning a small \cmd{message} payload alongside its command and
+channel so that vehicles can share information while running the course. A
+controller transmits by returning a small \cmd{message} payload alongside its
+command and
 receives an \cmd{inbox} of teammates' messages in its observation; what a message
 contains and how it is used are entirely the participant's responsibility, so the
 framework provides only the transport.
 
-To stay faithful to the medium rather than model a perfect radio link, the
-channel reproduces the constraints of the underwater acoustic channel discussed
-in Section~\ref{sec:rw_fleet}. A message broadcast by vehicle $i$ reaches a
+Rather than assuming an ideal communication link, the channel introduces
+acoustic-inspired range, propagation-delay, packet-loss and bandwidth
+constraints. A message broadcast by vehicle $i$ reaches a
 teammate $j$ only if the two are within a maximum range $R_{\max}$, after a
 range-dependent delay
 \begin{equation}
@@ -72,12 +63,10 @@ low bandwidth, and a vehicle may not transmit faster than a configured per-sende
 interval. Packet loss is drawn from a seeded generator, so a run remains
 reproducible.
 
-We are explicit about the status of this component: it is an acoustic-inspired
-transport, not a characterized channel model. It provides the substrate for the
-coordination policy below and is exercised as part of that validation, but its
-packet loss, maximum range, latency and freshness window are not independently
-swept, and no claim about acoustic-communication performance is made in this
-paper.
+The channel is intended as a reproducible coordination substrate rather than a
+validated acoustic-channel model. The communication parameters are configurable,
+but communication performance itself is not evaluated as a separate contribution
+of this work.
 
 The resulting multi-vehicle information flow and independent team referee are
 shown in Fig.~\ref{fig:schematic_fleet}.
@@ -86,54 +75,43 @@ shown in Fig.~\ref{fig:schematic_fleet}.
 \subsection{Distributed Leader--Follower Coordination}
 \label{sec:coordination}
 
-\paragraph{Motivation} A staggered team of \emph{identical} controllers stays
-separated in time, because each vehicle takes roughly as long as the one ahead. A
-\emph{heterogeneous} team does not: a faster follower released behind a slower
-leader closes the gap, and the two then converge on the same aperture centre at
-the same gate, because both are servoing to the same visual target. The resulting
-contacts are a property of the convoy, not of either controller in isolation, and
-they are severe --- Section~\ref{sec:eval_rq4} reports a mean of $127.3$ gate and
-world collisions per run for an uncoordinated three-vehicle team at an $8$\,s
-gap.
+\paragraph{Motivation} A staggered team of \emph{identical} controllers tends to
+stay separated in time, because each vehicle takes roughly as long as the one
+ahead. A \emph{heterogeneous} team need not: a faster follower released behind a
+slower leader can close the gap, and the two can then converge on the same gate.
+The resulting contacts emerge from the interaction of the convoy and do not
+necessarily indicate a problem with either controller in isolation.
 
-\paragraph{Module design} We provide a coordination controller that maintains a
-spaced convoy using only legal information. It \emph{wraps} rather than replaces a
+\paragraph{Module design} We provide a leader--follower coordination controller
+based on locally estimated course progress and participant-authored teammate
+messages. It \emph{wraps} rather than replaces a
 gate-passing controller that exposes a \cmd{LocalCourseTracker}, which keeps
 coordination and gate navigation separate concerns; both official
 camera-assisted controllers satisfy this interface. Each vehicle is assigned a
 predecessor from the static release order carried in its legal mission
-information; the frontmost vehicle has no predecessor and races freely. Within
-the channel's transmit-rate limit, every vehicle periodically broadcasts exactly
-three fields --- \cmd{local\_beacon\_index}, \cmd{local\_lap} and
-\cmd{local\_status} --- read from its own base controller's tracker. The receiver
-treats these as estimates, retains the most recently received predecessor report
-and ignores it after a $2.5$\,s freshness window.
+information; the frontmost vehicle has no predecessor and races freely. Each
+vehicle periodically broadcasts a compact message derived from its own local
+course tracker. The receiver retains the most recent report from its predecessor
+and treats it as an estimate of that vehicle's local progress. Stale predecessor
+reports are ignored.
 
-Let $\hat g_i$ denote cumulative locally estimated progress reconstructed from the
-reported lap and beacon index. A follower yields while its predecessor is fewer
-than $\Delta g$ locally estimated gates ahead,
+Let $\hat g_i$ denote locally estimated course progression. A follower yields
+while its predecessor is fewer than $\Delta g$ locally estimated gates ahead,
 \begin{equation}
 \label{eq:yield}
 \text{yield}_j \iff \hat g_{\mathrm{pred}(j)}-\hat g_j<\Delta g ,
 \end{equation}
-and otherwise runs its wrapped base controller unchanged. While yielding, the
-wrapper still updates the base tracker from onboard observations but commands
-zero motion. A predecessor locally reported as finished, a missing report or a
-report older than the freshness window all stop blocking. With the channel
-disabled no report is delivered and the wrapper reduces exactly to the
-uncoordinated base behaviour.
+While yielding, the wrapper still updates the base tracker from onboard
+observations but commands zero motion. Yielding is based only on fresh
+predecessor reports; otherwise the wrapped base controller runs unchanged.
 
-\paragraph{Technical advantage and its cost} Every input to \eqref{eq:yield} is
-legal: the vehicle's own tracker, a static predecessor assignment and a
-controller-authored message that itself contains only the sender's own estimate.
-Referee progress can disagree with either local estimate but never changes a
-coordination decision. The cost is that a deliberate wait is indistinguishable,
-to the referee, from being stuck: yielding can trigger the independent stuck
-penalty of \eqref{eq:stuck}, and Section~\ref{sec:eval_rq4} shows this happening
-for the more conservative two-gate margin. We regard that as correct behaviour
-for a benchmark --- a coordination policy that buys safety by standing still
-should pay for the time it spends standing still --- and it is one reason the
-recommended default margin is one gate rather than two.
+\paragraph{Information boundary} All quantities used for coordination are
+participant-accessible: the vehicle's own local tracker, a static predecessor
+assignment and controller-authored teammate messages. Referee progress may
+disagree with either local estimate but never enters the coordination decision.
+While yielding, the wrapper continues updating the local tracker but commands
+zero motion; any resulting race events or penalties are assessed independently
+by the referee.
 
 \subsection{Team-Level Score}
 
