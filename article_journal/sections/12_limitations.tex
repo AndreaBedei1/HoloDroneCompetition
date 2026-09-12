@@ -64,7 +64,7 @@ decision. This is deliberate --- it makes the comparison a clean ablation ---
 but the 78-run matrix has not yet been exercised against structurally different
 autonomy strategies, such as a model-predictive controller, a cascaded design
 with an inner DVL velocity loop, or a planner that reasons about several gates
-ahead. The separate Gen-2 recurrent-PPO validation demonstrates interface
+ahead. The separate recurrent-PPO validation demonstrates interface
 compatibility, but it does not provide a factorial comparison across controller
 families, circuits and disturbances. We therefore cannot claim that the
 difficulty ordering across the three circuits is a property of the circuits
@@ -87,16 +87,13 @@ implemented and released, but it supports no claim in this paper and should not
 be used as a pose estimator.
 
 \paragraph{L10. The learned-control evidence is a limited validation snapshot}
-The final learned result is a single selected Gen-2 recurrent-PPO checkpoint
-using its 27-dimensional onboard-derived observation encoding. It was evaluated in nine
-valid current-free episodes, three on each official circuit, and completed all
-nine with one collision event. This supports the claim that a recurrent learned
-controller can be integrated and evaluated through the common interface; it does
-not establish superiority, robustness under currents, fleet-level learning,
-sample efficiency or transfer to unseen circuits. The validation sample is small,
-the checkpoint was selected from a campaign with prior diagnostic access to the
-official circuits, and the learning protocol is not factorially matched to the
-78-run rule-controller matrix. Broader comparisons of recurrent architectures,
+The learned-control evidence is a limited validation snapshot. A recurrent
+learned controller can be integrated and evaluated through the common interface,
+but the experiment does not establish superiority, robustness under currents,
+fleet-level learning, sample efficiency or transfer to unseen circuits. The
+validation sample is small, the policy was developed with access to the official
+circuits, and the learning protocol is not factorially matched to the 78-run
+rule-controller matrix. Broader comparisons of recurrent architectures,
 training procedures, disturbances and sealed circuits remain open.
 
 \paragraph{L11. The official circuits are no longer unseen} An exploratory

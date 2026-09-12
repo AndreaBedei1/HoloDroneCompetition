@@ -1,97 +1,102 @@
-\section{Learning-Based Extension}
+\section{Learning-Based Controller}
 \label{sec:learning}
 
-Learning is included as a supporting demonstration that a learned controller
-can enter \mra{} through the same participant interface as the reference
-controllers. It does not replace the benchmark's central contribution: the
-official observation boundary, ordered-gate referee and scoring protocol remain
-unchanged.
+Learning is included as a supporting demonstration that a policy learned from
+interaction can be integrated into \mra{} through the same participant-level
+information boundary and action interface used by the reference controllers.
+The benchmark itself is unchanged: observations are constructed from
+participant-accessible information, actions use the same four body-frame command
+channels and performance is assessed independently by the referee.
 
-Figure~\ref{fig:schematic_learning} places the recurrent policy in that
-interface and shows the curriculum progression used before the frozen
-validation.
+Figure~\ref{fig:schematic_learning} summarizes the learning pipeline and the
+progression from local gate interaction to complete-circuit training.
 \input{figures/schematic_learning}
 
-\subsection{Final Gen-2 Observation Contract}
+\subsection{Observation and Action Representation}
 \label{sec:learning_obs}
 
-The final experiment uses the committed
-\cmd{onboard\_local\_transition\_27d\_v1} contract. Its 27 bounded features
-are ordered as follows: beacon presence, bearing sine and cosine, elevation and
-range; visual centre coordinates and area; depth; DVL surge, sway and heave plus
-presence; IMU yaw rate; the previous surge, sway, heave and yaw actions; five
-short-term rates for visual centre, acoustic bearing, elevation and range; a
-recent-target-change flag; and gate-orientation presence with yaw sine and
-cosine. Missing values follow the explicit contract: missing visual centre and
-area are zero, invalid rates are zero, and an unavailable orientation contributes
-zero mask and trigonometric components. The DVL presence bit is retained.
+The learned controller receives a 27-dimensional observation vector constructed
+exclusively from information available to the participant. The representation
+combines acoustic information about the locally tracked beacon, visual
+information about the associated gate target, vehicle motion and attitude
+measurements, the previous control action and short-term temporal changes in the
+observed target.
 
-The encoding contains no gate coordinates, global pose, referee progress, future
-geometry or reward. It is therefore a local transition representation, not a
-privileged course-state representation. The four continuous body-frame actions
-are the same \cmd{surge}, \cmd{sway}, \cmd{heave} and \cmd{yaw} channels in
-$[-1,1]$ used by the rule controllers; framework clamping and depth limits are
-shared.
+More specifically, the observation includes beacon availability, acoustic
+bearing, elevation and range, visual target centre and apparent size, depth,
+body-frame DVL velocity, yaw-rate information, the previous surge, sway, heave
+and yaw commands, short-term variations of the visual and acoustic measurements,
+a target-transition indicator and, when available, a local estimate of gate
+orientation. Availability indicators distinguish valid measurements from missing
+ones, while unavailable quantities are represented with neutral values.
 
-\subsection{Recurrent PPO and Training Configuration}
-\label{sec:learning_reward}
+No global vehicle pose, exact gate coordinates, future course geometry, referee
+progress or referee-derived event information is included. The representation is
+therefore a local observation of the current vehicle--gate interaction rather
+than a privileged representation of the course state.
 
-The final policy uses Stable-Baselines3 Contrib RecurrentPPO with the committed
-Gen-2 recurrent-LSTM architecture:
-\begin{center}\cmd{gen2\_recurrent\_lstm\_27d\_v1}\end{center}
-a frozen normalization
-buffer, a $27\!\rightarrow\!256\!\rightarrow\!128$ tanh encoder, separate
-one-layer actor and critic LSTMs with hidden size 128, 128-unit policy/value
-heads, and a four-action Gaussian head. The recorded environment is CPU-based;
-the dependency lock records Stable-Baselines3 and SB3-Contrib 2.7.1 with
-PyTorch 2.8.0.
+The policy outputs the same four normalized continuous commands used by the
+reference controllers,
+\[
+u_t =
+\left[
+u_t^{\mathrm{surge}},
+u_t^{\mathrm{sway}},
+u_t^{\mathrm{heave}},
+u_t^{\mathrm{yaw}}
+\right],
+\qquad
+u_t\in[-1,1]^4,
+\]
+which are subsequently handled by the common vehicle adapter and safety
+constraints.
 
-The final direct-speed campaign starts from the committed Gen-2 initialization
-checkpoint and uses full copies of the three official circuits, three workers,
-current-free conditions and the recorded fog configuration. It uses no track
-fragments or synthetic circuits in the reported campaign. PPO settings are
-learning rate $6\times10^{-6}$, clip range $0.07$, target KL $0.008$, two epochs,
-128 batch size, 256 rollout steps, zero entropy coefficient and gradient norm
-limit 0.5. The direct-speed reward records gate crossing ($+20$), completion
-($+50$), time ($-0.01$ per step), terminal failure ($-55$), collision ($-20$),
-directness ($+0.025$) and aligned speed ($+0.015$); energy and jerk terms are
-zero in this campaign.
+\subsection{Recurrent PPO Controller}
+\label{sec:learning_policy}
 
-The preceding Gen-2 data, behavioural-cloning and DAgger artifacts are retained
-as initialization and audit history. They are not pooled with the final PPO
-validation. The official circuits were available to earlier diagnostic runs, so
-the present circuit results are retrospective validation of the frozen
-integration, not an unseen-track generalization claim.
+The learning-based controller uses Proximal Policy Optimization
+(PPO)~\cite{schulman2017ppo} with a recurrent actor--critic policy. Recurrence is
+used because a single observation does not fully describe the state of an
+underwater gate passage: visual detections may disappear near the aperture,
+acoustic measurements vary over time and successful passage verification depends
+on the recent evolution of the vehicle and target.
 
-\subsection{Checkpoint Selection and Matched Evaluation}
-\label{sec:learning_readiness}
+The policy first encodes the current observation into a compact latent
+representation. A recurrent memory then combines this representation with
+information retained from previous control steps. Separate actor and critic
+branches use this temporal representation to produce, respectively, the
+continuous four-dimensional control command and the value estimate required
+during training.
 
-Checkpoint selection is recorded separately from training in
-\cmd{training\_decision\_log.json}. The selected campaign is
-\cmd{ppo\_27d\_direct\_speed\_campaign\_C\_20260909\_retry1}; its first
-registered milestone produced the selected \cmd{checkpoint\_050000.zip} at
-50,688 actual environment steps. Its SHA-256 is recorded alongside the
-checkpoint and validation manifest. Later 100k diagnostics were not selected
-because they degraded or partially failed robust evaluation.
+This structure allows the learned controller to exploit temporal information
+without receiving explicit course progress from the referee. At execution time,
+the policy maintains only its internal recurrent state and the participant-level
+observations supplied by the benchmark.
 
-The final validation contains three valid episodes per official circuit at the
-learning control rate. Horseshoe Bay finished 3/3 with no collisions or
-out-of-bounds events; Vertical Serpent finished 3/3 with one collision event;
-Mixed Endurance finished 3/3 with no collisions or out-of-bounds events. The
-results are descriptive ($n=3$ per circuit), not a statistical superiority
-claim. The current-free rule demonstration is a separate 10-Hz artifact and
-finishes all three circuits in 9/9 runs without collision, out-of-bounds or
-wrong-direction events; its completion rate is a useful interface reference,
-but its per-run times are not pooled with the PPO table.
+\subsection{Training Procedure}
+\label{sec:learning_training}
 
-\subsection{Information-Boundary Interpretation}
-\label{sec:learning_eval_protocol}
+Training is organized progressively rather than exposing the policy immediately
+to the complete racing task. Early stages emphasize the local behaviours required
+to approach, align with and traverse a gate, while subsequent training exposes
+the controller to longer sequences and complete circuits. The final training
+stage uses the complete official circuits under the same observation and action
+interfaces used during evaluation.
 
-The learned policy operates within the same participant-level onboard
-information boundary and is scored by the same independent referee as every
-other participant. Consequently, the main
-learning result is not that PPO solves underwater racing. It is that the
-benchmark exposes a meaningful distinction between local gate-transition control
-and reliable ordered-sequence completion: the selected policy completed all nine
-validation episodes, while the surrounding audit keeps the contract, checkpoint
-hash and episode-level evidence independently inspectable.
+The reward combines task progress with control objectives that encourage
+effective gate traversal. Positive feedback is associated with successful gate
+crossings, course completion, forward progress and alignment, while elapsed time,
+collisions and terminal failures are penalized. The reward is used only during
+training and is never part of the participant observation presented to the
+policy.
+
+Training produces a sequence of policy checkpoints. A single checkpoint is
+selected and frozen before the final evaluation, after which no further learning
+or adaptation is performed. This separation ensures that the experiments of
+Section~\ref{sec:eval_rq5} evaluate a fixed controller rather than a policy that
+continues to change during testing.
+
+The official circuits were available during the development and training process.
+The resulting experiments should therefore be interpreted as an evaluation of
+learning-based control and benchmark integration on the defined race scenarios,
+rather than as a claim of generalization to previously unseen courses.

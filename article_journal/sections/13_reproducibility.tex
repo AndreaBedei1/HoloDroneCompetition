@@ -12,8 +12,7 @@ harness and the aggregated result artifacts are available in a public
 repository~\cite{holodronecompetition2026}. The benchmark environment is
 HoloOcean 2.3.0 with its Ocean world, Python 3.9.25 and the pinned dependency set
 in \cmd{requirements.txt}; the learning extension adds a separate pinned set in
-\cmd{requirements-rl.txt} (Gymnasium 1.0.0, PyTorch 2.8.0,
-Stable-Baselines3 2.7.1) that is deliberately installed into a distinct
+\cmd{requirements-rl.txt} that is deliberately installed into a distinct
 environment so the benchmark environment used for the frozen matrix remains
 unchanged. Runs reported here were executed on Windows 10 build 26200.
 
@@ -62,10 +61,8 @@ for every run. It also asserts matrix completeness: 78 of 78 expected runs, no
 missing and no unexpected metadata.
 
 \emph{Per-artifact.} Learned-controller evaluations additionally record the model
-path and its SHA-256, the track file SHA-256 and the campaign commit. The final
-Gen-2 campaign records the observation contract, checkpoint selection decision,
-actual timestep, adapter status and per-episode result files; the selected
-checkpoint SHA-256 is stored beside the validation manifest.
+and track identifiers, the selected training artifact and the per-episode result
+files.
 
 \subsection{Regenerating Tables and Figures}
 
@@ -129,7 +126,7 @@ conditions; their timings must not be pooled.
 
 The learning section is deliberately structured so that its validation can be
 refreshed without changing the benchmark protocol. A new frozen checkpoint is
-added by recording its SHA-256 and selection decision, running the same three
+added by recording its selection decision, running the same three
 seeds per official circuit, and regenerating Table~\ref{tab:learning} from the
 per-episode result files. The methodology of Section~\ref{sec:learning}---the
 27-D observation encoding, recurrent architecture, reward and evaluation

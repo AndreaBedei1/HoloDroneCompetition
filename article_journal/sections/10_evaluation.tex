@@ -42,8 +42,8 @@ demonstration that the reference controller completes each official circuit end
 to end with currents explicitly disabled and verified zero in the manifest, at
 $\Delta t=0.1$\,s ($10$\,Hz). This answers RQ1.
 
-\paragraph{The final learned-controller validation} The selected Gen-2 27-D
-RecurrentPPO checkpoint was evaluated in three valid episodes on each official
+\paragraph{The final learned-controller validation} The selected recurrent PPO
+controller was evaluated in three valid episodes on each official
 circuit at $\Delta t=0.1$\,s. This answers RQ5 as an integration and diagnostic
 question; it is not pooled with the 78-run matrix.
 
@@ -248,30 +248,38 @@ referee that charges a collision, so a policy that buys safety by waiting pays
 for the waiting. This evidence is limited to one clean circuit, three vehicles,
 two release gaps and three seeds.
 
-\subsection{RQ5: Learned Controllers Under the Same Contract}
+\subsection{RQ5: Learning-Based Control Under the Same Evaluation Protocol}
 \label{sec:eval_rq5}
 
 \input{tables/learning}
 
-Table~\ref{tab:learning} reports the final selected Gen-2 checkpoint within the
-same participant-level information boundary and independent referee used by the
-rule controllers.
-The policy completed all nine valid episodes: 3/3 on each circuit. There was one
-collision event in Vertical Serpent and no out-of-bounds events. These results
-are descriptive at $n=3$ per circuit and do not support a statistical ranking.
+The recurrent PPO controller was evaluated in three episodes on each of the
+three official circuits using the same participant-level information boundary
+and independent referee employed throughout the benchmark. The policy completed
+all nine evaluation episodes: 3/3 on Horseshoe Bay, 3/3 on Vertical Serpent and
+3/3 on Mixed Endurance.
 
-The rule comparison is intentionally limited. A separate current-free 10-Hz
-reference artifact also completed 9/9 episodes with no collision,
-out-of-bounds or wrong-direction events. Its timing records are not pooled with
-the PPO timings because the campaigns have different controllers and manifests.
-The larger systematic rule matrix runs at 30 Hz and is reported separately;
-30-Hz and 10-Hz timings are not directly comparable and are never combined into
-one performance estimate.
+No out-of-bounds event was recorded in any of the nine runs. Horseshoe Bay and
+Mixed Endurance were completed without collisions, while one collision event was
+recorded on Vertical Serpent. These results show that the learned controller can
+compose local gate-navigation behaviour into complete ordered circuits while
+remaining entirely within the participant-side observation contract.
 
-The learning result is therefore an integration and diagnosis result, not a claim
-that PPO outperforms the reference controller. It confirms that the Gen-2
-27-dimensional onboard-derived observation encoding can drive a recurrent policy
-through the full evaluation harness, while the independent ordered-sequence referee
-keeps circuit completion distinct from isolated gate crossings. The official
-circuits were available to earlier diagnostic runs, so this is retrospective
-validation rather than unseen-track generalization.
+The sample is intentionally small, with three runs per circuit, and is therefore
+reported descriptively rather than as evidence of statistical superiority. The
+learning experiment is primarily intended to demonstrate that \mra{} can
+evaluate a recurrent learned policy using the same controller interface,
+four-dimensional action space and independent referee used for rule-based
+controllers.
+
+For context, the separate current-free rule-based completion demonstration of
+Section~\ref{sec:eval_rq1} also completed all nine runs. The two experiments are
+not used to claim that either controller class is superior: they were conducted
+as separate evaluation campaigns and their timing measurements are therefore not
+pooled. The relevant result is instead that both rule-based and learned autonomy
+can be evaluated under the same participant-level information boundary and
+race-management procedure.
+
+Because the official circuits were available during learning development, these
+results should be interpreted as validation on the benchmark scenarios rather
+than as evidence of generalization to unseen courses.
