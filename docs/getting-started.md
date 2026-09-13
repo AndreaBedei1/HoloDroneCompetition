@@ -74,8 +74,9 @@ pip install -r requirements-dev.txt   # to run the tests and regenerate paper fi
 | `requirements-rl.txt` | gymnasium, torch, stable-baselines3, sb3-contrib. |
 | `requirements-dev.txt` | pytest, matplotlib, Pillow. |
 
-Keep the RL set in the same environment only if you intend to run the learned
-controller; the reported benchmark results were produced without it.
+The rule-based and fleet benchmark experiments do not require the RL
+dependencies; the recurrent-PPO evaluation does. Install that set only when you
+intend to run the learned controller.
 
 ---
 

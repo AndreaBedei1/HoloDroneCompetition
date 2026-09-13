@@ -92,7 +92,9 @@ Estimating your own course progression is part of the task.
 
 ## 2. What a controller must return
 
-A body-frame command, normalized, clamped to `command_limits`:
+**The official action interface is the 4-DOF body-frame command** — normalized,
+clamped to `command_limits`. This is the contract the benchmark is defined on and
+the one described in the manuscript:
 
 ```python
 {"surge": 0.42, "sway": 0.0, "heave": -0.05, "yaw": 0.18}
@@ -105,12 +107,20 @@ A body-frame command, normalized, clamped to `command_limits`:
 | `heave` | down |
 | `yaw` | turn right (nose to starboard) |
 
-Direct thruster control is also accepted, for vehicles where that is the
-natural interface:
+### Direct thruster output
+
+The runner will also accept a per-thruster vector, and the adapter passes it
+through:
 
 ```python
 {"thrusters": [0.3, 0.3, -0.1, -0.1, 0.0, 0.0, 0.0, 0.0]}
 ```
+
+Treat this as a **runtime capability of the adapter, not as the benchmark
+contract**. It exists for work that needs actuator-level control on a specific
+vehicle. Every official benchmark experiment, every reference controller and the
+interface reported in the paper use the 4-DOF high-level command above; a result
+produced through the thruster path is not comparable to them.
 
 ---
 

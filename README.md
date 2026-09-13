@@ -36,12 +36,12 @@ elapsed time, its onboard sensors, the acoustic packets it actually received, an
 optional messages from teammates. A separate referee reads privileged simulator state
 — true pose, exact gate geometry, contacts, bounds — and uses it only to validate
 ordered gate crossings, apply the rules and produce the official result. **Referee
-state never reaches vehicle autonomy.** Two methods evaluated here were measured under
-the same sensing and the same scoring.
+state never reaches vehicle autonomy.** The reference controllers are evaluated under
+the same participant-level information boundary and independent referee.
 
 The same interface runs one vehicle or a cooperative team, so course-following,
-robustness to currents and multi-vehicle coordination are all scored by the same
-referee, on the same circuits, with the same metrics.
+robustness to currents and multi-vehicle coordination can all be evaluated within
+the same race-management and referee framework.
 
 ## Why Marine Race Arena
 
@@ -50,7 +50,7 @@ referee, on the same circuits, with the same metrics.
 | **Configurable races** | Tracks, gates, sensors, currents, rules and penalties are data, not code. |
 | **Controller-agnostic** | Rule-based, MPC, optimization-based or learned — anything that respects the observation boundary and returns a body-frame command. |
 | **Independent referee** | Scoring comes from privileged state the controller can never see, so results are comparable across methods. |
-| **Reproducible by construction** | Seeded beacons, seeded packet loss, seeded obstacles; every run writes an event log and a machine-readable summary. |
+| **Seeded and auditable** | Beacons, packet loss and obstacle generation are seeded from the run seed, and every run writes an event log and a machine-readable summary. The experiment specification reproduces exactly; simulated times can drift between machines, outcomes and rankings do not. |
 | **Environmental disturbance** | Current profiles turn a solved clean circuit back into an open problem. |
 | **Teams, not just vehicles** | Staggered starts, per-vehicle referee state, team aggregation, and distributed coordination over the acoustic channel. |
 
@@ -128,8 +128,8 @@ official result. The run writes an event log and a summary into `results/quickst
 
 ## Paper
 
-Marine Race Arena is described in a manuscript currently under review at *Robotics and
-Autonomous Systems*. The compiled preprint travels with the repository:
+Marine Race Arena is described in a manuscript prepared for submission to *Robotics
+and Autonomous Systems*. The compiled preprint travels with the repository:
 **[article_journal/main.pdf](article_journal/main.pdf)**.
 
 Every quantity in it is recomputed from the evidence package in
@@ -148,7 +148,7 @@ If Marine Race Arena is useful in your work, please cite the manuscript:
   author = {Bedei, Andrea and Bacchiani, Lorenzo and Pau, Giovanni and Girau, Roberto},
   title  = {Marine Race Arena: A Configurable HoloOcean Benchmark for Underwater
             Gate Racing and Team-Level Fleet Evaluation},
-  note   = {Manuscript under review, Robotics and Autonomous Systems},
+  note   = {Manuscript prepared for submission to Robotics and Autonomous Systems},
   year   = {2026},
   url    = {https://github.com/AndreaBedei1/HoloDroneCompetition}
 }
