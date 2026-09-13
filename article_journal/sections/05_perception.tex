@@ -1,7 +1,7 @@
 \section{Onboard Gate Perception and Target Association}
 \label{sec:perception}
 
-A racing benchmark is only meaningful if target selection remains part of the
+A racing benchmark is only well posed if target selection remains part of the
 participant's autonomy problem. The observation contract of
 Section~\ref{sec:obs_contract} does not expose ground-truth gate geometry or
 referee progress, while the forward camera may contain several gates and the
@@ -26,10 +26,11 @@ current frame.
 \label{sec:perception_detect}
 
 The gates are rendered as square frames formed by light-coloured bars. Direct
-colour or brightness segmentation is unreliable because underwater rendering
-can substantially alter their apparent intensity relative to the water and
-seabed. The detector therefore relies primarily on geometric structure: edges
-are extracted from the grayscale image, closed contours are converted into
+colour or brightness segmentation was not used here because underwater
+rendering can substantially alter their apparent intensity relative to the
+water and seabed. The detector therefore relies primarily on geometric
+structure: edges are extracted from the grayscale image, closed contours are
+converted into
 bounding boxes, and candidates are filtered according to their apparent size,
 aspect ratio and consistency with a rectangular frame. These criteria are fixed
 for the evaluation and are applied unchanged across the three official
@@ -113,21 +114,28 @@ aperture quadrilateral together with the known nominal gate aperture to estimate
 relative plane orientation and distance.
 
 Its behaviour is strongly dependent on viewing geometry. In a dedicated set of
-oblique views, a valid pose estimate was obtained in only $11.7\%$ of frames and
-the median plane-yaw error was $48.2^\circ$. The estimator is therefore
-unreliable under large oblique viewing angles, motivating the separate
-characterization under the viewing conditions encountered during normal racing.
+oblique views, recorded separately from the audit frames of
+Section~\ref{sec:perception_audit}, a valid pose estimate was obtained in only
+$11.7\%$ of frames and the median plane-yaw error was $48.2^\circ$. Both figures
+therefore describe strongly oblique viewing only. The estimator is unreliable
+under large oblique viewing angles, motivating the separate characterization
+under the near-frontal viewing conditions encountered during normal racing.
 
 
-\subsection{Perception Audit on the Official Circuits}
+\subsection{Diagnostic Perception Audit on the Official Circuits}
 \label{sec:perception_audit}
 
-To characterize perception under the conditions encountered by the reference
-controller, we recorded 60 frames per circuit along its trajectories on the
-three official circuits. Ground truth was used only offline to evaluate the
-perception output and never entered the control loop. Table~\ref{tab:perception_audit}
-summarizes detection availability, quadrilateral recovery, pose availability and
-multi-candidate target association, while
+This subsection reports a diagnostic audit of the perception front end rather
+than a statistical validation of it. To characterize perception under the
+conditions encountered by the reference controllers, we recorded 60 frames per
+circuit along the trajectories of a single reference controller under
+current-free conditions on the three official circuits. The sample is therefore
+small and covers one controller and one disturbance setting; the proportions
+below describe the recorded frames and are reported descriptively. Ground truth
+was used only offline to evaluate the perception output and never entered the
+control loop. Table~\ref{tab:perception_audit} summarizes detection
+availability, quadrilateral recovery, pose availability and multi-candidate
+target association, while
 Fig.~\ref{fig:perception_panels} shows representative states.
 
 \input{tables/perception_audit}
@@ -136,30 +144,38 @@ Fig.~\ref{fig:perception_panels} shows representative states.
 Detection was available in approximately $88$--$92\%$ of the recorded frames,
 while a validated four-corner aperture was recovered in approximately
 $78$--$83\%$. A metric pose estimate was available in roughly half of the
-frames, confirming that pose recovery is substantially less reliable than
-centre-based gate detection. The reference controllers are consequently designed
-to tolerate intermittent visual measurements rather than assume that a complete
-gate geometry is available at every control step.
+frames, against the $88$--$92\%$ of the same frames in which a gate centre was
+detected. The reference controllers are consequently designed to tolerate
+intermittent visual measurements rather than assume that a complete gate
+geometry is available at every control step.
 
-Target association was considerably more stable. In every recorded frame
+Frames containing multiple visual candidates were rare in this sample, so the
+association counts are correspondingly small. In every recorded frame
 containing multiple visual candidates, the online association selected the same
 gate as the offline reference: $7/7$ cases on Horseshoe Bay, $4/4$ on Vertical
 Serpent and $11/11$ on Mixed Endurance. No unintended online target switch was
-observed. This supports the use of acoustic bearing primarily as an identity cue
-when several geometrically plausible gates are visible.
+observed in the inspected multi-candidate cases. These counts are far smaller
+than the number of frames underlying the detection rates above, and are reported
+as a consistency check on the inspected cases rather than as a comparison with
+them. In these frames the acoustic bearing was sufficient to resolve identity
+when several geometrically plausible gates were visible.
 
-The pose results also clarify the difference between the dedicated oblique-view
-test and normal racing. During the reference trajectories, the controller tends
-to approach the gate approximately frontally. Under these conditions, the
-recovered plane orientation was stable, with median yaw error below
+The pose entries of Table~\ref{tab:perception_audit} and the oblique-view
+figures of Section~\ref{sec:perception_pose} were obtained on different frame
+sets and describe different viewing-geometry regimes; they are not two estimates
+of the same quantity. The oblique-view figures come from views deliberately
+selected to be strongly oblique, whereas the frames audited here were recorded
+along reference trajectories on which the controller approaches the gate
+approximately frontally. In this near-frontal regime the recovered plane
+orientation was stable, with median yaw error below
 $1.2^\circ$ on all three circuits and no gross orientation or sign errors
-observed. Under strongly oblique views, by contrast, pose recovery became sparse
-and inaccurate. The relevant conclusion is therefore not that the pose estimator
-is generally reliable, but that its accuracy depends strongly on viewing
-geometry.
+observed among the inspected frames. Under strongly oblique views, by contrast,
+pose recovery became sparse and inaccurate. The relevant conclusion is therefore
+not that the pose estimator is generally reliable, but that its accuracy depends
+strongly on viewing geometry.
 
 For the racing task considered here, reliable gate-centre detection and
-acoustic--visual association are sufficient for the reference controllers,
-while full pose recovery is substantially more sensitive to viewpoint. The
-perception audit characterizes these components independently from the
-course-completion results reported in Section~\ref{sec:evaluation}.
+acoustic--visual association were sufficient for the reference controllers in
+these runs, while full pose recovery is substantially more sensitive to
+viewpoint. The diagnostic audit characterizes these components independently
+from the course-completion results reported in Section~\ref{sec:evaluation}.

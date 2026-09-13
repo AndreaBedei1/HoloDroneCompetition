@@ -10,16 +10,6 @@
 % ---------------------------------------------------------------------
 % Underwater robotics simulators
 % ---------------------------------------------------------------------
-@inproceedings{potokar2022holoocean,
-  author={Potokar, Easton and Ashford, Spencer and Kaess, Michael and Mangelson, Joshua G.},
-  title={{HoloOcean}: An Underwater Robotics Simulator},
-  booktitle={Proceedings of the IEEE International Conference on Robotics and Automation (ICRA)},
-  pages={3040--3046},
-  year={2022},
-  doi={10.1109/ICRA46639.2022.9812353},
-  url={https://www.ri.cmu.edu/publications/holoocean-an-underwater-robotics-simulator/}
-}
-
 @inproceedings{chu2025marinegym,
   author={Chu, Shuguang and Huang, Zebin and Li, Yutong and Lin, Mingwei and Li, Dejun and Carlucho, Ignacio and Petillot, Yvan R. and Yang, Canjun},
   title={{MarineGym}: A High-Performance Reinforcement Learning Platform for Underwater Robotics},
@@ -94,14 +84,6 @@
   note={Abu Dhabi Autonomous Racing League; preprint, not peer reviewed}
 }
 
-@misc{a2rl2024league,
-  author={{Autonomous Robotics Research Center, Technology Innovation Institute}},
-  title={{A2RL}: Abu Dhabi Autonomous Racing League},
-  year={2024},
-  howpublished={\url{https://a2rl.io}},
-  note={Autonomous car and drone racing championship; accessed 2026-06-27}
-}
-
 @inproceedings{foehn2020alphapilot,
   author={Foehn, Philipp and Brescianini, Dario and Kaufmann, Elia and Cieslewski, Titus and Gehrig, Mathias and Muglikar, Manasi and Scaramuzza, Davide},
   title={{AlphaPilot}: Autonomous Drone Racing},
@@ -131,6 +113,47 @@
   pages={1--16},
   year={2017},
   url={https://proceedings.mlr.press/v78/dosovitskiy17a.html}
+}
+
+% ---------------------------------------------------------------------
+% Marine robotics competitions and their evaluation protocols
+% ---------------------------------------------------------------------
+@inproceedings{bingham2019vrx,
+  author={Bingham, Brian and Ag{\"u}ero, Carlos and McCarrin, Michael and Klamo, Joseph and Malia, Joshua and Allen, Kevin and Lum, Tyler and Rawson, Marshall and Waqar, Rumman},
+  title={Toward Maritime Robotic Simulation in {Gazebo}},
+  booktitle={OCEANS 2019 MTS/IEEE Seattle},
+  pages={1--10},
+  year={2019},
+  doi={10.23919/OCEANS40490.2019.8962724},
+  url={https://ieeexplore.ieee.org/document/8962724}
+}
+
+@article{ferreira2020marinecompetitions,
+  author={Ferreira, Fausto and Ferri, Gabriele},
+  title={Marine Robotics Competitions: A Survey},
+  journal={Current Robotics Reports},
+  volume={1},
+  number={4},
+  pages={169--178},
+  year={2020},
+  doi={10.1007/s43154-020-00022-5}
+}
+
+@misc{robonation2026robosub,
+  author={{RoboNation}},
+  title={{RoboSub}: Autonomous Underwater Vehicle Competition},
+  year={2026},
+  url={https://robonation.org/programs/robosub/},
+  note={Student AUV competition organized by RoboNation with the U.S. Office of Naval Research; accessed 2026-09-13}
+}
+
+@inproceedings{novitzky2019aquaticus,
+  author={Novitzky, Michael and Robinette, Paul and Benjamin, Michael R. and Fitzgerald, Caileigh and Schmidt, Henrik},
+  title={{Aquaticus}: Publicly Available Datasets from a Marine Human-Robot Teaming Testbed},
+  booktitle={2019 14th ACM/IEEE International Conference on Human-Robot Interaction (HRI)},
+  pages={392--400},
+  year={2019},
+  doi={10.1109/HRI.2019.8673176}
 }
 
 % ---------------------------------------------------------------------
@@ -173,6 +196,7 @@
   author={Xanthidis, Marios and Kalaitzakis, Michail and Karapetyan, Nare and Johnson, James and Vitzilaios, Nikolaos and O'Kane, Jason M. and Rekleitis, Ioannis},
   title={{AquaVis}: A Perception-Aware Autonomous Navigation Framework for Underwater Vehicles},
   booktitle={2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  pages={5410--5417},
   year={2021},
   doi={10.1109/IROS51168.2021.9636124}
 }
@@ -227,38 +251,6 @@
   url={https://arxiv.org/abs/1606.01540}
 }
 
-@inproceedings{makoviychuk2021isaacgym,
-  author={Makoviychuk, Viktor and Wawrzyniak, Lukasz and Guo, Yunrong and Lu, Michelle and Storey, Kier and Macklin, Miles and Hoeller, David and Rudin, Nikita and Allshire, Arthur and Handa, Ankur and State, Gavin},
-  title={Isaac Gym: High Performance {GPU}-Based Physics Simulation for Robot Learning},
-  booktitle={Proceedings of the NeurIPS 2021 Track on Datasets and Benchmarks},
-  year={2021},
-  eprint={2108.10470},
-  archivePrefix={arXiv},
-  primaryClass={cs.RO},
-  url={https://arxiv.org/abs/2108.10470}
-}
-
-@inproceedings{tani2020benchmark,
-  author={Tani, Jacopo and Daniele, Andrea F. and Bernasconi, Gianmarco and Camus, Amaury and Petrov, Aleksandar and Courchesne, Anthony and Mehta, Bhairav and Suri, Rohit and Zaluska, Tomasz and Walter, Matthew R. and Frazzoli, Emilio and Paull, Liam and Censi, Andrea},
-  title={Integrated Benchmarking and Design for Reproducible and Accessible Evaluation of Robotic Agents},
-  booktitle={2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
-  pages={6229--6236},
-  year={2020},
-  doi={10.1109/IROS45743.2020.9341677},
-  url={https://arxiv.org/abs/2009.04362}
-}
-
-@article{araujo2023rasreview,
-  author={Araujo, Hugo and Mousavi, Mohammad Reza and Varshosaz, Mahsa},
-  title={Testing, Validation, and Verification of Robotic and Autonomous Systems: A Systematic Review},
-  journal={ACM Transactions on Software Engineering and Methodology},
-  volume={32},
-  number={2},
-  pages={1--61},
-  year={2023},
-  doi={10.1145/3542945}
-}
-
 % ---------------------------------------------------------------------
 % Software artifact described by this paper
 % ---------------------------------------------------------------------
@@ -311,27 +303,10 @@
   author={Huang, Zebin and Buchholz, Markus and Grimaldi, Michele and Yu, Hao and Carlucho, Ignacio and Petillot, Yvan R.},
   title={{URoBench}: Comparative Analyses of Underwater Robotics Simulators from Reinforcement Learning Perspective},
   booktitle={OCEANS 2024 - Singapore},
+  pages={1--8},
   year={2024},
   publisher={IEEE},
   doi={10.1109/OCEANS51537.2024.10682284}
-}
-
-@inproceedings{aldhaheri2025simreview,
-  author={Aldhaheri, Sara and Hu, Yang and Xie, Yongchang and Wu, Peng and Kanoulas, Dimitrios and Liu, Yuanchang},
-  title={Underwater Robotic Simulators Review for Autonomous System Development},
-  booktitle={OCEANS 2025 - Brest},
-  year={2025},
-  publisher={IEEE},
-  doi={10.1109/OCEANS58557.2025.11104581}
-}
-
-@inproceedings{grimaldi2025stonefishml,
-  author={Grimaldi, Michele and Cie{\'s}lak, Patryk and Ochoa, Eduardo and Bharti, Vibhav and Rajani, Hayat and Carlucho, Ignacio and Koskinopoulou, Maria and Petillot, Yvan R. and Gracias, Nuno},
-  title={Stonefish: Supporting Machine Learning Research in Marine Robotics},
-  booktitle={2025 IEEE International Conference on Robotics and Automation (ICRA)},
-  year={2025},
-  publisher={IEEE},
-  doi={10.1109/ICRA55743.2025.11127421}
 }
 
 @inproceedings{amer2023unavsim,
@@ -359,6 +334,7 @@
   title={Visual--Acoustic-Based Framework for Online Inspection of Submerged Structures Using Autonomous Underwater Vehicles},
   journal={Journal of Field Robotics},
   volume={43},
+  number={2},
   pages={1152--1177},
   year={2026},
   doi={10.1002/rob.70075}
@@ -374,14 +350,16 @@
   doi={10.1007/s10514-021-10011-y}
 }
 
-@inproceedings{evans2024f1tenth,
-  author={Evans, Benjamin David and Trumpp, Raphael and Caccamo, Marco and Jordaan, Hendrik Willem and Engelbrecht, Herman Arnold},
+@article{evans2024f1tenth,
+  author={Evans, Benjamin David and Trumpp, Raphael and Caccamo, Marco and Jahncke, Felix and Betz, Johannes and Jordaan, Hendrik Willem and Engelbrecht, Herman Arnold},
   title={Unifying {F1TENTH} Autonomous Racing: Survey, Methods and Benchmarks},
-  booktitle={arXiv preprint arXiv:2402.18558},
+  journal={arXiv preprint arXiv:2402.18558},
   year={2024},
   eprint={2402.18558},
   archivePrefix={arXiv},
-  primaryClass={cs.RO}
+  primaryClass={cs.RO},
+  url={https://arxiv.org/abs/2402.18558},
+  note={Preprint, not peer reviewed}
 }
 
 @article{martorell2024marinecoordination,

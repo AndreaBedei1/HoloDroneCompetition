@@ -4,7 +4,7 @@
 \subsection{Simulator and Vehicle}
 
 The reference adapter used in the HoloOcean experiments reported here drives
-HoloOcean~\cite{potokar2022holoocean} with a BlueROV2-class
+HoloOcean~\cite{potokar2024holoocean} with a BlueROV2-class
 vehicle~\cite{vonbenzon2022bluerov2}. The simulator advances at $30$ physics
 ticks per second.
 
@@ -43,6 +43,16 @@ The official profile combines a forward RGB camera, a depth sensor, an IMU and a
 DVL; an onboard contact flag is also permitted when configured.
 
 \input{tables/sensors}
+
+All reported experiments share a single optical water condition. The HoloOcean
+adapter issues a water-fog command after each environment reset, with density
+$5.0$, start distance $1.0$\,m and colour $(0.4,0.6,1.0)$ in normalized RGB;
+the command applies to the simulator viewport and to the onboard RGB camera
+alike. All three official circuits declare these same values, and a pre-run
+contract check rejects any departure from them, so the condition is identical
+across circuits and across campaigns. It is held fixed throughout this study and
+is neither varied nor ablated, so the results below describe behaviour at this
+single optical operating point.
 
 Before specifying beacon placement, we define the logical frame associated with
 each gate. For gate $g$ with passage direction $n_g$, let
@@ -102,7 +112,7 @@ The current field is the sum of analytic primitives evaluated at vehicle
 position $p$ and time $t$,
 \begin{equation}
 \label{eq:current_sum}
-\mathbf{v}_c(p,t)=\sum_{j} \mathbf{v}_j(p,t),
+\mathbf{v}_c(p,t)=\sum_{j} \mathbf{v}_j(p,t).
 \end{equation}
 The available primitives are a constant flow, a localized jet, a sinusoidal
 component and a vortex. A localized jet centred at $c_j$ with radius $R_j$
@@ -181,8 +191,11 @@ size nor the referee margin was changed at any point of this study.
 The \cmd{obstacle\_gate} task accepts explicit fixed obstacles or deterministic
 random boxes generated between consecutive gates with a configured density and
 minimum clearance. The HoloOcean adapter records the requested and physically
-spawned counts. Obstacle avoidance is supported by the task configuration but is
-not evaluated in the results reported here.
+spawned counts. Obstacle avoidance is a configurable capability of the task
+definition that the present evaluation does not exercise: every run reported here
+was configured without obstacles, and all three official circuits declare an
+empty obstacle set. The results below therefore carry no evidence about obstacle
+handling, and the capability is described for completeness only.
 
 \subsection{Official Observation Contract}
 \label{sec:obs_contract}

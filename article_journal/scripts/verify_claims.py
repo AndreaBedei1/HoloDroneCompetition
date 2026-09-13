@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PAPER = ROOT / "artifacts" / "paper"
 TRACKS = ROOT / "marine_race_arena" / "tracks"
+POSE_TOOL = ROOT / "marine_race_arena" / "tools" / "gate_pose_debug.py"
 
 SERVO = "rule_gate_baseline"
 CTC = "rule_gate_center_then_commit"
@@ -63,6 +65,45 @@ def mean_sd(values) -> tuple[float, float | None]:
     values = [v for v in values if v is not None]
     mean = statistics.fmean(values)
     return mean, (statistics.stdev(values) if len(values) > 1 else None)
+
+
+# --------------------------------------------------------------------------- #
+def protocols() -> None:
+    """The control rate and disturbance setting each table caption declares.
+
+    Every results table names the protocol its rows were produced under, so that
+    a time from one table is never read against a time from another. Those tags
+    are claims like any other and are verified here against the artifacts, or,
+    where an artifact does not record the rate, against the tool that wrote it.
+    """
+    source = load("benchmark/source.json")
+    check("benchmark control rate (Hz)", source["control_rate_hz"], 30)
+    check("benchmark executed runs", source["executed_run_count"], 78)
+    check("benchmark released runs", source["released_run_count"], 68)
+
+    for key in ("horseshoe", "vertical", "mixed"):
+        manifest = load("current_free/circuit_{}/evaluation_manifest.json".format(key))
+        check("current-free control step [{}] (s)".format(key), manifest["dt"], 0.1, 1e-9)
+        check("current-free controller [{}]".format(key), manifest["controller_name"],
+              "rule_gate_center_then_commit")
+        check("current-free current profile [{}]".format(key),
+              manifest["current_profile"], "none")
+
+    check("PPO control rate (Hz)", load("ppo/provenance.json")["control_rate_hz"], 10)
+
+    # The perception audit frames carry no rate of their own: the recording tool
+    # fixes the control step, the disturbance setting and the driving
+    # controller, so the caption of tab:perception_audit rests on these three.
+    tool = POSE_TOOL.read_text(encoding="utf-8")
+    start = tool.find("def run_track")
+    stop = tool.find("\n    try:", start)
+    block = tool[start:stop] if 0 <= start < stop else ""
+    step = re.search(r"\bdt=([0-9.]+)", block)
+    profile = re.search(r"\bcurrent_profile=\"([a-z_]+)\"", block)
+    check("perception audit control step (s)", step.group(1) if step else None, "0.1")
+    check("perception audit current profile", profile.group(1) if profile else None, "none")
+    check("perception audit controller",
+          "RuleGateCenterThenCommitController()" in block, True)
 
 
 # --------------------------------------------------------------------------- #
@@ -179,6 +220,9 @@ def _team(sel) -> dict:
     return {
         "n": len(sel),
         "fin": len(finished),
+        # Both team time columns of tab:fleet must rest on the same subset.
+        "time_n": sum(1 for r in finished if num(r["team_elapsed_time_s"]) is not None),
+        "pen_n": sum(1 for r in finished if num(r["team_penalized_time_s"]) is not None),
         "gates": round(statistics.fmean(num(r["completed_gates"]) for r in sel), 1),
         "time": None if mean is None else round(mean, 1),
         "time_sd": None if sd is None else round(sd, 1),
@@ -203,21 +247,33 @@ def rq4_fleet(rows) -> None:
         check("fleet team time [{}]".format(label), team["time"], time, 0.05)
         check("fleet team time sd [{}]".format(label), team["time_sd"], sd, 0.05)
         check("fleet penalized equals elapsed [{}]".format(label), team["pen"], time, 0.05)
+        check("fleet penalized sd equals elapsed sd [{}]".format(label),
+              team["pen_sd"], sd, 0.05)
+        check("fleet time columns share one subset [{}]".format(label),
+              (team["time_n"], team["pen_n"]), (team["fin"], team["fin"]))
         check("fleet gate/world collisions [{}]".format(label), team["gw"], 0.0)
         check("fleet proximity events [{}]".format(label), team["iv"], 0.0)
         check("fleet out-of-bounds [{}]".format(label), team["oob"], 0.0)
         check("fleet stuck events [{}]".format(label), team["stuck"], 0.0)
 
-    # gap, condition, min_gate_gap, label, finished, gates, time, sd, gw, iv, stuck
+    # gap, condition, min_gate_gap, label, finished, gates, elapsed, sd,
+    # penalized, penalized sd, gw, iv, stuck
     stated = [
-        ("0.0", "no_coordination", "2", "gap0/none", 3, 36.0, 219.7, 2.5, 9.3, 2.3, 0.0),
-        ("0.0", "leader_follower", "1", "gap0/LF1", 3, 36.0, 262.3, 7.7, 0.0, 0.0, 0.0),
-        ("0.0", "leader_follower", "2", "gap0/LF2", 3, 36.0, 288.3, 1.3, 0.0, 0.0, 1.0),
-        ("8.0", "no_coordination", "2", "gap8/none", 2, 34.3, 254.0, 24.5, 127.3, 2.0, 0.0),
-        ("8.0", "leader_follower", "1", "gap8/LF1", 3, 36.0, 266.0, 8.3, 0.0, 0.0, 0.0),
-        ("8.0", "leader_follower", "2", "gap8/LF2", 3, 36.0, 285.7, 3.8, 0.0, 0.0, 0.0),
+        ("0.0", "no_coordination", "2", "gap0/none", 3, 36.0,
+         219.7, 2.5, 266.4, 64.1, 9.3, 2.3, 0.0),
+        ("0.0", "leader_follower", "1", "gap0/LF1", 3, 36.0,
+         262.3, 7.7, 262.3, 7.7, 0.0, 0.0, 0.0),
+        ("0.0", "leader_follower", "2", "gap0/LF2", 3, 36.0,
+         288.3, 1.3, 303.3, 1.3, 0.0, 0.0, 1.0),
+        ("8.0", "no_coordination", "2", "gap8/none", 2, 34.3,
+         254.0, 24.5, 564.0, 463.0, 127.3, 2.0, 0.0),
+        ("8.0", "leader_follower", "1", "gap8/LF1", 3, 36.0,
+         266.0, 8.3, 266.0, 8.3, 0.0, 0.0, 0.0),
+        ("8.0", "leader_follower", "2", "gap8/LF2", 3, 36.0,
+         285.7, 3.8, 285.7, 3.8, 0.0, 0.0, 0.0),
     ]
-    for gap, condition, min_gap, label, fin, gates, time, sd, gw, iv, stuck in stated:
+    for (gap, condition, min_gap, label, fin, gates, time, sd,
+         pen, pen_sd, gw, iv, stuck) in stated:
         team = _team([r for r in rows if r["experiment"] == "coordination"
                       and r["start_gap_s"] == gap and r["condition"] == condition
                       and r["min_gate_gap_configured"] == min_gap])
@@ -226,6 +282,11 @@ def rq4_fleet(rows) -> None:
         check("convoy team gates [{}]".format(label), team["gates"], gates, 0.05)
         check("convoy team time [{}]".format(label), team["time"], time, 0.05)
         check("convoy team time sd [{}]".format(label), team["time_sd"], sd, 0.05)
+        check("convoy penalized team time [{}]".format(label), team["pen"], pen, 0.05)
+        check("convoy penalized team time sd [{}]".format(label),
+              team["pen_sd"], pen_sd, 0.05)
+        check("convoy time columns share one subset [{}]".format(label),
+              (team["time_n"], team["pen_n"]), (team["fin"], team["fin"]))
         check("convoy gate/world collisions [{}]".format(label), team["gw"], gw, 0.05)
         check("convoy proximity events [{}]".format(label), team["iv"], iv, 0.05)
         check("convoy stuck events [{}]".format(label), team["stuck"], stuck, 0.05)
@@ -324,9 +385,35 @@ def perception() -> None:
 
 
 # --------------------------------------------------------------------------- #
+def _premature(block: dict) -> int:
+    """Local advancements counted in both *matched* and *false*.
+
+    ``false_local_advancements`` unions two disjoint classes: local advancements
+    with no referee crossing at the same course ordinal, and local advancements
+    preceding their same-ordinal referee crossing by more than one control step.
+    Only the first class is absent from ``matched_advancements``, which is what
+    the difference below isolates. The note under tab:local_vs_referee states
+    this, so it is verified here on every released block.
+    """
+    return (block["false_local_advancements"]
+            - (block["local_advancements"] - block["matched_advancements"]))
+
+
 def information_boundary() -> None:
     data = load("benchmark/local_vs_referee.json")
     overall = data["overall"]
+
+    # What the note under tab:local_vs_referee may say about the audit itself.
+    # The artifact expresses the matching tolerance as one control step of the
+    # run rather than as a fixed number of seconds, and scopes the audit to
+    # every executed run of the frozen matrix rather than to the released
+    # subset, so the note states both in those terms.
+    definition = data["definition"]["false_local_advancement"]
+    check("tolerance is one control step of the run",
+          "more than one configured dt" in definition, True)
+    check("tolerance quotes no fixed step length", bool(re.search(r"[0-9]", definition)), False)
+    check("audit pools every executed run",
+          str(load("benchmark/source.json")["executed_run_count"]) in data["scope"], True)
     check("referee advancements", overall["referee_advancements"], 1474)
     check("local advancements", overall["local_advancements"], 1472)
     check("matched advancements", overall["matched_advancements"], 1467)
@@ -339,11 +426,12 @@ def information_boundary() -> None:
     check("local finish before referee", overall["local_finish_before_referee"], 0)
     check("local agreement above 99%",
           overall["matched_advancements"] / overall["referee_advancements"] > 0.99, True)
+    check("premature local advancements", _premature(overall), 6)
 
-    stated = {"Marine Race Horseshoe Bay": (1120, 1120, 1116, 10, 4, 0.924, 1.353),
-              "Marine Race Vertical Serpent": (159, 160, 159, 1, 0, 0.627, 1.155),
-              "Marine Race Mixed Endurance": (195, 192, 192, 0, 3, 0.462, 1.287)}
-    for track, (ref, local, matched, false, missed, median, p95) in stated.items():
+    stated = {"Marine Race Horseshoe Bay": (1120, 1120, 1116, 10, 4, 0.924, 1.353, 6),
+              "Marine Race Vertical Serpent": (159, 160, 159, 1, 0, 0.627, 1.155, 0),
+              "Marine Race Mixed Endurance": (195, 192, 192, 0, 3, 0.462, 1.287, 0)}
+    for track, (ref, local, matched, false, missed, median, p95, early) in stated.items():
         block = data["by_track"][track]
         label = track.replace("Marine Race ", "")
         check("referee advancements [{}]".format(label), block["referee_advancements"], ref)
@@ -354,6 +442,22 @@ def information_boundary() -> None:
         check("median delay [{}]".format(label),
               block["advancement_delay_s"]["median"], median, 1e-3)
         check("p95 delay [{}]".format(label), block["advancement_delay_s"]["p95"], p95, 1e-3)
+        check("premature local advancements [{}]".format(label), _premature(block), early)
+
+    # The two identities asserted by the note under tab:local_vs_referee.
+    blocks = dict(data["by_track"], **{"All": overall})
+    for name in sorted(blocks):
+        block = blocks[name]
+        label = name.replace("Marine Race ", "")
+        check("referee = matched + missed [{}]".format(label),
+              block["matched_advancements"] + block["missed_local_advancements"],
+              block["referee_advancements"])
+        check("local = matched + false - premature [{}]".format(label),
+              block["matched_advancements"] + block["false_local_advancements"]
+              - _premature(block), block["local_advancements"])
+        check("premature = matched - delayed [{}]".format(label),
+              block["matched_advancements"] - block["delayed_local_advancements"],
+              _premature(block))
 
 
 # --------------------------------------------------------------------------- #
@@ -405,6 +509,7 @@ def main() -> int:
     check("released benchmark runs", len(rows), 68)
 
     released_package()
+    protocols()
     rq1_current_free()
     rq2_clean_tracks(rows)
     rq3_currents(rows)

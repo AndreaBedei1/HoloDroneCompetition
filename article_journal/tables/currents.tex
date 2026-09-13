@@ -1,6 +1,6 @@
 \begin{table}[t]
 \centering
-\caption{Controller performance on Horseshoe Bay with and without current.}
+\caption{Controller performance on Horseshoe Bay with and without current ($30$\,Hz systematic evaluation).}
 \label{tab:currents}
 \mratablestyle
 \begin{tabular}{@{}llrlrrrr@{}}
@@ -13,10 +13,12 @@ Profile & Controller & Seeds & Finished & Gates $\uparrow$ & Official (s) & Pena
 \midrule
 \multirow{2}{*}{\texttt{medium}}
  & Continuous Servo   & 5 & 2/5 & 8.4/12 & $337.9\pm19.2$ & $692.9\pm75.7$ & 43.4 \\
- & Center-then-Commit & 5 & \best{3/5} & \best{8.8/12} & \best{$217.3\pm1.5$} & \best{$223.9\pm1.8$} & \best{25.2} \\
+ & Center-then-Commit & 5 & 3/5 & 8.8/12 & $217.3\pm1.5$ & $223.9\pm1.8$ & 25.2 \\
 \bottomrule
 \end{tabular}
 \mratablenote
 Times are mean $\pm$ sample standard deviation; collisions combine gate and world
-events.
+events. Finished counts, mean gates and mean collisions are computed over all seeds
+of the cell, whereas the official and penalized times are computed over the finished
+runs only.
 \end{table}

@@ -31,9 +31,9 @@ vehicles $a,b$ the detector applies a separable cylinder test
 \label{eq:ivc}
 \sqrt{(x_a-x_b)^2+(y_a-y_b)^2}\le r_{xy}\;\wedge\;|z_a-z_b|\le r_z,
 \end{equation}
-with hysteresis --- a pair is released only when the horizontal distance exceeds
-a release threshold $r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$ ---
-and a refractory cooldown to debounce sustained proximity. A vehicle that wants
+with hysteresis and a refractory cooldown to debounce sustained proximity. A
+pair is released only when the horizontal distance exceeds a release threshold
+$r_{\mathrm{rel}}$ or the vertical distance exceeds $r_z$. A vehicle that wants
 to avoid its teammates must therefore infer their presence from its own sensing
 and from messages they choose to send.
 
@@ -99,7 +99,7 @@ Let $\hat g_i$ denote locally estimated course progression. A follower yields
 while its predecessor is fewer than $\Delta g$ locally estimated gates ahead,
 \begin{equation}
 \label{eq:yield}
-\text{yield}_j \iff \hat g_{\mathrm{pred}(j)}-\hat g_j<\Delta g ,
+\text{yield}_j \iff \hat g_{\mathrm{pred}(j)}-\hat g_j<\Delta g .
 \end{equation}
 While yielding, the wrapper still updates the base tracker from onboard
 observations but commands zero motion. Yielding is based only on fresh
@@ -109,9 +109,9 @@ predecessor reports; otherwise the wrapped base controller runs unchanged.
 participant-accessible: the vehicle's own local tracker, a static predecessor
 assignment and controller-authored teammate messages. Referee progress may
 disagree with either local estimate but never enters the coordination decision.
-While yielding, the wrapper continues updating the local tracker but commands
-zero motion; any resulting race events or penalties are assessed independently
-by the referee.
+Coordination therefore changes what the team does, not what it knows, and any
+race events or penalties that follow from a yield are assessed independently by
+the referee.
 
 \subsection{Team-Level Score}
 

@@ -1,6 +1,6 @@
 \begin{table}[t]
 \centering
-\caption{Controller-local and referee course progression.}
+\caption{Controller-local and referee course progression ($30$\,Hz systematic evaluation).}
 \label{tab:local_vs_referee}
 \mratablestyle
 \begin{tabular}{@{}lrrrrrrr@{}}
@@ -13,11 +13,19 @@ Horseshoe Bay    & 1120 & 1120 & 1116 & 10 & 4 & 0.924 & 1.353 \\
 Vertical Serpent &  159 &  160 &  159 &  1 & 0 & 0.627 & 1.155 \\
 Mixed Endurance  &  195 &  192 &  192 &  0 & 3 & 0.462 & 1.287 \\
 \midrule
-\textbf{All}     & \best{1474} & \best{1472} & \best{1467} & \best{11} & \best{7} & \best{0.858} & \best{1.353} \\
+All              & 1474 & 1472 & 1467 & 11 & 7 & 0.858 & 1.353 \\
 \bottomrule
 \end{tabular}
 \mratablenote
-False denotes a local advancement not matched by the corresponding referee
-crossing; missed denotes a referee crossing without the corresponding local
-advancement.
+The audit pools the 78 executed runs of the frozen benchmark matrix ---
+single-vehicle, two-vehicle fleet and three-vehicle coordination --- including the
+strong-current runs that are reported nowhere else in this manuscript.
+Matched counts course ordinals at which both a referee crossing and a
+controller-local advancement occur. False counts local advancements that either
+have no same-ordinal referee crossing or precede it by more than one control step
+of their run, and missed counts referee crossings with no corresponding local
+advancement. Advancements of the second false kind are counted in both matched
+and false, so local $=$ matched $+$ false $-$ 6 rather than matched $+$ false;
+every one of them falls on Horseshoe Bay, whereas referee $=$ matched $+$ missed
+holds on every row.
 \end{table}

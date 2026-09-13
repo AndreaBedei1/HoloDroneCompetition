@@ -1,9 +1,9 @@
 \section{Reproducibility}
 \label{sec:reproducibility}
 
-Every number in this paper is traceable to a released artifact through a recorded
-chain of identifiers. This section documents that chain so a reader can verify a
-value, re-derive a table, or run an equivalent experiment.
+The released evidence package provides the artifacts, configuration and
+provenance used to verify the reported results. This section documents them so a
+reader can verify a value, re-derive a table, or run an equivalent experiment.
 
 \subsection{Repository and Environment}
 
@@ -24,9 +24,18 @@ current profiles, the obstacle generation rules, the participants with their
 vehicles, sensors, controllers and release delays, and the referee's validation
 margins, penalties and scoring rules. A single entry point runs any of them, and
 a controller is loaded by alias, by dotted module path or by file path plus class
-name without modifying the package (Section~\ref{sec:controller}). Reproducing a
+name without modifying the package (Section~\ref{sec:controller}). The two
+reference controllers appear under the registry aliases
+\cmd{rule\_gate\_baseline} for Continuous Servo and
+\cmd{rule\_gate\_center\_then\_commit} for Center-then-Commit. Reproducing a
 reported condition therefore requires the track file, the controller identifier
 and the seed, all of which are recorded per run.
+
+\mra{} is a configurable benchmark framework rather than a hosted leaderboard
+with a hidden test set: there is no submission service, and evaluation is run
+locally. Users are not restricted to the official circuits released here, and can
+define private or custom circuits through the same configuration schema and score
+them with the same referee.
 
 \subsection{Seeds and Determinism}
 
@@ -34,10 +43,10 @@ Beacon packet randomness is seeded by the run seed, the transmitter, the receive
 and the transmission index, so reception is independent of participant count and
 of the order in which controllers are polled; a fleet run is reproducible for
 this reason. Inter-vehicle packet loss and procedural course generation draw from
-seeded generators. For the learning extension, seed bands are registered by role
---- training, validation, test and final holdout --- in a seed registry committed
-to the repository, and each evaluation records both requested and completed
-seeds.
+seeded generators. For the learning extension, a seed registry committed to the
+repository records the seed ranges each experiment has consumed, so that a later
+experiment does not reuse them. Each evaluation records both requested and
+completed seeds.
 
 \subsection{Recorded Artifacts}
 
@@ -71,7 +80,7 @@ cd article_journal && latexmk -pdf -interaction=nonstopmode -halt-on-error main.
 
 Every input these commands read is the released evidence package
 \cmd{artifacts/paper/}, which holds the per-run benchmark rows, the current-free
-evaluation, the frozen policy checkpoint with its validation episodes and the
+evaluation, the frozen policy checkpoint with its evaluation episodes and the
 perception audit. Running \cmd{verify\_claims.py} recomputes each reported
 quantity and fails on any mismatch; running \cmd{regenerate\_tables.py} rewrites
 the seven data-driven tables byte-identically and verifies the penalty identity
@@ -98,14 +107,14 @@ and the current-free demonstration of Section~\ref{sec:eval_rq1} is driven by
 committed scripts that pass \cmd{--current-profile none}. The control rate must
 match the reported campaign: $30$\,Hz for the systematic benchmark evaluation
 and $10$\,Hz for the current-free demonstration and learned-controller
-validation.
+evaluation.
 
 \subsection{Updating the Learning Results}
 
-The learning section is deliberately structured so that its validation can be
+The learning section is deliberately structured so that its evaluation can be
 refreshed without changing the benchmark protocol. A new frozen checkpoint is
-added by recording its selection decision, running the same three
+added by recording its selection under the same criterion, running the same three
 seeds per official circuit, and regenerating Table~\ref{tab:learning} from the
-per-episode result files. The methodology of Section~\ref{sec:learning}---the
+per-episode result files. The methodology of Section~\ref{sec:learning} --- the
 27-D observation encoding, recurrent architecture, reward and evaluation
-separation---is independent of any one checkpoint.
+separation --- is independent of any one checkpoint.

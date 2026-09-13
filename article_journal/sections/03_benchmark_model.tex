@@ -9,47 +9,16 @@ the simulation backend. A race can therefore be reconfigured without changing
 the autonomy code, while a new controller or vehicle can be connected without
 changing the race definition or adjudication logic.
 
-\subsection{Benchmark Instance}
-
-\noindent\textbf{Definition~1 (Benchmark instance).} A \mra{} instance is
-defined by the tuple
-
-\begin{equation}
-\label{eq:instance}
-\mathcal{E} =
-(\mathcal{W},\mathcal{G},\mathcal{S},\mathcal{F},
- \mathcal{C},\mathcal{O},\mathcal{P},\mathcal{R}),
-\end{equation}
-
-where:
-
-\begin{itemize}
-
-\item $\mathcal{W}$ is the simulation world and navigable volume;
-
-\item $\mathcal{G}=(g_1,\dots,g_M)$ is the ordered gate sequence;
-
-\item $\mathcal{S}$ defines the starting conditions, including participant
-spawn and release settings;
-
-\item $\mathcal{F}$ defines the race finish condition;
-
-\item $\mathcal{C}$ represents the environmental current field;
-
-\item $\mathcal{O}$ is the set of obstacles in the scenario;
-
-\item $\mathcal{P}=\{1,\dots,N\}$ is the participant set, with each participant
-associated with a vehicle, sensor profile and controller;
-
-\item $\mathcal{R}$ contains the race and referee configuration, including
-validation criteria, penalties, timeouts and scoring rules.
-
-\end{itemize}
-
-The tuple is a conceptual description of the benchmark instance. Its concrete
-values are supplied by the declarative track and race configuration and are
-interpreted by the configuration loader, arena builder and simulator adapter at
-run time.
+A \mra{} instance is specified declaratively rather than in code. One
+configuration fixes the simulation world and navigable volume, the ordered gate
+sequence, the starting conditions including participant spawn and release
+settings, the race finish condition, the environmental current field and the set
+of obstacles in the scenario. The same configuration declares the participant
+set, associating each participant with a vehicle, sensor profile and controller,
+together with the race and referee configuration, which covers validation
+criteria, penalties, timeouts and scoring rules. These values are read by the
+configuration loader and interpreted by the arena builder and simulator adapter
+at run time.
 
 \subsection{Architectural Requirements}
 

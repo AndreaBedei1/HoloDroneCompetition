@@ -9,8 +9,16 @@ evaluated by the independent referee described in Section~\ref{sec:referee}.
 Rather than treating learning as a separate benchmark mode, the policy is exposed
 through the same controller interface used by the reference approaches.
 
-Figure~\ref{fig:schematic_learning} summarizes the resulting control loop and the
-progression adopted during training.
+The scope of this section is an integration demonstration: the recurrent PPO
+controller shows that a learned policy can be integrated and evaluated through the
+same participant-level information boundary, action interface and independent
+referee. Training and evaluation both use the three official circuit families, so
+the episodes reported in Section~\ref{sec:eval_rq5} describe behaviour on those
+circuits and do not measure out-of-distribution generalization. No held-out course
+geometry is involved, and none is claimed.
+
+Fig.~\ref{fig:schematic_learning} summarizes the resulting control loop and the
+training configuration.
 \input{figures/schematic_learning}
 
 \subsection{Observation Representation and Recurrent Policy}
@@ -31,7 +39,9 @@ gate coordinates, future course geometry and referee-derived progress are not
 included.
 
 The controller is trained with Proximal Policy Optimization
-(PPO)~\cite{schulman2017ppo} using a recurrent actor--critic policy. The recurrent
+(PPO)~\cite{schulman2017ppo} using a recurrent actor--critic policy. The
+implementation is the \texttt{RecurrentPPO} algorithm of sb3-contrib, the
+contributed extension of Stable-Baselines3~\cite{raffin2021sb3}. The recurrent
 component is implemented with LSTM memory, so the decision at the current control
 step depends not only on the present observation but also on information retained
 from the recent observation history. This is useful in gate racing because the
@@ -51,25 +61,33 @@ new episode. In this way, temporal context is learned directly by the policy
 instead of being supplied through an explicit handcrafted navigation state
 machine.
 
-\subsection{Training Strategy}
+\subsection{Released Training Campaign}
 \label{sec:learning_training}
 
-Training is organized progressively so that the policy first acquires the local
-behaviours needed for gate traversal before being required to solve complete
-racing sequences. Initial stages emphasize approaching the target, maintaining
-useful alignment and crossing the aperture. The training task is then extended to
-longer gate sequences and finally to complete circuits, while keeping the same
-observation representation and control interface.
+The released recurrent policy was fine-tuned from a preceding policy using
+full-circuit episodes across the three official circuits. The campaign draws on
+two alternating full-circuit copies per track, with no fragment or synthetic
+source, and the released checkpoint records $50\,688$ training timesteps for this
+final fine-tuning stage. The preceding policy it continues is identified in the
+released provenance; its own training budget is not part of that figure. The
+observation representation and control interface are the ones described above and
+are unchanged throughout.
 
-The reward follows the same progression. Successful gate crossings and course
-completion provide the principal positive task signals, while additional terms
-encourage progress and useful alignment during the approach. Elapsed time,
-collisions and terminal failures are penalized. These terms are used only to
-shape the learning process and are not included in the observation seen by the
+The reward is defined over the same participant-level quantities. Successful gate
+crossings and course completion provide the principal positive task signals, while
+additional terms shape progress and alignment during the approach. Elapsed time,
+collisions and terminal failures are penalized. These terms are used only to shape
+the learning process and are not included in the observation seen by the
 controller.
 
-PPO training produces a sequence of policy checkpoints as optimization
-progresses. A single policy is selected and frozen before the final evaluation;
-the controller is then executed without additional learning or online adaptation.
-The experimental results of this fixed policy are reported together with the
-other benchmark evaluations in Section~\ref{sec:eval_rq5}.
+A single policy is selected on closed-loop completion over the official circuits
+and frozen before the reported episodes, with the full selection record released
+in the repository provenance, and the controller is then executed without
+additional learning or online adaptation. The complete hyperparameter, reward and
+checkpoint configuration is released with the repository. Attempts that produced
+no valid episode because of a simulator or engine fault rather than controller
+behaviour were recorded as technical-invalid, then excluded and repeated; the
+reported PPO results comprise nine valid evaluation episodes, and the released
+artifacts include one such technical-invalid attempt caused by an engine startup
+failure. The results of this fixed policy are reported together with the other
+benchmark evaluations in Section~\ref{sec:eval_rq5}.

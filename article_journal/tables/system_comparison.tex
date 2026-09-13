@@ -1,18 +1,21 @@
 \begin{table*}[t]
 \centering
-\caption{Benchmark-level capabilities of representative systems.}
+\caption{Task- and protocol-level properties of representative systems. The
+comparison covers only properties relevant to the benchmark contribution of this
+work; it does not rank simulator fidelity, sensing realism or throughput, and a
+dash is not a deficiency.}
 \label{tab:system_comparison}
 \mratablestyle
-\resizebox{\textwidth}{!}{%
+\newcommand{\mrahead}[2]{\begin{tabular}[b]{@{}c@{}}#1\\#2\end{tabular}}%
 \begin{tabular}{@{}llcccccc@{}}
 \toprule
 System & Domain &
-Race task &
-Agent contract &
-Privileged-state restriction &
-Independent evaluator &
+\mrahead{Timed race}{task} &
+\mrahead{Agent}{contract} &
+\mrahead{Privileged-state}{restriction} &
+\mrahead{Independent}{evaluator} &
 Multi-vehicle &
-Team score \\
+\mrahead{Team}{score} \\
 \midrule
 
 UUV Simulator~\cite{manhas2016uuvsim}
@@ -28,7 +31,7 @@ HoloOcean~\cite{potokar2024holoocean}
 & Underwater & -- & -- & -- & -- & \checkmark & -- \\
 
 UNav-Sim~\cite{amer2023unavsim}
-& Underwater & -- & -- & -- & -- & \checkmark & -- \\
+& Underwater & -- & -- & -- & -- & -- & -- \\
 
 URoBench~\cite{huang2024urobench}
 & Underwater & -- & \checkmark & -- & -- & -- & -- \\
@@ -37,7 +40,7 @@ MarineGym~\cite{chu2025marinegym}
 & Underwater & -- & \checkmark & -- & -- & -- & -- \\
 
 F1TENTH~\cite{okelly2020f1tenth}
-& Ground & \checkmark & \checkmark & -- & -- & \checkmark & -- \\
+& Ground & \checkmark & \checkmark & -- & \checkmark & \checkmark & -- \\
 
 CARLA~\cite{dosovitskiy2017carla} / Leaderboard~\cite{carlaLeaderboard2026}
 & Ground & -- & \checkmark & \checkmark & \checkmark & \checkmark & -- \\
@@ -55,9 +58,21 @@ CARLA~\cite{dosovitskiy2017carla} / Leaderboard~\cite{carlaLeaderboard2026}
 
 \bottomrule
 \end{tabular}
-}%
 
 \mratablenote
-\checkmark: explicitly supported; --: not established as a benchmark-level
-property in the cited system.
+Criteria. \emph{Timed race task}: a closed-course task over an ordered gate or
+lap sequence whose official result is completion time. \emph{Agent contract}: a
+documented participant-facing interface fixing the observations a scored
+controller consumes and the command it returns. \emph{Privileged-state
+restriction}: a protocol rule that withholds or forbids ground-truth simulator
+state in scored runs. \emph{Independent evaluator}: the official result is
+produced outside the submitted controller, which can neither observe nor
+influence it; this denotes separation from the participant, not third-party
+administration. \emph{Multi-vehicle}: several controllable vehicles in one
+scenario, assessed at system level (simulator or benchmark) and excluding
+parallel independent environment instances. \emph{Team score}: an aggregate
+result over all vehicles of one entrant.
+\checkmark: explicitly supported by the cited system; --: not defined as part of
+a task or evaluation protocol in the cited system, which does not imply the
+system is technically incapable of it.
 \end{table*}

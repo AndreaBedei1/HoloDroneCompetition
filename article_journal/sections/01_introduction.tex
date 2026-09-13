@@ -19,13 +19,14 @@ improving complete autonomous systems. Underwater robotics provides a natural
 but substantially different setting for this type of evaluation. Satellite-based
 global positioning is unavailable underwater, inertial and Doppler-based
 navigation accumulates uncertainty over time, and visual navigation is affected
-by limited visibility, illumination variations and water conditions
-~\cite{manzanilla2019uuvnavigation}. Acoustic sensing and communication can
-extend the observable range but introduce limited bandwidth, propagation delay
-and measurement uncertainty~\cite{stojanovic2009underwater}, while persistent
-currents and strongly damped vehicle dynamics further affect how a vehicle
-approaches, aligns with and crosses a gate. Underwater racing is therefore not
-simply a ground or aerial racing task transferred to a marine simulator.
+by limited visibility, illumination variations and water
+conditions~\cite{manzanilla2019uuvnavigation}. Acoustic sensing and
+communication can extend the observable range but introduce limited bandwidth,
+propagation delay and measurement uncertainty~\cite{stojanovic2009underwater},
+while persistent currents and strongly damped vehicle dynamics further affect
+how a vehicle approaches, aligns with and crosses a gate. Underwater racing is
+therefore not simply a ground or aerial racing task transferred to a marine
+simulator.
 
 \input{figures/task_teaser}
 
@@ -33,10 +34,10 @@ A growing ecosystem of underwater simulators already provides the physical and
 sensor models required to develop autonomous systems. UUV Simulator introduced
 a Gazebo-based environment for underwater vehicle dynamics and multi-robot
 experimentation~\cite{manhas2016uuvsim}, while HoloOcean provides Unreal Engine
-environments, simulated underwater sensing and multi-agent support
-~\cite{potokar2022holoocean}. More recently, MarineGym has emphasized
-high-throughput simulation for learning-based underwater control
-~\cite{chu2025marinegym}. These platforms provide increasingly capable
+environments, simulated underwater sensing and multi-agent
+support~\cite{potokar2024holoocean}. More recently, MarineGym has emphasized
+high-throughput simulation for learning-based underwater
+control~\cite{chu2025marinegym}. These platforms provide increasingly capable
 simulation backends, but a simulator alone does not define a racing benchmark.
 It does not necessarily specify the ordered task to be completed, which
 information a controller is allowed to use, how gate crossings are validated,
@@ -47,7 +48,7 @@ true current field or official course progress can simplify navigation
 substantially despite being unavailable to a deployed underwater vehicle. At the
 same time, relying only on the controller's internal estimate to determine task
 completion can hide perception, localization or sequencing failures. A
-meaningful benchmark should therefore separate the information available to
+well-posed benchmark should therefore separate the information available to
 autonomy from the information required for evaluation: controllers should
 operate from observations representative of onboard sensing, whereas privileged
 simulator state should remain confined to an independent evaluation mechanism.
@@ -65,8 +66,8 @@ simulator-specific sensing and actuation are isolated behind an adapter layer.
 A central feature of the framework is its controller-agnostic autonomy
 interface: the benchmark does not prescribe how a vehicle should navigate the
 course, but only defines the observations available to the participant and the
-commands it must provide. A controller can therefore be rule-based,
-optimization-based, learning-based or follow another autonomy paradigm without
+commands it must provide. The interface is designed to admit rule-based,
+optimization-based, learning-based and other autonomy paradigms without
 requiring changes to the race runner or evaluation logic. In parallel, a
 configurable automated referee uses privileged simulator state exclusively to
 validate ordered gate crossings, detect collisions and other rule violations,
@@ -125,7 +126,7 @@ simultaneous starts, optional acoustic-inspired communication, proximity
 monitoring, distributed leader--follower coordination and team-level scoring
 while maintaining independent official progress for each participant.
 
-\item \textbf{An experimental validation of the common benchmark interface.}
+\item \textbf{An experimental demonstration of the common benchmark interface.}
 The framework is exercised in HoloOcean across different race circuits, current
 conditions and multi-vehicle configurations, including both rule-based
 reference controllers and a reinforcement-learning controller integrated through

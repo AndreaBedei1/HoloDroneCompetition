@@ -10,12 +10,14 @@ participant-level information boundary and provide body-frame commands, while
 privileged simulator state is reserved for ordered-crossing validation,
 penalties and official race results.
 
-The framework was validated with two rule-based reference controllers and a
+The framework was exercised with two rule-based reference controllers and a
 recurrent PPO controller, demonstrating that autonomy methods with substantially
 different internal designs can be integrated through the same benchmark
 interface. Experiments across heterogeneous circuits, a medium-current
-condition and multi-vehicle configurations showed that the benchmark can expose
-differences in passage strategy, disturbance robustness and vehicle interaction.
+condition and multi-vehicle configurations exposed condition-dependent
+differences in passage strategy and vehicle interaction, and recorded behaviour
+under current that departed from the clean condition in both completion and
+safety events.
 The fleet experiments further demonstrated that the same evaluation framework
 can represent both independent multi-vehicle operation and distributed
 cooperative behaviour while preserving separate referee state for each

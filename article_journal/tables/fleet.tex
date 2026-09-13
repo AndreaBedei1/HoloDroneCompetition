@@ -1,28 +1,37 @@
 \begin{table}[t]
 \centering
-\caption{Multi-vehicle evaluation on clean Horseshoe Bay.}
+\caption{Multi-vehicle evaluation on clean Horseshoe Bay ($30$\,Hz systematic evaluation).}
 \label{tab:fleet}
 \mratablestyle
-\begin{tabular}{@{}llrlrrr@{}}
+\begin{tabular}{@{}llrlrrrr@{}}
 \toprule
-Setting & Policy & Seeds & Team finish & Team gates $\uparrow$ & Team time (s) $\downarrow$ & GW / IV / S $\downarrow$ \\
+Setting & Policy & Seeds & Team finish & Team gates $\uparrow$ & Team elapsed (s) $\downarrow$ & Team penalized (s) $\downarrow$ & GW / IV / S $\downarrow$ \\
 \midrule
-\multicolumn{7}{@{}l}{\emph{Two vehicles, homogeneous, gap $90$\,s}}\\
- & Continuous Servo   & 5 & 5/5 & 24.0/24 & $303.1\pm3.2$ & 0.0 / 0.0 / 0.0 \\
- & Center-then-Commit & 5 & 5/5 & 24.0/24 & $308.0\pm5.8$ & 0.0 / 0.0 / 0.0 \\
+\multicolumn{8}{@{}l}{\emph{Two vehicles, homogeneous, gap $90$\,s}}\\
+ & Continuous Servo   & 5 & 5/5 & 24.0/24 & $303.1\pm3.2$ & $303.1\pm3.2$ & 0.0 / 0.0 / 0.0 \\
+ & Center-then-Commit & 5 & 5/5 & 24.0/24 & $308.0\pm5.8$ & $308.0\pm5.8$ & 0.0 / 0.0 / 0.0 \\
 \midrule
-\multicolumn{7}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $0$\,s}}\\
- & No coordination & 3 & 3/3 & 36.0/36 & $219.7\pm2.5$ & 9.3 / 2.3 / 0.0 \\
- & LF(1)           & 3 & 3/3 & 36.0/36 & \best{$262.3\pm7.7$} & \best{0.0 / 0.0 / 0.0} \\
- & LF(2)           & 3 & 3/3 & 36.0/36 & $288.3\pm1.3$ & 0.0 / 0.0 / 1.0 \\
+\multicolumn{8}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $0$\,s}}\\
+ & No coordination & 3 & 3/3 & 36.0/36 & $219.7\pm2.5$ & $266.4\pm64.1$ & 9.3 / 2.3 / 0.0 \\
+ & LF(1)           & 3 & 3/3 & 36.0/36 & $262.3\pm7.7$ & \best{$262.3\pm7.7$} & \best{0.0 / 0.0 / 0.0} \\
+ & LF(2)           & 3 & 3/3 & 36.0/36 & $288.3\pm1.3$ & $303.3\pm1.3$ & 0.0 / 0.0 / 1.0 \\
 \midrule
-\multicolumn{7}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $8$\,s}}\\
- & No coordination & 3 & 2/3 & 34.3/36 & $254.0\pm24.5$ & 127.3 / 2.0 / 0.0 \\
- & LF(1)           & 3 & \best{3/3} & \best{36.0/36} & \best{$266.0\pm8.3$} & \best{0.0 / 0.0 / 0.0} \\
- & LF(2)           & 3 & 3/3 & 36.0/36 & $285.7\pm3.8$ & 0.0 / 0.0 / 0.0 \\
+\multicolumn{8}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $8$\,s}}\\
+ & No coordination$^{\dagger}$ & 3 & 2/3 & 34.3/36 & $254.0\pm24.5$ & $564.0\pm463.0$ & 127.3 / 2.0 / 0.0 \\
+ & LF(1)           & 3 & 3/3 & 36.0/36 & $266.0\pm8.3$ & $266.0\pm8.3$ & 0.0 / 0.0 / 0.0 \\
+ & LF(2)           & 3 & 3/3 & 36.0/36 & $285.7\pm3.8$ & $285.7\pm3.8$ & 0.0 / 0.0 / 0.0 \\
 \bottomrule
 \end{tabular}
 \mratablenote
 GW / IV / S denotes gate and world collisions, inter-vehicle proximity and stuck
-events. LF($\Delta g$) is the leader--follower policy of \eqref{eq:yield}.
+events. LF($\Delta g$) is the leader--follower policy of \eqref{eq:yield}. Seeds, team
+finish, team gates and event counts are computed over all seeds of the row; elapsed
+and penalized team time are both computed over the seeds in which every vehicle
+finished, so the two columns are directly comparable. Penalized time is the official
+team result. Bold marks a cell that is strictly better than both alternatives of its
+convoy block and rests on the same seeds as them, which is the case only at
+simultaneous release.
+$^{\dagger}$Not every vehicle finished in every seed of this row, so both of its
+time columns describe the subset that did; the caveat applies to the row rather
+than to one column.
 \end{table}

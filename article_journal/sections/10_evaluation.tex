@@ -2,15 +2,15 @@
 \label{sec:evaluation}
 
 This evaluation asks whether the benchmark, the observation boundary, the referee
-and the team scoring represent and distinguish autonomous behaviours under common
-experimental conditions. We organize the experiments around five research
-questions.
+and the team scoring represent and expose differences between autonomous
+behaviours under common experimental conditions. We organize the experiments
+around five research questions.
 
 \begin{description}
 \item[RQ1] Can \mra{} support fully onboard autonomous completion across
 heterogeneous underwater racing circuits?
-\item[RQ2] Does the benchmark expose meaningful differences between autonomous
-control strategies?
+\item[RQ2] Does the benchmark expose condition-dependent differences between
+autonomous control strategies?
 \item[RQ3] How do environmental currents affect benchmark performance?
 \item[RQ4] Can the same evaluation framework support multi-vehicle and
 team-level racing?
@@ -23,16 +23,31 @@ same participant-level information boundary and referee procedure?
 
 The systematic benchmark evaluation comprises both reference controllers on the
 three clean circuits, the \texttt{medium} current condition on Horseshoe Bay,
-homogeneous two-vehicle fleets and three-vehicle coordination trials. These
-experiments run at $30$\,Hz. The current-free completion demonstration comprises
+homogeneous two-vehicle fleets and three-vehicle coordination trials, for $68$
+runs in total. These experiments run at $30$\,Hz. The current-free completion
+demonstration comprises
 nine runs covering the three official circuits, without current, at $10$\,Hz.
 The recurrent PPO validation uses three episodes per circuit at $10$\,Hz.
+
+The $10$\,Hz current-free validation and the $30$\,Hz systematic benchmark are
+separate experimental protocols that ran at different control rates, and their
+completion times are therefore not comparable; the difference between a
+$10$\,Hz table and a $30$\,Hz table is not attributed here to any single cause.
+Every timing comparison below is made within a single protocol.
+
+All cells use three to five seeds and are reported descriptively. No statistical
+test is performed anywhere in this section, and no difference reported below
+should be read as inferential. The two rule-based controllers are reference
+implementations included to exercise the benchmark, not a selection of
+state-of-the-art methods, and the purpose of the comparisons that follow is to
+characterize what the benchmark records rather than to establish the superiority
+of one controller over the other.
 
 All experiments use the native HoloOcean backend with a BlueROV2-class vehicle
 and participant-accessible onboard observations. The reported metrics are
 completion, completed gates, official and penalized time, collisions,
 out-of-bounds, wrong-direction and stuck events; fleet trials additionally report
-inter-vehicle proximity and team time.
+inter-vehicle proximity and both elapsed and penalized team time.
 
 \subsection{RQ1: Onboard-Only Completion Across Heterogeneous Circuits}
 \label{sec:eval_rq1}
@@ -54,120 +69,173 @@ run because no penalty was ever charged.
 Completion time scales with course length roughly as expected from the track
 geometry: $236.0\pm6.9$\,s over $93.8$\,m, $308.6\pm6.5$\,s over $118.3$\,m and
 $480.4\pm15.7$\,s over $206.3$\,m, i.e.\ approximately $0.40$, $0.38$ and
-$0.43$\,m/s of course progress. The consistency of that rate across three
-structurally different circuits --- planar, vertically serpentine and long mixed
---- indicates that the limiting factor is the controller's gate-by-gate
-acquire--align--commit cycle rather than any circuit-specific difficulty.
+$0.43$ course metres per second of elapsed time. These figures are ratios of
+course length to completion time and are not vehicle speeds: the length is
+measured along the nominal course rather than along the path actually travelled,
+and the time includes every hold, re-acquisition and alignment manoeuvre.
+Similar descriptive progress rates were observed on three structurally different
+circuits --- planar, vertically serpentine and long mixed. Whether that
+similarity holds beyond these nine runs is not tested here.
 
-These results establish that the task is achievable end to end under the full
-participant-level observation boundary on three structurally different circuits.
+In these runs the task was completed end to end under the full participant-level
+observation boundary on three structurally different circuits. All nine runs use
+the $10$\,Hz protocol, so their times are not comparable with those of the
+$30$\,Hz tables in the remainder of this section.
 
-\subsection{RQ2: Do Control Strategies Separate?}
+\subsection{RQ2: Condition-Dependent Differences Between Reference Controllers}
 \label{sec:eval_rq2}
 
-A benchmark that ranks every reasonable controller identically is not measuring
-anything. The two reference controllers of Section~\ref{sec:controller} are an
-unusually clean test of this, because they differ in exactly one respect --- what
-happens during \textsc{commit} and \textsc{verify\_exit} --- while sharing
-observations, guidance, tracker and confirmation logic.
+The question here is what the benchmark records when the same course is
+traversed by two differently designed controllers, not which of the two is
+better. The two reference controllers of Section~\ref{sec:controller} share the
+same observations, guidance, tracker and passage-verification logic, and differ
+by a documented branch in the \textsc{commit} and \textsc{verify\_exit} phases.
+Both remain reference implementations rather than tuned or state-of-the-art
+methods, and the five seeds per cell reported below are described rather than
+tested for significance.
 
 \input{tables/clean_tracks}
 \input{figures/controller_comparison}
 
-Table~\ref{tab:clean_tracks} and Fig.~\ref{fig:controller_comparison} show that
-the answer depends on the circuit, and that neither controller dominates. On the
-short, largely planar Horseshoe Bay circuit the two are effectively tied: both
-complete all $12$ gates in all five seeds with no collision, out-of-bounds or
-stuck event, and the staged controller is $3.2$\,s slower
-($197.7\pm7.1$\,s versus $194.5\pm4.8$\,s), a $1.7\%$ penalty with no measured
-safety benefit. Constant re-centring is cheap here, and paying nothing for it is
-the right trade.
+Table~\ref{tab:clean_tracks} and Fig.~\ref{fig:controller_comparison} report a
+condition-dependent picture: neither controller ranks ahead of the other on all
+three circuits. On the short, largely planar Horseshoe Bay circuit the two
+records are identical on every discrete metric: both complete all $12$ gates in
+all five seeds with no collision, out-of-bounds or stuck event.
+Center-then-Commit's mean time is $3.2$\,s higher ($197.7\pm7.1$\,s versus
+$194.5\pm4.8$\,s), a gap smaller than the seed-to-seed spread of either
+controller, with no difference in recorded safety events. On this circuit the
+two traversal strategies are not separated by any recorded metric.
 
-The controllers separate on the harder circuits, and they separate in opposite
-directions. On Vertical Serpent, Continuous Servo is more reliable, finishing
-$5/5$ against $4/5$ and completing $17.0$ against $14.8$ mean gates. On Mixed
-Endurance, which is more than twice as long, the ordering reverses far more
-sharply: Center-then-Commit finishes all five seeds and completes every gate
+The two records differ on the harder circuits, and they differ in opposite
+directions. On Vertical Serpent, Continuous Servo finished $5/5$ against $4/5$
+and completed $17.0$ against $14.8$ mean gates. On Mixed
+Endurance, which is more than twice as long, the ordering is reversed:
+Center-then-Commit finishes all five seeds and completes every gate
 ($22.0/22$), while Continuous Servo finishes only $2/5$ and averages $17.0/22$.
 
-The mechanism is consistent with the design argument of
-Section~\ref{sec:center_commit_baseline}. Continuous visual correction is
-harmless when a passage is short and the approach is well conditioned, and it
-becomes a liability when partial near-field contours make the image centroid
-move quickly at exactly the moment the aperture margin is smallest. A long course
-compounds this: each passage is an independent opportunity for a late correction
-to fail, so a small per-gate risk becomes a large per-course risk. That
-Continuous Servo nonetheless wins on Vertical Serpent shows the trade is not
-one-directional --- repeated vertical transitions appear to benefit from
-continuous re-centring more than they suffer from late corrections --- which is
-precisely the kind of condition-dependent result a single-circuit benchmark would
-have concealed.
+The design argument of Section~\ref{sec:center_commit_baseline} offers one
+reading of this pattern, which the present runs do not test: continuous visual
+correction may matter little when a passage is short and the approach is well
+conditioned, while partial near-field contours could move the image centroid at
+the point where the aperture margin is smallest, and a longer course offers more
+passages at which that can occur. Distinguishing this account from other
+explanations would require instrumented per-passage measurements that these runs
+do not provide. That Continuous Servo nonetheless records the better result on
+Vertical Serpent while recording the worse one on Mixed Endurance means the
+ordering is not one-directional: the evaluation exposes different
+condition-dependent behaviours of the two reference strategies, which is
+precisely what a single-circuit benchmark would have concealed.
 
 \subsection{RQ3: Behaviour Under Environmental Currents}
 \label{sec:eval_rq3}
 
-Table~\ref{tab:currents} shows the effect of the \texttt{medium} current
-condition on Horseshoe Bay. Under this condition,
+Table~\ref{tab:currents} reports the \texttt{medium} current condition on
+Horseshoe Bay. The columns of that table are conditioned differently, and the
+distinction matters for how they are read: completion and collision counts are
+computed over all five runs of each cell, whereas official and penalized times
+are computed over the completed runs only. Under this condition,
 Continuous Servo finishes $2/5$ runs, averages $8.4/12$ completed gates and
 $43.4$ gate and world collisions per run, with official and penalized times of
 $337.9\pm19.2$\,s and $692.9\pm75.7$\,s. Center-then-Commit
 finishes $3/5$, averages $8.8/12$ gates and $25.2$ collisions, with official and
-penalized times of $217.3\pm1.5$\,s and $223.9\pm1.8$\,s.
+penalized times of $217.3\pm1.5$\,s and $223.9\pm1.8$\,s. The time cells of
+Continuous Servo therefore average its two completed runs and those of
+Center-then-Commit its three, over different subsets of seeds, so the two rows
+are not comparable on equal terms.
 
 \input{tables/currents}
 
-The headline finding for benchmark design is the gap between
-Table~\ref{tab:clean_tracks} and Table~\ref{tab:currents}. Both controllers score
-a perfect $5/5$ with zero events on clean Horseshoe Bay, and drop to $2/5$ and
-$3/5$ with tens of collisions on the same circuit under a moderate current.
-Clean-track success is therefore not a proxy for robustness, and any evaluation
-protocol that reports only clean completion will rank controllers on a dimension
-that disappears the moment the water moves. The medium-current condition thus
-provides a meaningful robustness test for the benchmark.
+The relevant contrast for benchmark design is between
+Table~\ref{tab:clean_tracks} and Table~\ref{tab:currents}. Both controllers
+record $5/5$ with zero events on clean Horseshoe Bay, and $2/5$ and $3/5$ with
+tens of collisions on the same circuit under a moderate current. In these runs
+clean-track success did not predict behaviour under current, and a protocol
+reporting only clean completion would not have exposed this difference. The
+medium-current condition thus gives the benchmark an operating point at which
+both controllers' recorded behaviour differs from the clean case: fewer
+completions, and collisions where the clean condition recorded none.
+
+The difference between the two controllers under current --- $43.4$ against
+$25.2$ collisions per run, and $2/5$ against $3/5$ completions --- is recorded
+here as a descriptive observation over five seeds. It is secondary to the
+clean-versus-current contrast, which is the result relevant to benchmark design,
+and one completion apart with no statistical test does not support a claim that
+either controller is intrinsically the more robust of the two.
 
 \subsection{RQ4: Multi-Vehicle and Team-Level Evaluation}
 \label{sec:eval_rq4}
 
 \input{tables/fleet}
 
-The upper block of Table~\ref{tab:fleet} validates that team execution works.
-With either controller, a homogeneous two-vehicle fleet on clean Horseshoe Bay at
-a $90$\,s release gap finishes $24/24$ team gates in all five seeds, with no gate
-or world collision, no inter-vehicle proximity event, no out-of-bounds and no
-stuck event. Mean team elapsed and penalized times coincide at $303.1\pm3.2$\,s
-for Continuous Servo and $308.0\pm5.8$\,s for Center-then-Commit. This is
-deliberately a low-contact case: it exercises multi-vehicle spawning, staggered
-release, independent per-vehicle referee state, ranking and team aggregation
-without the vehicles interacting, since the per-vehicle behaviour matches the
-single-vehicle case.
+The official fleet result is the penalized team time of \eqref{eq:team_pen},
+which adds every per-vehicle penalty and the team-level inter-vehicle term to
+the elapsed span of \eqref{eq:team_time}. Table~\ref{tab:fleet} reports both, and
+the discussion below reads the penalized column as the score and the elapsed
+column as a diagnostic showing how much of that score comes from charged
+penalties rather than from time on the course.
 
-The interacting case is the interesting one. A heterogeneous three-vehicle
-convoy --- a Continuous Servo leader followed by two Center-then-Commit vehicles
---- converges on the same apertures, and the consequences are severe. At an $8$\,s
+The upper block of Table~\ref{tab:fleet} reports the two-vehicle homogeneous
+case. With either controller, a homogeneous two-vehicle fleet on clean Horseshoe
+Bay at a $90$\,s release gap finishes $24/24$ team gates in all five seeds, with
+no gate or world collision, no inter-vehicle proximity event, no out-of-bounds
+and no stuck event. No penalty is charged, so team elapsed and penalized times
+coincide at $303.1\pm3.2$\,s for Continuous Servo and $308.0\pm5.8$\,s for
+Center-then-Commit. This is deliberately a low-contact case: it exercises
+multi-vehicle spawning, staggered release, independent per-vehicle referee
+state, ranking and team aggregation without the vehicles interacting, since the
+per-vehicle behaviour matches the single-vehicle case.
+
+The interacting case is the one the team score is designed for. A heterogeneous
+three-vehicle convoy --- a Continuous Servo leader followed by two
+Center-then-Commit vehicles --- records substantially more contact. At an $8$\,s
 gap the uncoordinated convoy finishes only $2/3$ runs, averages $34.3/36$ team
 gates, $127.3$ gate and world collisions and $2.0$ inter-vehicle proximity events
 per run. At simultaneous release it still finishes $3/3$, but averages $9.3$
-collisions and $2.3$ proximity events.
+collisions and $2.3$ proximity events. With the distributed leader--follower
+policy of \eqref{eq:yield} enabled, no such events were recorded in these runs:
+at both gaps LF(1) finishes $3/3$ with $36.0/36$ team gates and zero gate,
+world, proximity, out-of-bounds and stuck events, and LF(2) likewise records no
+contact, with one stuck-timer charge per run at simultaneous release.
 
-The distributed leader--follower policy of \eqref{eq:yield} removes this
-entirely. At both gaps, LF(1) finishes $3/3$ with $36.0/36$ team gates and zero
-gate, world, proximity, out-of-bounds and stuck events, at $266.0\pm8.3$\,s
-(gap $8$\,s) and $262.3\pm7.7$\,s (gap $0$\,s). The more conservative LF(2)
-also eliminates contact but is consistently slower ($285.7\pm3.8$\,s and
-$288.3\pm1.3$\,s) and, at simultaneous release, its longer hold trips the
-independent stuck timer once per run, raising its penalized team time to
-$303.3\pm1.3$\,s. A larger nominal gate separation therefore bought no additional
-safety in these conditions while costing both time and a penalty, which is why
-LF(1) is the recommended default and LF(2) is retained only as a conservative
-comparison.
+The referee charges those events, so the penalized figures depart from the
+elapsed ones by different amounts for the three policies. At simultaneous
+release (gap $0$\,s) the uncoordinated convoy has the lowest elapsed time of the
+three policies, $219.7\pm2.5$\,s, but a penalized team time of
+$266.4\pm64.1$\,s; LF(1) is charged nothing and records $262.3\pm7.7$\,s on
+both; LF(2) records $288.3\pm1.3$\,s elapsed and $303.3\pm1.3$\,s penalized.
+At an $8$\,s gap the
+uncoordinated convoy records $254.0\pm24.5$\,s elapsed and $564.0\pm463.0$\,s
+penalized, both computed over the two of the three runs in which every vehicle
+finished, since \eqref{eq:team_finished} defines a team result only when all
+vehicles finish. LF(1) records $266.0\pm8.3$\,s and LF(2) $285.7\pm3.8$\,s at
+that gap, with penalized equal to elapsed in both cases.
+
+These figures are read on the score the benchmark awards rather than on elapsed
+time. At simultaneous release the penalized team times of LF(1) and the
+uncoordinated convoy are $262.3$\,s and $266.4$\,s, the second carrying a
+standard deviation of $64.1$\,s over its three runs, so the comparison is not
+resolvable from these runs. At an $8$\,s gap the difference is large ---
+$266.0$\,s against $564.0$\,s, with LF(1) completing $3/3$ runs against $2/3$
+--- but it still rests on three runs per cell, two of which produced the
+uncoordinated figure, and the standard deviation of $463.0$\,s that accompanies
+it is nearly as large as the mean itself. Those spreads reflect runs that
+accumulate very different numbers of charged events. With $n=3$ per cell and
+outcomes of that spread, these numbers describe the runs reported here; they do
+not rank the three policies.
+
+In these conditions both coordination settings recorded zero contact events,
+while the larger nominal gate separation of LF(2) recorded higher times and, at
+simultaneous release, one stuck penalty per run. LF(1) is the configuration
+shipped as the default, and LF(2) is retained as a conservative comparison.
 
 Two properties of this result matter beyond the numbers. The coordination policy
 consumes only the vehicle's own tracker state, a static predecessor assignment
 and teammate-authored messages delivered over a channel with range-dependent
 latency and loss; it never reads referee progress or a teammate's true position,
-so the improvement is achieved inside the same information boundary that
-constrains everything else. And the cost of coordination is visible in the score
-rather than hidden: LF(2)'s stuck penalty is charged by the same independent
+so the difference in recorded events arises inside the same information boundary
+that constrains everything else. And the cost of coordination is visible in the
+score rather than hidden: LF(2)'s stuck penalty is charged by the same independent
 referee that charges a collision, so a policy that buys safety by waiting pays
 for the waiting.
 
@@ -176,16 +244,19 @@ for the waiting.
 
 \input{tables/learning}
 
-The recurrent PPO controller was evaluated in three episodes on each of the
-three official circuits using the same participant-level information boundary
-and independent referee employed throughout the benchmark. The policy completed
-all nine evaluation episodes: 3/3 on Horseshoe Bay, 3/3 on Vertical Serpent and
-3/3 on Mixed Endurance.
+The recurrent PPO controller was trained and evaluated on the official circuit
+families, and was then run for three episodes on each of the three official
+circuits using the same participant-level information boundary and independent
+referee employed throughout the benchmark. The policy completed all nine
+evaluation episodes: 3/3 on Horseshoe Bay, 3/3 on Vertical Serpent and 3/3 on
+Mixed Endurance. Because training and evaluation share the same circuit
+families, this is a descriptive integration demonstration rather than a test of
+generalization to circuits the policy has not seen.
 
 No out-of-bounds event was recorded in any of the nine runs. Horseshoe Bay and
 Mixed Endurance were completed without collisions, while one collision event was
-recorded on Vertical Serpent. These results show that the learned controller can
-compose local gate-navigation behaviour into complete ordered circuits while
+recorded on Vertical Serpent. In these nine episodes the learned controller
+composed local gate-navigation behaviour into complete ordered circuits while
 remaining entirely within the participant-side observation contract.
 
 The sample is intentionally small, with three episodes per circuit, and is
@@ -193,6 +264,6 @@ reported descriptively. Together, the rule-based and PPO evaluations illustrate
 that the benchmark interface is controller-agnostic: autonomy methods with
 different internal designs can be evaluated through the same participant-level
 information boundary, required body-frame command interface and independent
-referee procedure. The same interface can accommodate rule-based control,
-reinforcement learning, model-predictive control, optimization-based methods and
-other compatible controllers.
+referee procedure. The interface does not prescribe controller internals; the
+instantiations exercised in this work are two rule-based reference controllers
+and one recurrent PPO controller.
