@@ -78,12 +78,13 @@ python article_journal/scripts/make_perception_figure.py
 cd article_journal && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 \end{lstlisting}
 
-Every input these commands read is the released evidence package
-\cmd{artifacts/paper/}, which holds the per-run benchmark rows, the current-free
-evaluation, the frozen policy checkpoint with its evaluation episodes and the
-perception audit. Running \cmd{verify\_claims.py} recomputes each reported
-quantity and fails on any mismatch; running \cmd{regenerate\_tables.py} rewrites
-the seven data-driven tables byte-identically and verifies the penalty identity
+These commands read the released evidence package \cmd{artifacts/paper/}, which
+holds the per-run benchmark rows, the current-free evaluation, the frozen policy
+checkpoint with its evaluation episodes and the perception audit, together with
+committed track configurations and tooling. Running \cmd{verify\_claims.py}
+recomputes each reported quantity and fails on any mismatch; running
+\cmd{regenerate\_tables.py} rewrites the seven data-driven tables
+byte-identically and verifies the penalty identity
 $T^{\mathrm{pen}}=T^{\mathrm{official}}+P$ on every finished run. The two figure
 scripts write a provenance JSON alongside each output recording their input
 files and asserting that no simulator was launched.
@@ -115,6 +116,7 @@ The learning section is deliberately structured so that its evaluation can be
 refreshed without changing the benchmark protocol. A new frozen checkpoint is
 added by recording its selection under the same criterion, running the same three
 seeds per official circuit, and regenerating Table~\ref{tab:learning} from the
-per-episode result files. The methodology of Section~\ref{sec:learning} --- the
-27-D observation encoding, recurrent architecture, reward and evaluation
-separation --- is independent of any one checkpoint.
+per-episode result files; since that criterion selects on the circuits the
+checkpoint is then scored on, the resulting table is not a generalization result.
+The methodology of Section~\ref{sec:learning} --- the 27-D observation encoding,
+recurrent architecture and reward --- is independent of any one checkpoint.

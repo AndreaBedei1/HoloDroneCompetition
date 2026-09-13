@@ -69,9 +69,9 @@ full-circuit episodes across the three official circuits. The campaign draws on
 two alternating full-circuit copies per track, with no fragment or synthetic
 source, and the released checkpoint records $50\,688$ training timesteps for this
 final fine-tuning stage. The preceding policy it continues is identified in the
-released provenance; its own training budget is not part of that figure. The
-observation representation and control interface are the ones described above and
-are unchanged throughout.
+released campaign configuration; its own training budget is not part of that
+figure. The observation representation and control interface are the ones
+described above and are unchanged throughout.
 
 The reward is defined over the same participant-level quantities. Successful gate
 crossings and course completion provide the principal positive task signals, while
@@ -81,13 +81,12 @@ the learning process and are not included in the observation seen by the
 controller.
 
 A single policy is selected on closed-loop completion over the official circuits
-and frozen before the reported episodes, with the full selection record released
-in the repository provenance, and the controller is then executed without
-additional learning or online adaptation. The complete hyperparameter, reward and
-checkpoint configuration is released with the repository. Attempts that produced
-no valid episode because of a simulator or engine fault rather than controller
-behaviour were recorded as technical-invalid, then excluded and repeated; the
-reported PPO results comprise nine valid evaluation episodes, and the released
-artifacts include one such technical-invalid attempt caused by an engine startup
-failure. The results of this fixed policy are reported together with the other
-benchmark evaluations in Section~\ref{sec:eval_rq5}.
+and frozen before the reported episodes, and the controller is then executed
+without additional learning or online adaptation. The released checkpoint, its
+provenance and the hyperparameter and reward configuration are available in the
+repository. Attempts that produced no valid episode because of a simulator or
+engine fault rather than controller behaviour are recorded as technical-invalid
+and excluded from the evaluation under that rule; the reported PPO results
+comprise nine valid evaluation episodes. The results of this fixed policy are
+reported together with the other benchmark evaluations in
+Section~\ref{sec:eval_rq5}.

@@ -5,9 +5,9 @@ Post-processing only: this reads the released evidence package under
 ``article_journal/tables/``. It never launches the simulator and never modifies
 an artifact.
 
-Numbers come entirely from the artifacts. Emphasis (``\\best``) is an editorial
-choice declared in ``EMPHASIS`` below, so a regenerated table is byte-identical
-to the committed one.
+Numbers come entirely from the artifacts and no cell carries emphasis (see
+``EMPHASIS`` below), so a regenerated table is byte-identical to the committed
+one.
 
 Conventions (manuscript policy):
 
@@ -53,34 +53,12 @@ EXPECTED_GATES = {"horseshoe": 12, "vertical": 17, "mixed": 22}
 SERVO = "rule_gate_baseline"
 CTC = "rule_gate_center_then_commit"
 
-# Editorial emphasis. Each entry names a cell that carries \best in the
-# manuscript. Numbers are never chosen here, only which cell is highlighted.
-#
-# One rule governs every entry, and every table that keeps an entry states it in
-# its own note. A cell is emphasised only when its value is strictly better than
-# each alternative it is set against, and only when those alternatives are
-# computed over the same runs. Cells that tie with an alternative, cells whose
-# column averages a different subset of seeds than the cell it would beat, and
-# rows that aggregate the rows above them rather than compete with them are
-# therefore left plain.
-#
-# clean_tracks: the completion outcome on the two circuits where the reference
-#   controllers differ; finished counts and mean gates are computed over all five
-#   seeds of both cells, so the two are set against each other on equal terms.
-# currents: nothing. Under the medium current the official and penalized times
-#   average three and two finished runs respectively, which the text of
-#   Section 10 states explicitly, so no cell of that row is comparable with its
-#   alternative and the table carries no emphasis at all.
-# fleet: the penalized team time, which is the official team result, and the
-#   event counts, in the simultaneous-release block, where all three policies
-#   finish all three seeds and LF(1) is strictly ahead of both alternatives. The
-#   8 s block carries nothing: the uncoordinated row's time columns rest on two
-#   of its three seeds, and LF(2) ties LF(1) on every other column.
-EMPHASIS = {
-    "clean_tracks": {("vertical", SERVO): ("finished", "gates"),
-                     ("mixed", CTC): ("finished", "gates")},
-    "fleet": {("gap_0", "lf1"): ("penalized", "events")},
-}
+# Editorial emphasis, declared here so that no table function can crown a winner
+# of its own. It is empty, and deliberately so: with three to five seeds per cell
+# a bold number reads as an established ordering, which runs of this size cannot
+# support. Every table therefore reports plain numbers and the comparisons are
+# drawn in the prose, where they can be stated with their sample sizes.
+EMPHASIS: dict = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -126,10 +104,6 @@ def _pm(values, places: int = 1) -> str:
     return "${:.{p}f}\\pm{:.{p}f}$".format(mean, statistics.stdev(values), p=places)
 
 
-def _best(text: str, on: bool = True) -> str:
-    return "\\best{{{}}}".format(text) if on else text
-
-
 # --------------------------------------------------------------------------- #
 # tab:clean_tracks
 # --------------------------------------------------------------------------- #
@@ -138,11 +112,10 @@ def clean_tracks(rows: list[dict]) -> str:
         sel = _single(rows, experiment="clean", track=TRACK_FULL[track],
                       controller=controller, current_profile="none")
         finished = [r for r in sel if r["status"] == "FINISHED"]
-        marks = EMPHASIS["clean_tracks"].get((track, controller), ())
         n = len(sel)
-        fin = _best("{}/{}".format(len(finished), n), "finished" in marks)
-        gates = _best("{}/{}".format(_mean1([_num(r["completed_gates"]) for r in sel]),
-                                     EXPECTED_GATES[track]), "gates" in marks)
+        fin = "{}/{}".format(len(finished), n)
+        gates = "{}/{}".format(_mean1([_num(r["completed_gates"]) for r in sel]),
+                               EXPECTED_GATES[track])
         time = _pm([_num(r["official_time_s"]) for r in finished])
         coll = _mean1([_num(r["gate_world_collisions"]) for r in sel])
         return str(n), fin, gates, time, coll
@@ -172,10 +145,9 @@ def clean_tracks(rows: list[dict]) -> str:
         r"\bottomrule",
         r"\end{tabular}",
         r"\mratablenote",
-        r"Collisions combine gate and world events; bold marks the better completion result",
-        r"where the controllers differ. Finished counts, mean gates and mean collisions are",
-        r"computed over all seeds of the cell, whereas the official time is computed over the",
-        r"finished runs only.",
+        r"Collisions combine gate and world events. Finished counts, mean gates and mean",
+        r"collisions are computed over all seeds of the cell, whereas the official time is",
+        r"computed over the finished runs only.",
         r"\end{table}",
     ]
     return "\n".join(lines) + "\n"
@@ -258,24 +230,20 @@ def fleet(rows: list[dict]) -> str:
             return label.rstrip() + r"$^{\dagger}$" + " "
         return label
 
-    def team(sel: list[dict], marks: tuple = ()) -> str:
+    def team(sel: list[dict]) -> str:
         finished = [r for r in sel if r["all_rovers_finished"] == "True"]
         gates_total = 24 if sel[0]["experiment"] == "fleet_gap90" else 36
-        fin = _best("{}/{}".format(len(finished), len(sel)), "finished" in marks)
-        gates = _best("{}/{}".format(_mean1([_num(r["completed_gates"]) for r in sel]),
-                                     gates_total), "gates" in marks)
+        fin = "{}/{}".format(len(finished), len(sel))
+        gates = "{}/{}".format(_mean1([_num(r["completed_gates"]) for r in sel]),
+                               gates_total)
         # Elapsed and penalized team time share one subset -- the runs in which
         # every vehicle finished -- so the two columns are directly comparable.
-        # Only the penalized column can be marked: elapsed time is a diagnostic
-        # showing how much of the score comes from charged penalties, and the
-        # result the benchmark awards is the penalized one.
         elapsed = _pm([_num(r["team_elapsed_time_s"]) for r in finished])
-        penalized = _best(_pm([_num(r["team_penalized_time_s"]) for r in finished]),
-                          "penalized" in marks)
-        events = _best("{} / {} / {}".format(
+        penalized = _pm([_num(r["team_penalized_time_s"]) for r in finished])
+        events = "{} / {} / {}".format(
             _mean1([_num(r["gate_world_collisions"]) for r in sel]),
             _mean1([_num(r["proximity_events"]) for r in sel]),
-            _mean1([_num(r["stuck_events"]) for r in sel])), "events" in marks)
+            _mean1([_num(r["stuck_events"]) for r in sel]))
         return "{} & {} & {} & {} & {} & {}".format(
             len(sel), fin, gates, elapsed, penalized, events)
 
@@ -304,16 +272,15 @@ def fleet(rows: list[dict]) -> str:
                               (CTC, "Center-then-Commit ")):
         sel = homogeneous(controller)
         lines.append(" & " + policy(label, sel) + "& " + team(sel) + r" \\")
-    for gap_value, gap_key, gap_text in (("0.0", "gap_0", "0"), ("8.0", "gap_8", "8")):
+    for gap_value, gap_text in (("0.0", "0"), ("8.0", "8")):
         lines.append(r"\midrule")
         lines.append(r"\multicolumn{8}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $"
                      + gap_text + r"$\,s}}\\")
-        for label, condition, min_gap, key in (("No coordination ", "no_coordination", "2", None),
-                                               ("LF(1)           ", "leader_follower", "1", "lf1"),
-                                               ("LF(2)           ", "leader_follower", "2", None)):
+        for label, condition, min_gap in (("No coordination ", "no_coordination", "2"),
+                                          ("LF(1)           ", "leader_follower", "1"),
+                                          ("LF(2)           ", "leader_follower", "2")):
             sel = convoy(gap_value, condition, min_gap)
-            marks = EMPHASIS["fleet"].get((gap_key, key), ()) if key else ()
-            lines.append(" & " + policy(label, sel) + "& " + team(sel, marks) + r" \\")
+            lines.append(" & " + policy(label, sel) + "& " + team(sel) + r" \\")
     lines += [
         r"\bottomrule",
         r"\end{tabular}",
@@ -323,9 +290,7 @@ def fleet(rows: list[dict]) -> str:
         r"finish, team gates and event counts are computed over all seeds of the row; elapsed",
         r"and penalized team time are both computed over the seeds in which every vehicle",
         r"finished, so the two columns are directly comparable. Penalized time is the official",
-        r"team result. Bold marks a cell that is strictly better than both alternatives of its",
-        r"convoy block and rests on the same seeds as them, which is the case only at",
-        r"simultaneous release.",
+        r"team result.",
     ]
     if partial_rows:
         lines += [
@@ -443,14 +408,14 @@ def learning() -> str:
     for key, label, gates in labels:
         rows = by_track[key]
         finished = [r for r in rows if r["finished"]]
-        mean_time = statistics.fmean(r["completion_time_s"] for r in finished)
+        time = _pm([r["completion_time_s"] for r in finished])
         coll = sum(r["collisions"] for r in rows)
         oob = sum(r["out_of_bounds_events"] for r in rows)
         total_coll += coll
         total_oob += oob
         total_n += len(rows)
-        lines.append("{} & {} & {} & {}/{} & {:.1f} & {} & {} \\\\".format(
-            label, gates, len(rows), len(finished), len(rows), mean_time, coll, oob))
+        lines.append("{} & {} & {} & {}/{} & {} & {} & {} \\\\".format(
+            label, gates, len(rows), len(finished), len(rows), time, coll, oob))
     lines += [
         r"\midrule",
         "All circuits & \\textemdash & {} & {}/{} & \\textemdash & {} & {} \\\\".format(
@@ -458,6 +423,9 @@ def learning() -> str:
             total_coll, total_oob),
         r"\bottomrule",
         r"\end{tabular}",
+        r"\mratablenote",
+        r"Times are mean $\pm$ sample standard deviation over the finished episodes of the",
+        r"circuit; OOB denotes out-of-bounds events.",
         r"\end{table}",
     ]
     return "\n".join(lines) + "\n"
@@ -502,23 +470,29 @@ def advancement_identity(data: dict) -> list[str]:
 def local_vs_referee() -> str:
     data = json.loads((PAPER / "benchmark" / "local_vs_referee.json").read_text(encoding="utf-8"))
     source = json.loads((PAPER / "benchmark" / "source.json").read_text(encoding="utf-8"))
-    executed = source["executed_run_count"]
-    # The note below states the audited population. The audit is scoped to every
-    # executed run of the frozen matrix rather than to the released subset, so
-    # refuse to emit that sentence unless the artifact's own scope still names
-    # the executed-run count the note quotes.
-    if str(executed) not in data["scope"]:
-        raise SystemExit("local_vs_referee scope no longer names {} executed runs: "
-                         "{}".format(executed, data["scope"]))
+    released = source["released_run_count"]
+    # The caption and the note below both state the audited population. The audit
+    # is scoped to the released runs, the same population as runs.csv, so refuse
+    # to emit that number unless the artifact's own scope names it and the row
+    # count of runs.csv agrees with it.
+    if str(released) not in data["scope"]:
+        raise SystemExit("local_vs_referee scope no longer names {} released runs: "
+                         "{}".format(released, data["scope"]))
+    if len(_runs()) != released:
+        raise SystemExit("runs.csv holds {} rows, not the {} released runs the audit "
+                         "claims to cover".format(len(_runs()), released))
     labels = (("Marine Race Horseshoe Bay", "Horseshoe Bay   "),
               ("Marine Race Vertical Serpent", "Vertical Serpent"),
               ("Marine Race Mixed Endurance", "Mixed Endurance "))
 
+    # The artifact also carries the local-delay distribution, which this table no
+    # longer prints: its median and p95 are unremarkable, but its tail is not, and
+    # a two-number summary of it would need more defence than the boundary audit
+    # is here to provide. The columns below are the information separation itself.
     def row(block: dict) -> tuple:
-        delay = block["advancement_delay_s"]
         return (block["referee_advancements"], block["local_advancements"],
                 block["matched_advancements"], block["false_local_advancements"],
-                block["missed_local_advancements"], delay["median"], delay["p95"])
+                block["missed_local_advancements"])
 
     body = [(label,) + row(data["by_track"][key]) for key, label in labels]
     premature = {label.strip(): _premature(data["by_track"][key]) for key, label in labels}
@@ -528,22 +502,22 @@ def local_vs_referee() -> str:
     if len(carriers) != 1 or premature[carriers[0]] != _premature(data["overall"]):
         raise SystemExit("premature advancements are no longer confined to one circuit: "
                          "{}".format(premature))
-    widths = [max(len(str(r[i])) for r in body) for i in range(1, 8)]
+    widths = [max(len(str(r[i])) for r in body) for i in range(1, 6)]
     total = ("All             ",) + row(data["overall"])
     widths = [max(w, len(str(total[i + 1]))) for i, w in enumerate(widths)]
 
     lines = [
         r"\begin{table}[t]",
         r"\centering",
-        r"\caption{Controller-local and referee course progression"
-        r" ($30$\,Hz systematic evaluation).}",
+        r"\caption{Boundary audit of controller-local against referee course"
+        r" progression over the $" + str(released) + r"$ released benchmark runs.}",
         r"\label{tab:local_vs_referee}",
         r"\mratablestyle",
-        r"\begin{tabular}{@{}lrrrrrrr@{}}",
+        r"\begin{tabular}{@{}lrrrrr@{}}",
         r"\toprule",
-        r" & \multicolumn{3}{c}{Gate advancements} & \multicolumn{2}{c}{Mismatches} & \multicolumn{2}{c}{Local delay (s)} \\",
-        r"\cmidrule(lr){2-4}\cmidrule(lr){5-6}\cmidrule(l){7-8}",
-        r"Circuit & referee & local & matched & false & missed & median & p95 \\",
+        r" & \multicolumn{3}{c}{Gate advancements} & \multicolumn{2}{c}{Mismatches} \\",
+        r"\cmidrule(lr){2-4}\cmidrule(l){5-6}",
+        r"Circuit & referee & local & matched & false & missed \\",
         r"\midrule",
     ]
     for entry in body:
@@ -558,12 +532,11 @@ def local_vs_referee() -> str:
         r"\bottomrule",
         r"\end{tabular}",
         r"\mratablenote",
-        # The tolerance is one control step of the run being audited, which is
-        # how the artifact defines it; the caption states the rate, so no fixed
-        # step length is quoted here.
-        r"The audit pools the " + str(executed) + r" executed runs of the frozen benchmark matrix ---",
-        r"single-vehicle, two-vehicle fleet and three-vehicle coordination --- including the",
-        r"strong-current runs that are reported nowhere else in this manuscript.",
+        # The tolerance is one control step of the run being audited, which is how
+        # the artifact defines it, and no fixed step length is quoted anywhere here.
+        r"The audit covers the " + str(released) + r" released runs of the frozen benchmark matrix ---",
+        r"single-vehicle, two-vehicle fleet and three-vehicle coordination --- the same",
+        r"population as the result tables above.",
         r"Matched counts course ordinals at which both a referee crossing and a",
         r"controller-local advancement occur. False counts local advancements that either",
         r"have no same-ordinal referee crossing or precede it by more than one control step",

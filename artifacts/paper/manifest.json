@@ -3,10 +3,10 @@
  "file_count": 40,
  "files": [
   {
-   "bytes": 3890,
+   "bytes": 5602,
    "path": "benchmark/local_vs_referee.json",
-   "purpose": "Controller-local versus referee gate-progression audit, aggregated over every executed benchmark run",
-   "sha256": "780776f951c648401b08c15c4d7cdd059cb4bcf5bcd6a787572d4ba386ef5d0a",
+   "purpose": "Controller-local versus referee gate-progression audit over the 68 released benchmark runs",
+   "sha256": "acf3848f3bd2f18d9d5b99f0e9c98b473598d5e2be71e187d3047baae5ba70dc",
    "supports": [
     "Table tab:local_vs_referee",
     "Section 7 Measuring the Boundary"
@@ -398,5 +398,5 @@
  ],
  "root": "artifacts/paper",
  "schema_version": "mra_paper_artifacts_v1",
- "total_bytes": 5510133
+ "total_bytes": 5511845
 }

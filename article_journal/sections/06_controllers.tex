@@ -4,8 +4,8 @@
 A central usability goal of \mra{} is that an autonomy stack can be integrated
 through a small interface without modifying the runner, the referee or the
 adapter. This section specifies that interface, the dynamic loading mechanism,
-the controller-local course tracker and the two rule-based reference controllers
-whose comparison anchors the evaluation.
+the controller-local course tracker and the two rule-based reference
+controllers.
 
 \subsection{Controller Interface}
 
@@ -99,7 +99,6 @@ command of \eqref{eq:command}. No part of the runner, referee or adapter is awar
 that the controller is neural.
 
 \subsection{Controller-Local Course Progression}
-\label{sec:local_tracker}
 
 Because the official observation does not contain referee progress
 (Section~\ref{sec:obs_contract}), each controller maintains its own estimate of

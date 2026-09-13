@@ -1,25 +1,25 @@
 \begin{table}[t]
 \centering
-\caption{Controller-local and referee course progression ($30$\,Hz systematic evaluation).}
+\caption{Boundary audit of controller-local against referee course progression over the $68$ released benchmark runs.}
 \label{tab:local_vs_referee}
 \mratablestyle
-\begin{tabular}{@{}lrrrrrrr@{}}
+\begin{tabular}{@{}lrrrrr@{}}
 \toprule
- & \multicolumn{3}{c}{Gate advancements} & \multicolumn{2}{c}{Mismatches} & \multicolumn{2}{c}{Local delay (s)} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-6}\cmidrule(l){7-8}
-Circuit & referee & local & matched & false & missed & median & p95 \\
+ & \multicolumn{3}{c}{Gate advancements} & \multicolumn{2}{c}{Mismatches} \\
+\cmidrule(lr){2-4}\cmidrule(l){5-6}
+Circuit & referee & local & matched & false & missed \\
 \midrule
-Horseshoe Bay    & 1120 & 1120 & 1116 & 10 & 4 & 0.924 & 1.353 \\
-Vertical Serpent &  159 &  160 &  159 &  1 & 0 & 0.627 & 1.155 \\
-Mixed Endurance  &  195 &  192 &  192 &  0 & 3 & 0.462 & 1.287 \\
+Horseshoe Bay    & 1089 & 1088 & 1086 & 8 & 3 \\
+Vertical Serpent &  159 &  160 &  159 & 1 & 0 \\
+Mixed Endurance  &  195 &  192 &  192 & 0 & 3 \\
 \midrule
-All              & 1474 & 1472 & 1467 & 11 & 7 & 0.858 & 1.353 \\
+All              & 1443 & 1440 & 1437 & 9 & 6 \\
 \bottomrule
 \end{tabular}
 \mratablenote
-The audit pools the 78 executed runs of the frozen benchmark matrix ---
-single-vehicle, two-vehicle fleet and three-vehicle coordination --- including the
-strong-current runs that are reported nowhere else in this manuscript.
+The audit covers the 68 released runs of the frozen benchmark matrix ---
+single-vehicle, two-vehicle fleet and three-vehicle coordination --- the same
+population as the result tables above.
 Matched counts course ordinals at which both a referee crossing and a
 controller-local advancement occur. False counts local advancements that either
 have no same-ordinal referee crossing or precede it by more than one control step

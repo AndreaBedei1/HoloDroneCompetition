@@ -325,16 +325,19 @@ def rq5_learning() -> None:
     by_track: dict[str, list[dict]] = {}
     for row in episodes:
         by_track.setdefault(row["track"], []).append(row)
-    for track, label, count, mean_time, coll in (
-            ("horseshoe_bay", "Horseshoe Bay", 3, 192.5, 0),
-            ("vertical_serpent", "Vertical Serpent", 3, 239.1, 1),
-            ("mixed_endurance", "Mixed Endurance", 3, 365.6, 0)):
+    for track, label, count, mean_time, sd_time, coll in (
+            ("horseshoe_bay", "Horseshoe Bay", 3, 192.5, 8.7, 0),
+            ("vertical_serpent", "Vertical Serpent", 3, 239.1, 5.8, 1),
+            ("mixed_endurance", "Mixed Endurance", 3, 365.6, 8.8, 0)):
         rows_ = by_track[track]
         check("PPO episodes [{}]".format(label), len(rows_), count)
         check("PPO finished [{}]".format(label), sum(bool(r["finished"]) for r in rows_), count)
         check("PPO mean time [{}]".format(label),
               round(statistics.fmean(r["completion_time_s"] for r in rows_), 1),
               mean_time, 0.05)
+        check("PPO sd time [{}]".format(label),
+              round(statistics.stdev(r["completion_time_s"] for r in rows_), 1),
+              sd_time, 0.05)
         check("PPO collisions [{}]".format(label), sum(r["collisions"] for r in rows_), coll)
 
     campaign = load("ppo/campaign_config.json")
@@ -403,24 +406,43 @@ def information_boundary() -> None:
     data = load("benchmark/local_vs_referee.json")
     overall = data["overall"]
 
-    # What the note under tab:local_vs_referee may say about the audit itself.
-    # The artifact expresses the matching tolerance as one control step of the
-    # run rather than as a fixed number of seconds, and scopes the audit to
-    # every executed run of the frozen matrix rather than to the released
-    # subset, so the note states both in those terms.
+    # What the caption and note under tab:local_vs_referee may say about the audit
+    # itself. The artifact expresses the matching tolerance as one control step of
+    # the run rather than as a fixed number of seconds, and scopes the audit to the
+    # released runs -- the same population as runs.csv -- so both are stated in
+    # those terms and the scope is pinned against runs.csv here.
+    source = load("benchmark/source.json")
     definition = data["definition"]["false_local_advancement"]
     check("tolerance is one control step of the run",
           "more than one configured dt" in definition, True)
     check("tolerance quotes no fixed step length", bool(re.search(r"[0-9]", definition)), False)
-    check("audit pools every executed run",
-          str(load("benchmark/source.json")["executed_run_count"]) in data["scope"], True)
-    check("referee advancements", overall["referee_advancements"], 1474)
-    check("local advancements", overall["local_advancements"], 1472)
-    check("matched advancements", overall["matched_advancements"], 1467)
-    check("false local advancements", overall["false_local_advancements"], 11)
-    check("missed local advancements", overall["missed_local_advancements"], 7)
+    check("audit scope names the 68 released runs", "68" in data["scope"], True)
+    check("audit scope agrees with the released run count",
+          str(source["released_run_count"]) in data["scope"], True)
+    check("released run count is the runs.csv population",
+          source["released_run_count"], len(rows_csv("benchmark/runs.csv")))
+    check("audit does not silently readmit the executed-run population",
+          str(source["executed_run_count"]) in data["scope"], False)
+    # The rescoping is only honest if the artifact keeps saying what it used to
+    # cover and where the figures come from, so that disclosure is gated too.
+    provenance = data["provenance"]
+    check("audit discloses the run tree it was recomputed from",
+          "final_20260715" in provenance["recomputed_from"], True)
+    check("audit discloses the population it used to cover",
+          str(source["executed_run_count"]) in provenance["previous_scope"], True)
+    check("referee advancements", overall["referee_advancements"], 1443)
+    check("local advancements", overall["local_advancements"], 1440)
+    check("matched advancements", overall["matched_advancements"], 1437)
+    check("false local advancements", overall["false_local_advancements"], 9)
+    check("missed local advancements", overall["missed_local_advancements"], 6)
+    # The table no longer prints the delay columns, but the artifact still carries
+    # the distribution in full and it stays gated here, tail included: storing or
+    # quoting only the median and p95 is what hides that tail.
     check("median local delay", overall["advancement_delay_s"]["median"], 0.858, 1e-3)
     check("p95 local delay", overall["advancement_delay_s"]["p95"], 1.353, 1e-3)
+    check("minimum local delay", overall["advancement_delay_s"]["min"], -90.849, 1e-3)
+    check("maximum local delay", overall["advancement_delay_s"]["max"], 2.31, 1e-3)
+    check("local delay sample size", overall["advancement_delay_s"]["count"], 1437)
     check("event consistency errors", overall["event_consistency_errors"], 0)
     check("finish-order inversions", overall["finish_order_inversions"], 0)
     check("local finish before referee", overall["local_finish_before_referee"], 0)
@@ -428,7 +450,7 @@ def information_boundary() -> None:
           overall["matched_advancements"] / overall["referee_advancements"] > 0.99, True)
     check("premature local advancements", _premature(overall), 6)
 
-    stated = {"Marine Race Horseshoe Bay": (1120, 1120, 1116, 10, 4, 0.924, 1.353, 6),
+    stated = {"Marine Race Horseshoe Bay": (1089, 1088, 1086, 8, 3, 0.924, 1.353, 6),
               "Marine Race Vertical Serpent": (159, 160, 159, 1, 0, 0.627, 1.155, 0),
               "Marine Race Mixed Endurance": (195, 192, 192, 0, 3, 0.462, 1.287, 0)}
     for track, (ref, local, matched, false, missed, median, p95, early) in stated.items():

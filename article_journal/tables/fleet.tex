@@ -13,7 +13,7 @@ Setting & Policy & Seeds & Team finish & Team gates $\uparrow$ & Team elapsed (s
 \midrule
 \multicolumn{8}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $0$\,s}}\\
  & No coordination & 3 & 3/3 & 36.0/36 & $219.7\pm2.5$ & $266.4\pm64.1$ & 9.3 / 2.3 / 0.0 \\
- & LF(1)           & 3 & 3/3 & 36.0/36 & $262.3\pm7.7$ & \best{$262.3\pm7.7$} & \best{0.0 / 0.0 / 0.0} \\
+ & LF(1)           & 3 & 3/3 & 36.0/36 & $262.3\pm7.7$ & $262.3\pm7.7$ & 0.0 / 0.0 / 0.0 \\
  & LF(2)           & 3 & 3/3 & 36.0/36 & $288.3\pm1.3$ & $303.3\pm1.3$ & 0.0 / 0.0 / 1.0 \\
 \midrule
 \multicolumn{8}{@{}l}{\emph{Three vehicles, heterogeneous convoy, gap $8$\,s}}\\
@@ -28,9 +28,7 @@ events. LF($\Delta g$) is the leader--follower policy of \eqref{eq:yield}. Seeds
 finish, team gates and event counts are computed over all seeds of the row; elapsed
 and penalized team time are both computed over the seeds in which every vehicle
 finished, so the two columns are directly comparable. Penalized time is the official
-team result. Bold marks a cell that is strictly better than both alternatives of its
-convoy block and rests on the same seeds as them, which is the case only at
-simultaneous release.
+team result.
 $^{\dagger}$Not every vehicle finished in every seed of this row, so both of its
 time columns describe the subset that did; the caveat applies to the row rather
 than to one column.

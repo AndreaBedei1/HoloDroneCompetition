@@ -23,7 +23,6 @@ current frame.
 
 
 \subsection{Gate Detection from the Forward Camera}
-\label{sec:perception_detect}
 
 The gates are rendered as square frames formed by light-coloured bars. Direct
 colour or brightness segmentation was not used here because underwater
@@ -64,7 +63,6 @@ course-association problem.
 
 
 \subsection{Acoustic--Visual Target Association}
-\label{sec:perception_assoc}
 
 The controller maintains its own locally expected beacon
 (Section~\ref{sec:controller}). When a packet from that beacon is available, it
@@ -128,12 +126,12 @@ under the near-frontal viewing conditions encountered during normal racing.
 This subsection reports a diagnostic audit of the perception front end rather
 than a statistical validation of it. To characterize perception under the
 conditions encountered by the reference controllers, we recorded 60 frames per
-circuit along the trajectories of a single reference controller under
-current-free conditions on the three official circuits. The sample is therefore
-small and covers one controller and one disturbance setting; the proportions
-below describe the recorded frames and are reported descriptively. Ground truth
-was used only offline to evaluate the perception output and never entered the
-control loop. Table~\ref{tab:perception_audit} summarizes detection
+circuit along the trajectories of the Center-then-Commit reference controller
+under current-free conditions on the three official circuits. The sample is
+therefore small and covers one controller and one disturbance setting; the
+proportions below describe the recorded frames and are reported descriptively.
+Ground truth was used only offline to evaluate the perception output and never
+entered the control loop. Table~\ref{tab:perception_audit} summarizes detection
 availability, quadrilateral recovery, pose availability and multi-candidate
 target association, while
 Fig.~\ref{fig:perception_panels} shows representative states.
