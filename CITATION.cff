@@ -1,0 +1,55 @@
+cff-version: 1.2.0
+message: "If you use Marine Race Arena in your research, please cite the manuscript below."
+title: "Marine Race Arena"
+abstract: >-
+  A configurable and reproducible benchmark for developing and evaluating
+  autonomous systems in underwater gate-racing tasks, built on HoloOcean with a
+  BlueROV2-class vehicle. Controllers operate exclusively from onboard
+  observations, acoustic measurements and optional inter-vehicle communication,
+  while an independent referee accesses privileged simulator state only to
+  validate ordered gate crossings, enforce the rules and compute the official
+  results.
+type: software
+authors:
+  - family-names: Bedei
+    given-names: Andrea
+    affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+  - family-names: Bacchiani
+    given-names: Lorenzo
+    affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+  - family-names: Pau
+    given-names: Giovanni
+    affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+  - family-names: Girau
+    given-names: Roberto
+    affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+repository-code: "https://github.com/AndreaBedei1/HoloDroneCompetition"
+keywords:
+  - underwater robotics
+  - autonomous racing
+  - robotics benchmark
+  - reproducible evaluation
+  - onboard perception
+  - multi-robot systems
+  - reinforcement learning
+  - HoloOcean
+preferred-citation:
+  type: unpublished
+  title: >-
+    Marine Race Arena: A Configurable HoloOcean Benchmark for Underwater Gate
+    Racing and Team-Level Fleet Evaluation
+  authors:
+    - family-names: Bedei
+      given-names: Andrea
+      affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+    - family-names: Bacchiani
+      given-names: Lorenzo
+      affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+    - family-names: Pau
+      given-names: Giovanni
+      affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+    - family-names: Girau
+      given-names: Roberto
+      affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
+  year: 2026
+  notes: "Manuscript under review, Robotics and Autonomous Systems."

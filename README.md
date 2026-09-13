@@ -1,319 +1,162 @@
-# Marine Race Arena
+<div align="center">
 
-Marine Race Arena is a configurable, reproducible benchmark for autonomous
-underwater gate racing. Track configuration, participant autonomy and referee
-scoring are separate concerns: a controller operates entirely from onboard
-information, while an independent referee uses privileged simulator state only
-to validate ordered gate crossings, enforce the rules and compute the official
-result. Referee state is never returned to vehicle autonomy.
+<img src="docs/assets/mra_banner.png" alt="Marine Race Arena — a configurable benchmark for autonomous underwater gate racing" width="100%">
 
-The reference backend is HoloOcean 2.3.0 with a BlueROV2-class vehicle.
+<h3>Configure a race. Plug in your autonomy.<br>Let an independent referee score it.</h3>
 
-This repository is the release that accompanies the Marine Race Arena
-manuscript in [`article_journal/`](article_journal/). Every number reported in
-that paper is recomputed from the evidence package in
-[`artifacts/paper/`](artifacts/paper/) by a single command
-([Verifying the paper](#11-verifying-the-paper)).
+<p>
+<img alt="Python 3.9" src="https://img.shields.io/badge/python-3.9-3776AB?style=flat-square&logo=python&logoColor=white">
+<img alt="HoloOcean 2.3.0" src="https://img.shields.io/badge/HoloOcean-2.3.0-0aa2c0?style=flat-square">
+<img alt="Vehicle: BlueROV2" src="https://img.shields.io/badge/vehicle-BlueROV2-09668d?style=flat-square">
+<a href="article_journal/main.pdf"><img alt="Manuscript PDF" src="https://img.shields.io/badge/manuscript-PDF-b5322a?style=flat-square"></a>
+</p>
 
-## 1. Features
+<a href="#quick-start"><b>Quick start</b></a> ·
+<a href="#how-it-works"><b>How it works</b></a> ·
+<a href="#official-circuits"><b>Circuits</b></a> ·
+<a href="docs/experiments.md"><b>Ready-to-run experiments</b></a> ·
+<a href="#documentation"><b>Docs</b></a>
 
-- Declarative race configuration: world bounds, ordered gate sequence with
-  centres, passage directions and aperture sizes, acoustic beacon network and
-  its noise model, current profiles, obstacle generation, participants with
-  their vehicles, sensors, controllers and release delays, and the referee's
-  validation margins, penalties and scoring rules.
-- Three official circuits with unchanged `1.5 x 1.5 m` gate apertures.
-- A strict participant-level information boundary: local time, onboard sensors,
-  received acoustic packets and optional inter-vehicle messages.
-- Onboard visual-acoustic gate perception and a controller-local course tracker.
-- Two interpretable rule-based reference controllers.
-- Staggered multi-vehicle execution, independent per-vehicle referee state, and
-  team-level aggregation and ranking.
-- Distributed leader--follower coordination over the acoustic channel.
-- A frozen recurrent-PPO reference controller with its validation episodes.
-- Structured per-run logging and automated artifact validation.
+</div>
 
-Current rejection and obstacle avoidance are not claimed as solved. The
-framework supports those scenarios and records their real outcomes.
+---
 
-## 2. Installation
+## What is Marine Race Arena?
 
-The documented environment is Python 3.9 in a conda environment named `ocean`.
-HoloOcean 2.3.0 is **not on PyPI** (`pip install holoocean==2.3.0` fails; PyPI
-only ships 0.5.8), so it is installed from its official source before the
-pinned Python dependencies.
+Marine Race Arena turns underwater gate racing into a **benchmark you can configure
+rather than a scenario you have to accept**. A single declarative JSON file specifies
+the whole race: world bounds, the ordered gate sequence with centres, passage
+directions and aperture sizes, the acoustic beacon network and its noise model,
+environmental current profiles, obstacle generation, and the participants — their
+vehicles, onboard sensors, controllers and release delays.
+
+The part that makes it a *benchmark* is the strict separation between autonomy and
+evaluation. Your controller sees only what the vehicle could physically know: its own
+elapsed time, its onboard sensors, the acoustic packets it actually received, and
+optional messages from teammates. A separate referee reads privileged simulator state
+— true pose, exact gate geometry, contacts, bounds — and uses it only to validate
+ordered gate crossings, apply the rules and produce the official result. **Referee
+state never reaches vehicle autonomy.** Two methods evaluated here were measured under
+the same sensing and the same scoring.
+
+The same interface runs one vehicle or a cooperative team, so course-following,
+robustness to currents and multi-vehicle coordination are all scored by the same
+referee, on the same circuits, with the same metrics.
+
+## Why Marine Race Arena
+
+| Capability | What it gives you |
+|---|---|
+| **Configurable races** | Tracks, gates, sensors, currents, rules and penalties are data, not code. |
+| **Controller-agnostic** | Rule-based, MPC, optimization-based or learned — anything that respects the observation boundary and returns a body-frame command. |
+| **Independent referee** | Scoring comes from privileged state the controller can never see, so results are comparable across methods. |
+| **Reproducible by construction** | Seeded beacons, seeded packet loss, seeded obstacles; every run writes an event log and a machine-readable summary. |
+| **Environmental disturbance** | Current profiles turn a solved clean circuit back into an open problem. |
+| **Teams, not just vehicles** | Staggered starts, per-vehicle referee state, team aggregation, and distributed coordination over the acoustic channel. |
+
+## How it works
+
+<div align="center">
+<img src="docs/assets/how-it-works.svg" alt="A race configuration drives the HoloOcean environment. On the participant side, the onboard observation feeds your controller, which returns a surge/sway/heave/yaw command back to the vehicle. On the referee side, privileged simulator state feeds an independent referee that validates ordered gate crossings and produces the official result. An information boundary separates the two sides." width="88%">
+</div>
+
+## Official circuits
+
+Three circuits with deliberately different geometry — planar, serpentine and long —
+so a controller that works on one is not assumed to work on all three.
+
+<div align="center">
+<img src="docs/assets/official_tracks.png" alt="Top-down gate sequence and depth profile of the three official circuits: Horseshoe Bay with 12 gates over 93.8 m, Vertical Serpent with 17 gates over 118.3 m, and Mixed Endurance with 22 gates over 206.3 m." width="100%">
+</div>
+
+Every circuit ships with `none`, `medium` and `strong` current profiles and supports
+fixed or seeded-random obstacles. Gate apertures are `1.5 × 1.5 m` throughout.
+
+## Reference controllers
+
+The repository ships reference implementations so there is always something to race
+against — **none of them is required**.
+
+| Controller | Idea |
+|---|---|
+| **Continuous Servo** | Keeps correcting visual centring all the way through the aperture. |
+| **Center-then-Commit** | Establishes a stable visual lock first, then holds a committed trajectory through the gate. |
+| **Leader–Follower** | Wraps either of the above and yields to a predecessor using only locally estimated progress sent over the acoustic channel. |
+| **Recurrent PPO** | A frozen learned policy over the 27-D onboard encoding, included as an example of integrating learning through the same interface. |
+
+Your controller implements three methods and returns four numbers. See
+**[docs/controllers.md](docs/controllers.md)** for the full contract and a working
+minimal example.
+
+## Quick start
 
 ```bash
-conda create -n ocean python=3.9 -y
-conda activate ocean
-
-# 1. HoloOcean 2.3.0 client, from the official source
-#    (https://github.com/byu-holoocean/HoloOcean). This also pulls numpy,
-#    scipy and matplotlib.
-cd <HoloOcean-2.3.0 source>/client && pip install .
-
-# 2. Pinned runtime dependencies (run from this repository root).
-pip install -r requirements.txt
-
-# 3. One-time world installation. Worlds are stored per HoloOcean version
-#    under the user profile and shared across environments.
-python -c "import holoocean; holoocean.install('Ocean')"
-python -c "import holoocean; print(holoocean.installed_packages())"   # -> ['Ocean']
+git clone https://github.com/AndreaBedei1/HoloDroneCompetition.git
+cd HoloDroneCompetition
+conda create -n ocean python=3.9 -y && conda activate ocean
 ```
 
-Optional dependency sets:
-
-```bash
-pip install -r requirements-rl.txt    # load and evaluate the learned controller
-pip install -r requirements-dev.txt   # test suite and figure regeneration
-```
-
-Run every command from the repository root. The test suite and the engine-free
-fallback adapter need only step 2; simulator evidence requires step 1 and must
-use `--adapter holoocean` without `--allow-fallback`.
-
-## 3. Quick start
-
-```bash
-python run.py                      # default single-vehicle official run
-python run.py --dry-run            # resolve the configuration, launch nothing
-python run.py configs/fleet.json   # two-vehicle staggered fleet
-python run.py configs/benchmark.json
-```
-
-`run.py` reads one JSON object, resolves its scenario (`single`, `fleet` or
-`benchmark`) and invokes the matching runner. `config.json` is the documented
-default; `configs/` holds ready-made fleet and benchmark configurations.
-
-A direct invocation is equivalent:
+HoloOcean 2.3.0 is not on PyPI, so install its client from source first, then this
+repository's pinned dependencies and the simulator world — the three commands are in
+**[docs/getting-started.md](docs/getting-started.md)**. Once that is done, race:
 
 ```bash
 python -m marine_race_arena.scripts.run_marine_race \
   --track marine_race_arena/tracks/marine_race_horseshoe_bay.json \
-  --benchmark-task clean_gate \
-  --controller rule_gate_center_then_commit \
-  --adapter holoocean --seed 0 \
-  --duration 560.0 --current-profile none --official
+  --benchmark-task clean_gate --controller rule_gate_center_then_commit \
+  --adapter holoocean --official --headless \
+  --seed 0 --dt 0.033 --duration 560 \
+  --log-dir results/quickstart
 ```
 
-## 4. Official circuits
+Center-then-Commit flies the 12 gates of Horseshoe Bay and the referee prints the
+official result. The run writes an event log and a summary into `results/quickstart/`.
 
-| Circuit | File | Gates | Length | Nominal duration |
-| --- | --- | ---: | ---: | ---: |
-| Horseshoe Bay | `marine_race_arena/tracks/marine_race_horseshoe_bay.json` | 12 | 93.8 m | 560 s |
-| Vertical Serpent | `marine_race_arena/tracks/marine_race_vertical_serpent.json` | 17 | 118.3 m | 900 s |
-| Mixed Endurance | `marine_race_arena/tracks/marine_race_mixed_endurance.json` | 22 | 206.3 m | 1300 s |
+> No HoloOcean yet? Append `--adapter fallback --allow-fallback --duration 20` to
+> exercise the runner, referee and logging without the engine. It is plumbing, not
+> evidence.
 
-All three expose `none`, `medium` and `strong` current profiles, and support
-fixed obstacles from the track file or deterministic random obstacles generated
-from the run seed. A configuration can be validated without launching the
-simulator:
+## Documentation
+
+| Guide | What it covers |
+|---|---|
+| [Getting started](docs/getting-started.md) | Prerequisites, HoloOcean installation, environments, your first race. |
+| [Controllers](docs/controllers.md) | The observation boundary, the action interface, the controller lifecycle, and how to write and run your own. |
+| [Configuration](docs/configuration.md) | Building a race from scratch: world, gates, sensors, beacons, currents, rules, penalties, fleets. |
+| [Experiments](docs/experiments.md) | Copy-paste commands for clean circuits, currents, fleets, coordination and the learned controller. |
+| [Reproducing the paper](docs/reproducing-the-paper.md) | Verifying every reported number, regenerating the tables and figures, building the manuscript. |
+
+## Paper
+
+Marine Race Arena is described in a manuscript currently under review at *Robotics and
+Autonomous Systems*. The compiled preprint travels with the repository:
+**[article_journal/main.pdf](article_journal/main.pdf)**.
+
+Every quantity in it is recomputed from the evidence package in
+[`artifacts/paper/`](artifacts/paper/) by a single command:
 
 ```bash
-python -m marine_race_arena.scripts.validate_track_config \
-  --track marine_race_arena/tracks/marine_race_vertical_serpent.json \
-  --benchmark-task current_gate --current-profile medium
+python article_journal/scripts/verify_claims.py
 ```
 
-## 5. Observation and information boundary
+## Citation
 
-`reset(mission_info)` gives a controller only its assigned mission:
-
-```python
-{
-    "participant_id": "bluerov2_01",
-    "initial_beacon_id": "B01",
-    "total_beacons": 12,
-    "laps": 1,
-    "command_limits": {"surge": [-0.95, 0.95], "sway": [-0.95, 0.95],
-                       "heave": [-0.95, 0.95], "yaw": [-0.95, 0.95]},
-    # fleet runs add a static block:
-    "fleet": {"participant_order": ["bluerov2_01", "bluerov2_02"],
-              "release_index": 0, "predecessor_id": None},
-}
-```
-
-`step(observation)` receives exactly these top-level fields:
-
-```python
-{
-    "local_time_s": 2.145,
-    "sensors": {"FrontCamera": ..., "DepthSensor": ..., "IMUSensor": ..., "DVLSensor": ...},
-    "beacons": [{"beacon_id": "B01", "bearing_deg": ..., "elevation_deg": ...,
-                 "range_m": ..., "signal_strength": ..., "received_at_s": ...}],
-    "comms": {"inbox": [{"from": "bluerov2_01", "payload": ..., "received_at_s": ...}]},
-}
-```
-
-`comms` exists only when the inter-vehicle channel is enabled. `local_time_s`
-and all reception timestamps are relative to that vehicle's release. Simulator
-pose, world-frame velocity, exact gate geometry, configured current vectors and
-referee state stay outside the controller. Every gate beacon transmits
-independently; packets arrive only when physically in range and not dropped,
-and noise, scheduling and dropout are seeded by the run seed, the transmitter,
-the receiver and the transmission index.
-
-## 6. Controller interface
-
-A controller implements `reset(mission_info)`, `step(observation)` and
-`close()`, and returns normalized body-frame `surge`, `sway`, `heave` and `yaw`
-commands. It is selected by built-in alias, by dotted module path with an
-explicit class, or by file path plus class name -- no change to the package:
-
-```jsonc
-"controller": { "module_or_file": "path/to/my_controller.py", "class": "MyController" }
-```
-
-Built-in aliases: `rule_gate_baseline`, `rule_gate_center_then_commit`,
-`leader_follower`, `student_template`, the manual `keyboard` / `pygame`
-controllers, and the debug-only `oracle` (rejected in official mode).
-
-`LocalCourseTracker` is the reusable controller-side progression component. It
-starts from `initial_beacon_id` and advances through
-
-```text
-SEARCH -> APPROACH -> VISUAL_ALIGN -> COMMIT -> VERIFY_EXIT -> ADVANCE
-                                                               |
-                                                    next beacon or FINISHED
-```
-
-using only participant-local time, received beacon packets, the forward camera
-and DVL velocity. Passage confirmation needs persistent visual alignment,
-DVL-integrated forward displacement, a close beacon-range minimum followed by a
-range turnaround, persistent disappearance of the aligned gate, and fresh
-packets placing the expected beacon behind the vehicle. The referee scores
-independently and may disagree with this estimate.
-
-### Continuous Servo
-
-`rule_gate_baseline` keeps correcting visual centring all the way through the
-passage. It is the stronger controller where approaches are well conditioned.
-
-### Center-then-Commit
-
-`rule_gate_center_then_commit` establishes a stable visual lock first and then
-holds a commit trajectory through the aperture, so a late image-centroid jump
-caused by partial near-field contours cannot deflect the vehicle when the
-aperture margin is smallest. The two controllers differ in exactly this one
-respect and share observations, guidance, tracker and confirmation logic.
-
-## 7. Fleet and team evaluation
-
-Fleet mode runs one cooperative team: each vehicle has independent controller
-and referee state, and `team_summary` aggregates expected and completed gates,
-finish status, elapsed and penalized time, gate and obstacle contacts and
-inter-vehicle events. Inter-vehicle proximity modes are `off`, `diagnostic`
-(the validation default) and `penalize`.
-
-`leader_follower` wraps a gate-passing controller and coordinates from
-controller-local progress alone. Each vehicle broadcasts only
-
-```python
-{"local_beacon_index": 4, "local_lap": 1, "local_status": "RUNNING"}
-```
-
-over the acoustic channel, with its range-dependent latency and seeded loss.
-The predecessor comes from the static release order; a follower yields only
-while a fresh predecessor report shows less than the configured local gate
-margin, and missing or stale reports are fail-open. `LF(1)` -- a one-gate
-margin -- is the recommended default.
-
-```bash
-python -m marine_race_arena.scripts.run_holoocean_coordination_validation --min-gate-gap 1
-```
-
-## 8. Learned reference controller
-
-The released policy is a recurrent PPO controller over the 27-D onboard
-observation encoding, with the 4-D body-frame action interface, evaluated
-through the same information boundary and referee as the rule-based
-controllers.
-
-```text
-artifacts/paper/ppo/model/policy_recurrent_ppo_27d.zip   frozen checkpoint
-artifacts/paper/ppo/provenance.json                      identity, hashes, contracts
-artifacts/paper/ppo/campaign_config.json                 training configuration
-artifacts/paper/ppo/validation/                          the validation episodes
-```
-
-Load and evaluate it (needs `requirements-rl.txt`):
-
-```bash
-python -m marine_race_arena.learning.gen2.evaluate_speed_robust \
-  --controller recurrent_ppo --track horseshoe_bay \
-  --checkpoint artifacts/paper/ppo/model/policy_recurrent_ppo_27d.zip \
-  --seed 20370909 --out results/ppo_eval
-```
-
-Training code is not part of this release; the checkpoint is frozen.
-
-## 9. Tests
-
-```bash
-pip install -r requirements-dev.txt
-python -m pytest tests -q
-```
-
-The suite is simulator-independent: it uses the engine-free fallback adapter
-and the released artifacts, and never launches HoloOcean. Tests that need the
-RL stack are skipped unless `requirements-rl.txt` is installed.
-
-## 10. Released evidence
-
-```text
-artifacts/paper/
-  manifest.json       one row per file: purpose, size, SHA-256, what it supports
-  benchmark/          per-run rows of the reported benchmark matrix
-  current_free/       the nine current-free onboard-only runs
-  ppo/                the frozen policy, its configuration and validation
-  perception/         perception audit metrics and figure source captures
-```
-
-`manifest.json` is the index; every file in the package is listed with its
-SHA-256, and `verify_claims.py` fails if any of them changes.
-
-## 11. Verifying the paper
-
-```bash
-python article_journal/scripts/verify_claims.py        # every reported quantity
-python article_journal/scripts/regenerate_tables.py    # the data-driven tables
-python article_journal/scripts/generate_figures.py     # track layouts, controller plot
-python article_journal/scripts/make_perception_figure.py
-```
-
-All four are post-processing only: they read `artifacts/paper/`, launch no
-simulator and modify no artifact. `verify_claims.py` exits non-zero on any
-mismatch; `regenerate_tables.py` rewrites the tables byte-identically and
-re-checks the penalty identity on every finished run.
-
-## 12. Building the paper
-
-```bash
-cd article_journal
-latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
-```
-
-`article_journal/main.tex` is the only manuscript source and
-`article_journal/main.pdf` the compiled manuscript.
-
-## 13. Known limitations
-
-- Current rejection is not solved; the reported outcomes are the real ones.
-- Random-obstacle construction is supported; obstacle avoidance is not validated.
-- Dense uncoordinated fleets may collide or fail, and those outcomes are valid.
-- Inter-vehicle penalty calibration remains experimental.
-- The fallback adapter is plumbing for tests, not physical evidence.
-- Results are simulation results; physical validation is not claimed.
-
-## 14. Citation
+If Marine Race Arena is useful in your work, please cite the manuscript:
 
 ```bibtex
-@article{marine_race_arena,
-  title   = {Marine Race Arena: A Configurable HoloOcean Benchmark for
-             Underwater Gate Racing and Team-Level Fleet Evaluation},
-  author  = {Bedei, Andrea and Bacchiani, Lorenzo and Pau, Giovanni and Girau, Roberto},
-  journal = {Robotics and Autonomous Systems},
-  note    = {Under review},
-  year    = {2026}
+@unpublished{bedei2026marineracearena,
+  author = {Bedei, Andrea and Bacchiani, Lorenzo and Pau, Giovanni and Girau, Roberto},
+  title  = {Marine Race Arena: A Configurable HoloOcean Benchmark for Underwater
+            Gate Racing and Team-Level Fleet Evaluation},
+  note   = {Manuscript under review, Robotics and Autonomous Systems},
+  year   = {2026},
+  url    = {https://github.com/AndreaBedei1/HoloDroneCompetition}
 }
 ```
+
+Machine-readable metadata is in [CITATION.cff](CITATION.cff).
+
+## Acknowledgements
+
+Marine Race Arena is built on [HoloOcean](https://github.com/byu-holoocean/HoloOcean)
+(BYU FRoStLab) and its Ocean world, and races a BlueROV2-class vehicle.

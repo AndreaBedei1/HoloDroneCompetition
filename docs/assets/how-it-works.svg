@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 660" width="1160" height="660" role="img" aria-label="Marine Race Arena workflow: a race configuration drives the HoloOcean environment; the controller sees only onboard observations and returns a four-degree-of-freedom command, while an independent referee reads privileged simulator state and produces the official result.">
+  <title>How Marine Race Arena works</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5d7d99"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#00ff88"/>
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ffb454"/>
+    </marker>
+    <style>
+      .bg   { fill: #091626; }
+      .card { fill: #102a41; stroke: #23486a; stroke-width: 1.5; }
+      .lane { fill: #0d2035; stroke: #1c3d5c; stroke-width: 1.5; }
+      .t    { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
+      .h    { font-size: 21px; font-weight: 700; fill: #e7f0f8; }
+      .b    { font-size: 17px; fill: #cfe0ee; }
+      .m    { font-size: 15px; fill: #8ba6bd; }
+      .k    { font-size: 13px; font-weight: 700; letter-spacing: 1.6px; }
+      .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 15px; fill: #00ff88; }
+      .flow { stroke: #5d7d99; stroke-width: 2; fill: none; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1160" height="660" rx="16"/>
+
+  <!-- 1. race configuration -->
+  <rect class="card" x="390" y="30" width="380" height="62" rx="12"/>
+  <text class="t h" x="580" y="60" text-anchor="middle">Race configuration</text>
+  <text class="t m" x="580" y="80" text-anchor="middle">track · gates · vehicles · sensors · currents · rules · fleet</text>
+
+  <path class="flow" d="M 580 92 L 580 128" marker-end="url(#arrow)"/>
+
+  <!-- 2. simulator -->
+  <rect class="card" x="390" y="130" width="380" height="62" rx="12"/>
+  <text class="t h" x="580" y="160" text-anchor="middle">HoloOcean · BlueROV2</text>
+  <text class="t m" x="580" y="180" text-anchor="middle">one simulation step</text>
+
+  <!-- split to the two lanes -->
+  <path class="flow" d="M 480 192 L 480 216 L 270 216 L 270 252" marker-end="url(#arrowGreen)"/>
+  <path class="flow" d="M 680 192 L 680 216 L 890 216 L 890 252" marker-end="url(#arrowAmber)"/>
+
+  <!-- participant lane -->
+  <rect class="lane" x="40" y="252" width="500" height="304" rx="14"/>
+  <text class="t k" x="68" y="282" fill="#00ff88">PARTICIPANT SIDE</text>
+
+  <rect class="card" x="68" y="298" width="444" height="66" rx="10"/>
+  <text class="t b" x="90" y="324">Onboard observation</text>
+  <text class="t m" x="90" y="347">local time · camera · depth · IMU · DVL · acoustic packets</text>
+
+  <path class="flow" d="M 290 364 L 290 392" marker-end="url(#arrowGreen)"/>
+
+  <rect class="card" x="68" y="394" width="444" height="66" rx="10"/>
+  <text class="t b" x="90" y="420">Your controller</text>
+  <text class="t m" x="90" y="443">rule-based · MPC · optimization · learned · anything</text>
+
+  <path class="flow" d="M 290 460 L 290 488" marker-end="url(#arrowGreen)"/>
+
+  <rect class="card" x="68" y="490" width="444" height="48" rx="10"/>
+  <text class="t mono" x="90" y="520">surge · sway · heave · yaw   →  back to the vehicle</text>
+
+  <!-- referee lane -->
+  <rect class="lane" x="620" y="252" width="500" height="304" rx="14"/>
+  <text class="t k" x="648" y="282" fill="#ffb454">REFEREE SIDE</text>
+
+  <rect class="card" x="648" y="298" width="444" height="66" rx="10"/>
+  <text class="t b" x="670" y="324">Privileged simulator state</text>
+  <text class="t m" x="670" y="347">true pose · exact gate geometry · contacts · bounds</text>
+
+  <path class="flow" d="M 870 364 L 870 392" marker-end="url(#arrowAmber)"/>
+
+  <rect class="card" x="648" y="394" width="444" height="66" rx="10"/>
+  <text class="t b" x="670" y="420">Independent referee</text>
+  <text class="t m" x="670" y="443">ordered gate validation · penalties · timing · ranking</text>
+
+  <path class="flow" d="M 870 460 L 870 488" marker-end="url(#arrowAmber)"/>
+
+  <rect class="card" x="648" y="490" width="444" height="48" rx="10"/>
+  <text class="t m" x="670" y="520">never returned to the controller</text>
+
+  <!-- the command closes the loop back into the simulator -->
+  <path d="M 68 514 L 24 514 L 24 161 L 384 161" fill="none" stroke="#00ff88"
+        stroke-width="2" stroke-dasharray="6 5" opacity="0.75" marker-end="url(#arrowGreen)"/>
+
+  <!-- the information boundary, drawn last so it reads as one wall -->
+  <line x1="580" y1="232" x2="580" y2="556" stroke="#3d5f80" stroke-width="2" stroke-dasharray="9 7"/>
+  <rect x="470" y="362" width="220" height="34" rx="17" fill="#091626" stroke="#3d5f80" stroke-width="1.5"/>
+  <text class="t k" x="580" y="384" text-anchor="middle" fill="#9fb8cc">INFORMATION BOUNDARY</text>
+
+  <!-- 3. official result -->
+  <path class="flow" d="M 870 538 L 870 576 L 580 576 L 580 596" marker-end="url(#arrow)"/>
+  <rect class="card" x="330" y="598" width="500" height="46" rx="12"/>
+  <text class="t b" x="580" y="627" text-anchor="middle">Official result · gates · time · penalties · team score</text>
+</svg>
