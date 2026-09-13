@@ -9,6 +9,7 @@
 <img alt="HoloOcean 2.3.0" src="https://img.shields.io/badge/HoloOcean-2.3.0-0aa2c0?style=flat-square">
 <img alt="Vehicle: BlueROV2" src="https://img.shields.io/badge/vehicle-BlueROV2-09668d?style=flat-square">
 <a href="article_journal/main.pdf"><img alt="Manuscript PDF" src="https://img.shields.io/badge/manuscript-PDF-b5322a?style=flat-square"></a>
+<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2f855a?style=flat-square"></a>
 </p>
 
 <a href="#quick-start"><b>Quick start</b></a> ·
@@ -155,6 +156,11 @@ If Marine Race Arena is useful in your work, please cite the manuscript:
 ```
 
 Machine-readable metadata is in [CITATION.cff](CITATION.cff).
+
+## License
+
+Released under the [MIT License](LICENSE) — use it, modify it, build on it. If
+it helps your work, a citation is appreciated.
 
 ## Acknowledgements
 

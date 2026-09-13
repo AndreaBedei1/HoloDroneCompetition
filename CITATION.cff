@@ -24,6 +24,7 @@ authors:
     given-names: Roberto
     affiliation: "Department of Computer Science and Engineering, University of Bologna, Italy"
 repository-code: "https://github.com/AndreaBedei1/HoloDroneCompetition"
+license: MIT
 keywords:
   - underwater robotics
   - autonomous racing
