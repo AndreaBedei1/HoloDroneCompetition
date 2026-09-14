@@ -73,3 +73,6 @@ article_journal/*.out
 article_journal/*.synctex.gz
 article_journal/*.spl
 article_journal/tmp/
+
+# Local manuscript workspace
+/article_journal/
