@@ -129,7 +129,7 @@ def clean_tracks(rows: list[dict]) -> str:
         r"\mratablestyle",
         r"\begin{tabular}{@{}llrlrrr@{}}",
         r"\toprule",
-        r"Track & Controller & Seeds & Finished & Gates $\uparrow$ & Official time (s) $\downarrow$ & Collisions $\downarrow$ \\",
+        r"Track & Controller & Seeds & Finished & Gates & Official time (s) & Collisions \\",
         r"\midrule",
     ]
     for index, track in enumerate(("horseshoe", "vertical", "mixed")):
@@ -187,7 +187,7 @@ def currents(rows: list[dict]) -> str:
         r"\mratablestyle",
         r"\begin{tabular}{@{}llrlrrrr@{}}",
         r"\toprule",
-        r"Profile & Controller & Seeds & Finished & Gates $\uparrow$ & Official (s) & Penalized (s) & Collisions $\downarrow$ \\",
+        r"Profile & Controller & Seeds & Finished & Gates & Official (s) & Penalized (s) & Collisions \\",
         r"\midrule",
     ]
     blocks = (("none", r"\multirow{2}{*}{Clean}"),
@@ -264,7 +264,7 @@ def fleet(rows: list[dict]) -> str:
         r"\mratablestyle",
         r"\begin{tabular}{@{}llrlrrrr@{}}",
         r"\toprule",
-        r"Setting & Policy & Seeds & Team finish & Team gates $\uparrow$ & Team elapsed (s) $\downarrow$ & Team penalized (s) $\downarrow$ & GW / IV / S $\downarrow$ \\",
+        r"Setting & Policy & Seeds & Team finish & Team gates & Team elapsed (s) & Team penalized (s) & GW / IV / S \\",
         r"\midrule",
         r"\multicolumn{8}{@{}l}{\emph{Two vehicles, homogeneous, gap $90$\,s}}\\",
     ]
@@ -401,7 +401,7 @@ def learning() -> str:
         r"\mratablestyle",
         r"\begin{tabular}{@{}l r r c c r r@{}}",
         r"\toprule",
-        r"Circuit & Gates & Episodes & Finished & Mean time (s) & Collisions & OOB \\",
+        r"Circuit & Gates & Episodes & Finished & Mean episode time (s) & Collisions & OOB \\",
         r"\midrule",
     ]
     total_coll = total_oob = total_n = 0
@@ -425,7 +425,10 @@ def learning() -> str:
         r"\end{tabular}",
         r"\mratablenote",
         r"Times are mean $\pm$ sample standard deviation over the finished episodes of the",
-        r"circuit; OOB denotes out-of-bounds events.",
+        r"circuit; OOB denotes out-of-bounds events. The time reported here is the episode",
+        r"clock, not the referee's official first-to-last-gate time: official and penalized",
+        r"times were not recorded for this campaign, so this column is not comparable with",
+        r"the official times reported in the other result tables.",
         r"\end{table}",
     ]
     return "\n".join(lines) + "\n"
@@ -536,7 +539,7 @@ def local_vs_referee() -> str:
         # the artifact defines it, and no fixed step length is quoted anywhere here.
         r"The audit covers the " + str(released) + r" released runs of the frozen benchmark matrix ---",
         r"single-vehicle, two-vehicle fleet and three-vehicle coordination --- the same",
-        r"population as the result tables above.",
+        r"population as the result tables of Section~\ref{sec:evaluation}.",
         r"Matched counts course ordinals at which both a referee crossing and a",
         r"controller-local advancement occur. False counts local advancements that either",
         r"have no same-ordinal referee crossing or precede it by more than one control step",
