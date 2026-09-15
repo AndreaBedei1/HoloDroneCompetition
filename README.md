@@ -155,6 +155,14 @@ If Marine Race Arena is useful in your work, please cite the manuscript:
 }
 ```
 
+For the released code, cite version 1.0 of Marine Race Arena:
+
+```text
+Bedei, Andrea. Marine Race Arena, v1.0. Zenodo.
+https://doi.org/10.5281/zenodo.22757860
+https://github.com/AndreaBedei1/HoloDroneCompetition/releases/tag/v1.0
+```
+
 Machine-readable metadata is in [CITATION.cff](CITATION.cff).
 
 ## License

@@ -10,6 +10,8 @@ abstract: >-
   validate ordered gate crossings, enforce the rules and compute the official
   results.
 type: software
+version: "1.0"
+doi: "10.5281/zenodo.22757860"
 authors:
   - family-names: Bedei
     given-names: Andrea
